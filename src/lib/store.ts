@@ -1,0 +1,371 @@
+import { create } from "zustand";
+import type {
+  CreditRequest,
+  Member,
+  PlayInvitation,
+  PlaySchedule,
+  Rotation,
+  Training,
+  TrainingDate,
+  TrainingInvitation,
+  Transaction,
+  User,
+} from "./types";
+import { api } from "./api";
+
+interface State {
+  currentUserId: string | null;
+  currentUser: User | null;
+  users: User[];
+  members: Member[];
+  creditRequests: CreditRequest[];
+  transactions: Transaction[];
+  schedules: PlaySchedule[];
+  playInvites: PlayInvitation[];
+  rotations: Rotation[];
+  trainings: Training[];
+  trainingInvites: TrainingInvitation[];
+  trainingDates: TrainingDate[];
+  locations: string[];
+  grades: string[];
+  holidays: string[];
+
+  // sync
+  syncData: () => Promise<void>;
+  syncCurrentUser: () => Promise<User | null>;
+
+  // auth
+  register: (u: Omit<User, "id" | "role" | "status" | "createdAt">) => Promise<string>;
+  login: (email: string, password: string) => Promise<User | null>;
+  logout: () => Promise<void>;
+
+  // user admin
+  approveUser: (id: string) => Promise<void>;
+  rejectUser: (id: string) => Promise<void>;
+  setUserRole: (id: string, role: User["role"]) => Promise<void>;
+
+  // members
+  addMember: (m: Omit<Member, "id" | "credit">) => Promise<void>;
+  updateMember: (id: string, patch: Partial<Member>) => Promise<void>;
+  deleteMember: (id: string) => Promise<void>;
+
+  // credits
+  requestCredit: (memberId: string, amount: number, date: string) => Promise<void>;
+  approveCredit: (id: string) => Promise<void>;
+  rejectCredit: (id: string) => Promise<void>;
+
+  // schedules
+  createSchedule: (s: Omit<PlaySchedule, "id" | "status">) => Promise<void>;
+  updateSchedule: (id: string, patch: Partial<PlaySchedule>) => Promise<void>;
+  releaseSchedule: (id: string) => Promise<void>;
+  closeSchedule: (id: string) => Promise<void>;
+  respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
+  generateRotation: (scheduleId: string) => Promise<void>;
+
+  // trainings
+  createTraining: (t: Omit<Training, "id" | "status">) => Promise<void>;
+  updateTraining: (id: string, patch: Partial<Training>) => Promise<void>;
+  releaseTraining: (id: string, memberIds: string[]) => Promise<void>;
+  respondTraining: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
+  markAttendance: (dateId: string, attended: boolean) => Promise<void>;
+}
+
+const getInitialUserId = () => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("clubapp_user_id");
+  }
+  return null;
+};
+
+export const useStore = create<State>((set, get) => ({
+  currentUserId: getInitialUserId(),
+  currentUser: null,
+  users: [],
+  members: [],
+  creditRequests: [],
+  transactions: [],
+  schedules: [],
+  playInvites: [],
+  rotations: [],
+  trainings: [],
+  trainingInvites: [],
+  trainingDates: [],
+  locations: [],
+  grades: [],
+  holidays: [],
+
+  syncCurrentUser: async () => {
+    try {
+      const user = await api.get<User>("/me");
+      set({ currentUser: user, currentUserId: user.id });
+      if (typeof window !== "undefined") {
+        localStorage.setItem("clubapp_user_id", user.id);
+      }
+      return user;
+    } catch {
+      set({ currentUser: null, currentUserId: null });
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("clubapp_user_id");
+        localStorage.removeItem("clubapp_token");
+      }
+      return null;
+    }
+  },
+
+  syncData: async () => {
+    try {
+      const [
+        members,
+        schedules,
+        playInvites,
+        rotations,
+        trainings,
+        trainingInvites,
+        trainingDates,
+        settings,
+      ] = await Promise.all([
+        api.get<Member[]>("/members"),
+        api.get<PlaySchedule[]>("/schedules"),
+        api.get<PlayInvitation[]>("/play-invitations"),
+        api.get<Rotation[]>("/rotations"),
+        api.get<Training[]>("/trainings"),
+        api.get<TrainingInvitation[]>("/training-invitations"),
+        api.get<TrainingDate[]>("/training-dates"),
+        api.get<{ locations: string[]; grades: string[]; holidays: string[] }>("/settings"),
+      ]);
+
+      let users: User[] = [];
+      try {
+        users = await api.get<User[]>("/users");
+      } catch {
+        // Fallback for non-admin users who cannot list all users
+        users = [];
+      }
+
+      set({
+        members,
+        schedules,
+        playInvites,
+        rotations,
+        trainings,
+        trainingInvites,
+        trainingDates,
+        locations: settings.locations,
+        grades: settings.grades,
+        holidays: settings.holidays,
+        users,
+      });
+    } catch (e) {
+      console.error("Failed to sync backend data:", e);
+    }
+  },
+
+  register: async (u) => {
+    const res = await api.post<{ message: string; user_id: string }>("/register", u);
+    return res.user_id;
+  },
+
+  login: async (email, password) => {
+    const res = await api.post<{ token: string; user: User }>("/login", { email, password });
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clubapp_token", res.token);
+      localStorage.setItem("clubapp_user_id", res.user.id);
+    }
+    set({ currentUserId: res.user.id, currentUser: res.user });
+    return res.user;
+  },
+
+  logout: async () => {
+    try {
+      await api.post("/logout");
+    } catch (e) {
+      console.warn("Backend logout failed or session already terminated", e);
+    }
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("clubapp_token");
+      localStorage.removeItem("clubapp_user_id");
+    }
+    set({ currentUserId: null, currentUser: null });
+  },
+
+  approveUser: async (id) => {
+    const res = await api.post<{ user: User }>(`/users/${id}/approve`);
+    set((s) => ({
+      users: s.users.map((u) => (u.id === id ? res.user : u)),
+    }));
+  },
+
+  rejectUser: async (id) => {
+    const res = await api.post<{ user: User }>(`/users/${id}/reject`);
+    set((s) => ({
+      users: s.users.map((u) => (u.id === id ? res.user : u)),
+    }));
+  },
+
+  setUserRole: async (id, role) => {
+    const res = await api.patch<{ user: User }>(`/users/${id}/role`, { role });
+    set((s) => ({
+      users: s.users.map((u) => (u.id === id ? res.user : u)),
+    }));
+    // If the active user updated their own role, update local state
+    const currentUser = get().currentUser;
+    if (currentUser && currentUser.id === id) {
+      set({ currentUser: res.user });
+    }
+  },
+
+  addMember: async (m) => {
+    const newMember = await api.post<Member>("/members", m);
+    set((s) => ({ members: [...s.members, newMember] }));
+  },
+
+  updateMember: async (id, patch) => {
+    const updated = await api.patch<Member>(`/members/${id}`, patch);
+    set((s) => ({
+      members: s.members.map((m) => (m.id === id ? updated : m)),
+    }));
+  },
+
+  deleteMember: async (id) => {
+    await api.delete(`/members/${id}`);
+    set((s) => ({ members: s.members.filter((m) => m.id !== id) }));
+  },
+
+  requestCredit: async (memberId, amount, date) => {
+    const req = await api.post<CreditRequest>("/credit-requests", { memberId, amount, date });
+    set((s) => ({ creditRequests: [...s.creditRequests, req] }));
+  },
+
+  approveCredit: async (id) => {
+    const res = await api.post<{ request: CreditRequest; memberCredit: number }>(
+      `/credit-requests/${id}/approve`
+    );
+    // Refresh ledger/members
+    const members = await api.get<Member[]>("/members");
+    const txs = await api.get<Transaction[]>("/transactions");
+    set((s) => ({
+      creditRequests: s.creditRequests.map((c) => (c.id === id ? res.request : c)),
+      members,
+      transactions: txs,
+    }));
+  },
+
+  rejectCredit: async (id) => {
+    const res = await api.post<{ request: CreditRequest }>(`/credit-requests/${id}/reject`);
+    set((s) => ({
+      creditRequests: s.creditRequests.map((c) => (c.id === id ? res.request : c)),
+    }));
+  },
+
+  createSchedule: async (sc) => {
+    const sch = await api.post<PlaySchedule>("/schedules", sc);
+    set((s) => ({ schedules: [...s.schedules, sch] }));
+  },
+
+  updateSchedule: async (id, patch) => {
+    const updated = await api.patch<PlaySchedule>(`/schedules/${id}`, patch);
+    set((s) => ({
+      schedules: s.schedules.map((x) => (x.id === id ? updated : x)),
+    }));
+  },
+
+  releaseSchedule: async (id) => {
+    const res = await api.post<{ schedule: PlaySchedule; invitations: PlayInvitation[] }>(
+      `/schedules/${id}/release`
+    );
+    const invites = await api.get<PlayInvitation[]>("/play-invitations");
+    set((s) => ({
+      schedules: s.schedules.map((x) => (x.id === id ? res.schedule : x)),
+      playInvites: invites,
+    }));
+  },
+
+  closeSchedule: async (id) => {
+    const res = await api.post<{ schedule: PlaySchedule }>(`/schedules/${id}/close`);
+    set((s) => ({
+      schedules: s.schedules.map((x) => (x.id === id ? res.schedule : x)),
+    }));
+  },
+
+  respondPlay: async (inviteId, status) => {
+    const updated = await api.post<PlayInvitation>(`/play-invitations/${inviteId}/respond`, {
+      status,
+    });
+    set((s) => ({
+      playInvites: s.playInvites.map((i) => (i.id === inviteId ? updated : i)),
+    }));
+  },
+
+  generateRotation: async (scheduleId) => {
+    const res = await api.post<{ schedule: PlaySchedule; rotation: Rotation }>(
+      `/schedules/${scheduleId}/rotate`
+    );
+    // Reload rotations, schedules, members, transactions
+    const [rotations, schedules, members, transactions] = await Promise.all([
+      api.get<Rotation[]>("/rotations"),
+      api.get<PlaySchedule[]>("/schedules"),
+      api.get<Member[]>("/members"),
+      api.get<Transaction[]>("/transactions"),
+    ]);
+    set({
+      rotations,
+      schedules,
+      members,
+      transactions,
+    });
+  },
+
+  createTraining: async (t) => {
+    const tr = await api.post<Training>("/trainings", t);
+    set((s) => ({ trainings: [...s.trainings, tr] }));
+  },
+
+  updateTraining: async (id, patch) => {
+    const updated = await api.patch<Training>(`/trainings/${id}`, patch);
+    set((s) => ({
+      trainings: s.trainings.map((x) => (x.id === id ? updated : x)),
+    }));
+  },
+
+  releaseTraining: async (trainingId, memberIds) => {
+    const res = await api.post<{
+      training: Training;
+      invitations: TrainingInvitation[];
+      dates: TrainingDate[];
+    }>(`/trainings/${trainingId}/release`, { memberIds });
+
+    const [invites, dates] = await Promise.all([
+      api.get<TrainingInvitation[]>("/training-invitations"),
+      api.get<TrainingDate[]>("/training-dates"),
+    ]);
+
+    set((s) => ({
+      trainings: s.trainings.map((x) => (x.id === trainingId ? res.training : x)),
+      trainingInvites: invites,
+      trainingDates: dates,
+    }));
+  },
+
+  respondTraining: async (inviteId, status) => {
+    const updated = await api.post<TrainingInvitation>(
+      `/training-invitations/${inviteId}/respond`,
+      { status }
+    );
+    set((s) => ({
+      trainingInvites: s.trainingInvites.map((i) => (i.id === inviteId ? updated : i)),
+    }));
+  },
+
+  markAttendance: async (dateId, attended) => {
+    const updated = await api.patch<TrainingDate>(`/training-dates/${dateId}/attendance`, {
+      attended,
+    });
+    set((s) => ({
+      trainingDates: s.trainingDates.map((d) => (d.id === dateId ? updated : d)),
+    }));
+  },
+}));
+
+export function useCurrentUser() {
+  return useStore((s) => s.currentUser);
+}
