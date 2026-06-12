@@ -16,6 +16,7 @@ class SettingController extends Controller
         $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubApp';
         $appLogoText = Setting::where('key', 'app_logo_text')->value('value') ?? 'C';
         $appLogoBase64 = Setting::where('key', 'app_logo_base64')->value('value') ?? null;
+        $currency = Setting::where('key', 'currency')->value('value') ?? '$';
 
         return response()->json([
             'locations' => Location::pluck('name')->toArray(),
@@ -24,6 +25,7 @@ class SettingController extends Controller
             'appName' => $appName,
             'appLogoText' => $appLogoText,
             'appLogoBase64' => $appLogoBase64,
+            'currency' => $currency,
         ]);
     }
 
@@ -38,6 +40,7 @@ class SettingController extends Controller
             'appName' => 'sometimes|required|string|max:50',
             'appLogoText' => 'sometimes|required|string|max:10',
             'appLogoBase64' => 'nullable|string',
+            'currency' => 'sometimes|required|string|max:10',
             'locations' => 'nullable|array',
             'locations.*' => 'required|string',
             'grades' => 'nullable|array',
@@ -57,6 +60,10 @@ class SettingController extends Controller
         if ($request->has('appLogoBase64')) {
             // Can be null if removing the image logo
             Setting::updateOrCreate(['key' => 'app_logo_base64'], ['value' => $request->appLogoBase64]);
+        }
+
+        if ($request->has('currency')) {
+            Setting::updateOrCreate(['key' => 'currency'], ['value' => $request->currency]);
         }
 
         // Synchronize Locations

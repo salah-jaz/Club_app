@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Trash2, Plus, HelpCircle } from "lucide-react";
 
@@ -20,6 +21,7 @@ function SettingsPage() {
   const [appName, setAppName] = useState(store.appName);
   const [appLogoText, setAppLogoText] = useState(store.appLogoText);
   const [appLogoBase64, setAppLogoBase64] = useState<string | null>(store.appLogoBase64);
+  const [currency, setCurrency] = useState(store.currency);
   const [locations, setLocations] = useState<string[]>(store.locations);
   const [grades, setGrades] = useState<string[]>(store.grades);
   const [holidays, setHolidays] = useState<string[]>(store.holidays);
@@ -36,6 +38,7 @@ function SettingsPage() {
         appName,
         appLogoText,
         appLogoBase64,
+        currency,
       });
       toast.success("Branding settings saved successfully");
     } catch (err: any) {
@@ -132,7 +135,7 @@ function SettingsPage() {
           </CardHeader>
           <CardContent className="pt-6">
             <form onSubmit={handleSaveBranding} className="space-y-4">
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     Software / Club Name
@@ -157,6 +160,28 @@ function SettingsPage() {
                     placeholder="C"
                     className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Currency Symbol
+                  </Label>
+                  <Select value={currency} onValueChange={setCurrency}>
+                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer">
+                      <SelectValue placeholder="Select Currency" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                      <SelectItem value="$" className="cursor-pointer hover:bg-white/5">USD ($)</SelectItem>
+                      <SelectItem value="£" className="cursor-pointer hover:bg-white/5">GBP (£)</SelectItem>
+                      <SelectItem value="€" className="cursor-pointer hover:bg-white/5">EUR (€)</SelectItem>
+                      <SelectItem value="₹" className="cursor-pointer hover:bg-white/5">INR (₹)</SelectItem>
+                      <SelectItem value="¥" className="cursor-pointer hover:bg-white/5">JPY (¥)</SelectItem>
+                      <SelectItem value="CA$" className="cursor-pointer hover:bg-white/5">CAD (CA$)</SelectItem>
+                      <SelectItem value="A$" className="cursor-pointer hover:bg-white/5">AUD (A$)</SelectItem>
+                      <SelectItem value="S$" className="cursor-pointer hover:bg-white/5">SGD (S$)</SelectItem>
+                      <SelectItem value="RM" className="cursor-pointer hover:bg-white/5">MYR (RM)</SelectItem>
+                      <SelectItem value="AED" className="cursor-pointer hover:bg-white/5">AED (AED)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

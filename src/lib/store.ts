@@ -32,6 +32,7 @@ interface State {
   appName: string;
   appLogoText: string;
   appLogoBase64: string | null;
+  currency: string;
 
   // sync
   syncData: () => Promise<void>;
@@ -80,6 +81,7 @@ interface State {
     appName?: string;
     appLogoText?: string;
     appLogoBase64?: string | null;
+    currency?: string;
     locations?: string[];
     grades?: string[];
     holidays?: string[];
@@ -112,6 +114,7 @@ export const useStore = create<State>((set, get) => ({
   appName: "ClubApp",
   appLogoText: "C",
   appLogoBase64: null,
+  currency: "$",
 
   syncCurrentUser: async () => {
     try {
@@ -152,7 +155,7 @@ export const useStore = create<State>((set, get) => ({
         api.get<TrainingInvitation[]>("/training-invitations"),
         api.get<TrainingDate[]>("/training-dates"),
         api.get<Transaction[]>("/transactions"),
-        api.get<{ locations: string[]; grades: string[]; holidays: string[]; appName: string; appLogoText: string; appLogoBase64?: string | null }>("/settings"),
+        api.get<{ locations: string[]; grades: string[]; holidays: string[]; appName: string; appLogoText: string; appLogoBase64?: string | null; currency?: string }>("/settings"),
       ]);
 
       let users: User[] = [];
@@ -178,6 +181,7 @@ export const useStore = create<State>((set, get) => ({
         appName: settings.appName || "ClubApp",
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || null,
+        currency: settings.currency || "$",
         users,
       });
     } catch (e) {
@@ -465,6 +469,7 @@ export const useStore = create<State>((set, get) => ({
       appName: string;
       appLogoText: string;
       appLogoBase64: string | null;
+      currency: string;
     }>("/settings", settings);
     set({
       locations: updated.locations,
@@ -473,6 +478,7 @@ export const useStore = create<State>((set, get) => ({
       appName: updated.appName,
       appLogoText: updated.appLogoText,
       appLogoBase64: updated.appLogoBase64,
+      currency: updated.currency,
     });
   },
 }));
