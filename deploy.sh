@@ -2,6 +2,8 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-$(pwd)}"
+PHP_BIN="${PHP_BIN:-/opt/alt/php84/usr/bin/php}"
+COMPOSER_BIN="${COMPOSER_BIN:-/usr/local/bin/composer}"
 cd "$APP_DIR"
 
 echo "==> Pull latest code"
@@ -19,15 +21,15 @@ if [ ! -f .env ]; then
   sed -i 's|^DB_DATABASE=.*|DB_DATABASE=u695058213_clubapp|' .env
   sed -i 's|^DB_USERNAME=.*|DB_USERNAME=u695058213_clubapp|' .env
   sed -i 's|^DB_PASSWORD=.*|DB_PASSWORD=U695058213_clubapp|' .env
-  sed -i 's|^FRONTEND_URL=.*|FRONTEND_URL=https://clubapp.jazinfotech.com|' .env || echo 'FRONTEND_URL=https://clubapp.jazinfotech.com' >> .env
-  php artisan key:generate --force
+  grep -q '^FRONTEND_URL=' .env && sed -i 's|^FRONTEND_URL=.*|FRONTEND_URL=https://clubapp.jazinfotech.com|' .env || echo 'FRONTEND_URL=https://clubapp.jazinfotech.com' >> .env
+  $PHP_BIN artisan key:generate --force
 fi
 
-composer install --no-dev --optimize-autoloader --no-interaction
-php artisan migrate --force
-php artisan db:seed --force || true
-php artisan config:cache
-php artisan route:cache
+$PHP_BIN $COMPOSER_BIN install --no-dev --optimize-autoloader --no-interaction
+$PHP_BIN artisan migrate --force || echo "WARNING: migrate failed — create MySQL database in hPanel first"
+$PHP_BIN artisan db:seed --force || true
+$PHP_BIN artisan config:cache
+$PHP_BIN artisan route:cache
 cd ..
 
 echo "==> Frontend build"
