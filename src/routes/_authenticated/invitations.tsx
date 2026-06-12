@@ -15,7 +15,15 @@ function Invitations() {
   const s = useStore();
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const myIds = myMembers.map((m) => m.id);
-  const playInvs = s.playInvites.filter((i) => myIds.includes(i.memberId));
+  const playInvs = s.playInvites.filter((i) => {
+    if (!myIds.includes(i.memberId)) return false;
+    const sch = s.schedules.find((x) => x.id === i.scheduleId);
+    if (!sch) return false;
+    const member = s.members.find((x) => x.id === i.memberId);
+    if (!member) return false;
+    const minFee = sch.sessionRate + (sch.hallRate / Math.max(sch.players, 1));
+    return Number(member.credit) >= minFee;
+  });
   const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId));
 
   const name = (mid: string) => {

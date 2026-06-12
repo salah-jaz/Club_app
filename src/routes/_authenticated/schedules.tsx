@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDateTime, fmtMoney } from "@/lib/format";
-import { Plus, MapPin, Calendar, Users as UsersIcon } from "lucide-react";
+import { Plus, MapPin, Calendar, Users as UsersIcon, Eye, Pencil, Trash2, Send, Shuffle } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -98,9 +98,9 @@ function SchedulesList() {
 
             return (
               <Card key={sch.id} className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-all duration-200">
-                <CardContent className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <CardContent className="p-4 px-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   {/* Section 1: Title & details */}
-                  <div className="flex-[2] space-y-2 min-w-[200px]">
+                  <div className="flex-[2] space-y-1 min-w-[200px]">
                     <div className="font-semibold text-[15px] text-[#F1F0EE]">{sch.name}</div>
                     <div className="flex items-center gap-1.5 text-xs text-[#8A8A98]">
                       <Calendar className="size-3.5 text-[#4A4A5A]" />
@@ -112,20 +112,20 @@ function SchedulesList() {
                     </div>
                   </div>
 
-                  <div className="hidden md:block w-[1px] h-12 bg-[rgba(255,255,255,0.06)]" />
+                  <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
                   {/* Section 2: Courts */}
-                  <div className="flex-1 space-y-1.5">
+                  <div className="flex-1 space-y-1">
                     <span className="text-[10px] font-medium tracking-[0.1em] text-[#4A4A5A] uppercase block">Courts</span>
-                    <span className="font-mono text-[22px] text-[#F1F0EE] leading-none">{sch.courts}</span>
+                    <span className="font-mono text-[20px] text-[#F1F0EE] leading-none">{sch.courts}</span>
                   </div>
 
-                  <div className="hidden md:block w-[1px] h-12 bg-[rgba(255,255,255,0.06)]" />
+                  <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
                   {/* Section 3: Players & capacity */}
-                  <div className="flex-1 space-y-1.5">
+                  <div className="flex-1 space-y-1">
                     <span className="text-[10px] font-medium tracking-[0.1em] text-[#4A4A5A] uppercase block">Players</span>
-                    <span className="font-mono text-[22px] text-[#F1F0EE] leading-none">
+                    <span className="font-mono text-[20px] text-[#F1F0EE] leading-none">
                       {accepted}/{maxPlayers}
                     </span>
                     <div className="w-full h-[3px] bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
@@ -133,43 +133,45 @@ function SchedulesList() {
                     </div>
                   </div>
 
-                  <div className="hidden md:block w-[1px] h-12 bg-[rgba(255,255,255,0.06)]" />
+                  <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
-                  {/* Section 4: Status badge & stacked actions */}
-                  <div className="flex-1 flex flex-col md:items-end gap-3.5">
+                  {/* Section 4: Status badge & horizontal actions */}
+                  <div className="flex-1 flex flex-col md:items-end gap-2">
                     <StatusBadge status={sch.status} />
-                    <div className="flex flex-col gap-2 w-full max-w-[140px]">
-                      <Button asChild size="sm" variant="outline" className="btn-premium-outline h-7.5 w-full text-[11px] hover:cursor-pointer">
+                    <div className="flex items-center gap-1.5 mt-1 md:mt-0">
+                      <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "closed" ? "View Results" : "Manage"}>
                         <Link to="/schedules/$id" params={{ id: sch.id }}>
-                          {sch.status === "rotated" || sch.status === "closed" ? "View Results" : "Manage"}
+                          <Eye className="size-4" />
                         </Link>
                       </Button>
-                      <div className="flex gap-1.5 w-full">
-                        <Button asChild size="sm" variant="outline" className="flex-1 btn-premium-outline h-7.5 text-[11px] hover:cursor-pointer">
-                          <Link to="/schedules/$id/edit" params={{ id: sch.id }}>Edit</Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="flex-1 h-7.5 text-[11px] bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 cursor-pointer transition-colors"
-                          onClick={async () => {
-                            if (confirm("Are you sure you want to delete this schedule?")) {
-                              try {
-                                await s.deleteSchedule(sch.id);
-                                toast.success("Play schedule deleted");
-                              } catch (error: any) {
-                                toast.error(error.message || "Failed to delete schedule.");
-                              }
+                      <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title="Edit Schedule">
+                        <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
+                          <Pencil className="size-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="h-8 w-8 p-0 bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 cursor-pointer transition-colors"
+                        title="Delete Schedule"
+                        onClick={async () => {
+                          if (confirm("Are you sure you want to delete this schedule?")) {
+                            try {
+                              await s.deleteSchedule(sch.id);
+                              toast.success("Play schedule deleted");
+                            } catch (error: any) {
+                              toast.error(error.message || "Failed to delete schedule.");
                             }
-                          }}
-                        >
-                          Delete
-                        </Button>
-                      </div>
+                          }
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
                       {sch.status === "open" && (
                         <Button
-                          size="sm"
-                          className="btn-premium-solid h-7.5 w-full text-[11px] hover:cursor-pointer"
+                          size="icon"
+                          className="btn-premium-solid h-8 w-8 p-0 cursor-pointer"
+                          title="Release Session"
                           onClick={async () => {
                             try {
                               await s.releaseSchedule(sch.id);
@@ -179,13 +181,14 @@ function SchedulesList() {
                             }
                           }}
                         >
-                          Release
+                          <Send className="size-4" />
                         </Button>
                       )}
                       {sch.status === "released" && (
                         <Button
-                          size="sm"
-                          className="btn-premium-solid h-7.5 w-full text-[11px] hover:cursor-pointer"
+                          size="icon"
+                          className="btn-premium-solid h-8 w-8 p-0 cursor-pointer"
+                          title="Generate Rotation"
                           onClick={async () => {
                             try {
                               await s.generateRotation(sch.id);
@@ -195,7 +198,7 @@ function SchedulesList() {
                             }
                           }}
                         >
-                          Generate Rotation
+                          <Shuffle className="size-4" />
                         </Button>
                       )}
                     </div>

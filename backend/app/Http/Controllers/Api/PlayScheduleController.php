@@ -267,6 +267,19 @@ class PlayScheduleController extends Controller
         ]);
 
         $invite = PlayInvitation::findOrFail($id);
+
+        if ($request->status === 'accepted') {
+            $member = Member::findOrFail($invite->member_id);
+            $sch = PlaySchedule::findOrFail($invite->schedule_id);
+            $minFee = $sch->session_rate + ($sch->hall_rate / max($sch->players, 1));
+
+            if ($member->credit < $minFee) {
+                return response()->json([
+                    'message' => 'Insufficient credits to accept invitation. Minimum required: $' . number_format($minFee, 2)
+                ], 422);
+            }
+        }
+
         $invite->status = $request->status;
         $invite->save();
 
