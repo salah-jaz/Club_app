@@ -146,6 +146,7 @@ export const useStore = create<State>((set, get) => ({
         trainingDates,
         transactions,
         settings,
+        creditRequests,
       ] = await Promise.all([
         api.get<Member[]>("/members"),
         api.get<PlaySchedule[]>("/schedules"),
@@ -156,6 +157,7 @@ export const useStore = create<State>((set, get) => ({
         api.get<TrainingDate[]>("/training-dates"),
         api.get<Transaction[]>("/transactions"),
         api.get<{ locations: string[]; grades: string[]; holidays: string[]; appName: string; appLogoText: string; appLogoBase64?: string | null; currency?: string }>("/settings"),
+        api.get<CreditRequest[]>("/credit-requests"),
       ]);
 
       let users: User[] = [];
@@ -183,6 +185,7 @@ export const useStore = create<State>((set, get) => ({
         appLogoBase64: settings.appLogoBase64 || null,
         currency: settings.currency || "$",
         users,
+        creditRequests,
       });
     } catch (e) {
       console.error("Failed to sync backend data:", e);

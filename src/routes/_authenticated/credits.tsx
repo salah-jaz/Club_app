@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { Wallet } from "lucide-react";
+import { Wallet, Plus, Check, X } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/credits")({ component: CreditsPage });
 
@@ -30,6 +30,8 @@ function CreditsPage() {
   );
 
   const pendingCount = myReqs.filter((r) => r.status === "created").length;
+  const totalPendingAmount = myReqs.filter((r) => r.status === "created").reduce((sum, r) => sum + r.amount, 0);
+  const totalApprovedAmount = myReqs.filter((r) => r.status === "approved").reduce((sum, r) => sum + r.amount, 0);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,17 +50,34 @@ function CreditsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Credits" description="Top-up requests and balance management." />
+    <div className="space-y-8 pb-10">
+      <PageHeader 
+        title="Credits" 
+        description="Top-up requests and balance management." 
+        actions={
+          pendingCount > 0 ? (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20">
+              <span className="inline-block size-1.5 rounded-full bg-[#F59E0B] animate-pulse" />
+              {pendingCount} Pending Requests
+            </span>
+          ) : null
+        }
+      />
 
-      <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916]">
-        <CardHeader>
-          <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
-            {user.role === "admin" ? "Add credit manually" : "Request credit top-up"}
-          </CardTitle>
+      {/* ADD CREDIT FORM */}
+      <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] signature-card-top">
+        <CardHeader className="flex flex-row items-center gap-3 border-b border-white/[0.03] py-4 px-6">
+          <div className="size-8 rounded-lg bg-[#10B981]/10 text-[#10B981] flex items-center justify-center shrink-0">
+            <Plus className="size-4.5" />
+          </div>
+          <div>
+            <CardTitle className="text-sm font-semibold tracking-wide text-[#F1F0EE] uppercase">
+              {user.role === "admin" ? "Add credit manually" : "Request credit top-up"}
+            </CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="grid sm:grid-cols-4 gap-4 items-end">
+        <CardContent className="pt-6">
+          <form onSubmit={submit} className="grid sm:grid-cols-5 gap-4 items-end">
             <div className="space-y-2 sm:col-span-2">
               <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Member</Label>
               <Select value={memberId} onValueChange={setMemberId}>
@@ -74,7 +93,7 @@ function CreditsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-1">
               <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Amount</Label>
               <Input
                 type="number"
@@ -83,25 +102,27 @@ function CreditsPage() {
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-11 md:h-[38px]"
+                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-11 md:h-[38px] focus-visible:ring-1 focus-visible:ring-[#10B981]"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-1">
               <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Date</Label>
               <Input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-11 md:h-[38px] cursor-pointer"
+                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-11 md:h-[38px] cursor-pointer focus-visible:ring-1 focus-visible:ring-[#10B981]"
               />
             </div>
-            <Button type="submit" className="sm:col-span-4 btn-premium-solid h-11 md:h-[38px] font-medium hover:cursor-pointer mt-2">
-              {user.role === "admin" ? "Add credit" : "Submit request"}
+            <Button type="submit" className="w-full sm:col-span-1 btn-premium-solid h-11 md:h-[38px] font-semibold text-xs hover:cursor-pointer flex items-center justify-center gap-1.5 transition-all">
+              <Plus className="size-4 shrink-0" />
+              <span>{user.role === "admin" ? "Add credit" : "Submit"}</span>
             </Button>
           </form>
         </CardContent>
       </Card>
 
+      {/* REQUESTS LIST & TABLE */}
       <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] overflow-hidden">
         <CardHeader className="border-b border-[rgba(255,255,255,0.06)] py-4.5 px-6 flex flex-row items-center justify-between">
           <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
@@ -113,13 +134,37 @@ function CreditsPage() {
             )}
           </CardTitle>
         </CardHeader>
+        
+        {/* Real-time Summary Statistics Banner */}
+        <div className="grid grid-cols-3 gap-4 p-5 border-b border-[rgba(255,255,255,0.06)] bg-[#1A2120]/25 text-sm">
+          <div>
+            <div className="text-[10px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Pending Requests</div>
+            <div className="font-mono text-base font-semibold text-[#F59E0B] mt-0.5">{pendingCount}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Pending Amount</div>
+            <div className="font-mono text-base font-semibold text-[#F1F0EE] mt-0.5">{fmtMoney(totalPendingAmount)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Approved Total</div>
+            <div className="font-mono text-base font-semibold text-[#10B981] mt-0.5">{fmtMoney(totalApprovedAmount)}</div>
+          </div>
+        </div>
+
         <CardContent className="p-0">
           {/* Mobile view */}
           <div className="block md:hidden divide-y divide-[rgba(255,255,255,0.06)]">
             {myReqs.length === 0 ? (
-              <div className="py-12 text-center text-[#8A8A98] flex flex-col items-center justify-center gap-2.5">
-                <Wallet className="size-8 text-[#4A5E58]" />
-                <span>No credit requests yet.</span>
+              <div className="py-16 text-center text-[#8A8A98] flex flex-col items-center justify-center gap-3 max-w-sm mx-auto">
+                <div className="size-14 rounded-full bg-[rgba(16,185,129,0.08)] text-[#10B981] flex items-center justify-center mb-1">
+                  <Wallet className="size-7" />
+                </div>
+                <div>
+                  <h3 className="font-playfair text-base text-[#F1F0EE] font-normal">No credit requests</h3>
+                  <p className="text-xs text-[#8A8A9A] font-light mt-1.5 leading-relaxed">
+                    There are currently no credit requests logged in your roster. Any manual adjustments or top-up requests will appear here.
+                  </p>
+                </div>
               </div>
             ) : (
               myReqs.map((r) => {
@@ -157,7 +202,7 @@ function CreditsPage() {
                               toast.error(error.message || "Failed to approve request.");
                             }
                           }}
-                          className="flex-1 min-h-[44px] py-2 text-center text-xs font-semibold rounded-lg border border-[rgba(45,212,191,0.3)] text-[#2DD4BF] bg-[#2DD4BF]/5 hover:bg-[#2DD4BF]/10 active:bg-[#2DD4BF]/20 cursor-pointer transition-all flex items-center justify-center"
+                          className="flex-1 min-h-[44px] py-2 text-center text-xs font-semibold rounded-lg border border-[rgba(16,185,129,0.3)] text-[#10B981] bg-[#10B981]/5 hover:bg-[#10B981]/10 active:bg-[#10B981]/20 cursor-pointer transition-all flex items-center justify-center"
                         >
                           Approve
                         </button>
@@ -192,17 +237,24 @@ function CreditsPage() {
                   <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Date</TableHead>
                   <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Status</TableHead>
                   {user.role === "admin" && (
-                    <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Actions</TableHead>
+                    <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6 text-right">Actions</TableHead>
                   )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {myReqs.length === 0 ? (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={user.role === "admin" ? 5 : 4} className="py-12 text-center text-[#8A8A98]">
-                      <div className="flex flex-col items-center justify-center gap-2.5">
-                        <Wallet className="size-8 text-[#4A5E58]" />
-                        <span>No credit requests yet.</span>
+                    <TableCell colSpan={user.role === "admin" ? 5 : 4} className="py-16 text-center text-[#8A8A98]">
+                      <div className="py-8 flex flex-col items-center justify-center gap-3 max-w-sm mx-auto">
+                        <div className="size-14 rounded-full bg-[rgba(16,185,129,0.08)] text-[#10B981] flex items-center justify-center mb-1">
+                          <Wallet className="size-7" />
+                        </div>
+                        <div>
+                          <h3 className="font-playfair text-base text-[#F1F0EE] font-normal">No credit requests</h3>
+                          <p className="text-xs text-[#8A8A9A] font-light mt-1.5 leading-relaxed">
+                            There are currently no credit requests logged in your roster. Any manual adjustments or top-up requests will appear here.
+                          </p>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -213,11 +265,11 @@ function CreditsPage() {
                     const avatarBgClass = m?.memberType.toLowerCase() === "junior" ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
 
                     return (
-                      <TableRow key={r.id} className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/40 transition-colors">
-                        <TableCell className="py-3 px-6">
+                      <TableRow key={r.id} className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/45 transition-colors odd:bg-white/[0.01] even:bg-transparent">
+                        <TableCell className="py-4 px-6">
                           <div className="flex items-center gap-3">
-                            <Avatar className="size-7.5 border border-white/5">
-                              <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
+                            <Avatar className="size-8.5 border border-white/5">
+                              <AvatarFallback className={`${avatarBgClass} font-semibold text-[12px]`}>
                                 {initials}
                               </AvatarFallback>
                             </Avatar>
@@ -226,19 +278,19 @@ function CreditsPage() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="py-3 px-6 font-mono text-[14px] text-[#F1F0EE]">
+                        <TableCell className="py-4 px-6 font-mono text-[14px] text-[#F1F0EE] font-medium">
                           {fmtMoney(r.amount)}
                         </TableCell>
-                        <TableCell className="py-3 px-6 text-[#8A8A98] text-[13px]">
+                        <TableCell className="py-4 px-6 text-[#8A8A98] text-[13px]">
                           {fmtDate(r.date)}
                         </TableCell>
-                        <TableCell className="py-3 px-6">
+                        <TableCell className="py-4 px-6">
                           <StatusBadge status={r.status} />
                         </TableCell>
                         {user.role === "admin" && (
-                          <TableCell className="py-3 px-6">
+                          <TableCell className="py-4 px-6 text-right">
                             {r.status === "created" ? (
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center justify-end gap-2">
                                 <button
                                   onClick={async () => {
                                     try {
@@ -248,9 +300,10 @@ function CreditsPage() {
                                       toast.error(error.message || "Failed to approve request.");
                                     }
                                   }}
-                                  className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(45,212,191,0.3)] text-[#2DD4BF] hover:bg-[#2DD4BF]/10 cursor-pointer transition-all"
+                                  className="size-8 rounded-lg border border-[rgba(16,185,129,0.3)] text-[#10B981] bg-[#10B981]/5 hover:bg-[#10B981]/15 flex items-center justify-center transition-all cursor-pointer"
+                                  title="Approve Request"
                                 >
-                                  Approve
+                                  <Check className="size-4" />
                                 </button>
                                 <button
                                   onClick={async () => {
@@ -261,13 +314,14 @@ function CreditsPage() {
                                       toast.error(error.message || "Failed to reject request.");
                                     }
                                   }}
-                                  className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
+                                  className="size-8 rounded-lg border border-[rgba(239,68,68,0.3)] text-[#EF4444] bg-[#EF4444]/5 hover:bg-[#EF4444]/15 flex items-center justify-center transition-all cursor-pointer"
+                                  title="Reject Request"
                                 >
-                                  Reject
+                                  <X className="size-4" />
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-[12px] text-[#4A5E58]">Processed</span>
+                              <span className="text-[12px] text-[#4A5E58] font-medium uppercase tracking-[0.04em]">Processed</span>
                             )}
                           </TableCell>
                         )}
