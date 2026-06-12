@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useCurrentUser, useStore } from "@/lib/store";
@@ -15,141 +16,164 @@ function Approvals() {
   const user = useCurrentUser()!;
   if (user.role !== "admin") return <Navigate to="/dashboard" />;
   const s = useStore();
+  const [activeTab, setActiveTab] = useState<string>("users");
+  const [loading, setLoading] = useState(false);
+
   const pendingU = s.users.filter((u) => u.status === "created");
   const pendingC = s.creditRequests.filter((c) => c.status === "created");
+
+  const handleApproveAll = async () => {
+    setLoading(true);
+    const toastId = toast.loading(
+      activeTab === "users"
+        ? "Approving all member requests..."
+        : "Approving all credit requests..."
+    );
+    try {
+      if (activeTab === "users") {
+        await s.approveAllUsers();
+        toast.success("All pending members approved", { id: toastId });
+      } else {
+        await s.approveAllCredits();
+        toast.success("All pending credits approved", { id: toastId });
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to approve all requests", { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader title="Approvals" description="Review and authorize pending registrations and credit additions." />
       
-      <Tabs defaultValue="users" className="w-full">
-        <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-10">
-          <TabsTrigger 
-            value="users" 
-            className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
-          >
-            Member Requests ({pendingU.length})
-          </TabsTrigger>
-          <TabsTrigger 
-            value="credits" 
-            className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
-          >
-            Credit Requests ({pendingC.length})
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="flex items-center justify-between mb-6">
+          <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex h-10 mb-0">
+            <TabsTrigger 
+              value="users" 
+              className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
+            >
+              Member Requests ({pendingU.length})
+            </TabsTrigger>
+            <TabsTrigger 
+              value="credits" 
+              className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
+            >
+              Credit Requests ({pendingC.length})
+            </TabsTrigger>
+          </TabsList>
+
+          {((activeTab === "users" && pendingU.length > 0) ||
+            (activeTab === "credits" && pendingC.length > 0)) && (
+            <Button
+              disabled={loading}
+              onClick={handleApproveAll}
+              className="btn-premium-solid h-9 px-4 text-[12px] font-semibold flex items-center gap-2 cursor-pointer"
+            >
+              Approve All
+            </Button>
+          )}
+        </div>
 
         <TabsContent value="users" className="focus-visible:outline-none">
           <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
             <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-[#0C0F0E]/60">
-                  <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 px-5">Name</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Email</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Mobile</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Registered</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Status</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 text-right px-5">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pendingU.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
-                        All caught up. No pending member requests.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    pendingU.map((u) => (
-                      <TableRow key={u.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
-                        <TableCell className="font-semibold text-[#F1F0EE] text-[13px] px-5 py-4">
+              {/* Mobile View */}
+              <div className="block md:hidden divide-y divide-[rgba(255,255,255,0.04)]">
+                {pendingU.length === 0 ? (
+                  <div className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
+                    All caught up. No pending member requests.
+                  </div>
+                ) : (
+                  pendingU.map((u) => (
+                    <div key={u.id} className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-[#F1F0EE] text-[14px]">
                           {u.firstName} {u.lastName}
-                        </TableCell>
-                        <TableCell className="text-[#8A8A98] text-[13px]">{u.email}</TableCell>
-                        <TableCell className="text-[#8A8A98] text-[13px] font-mono">{u.mobile}</TableCell>
-                        <TableCell className="text-[#8A8A98] text-[13px] font-mono">{fmtDate(u.createdAt)}</TableCell>
-                        <TableCell className="py-4"><StatusBadge status={u.status} /></TableCell>
-                        <TableCell className="text-right px-5 py-4 space-x-2">
-                          <Button 
-                            size="sm" 
-                            className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer" 
-                            onClick={async () => {
-                              try {
-                                await s.approveUser(u.id);
-                                toast.success(`${u.firstName} approved`);
-                              } catch (error: any) {
-                                toast.error(error.message || "Failed to approve user.");
-                              }
-                            }}
-                          >
-                            Approve
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer" 
-                            onClick={async () => {
-                              try {
-                                await s.rejectUser(u.id);
-                                toast.success(`${u.firstName} rejected`);
-                              } catch (error: any) {
-                                toast.error(error.message || "Failed to reject user.");
-                              }
-                            }}
-                          >
-                            Reject
-                          </Button>
+                        </span>
+                        <StatusBadge status={u.status} />
+                      </div>
+                      <div className="space-y-1 text-xs text-[#8A8A98]">
+                        <div>Email: {u.email}</div>
+                        <div>Mobile: {u.mobile}</div>
+                        <div>Registered: {fmtDate(u.createdAt)}</div>
+                      </div>
+                      <div className="flex items-center gap-2 pt-2">
+                        <Button 
+                          className="flex-1 btn-premium-solid h-11 text-[13px] font-semibold cursor-pointer" 
+                          onClick={async () => {
+                            try {
+                              await s.approveUser(u.id);
+                              toast.success(`${u.firstName} approved`);
+                            } catch (error: any) {
+                              toast.error(error.message || "Failed to approve user.");
+                            }
+                          }}
+                        >
+                          Approve
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="flex-1 btn-premium-outline h-11 text-[13px] cursor-pointer" 
+                          onClick={async () => {
+                            try {
+                              await s.rejectUser(u.id);
+                              toast.success(`${u.firstName} rejected`);
+                            } catch (error: any) {
+                              toast.error(error.message || "Failed to reject user.");
+                            }
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader className="bg-[#0C0F0E]/60">
+                    <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 px-5">Name</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Email</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Mobile</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Registered</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Status</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 text-right px-5">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingU.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
+                          All caught up. No pending member requests.
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="credits" className="focus-visible:outline-none">
-          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-[#0C0F0E]/60">
-                  <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 px-5">Member</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Amount</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Date</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Status</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 text-right px-5">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pendingC.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
-                        No pending credit requests.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    pendingC.map((r) => {
-                      const m = s.members.find((x) => x.id === r.memberId);
-                      return (
-                        <TableRow key={r.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
+                    ) : (
+                      pendingU.map((u) => (
+                        <TableRow key={u.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
                           <TableCell className="font-semibold text-[#F1F0EE] text-[13px] px-5 py-4">
-                            {m?.firstName} {m?.lastName}
+                            {u.firstName} {u.lastName}
                           </TableCell>
-                          <TableCell className="text-[#2DD4BF] font-mono text-[14px] font-medium">{fmtMoney(r.amount)}</TableCell>
-                          <TableCell className="text-[#8A8A98] text-[13px] font-mono">{fmtDate(r.date)}</TableCell>
-                          <TableCell className="py-4"><StatusBadge status={r.status} /></TableCell>
+                          <TableCell className="text-[#8A8A98] text-[13px]">{u.email}</TableCell>
+                          <TableCell className="text-[#8A8A98] text-[13px] font-mono">{u.mobile}</TableCell>
+                          <TableCell className="text-[#8A8A98] text-[13px] font-mono">{fmtDate(u.createdAt)}</TableCell>
+                          <TableCell className="py-4"><StatusBadge status={u.status} /></TableCell>
                           <TableCell className="text-right px-5 py-4 space-x-2">
                             <Button 
                               size="sm" 
                               className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer" 
                               onClick={async () => {
                                 try {
-                                  await s.approveCredit(r.id);
-                                  toast.success("Credit approved & balance updated");
+                                  await s.approveUser(u.id);
+                                  toast.success(`${u.firstName} approved`);
                                 } catch (error: any) {
-                                  toast.error(error.message || "Failed to approve credit request.");
+                                  toast.error(error.message || "Failed to approve user.");
                                 }
                               }}
                             >
@@ -161,10 +185,10 @@ function Approvals() {
                               className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer" 
                               onClick={async () => {
                                 try {
-                                  await s.rejectCredit(r.id);
-                                  toast.success("Credit request rejected");
+                                  await s.rejectUser(u.id);
+                                  toast.success(`${u.firstName} rejected`);
                                 } catch (error: any) {
-                                  toast.error(error.message || "Failed to reject credit request.");
+                                  toast.error(error.message || "Failed to reject user.");
                                 }
                               }}
                             >
@@ -172,11 +196,142 @@ function Approvals() {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="credits" className="focus-visible:outline-none">
+          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
+            <CardContent className="p-0">
+              {/* Mobile View */}
+              <div className="block md:hidden divide-y divide-[rgba(255,255,255,0.04)]">
+                {pendingC.length === 0 ? (
+                  <div className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
+                    No pending credit requests.
+                  </div>
+                ) : (
+                  pendingC.map((r) => {
+                    const m = s.members.find((x) => x.id === r.memberId);
+                    return (
+                      <div key={r.id} className="p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-[#F1F0EE] text-[14px]">
+                            {m?.firstName} {m?.lastName}
+                          </span>
+                          <StatusBadge status={r.status} />
+                        </div>
+                        <div className="flex items-center justify-between text-xs pt-1">
+                          <span className="text-[#8A8A98]">Date: {fmtDate(r.date)}</span>
+                          <span className="text-[#2DD4BF] font-mono text-[14px] font-semibold">{fmtMoney(r.amount)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 pt-2">
+                          <Button 
+                            className="flex-1 btn-premium-solid h-11 text-[13px] font-semibold cursor-pointer" 
+                            onClick={async () => {
+                              try {
+                                await s.approveCredit(r.id);
+                                toast.success("Credit approved & balance updated");
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to approve credit request.");
+                              }
+                            }}
+                          >
+                            Approve
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            className="flex-1 btn-premium-outline h-11 text-[13px] cursor-pointer" 
+                            onClick={async () => {
+                              try {
+                                await s.rejectCredit(r.id);
+                                toast.success("Credit request rejected");
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to reject credit request.");
+                              }
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Desktop View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader className="bg-[#0C0F0E]/60">
+                    <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 px-5">Member</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Amount</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Date</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Status</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 text-right px-5">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingC.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
+                          No pending credit requests.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      pendingC.map((r) => {
+                        const m = s.members.find((x) => x.id === r.memberId);
+                        return (
+                          <TableRow key={r.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
+                            <TableCell className="font-semibold text-[#F1F0EE] text-[13px] px-5 py-4">
+                              {m?.firstName} {m?.lastName}
+                            </TableCell>
+                            <TableCell className="text-[#2DD4BF] font-mono text-[14px] font-medium">{fmtMoney(r.amount)}</TableCell>
+                            <TableCell className="text-[#8A8A98] text-[13px] font-mono">{fmtDate(r.date)}</TableCell>
+                            <TableCell className="py-4"><StatusBadge status={r.status} /></TableCell>
+                            <TableCell className="text-right px-5 py-4 space-x-2">
+                              <Button 
+                                size="sm" 
+                                className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer" 
+                                onClick={async () => {
+                                  try {
+                                    await s.approveCredit(r.id);
+                                    toast.success("Credit approved & balance updated");
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to approve credit request.");
+                                  }
+                                }}
+                              >
+                                Approve
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer" 
+                                onClick={async () => {
+                                  try {
+                                    await s.rejectCredit(r.id);
+                                    toast.success("Credit request rejected");
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to reject credit request.");
+                                  }
+                                }}
+                              >
+                                Reject
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

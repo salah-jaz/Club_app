@@ -22,9 +22,11 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Settings constants
     Route::get('/settings', [SettingController::class, 'index']);
+    Route::post('/settings', [SettingController::class, 'update']);
 
     // User admin management
     Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users/approve-all', [UserController::class, 'approveAll']);
     Route::post('/users/{id}/approve', [UserController::class, 'approve']);
     Route::post('/users/{id}/reject', [UserController::class, 'reject']);
     Route::patch('/users/{id}/role', [UserController::class, 'setRole']);
@@ -38,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Credit Requests
     Route::get('/credit-requests', [CreditRequestController::class, 'index']);
     Route::post('/credit-requests', [CreditRequestController::class, 'store']);
+    Route::post('/credit-requests/approve-all', [CreditRequestController::class, 'approveAll']);
     Route::post('/credit-requests/{id}/approve', [CreditRequestController::class, 'approve']);
     Route::post('/credit-requests/{id}/reject', [CreditRequestController::class, 'reject']);
 
@@ -48,6 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/schedules', [PlayScheduleController::class, 'index']);
     Route::post('/schedules', [PlayScheduleController::class, 'store']);
     Route::patch('/schedules/{id}', [PlayScheduleController::class, 'update']);
+    Route::delete('/schedules/{id}', [PlayScheduleController::class, 'destroy']);
     Route::post('/schedules/{id}/release', [PlayScheduleController::class, 'release']);
     Route::post('/schedules/{id}/close', [PlayScheduleController::class, 'close']);
     Route::post('/schedules/{id}/rotate', [PlayScheduleController::class, 'rotate']);
@@ -61,7 +65,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/trainings', [TrainingController::class, 'index']);
     Route::post('/trainings', [TrainingController::class, 'store']);
     Route::patch('/trainings/{id}', [TrainingController::class, 'update']);
+    Route::delete('/trainings/{id}', [TrainingController::class, 'destroy']);
     Route::post('/trainings/{id}/release', [TrainingController::class, 'release']);
+    Route::post('/trainings/{id}/register', [TrainingController::class, 'registerJuniors']);
     
     // Training Invitations & Dates
     Route::get('/training-invitations', [TrainingController::class, 'listInvitations']);

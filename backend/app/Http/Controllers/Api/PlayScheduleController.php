@@ -54,6 +54,19 @@ class PlayScheduleController extends Controller
     {
         $sch = PlaySchedule::findOrFail($id);
 
+        $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'date' => 'sometimes|required|date',
+            'courts' => 'sometimes|required|integer|min:1',
+            'players' => 'sometimes|required|integer|min:1',
+            'slotHours' => 'sometimes|required|numeric',
+            'slotDuration' => 'sometimes|required|string',
+            'sessionRate' => 'sometimes|required|numeric',
+            'hallRate' => 'sometimes|required|numeric',
+            'location' => 'sometimes|required|string',
+            'status' => 'sometimes|required|string|in:open,released,rotated,closed',
+        ]);
+
         $data = [];
         if ($request->has('name')) $data['name'] = $request->name;
         if ($request->has('date')) $data['date'] = $request->date;
@@ -77,8 +90,14 @@ class PlayScheduleController extends Controller
         $sch->status = 'released';
         $sch->save();
 
-        // Get active adult members
-        $adults = Member::where('member_type', 'adult')->where('status', 'active')->get();
+        // Calculate the minimum session fee a player would pay if the session is full
+        $minFee = $sch->session_rate + ($sch->hall_rate / max($sch->players, 1));
+
+        // Get active adult members who have enough credits
+        $adults = Member::where('member_type', 'adult')
+            ->where('status', 'active')
+            ->where('credit', '>=', $minFee)
+            ->get();
 
         // Delete old invitations for this schedule (if any)
         PlayInvitation::where('schedule_id', $id)->delete();
@@ -197,7 +216,7 @@ class PlayScheduleController extends Controller
             'rounds' => $rounds,
         ]);
 
-        $fee = $schedule->session_rate + ($schedule->hall_rate / max(count($playerIds), 1));
+        $fee = $schedule->session_rate + ($schedule->hall_rate / max($schedule->players, 1));
         $feeRounded = round($fee, 2);
 
         foreach ($playerIds as $memberId) {
@@ -248,6 +267,19 @@ class PlayScheduleController extends Controller
         ]);
 
         $invite = PlayInvitation::findOrFail($id);
+
+        if ($request->status === 'accepted') {
+            $member = Member::findOrFail($invite->member_id);
+            $sch = PlaySchedule::findOrFail($invite->schedule_id);
+            $minFee = $sch->session_rate + ($sch->hall_rate / max($sch->players, 1));
+
+            if ($member->credit < $minFee) {
+                return response()->json([
+                    'message' => 'Insufficient credits to accept invitation. Minimum required: $' . number_format($minFee, 2)
+                ], 422);
+            }
+        }
+
         $invite->status = $request->status;
         $invite->save();
 
@@ -266,6 +298,14 @@ class PlayScheduleController extends Controller
             'scheduleId' => $r->schedule_id,
             'rounds' => $r->rounds,
         ]));
+    }
+
+    public function destroy($id)
+    {
+        $sch = PlaySchedule::findOrFail($id);
+        $sch->delete();
+
+        return response()->json(['message' => 'Play schedule deleted successfully.']);
     }
 
     private function formatSchedule(PlaySchedule $s)

@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Navigate, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
@@ -17,6 +17,9 @@ export const Route = createFileRoute("/_authenticated/trainings/$id")({ componen
 
 function TrainingPage() {
   const { id } = Route.useParams();
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  if (pathname !== `/trainings/${id}`) return <Outlet />;
+
   const user = useCurrentUser()!;
   const s = useStore();
   const t = s.trainings.find((x) => x.id === id);
@@ -40,7 +43,38 @@ function TrainingPage() {
         title={t.name}
         description={`Coach ${t.coach} · ${t.location}`}
         backTo="/trainings"
-        actions={<StatusBadge status={t.status} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <StatusBadge status={t.status} />
+            {user.role === "admin" && (
+              <>
+                <Button asChild variant="outline" size="sm" className="btn-premium-outline h-9 px-4 text-xs cursor-pointer">
+                  <Link to="/trainings/$id/edit" params={{ id: t.id }}>
+                    Edit
+                  </Link>
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="h-9 px-4 text-xs bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 cursor-pointer"
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to delete this training program?")) {
+                      try {
+                        await s.deleteTraining(t.id);
+                        toast.success("Training program deleted");
+                        window.history.back();
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to delete training program.");
+                      }
+                    }
+                  }}
+                >
+                  Delete
+                </Button>
+              </>
+            )}
+          </div>
+        }
       />
 
       <Tabs defaultValue={t.status === "open" ? "invite" : "attendance"} className="w-full">
@@ -85,20 +119,36 @@ function TrainingPage() {
                   ))}
                   {juniors.length === 0 && <p className="text-[13px] font-light text-[#4A5E58] py-3 col-span-2">No active junior members.</p>}
                 </div>
-                <Button 
-                  disabled={selected.length === 0} 
-                  className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
-                  onClick={async () => {
-                    try {
-                      await s.releaseTraining(t.id, selected);
-                      toast.success(`Invited ${selected.length} juniors & generated ${t.sessions} weekly sessions`);
-                    } catch (error: any) {
-                      toast.error(error.message || "Failed to release training.");
-                    }
-                  }}
-                >
-                  <Send className="size-3.5 mr-1" /> Release & invite
-                </Button>
+                <div className="flex flex-wrap gap-2.5">
+                  <Button 
+                    disabled={selected.length === 0} 
+                    className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                    onClick={async () => {
+                      try {
+                        await s.releaseTraining(t.id, selected);
+                        toast.success(`Invited ${selected.length} juniors & generated ${t.sessions} weekly sessions`);
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to release training.");
+                      }
+                    }}
+                  >
+                    <Send className="size-3.5 mr-1" /> Release & invite selected
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer text-muted-foreground hover:text-foreground"
+                    onClick={async () => {
+                      try {
+                        await s.releaseTraining(t.id, []);
+                        toast.success(`Training program released generally`);
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to release training.");
+                      }
+                    }}
+                  >
+                    Release program generally
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ) : (

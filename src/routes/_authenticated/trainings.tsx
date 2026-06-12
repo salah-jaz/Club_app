@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { Plus, MapPin, User } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/trainings")({ component: TrainingsLayout });
 
@@ -68,9 +69,32 @@ function TrainingsList() {
                 <div className="flex items-center justify-between pt-2">
                   <StatusBadge status={t.status} />
                   <div className="flex items-center gap-1">
-                    <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
+                    <Button asChild variant="ghost" className="h-11 md:h-8 px-4 text-sm md:text-xs text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer">
                       <Link to="/trainings/$id" params={{ id: t.id }}>Manage</Link>
                     </Button>
+                    {user.role === "admin" && (
+                      <>
+                        <Button asChild variant="ghost" className="h-11 md:h-8 px-4 text-sm md:text-xs text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer">
+                          <Link to="/trainings/$id/edit" params={{ id: t.id }}>Edit</Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="h-11 md:h-8 px-4 text-sm md:text-xs text-red-400 hover:text-red-300 hover:bg-red-950/20 cursor-pointer"
+                          onClick={async () => {
+                            if (confirm("Are you sure you want to delete this training program?")) {
+                              try {
+                                await s.deleteTraining(t.id);
+                                toast.success("Training program deleted");
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to delete training program.");
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>

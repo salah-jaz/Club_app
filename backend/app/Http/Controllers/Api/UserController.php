@@ -50,6 +50,41 @@ class UserController extends Controller
         ]);
     }
 
+    public function approveAll()
+    {
+        $users = User::where('status', 'created')->get();
+        $approvedUsers = [];
+
+        foreach ($users as $user) {
+            $user->status = 'active';
+            $user->save();
+
+            // Automatically create a member profile for the approved user
+            \App\Models\Member::create([
+                'id' => 'm_' . \Illuminate\Support\Str::random(8),
+                'user_id' => $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'dob' => $user->dob,
+                'email' => $user->email,
+                'sex' => $user->sex,
+                'member_type' => 'adult',
+                'membership' => true,
+                'league' => false,
+                'grade' => 'Beginner',
+                'status' => 'active',
+                'credit' => 0.00,
+            ]);
+
+            $approvedUsers[] = $this->formatUser($user);
+        }
+
+        return response()->json([
+            'message' => 'All pending users approved successfully.',
+            'users' => $approvedUsers
+        ]);
+    }
+
     public function reject($id)
     {
         $user = User::findOrFail($id);

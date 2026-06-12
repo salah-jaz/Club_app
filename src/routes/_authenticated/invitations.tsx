@@ -15,7 +15,15 @@ function Invitations() {
   const s = useStore();
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const myIds = myMembers.map((m) => m.id);
-  const playInvs = s.playInvites.filter((i) => myIds.includes(i.memberId));
+  const playInvs = s.playInvites.filter((i) => {
+    if (!myIds.includes(i.memberId)) return false;
+    const sch = s.schedules.find((x) => x.id === i.scheduleId);
+    if (!sch) return false;
+    const member = s.members.find((x) => x.id === i.memberId);
+    if (!member) return false;
+    const minFee = sch.sessionRate + (sch.hallRate / Math.max(sch.players, 1));
+    return Number(member.credit) >= minFee;
+  });
   const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId));
 
   const name = (mid: string) => {
@@ -50,7 +58,7 @@ function Invitations() {
                    </div>
                     {i.status === "open" && (
                       <div className="flex gap-2 mt-3">
-                        <Button size="sm" className="flex-1 btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer" onClick={async () => {
+                        <Button className="flex-1 btn-premium-solid h-11 md:h-8 text-[13px] md:text-[11px] font-semibold cursor-pointer" onClick={async () => {
                           try {
                             await s.respondPlay(i.id, "accepted");
                             toast.success("Accepted invitation");
@@ -58,7 +66,7 @@ function Invitations() {
                             toast.error(error.message || "Failed to respond to invitation.");
                           }
                         }}>Accept</Button>
-                        <Button size="sm" variant="outline" className="flex-1 btn-premium-outline h-8 text-[11px] cursor-pointer" onClick={async () => {
+                        <Button variant="outline" className="flex-1 btn-premium-outline h-11 md:h-8 text-[13px] md:text-[11px] cursor-pointer" onClick={async () => {
                           try {
                             await s.respondPlay(i.id, "declined");
                             toast.success("Declined invitation");
@@ -77,47 +85,120 @@ function Invitations() {
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-2">
-              <GraduationCap className="size-4 text-[#10B981]" /> Training Program Invites
+              <GraduationCap className="size-4 text-[#10B981]" /> Training Program Invites & Registration
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-4 space-y-3">
-            {trainInvs.length === 0 && <p className="text-[13px] font-light text-[#4A5E58] py-4 text-center">No training invitations found.</p>}
-            {trainInvs.map((i) => {
-              const t = s.trainings.find((x) => x.id === i.trainingId);
-              if (!t) return null;
-              return (
-                <div key={i.id} className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 hover:bg-[#1A2120]/60 rounded-lg p-4 transition-all">
-                   <div className="flex justify-between items-start mb-3">
-                     <div>
-                       <div className="font-semibold text-[#F1F0EE] text-[14px]">{t.name}</div>
-                       <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">Coach {t.coach} · {t.sessions} sessions</div>
-                       <div className="text-[11px] text-[#34D399] mt-0.5 font-medium">Invited: {name(i.memberId)}</div>
-                     </div>
-                     <StatusBadge status={i.status} />
-                   </div>
-                    {i.status === "open" && (
-                      <div className="flex gap-2 mt-3">
-                        <Button size="sm" className="flex-1 btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer" onClick={async () => {
-                          try {
-                            await s.respondTraining(i.id, "accepted");
-                            toast.success("Accepted invitation");
-                          } catch (error: any) {
-                            toast.error(error.message || "Failed to respond to invitation.");
-                          }
-                        }}>Accept</Button>
-                        <Button size="sm" variant="outline" className="flex-1 btn-premium-outline h-8 text-[11px] cursor-pointer" onClick={async () => {
-                          try {
-                            await s.respondTraining(i.id, "declined");
-                            toast.success("Declined invitation");
-                          } catch (error: any) {
-                            toast.error(error.message || "Failed to respond to invitation.");
-                          }
-                        }}>Decline</Button>
+          <CardContent className="pt-4 space-y-4">
+            {s.trainings.filter((t) => t.status === "released").length === 0 ? (
+              <p className="text-[13px] font-light text-[#4A5E58] py-4 text-center">No active training programs found.</p>
+            ) : (
+              s.trainings
+                .filter((t) => t.status === "released")
+                .map((t) => {
+                  const juniors = myMembers.filter((m) => m.memberType === "junior" && m.status === "active");
+                  return (
+                    <div key={t.id} className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/20 rounded-lg p-4 space-y-3">
+                      <div>
+                        <div className="font-semibold text-[#F1F0EE] text-[14px]">{t.name}</div>
+                        <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
+                          Coach {t.coach} · {t.sessions} sessions · {t.duration} · Location: {t.location}
+                        </div>
                       </div>
-                    )}
-                </div>
-              );
-            })}
+                      
+                      <div className="border-t border-[rgba(255,255,255,0.04)] pt-3 space-y-3">
+                        <div className="text-[10px] font-medium tracking-[0.08em] text-[#8A8A98] uppercase">Junior Family Members</div>
+                        {juniors.length === 0 ? (
+                          <p className="text-[12px] font-light text-[#4A5E58]">No active junior family members linked to your account.</p>
+                        ) : (
+                          juniors.map((junior) => {
+                            const invite = s.trainingInvites.find(
+                              (inv) => inv.trainingId === t.id && inv.memberId === junior.id
+                            );
+                            return (
+                              <div key={junior.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-[#1A2120]/60 border border-[rgba(255,255,255,0.04)] rounded-lg">
+                                <div>
+                                  <div className="text-[13px] font-semibold text-[#F1F0EE]">
+                                    {junior.firstName} {junior.lastName}
+                                  </div>
+                                  <div className="text-[11px] text-[#8A8A98] mt-0.5 font-light">Grade: {junior.grade}</div>
+                                </div>
+                                <div className="flex items-center gap-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
+                                  {invite ? (
+                                    <>
+                                      <StatusBadge status={invite.status} />
+                                      {invite.status === "open" && (
+                                        <div className="flex gap-1.5 w-full sm:w-auto">
+                                          <Button
+                                            className="flex-1 sm:flex-initial btn-premium-solid h-11 sm:h-7 px-3.5 text-[12px] sm:text-[10px] font-semibold cursor-pointer"
+                                            onClick={async () => {
+                                              try {
+                                                await s.respondTraining(invite.id, "accepted");
+                                                toast.success(`Accepted invitation for ${junior.firstName}`);
+                                              } catch (error: any) {
+                                                toast.error(error.message || "Failed to accept invitation.");
+                                              }
+                                            }}
+                                          >
+                                            Accept
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            className="flex-1 sm:flex-initial btn-premium-outline h-11 sm:h-7 px-3.5 text-[12px] sm:text-[10px] cursor-pointer"
+                                            onClick={async () => {
+                                              try {
+                                                await s.respondTraining(invite.id, "declined");
+                                                toast.success(`Declined invitation for ${junior.firstName}`);
+                                              } catch (error: any) {
+                                                toast.error(error.message || "Failed to decline invitation.");
+                                              }
+                                            }}
+                                          >
+                                            Decline
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <div className="flex gap-1.5 w-full sm:w-auto">
+                                      <Button
+                                        className="flex-1 sm:flex-initial btn-premium-solid h-11 sm:h-7 px-3.5 text-[12px] sm:text-[10px] font-semibold cursor-pointer"
+                                        onClick={async () => {
+                                          try {
+                                            await s.registerTrainingJunior(t.id, junior.id, "accepted");
+                                            toast.success(`Registered and accepted training for ${junior.firstName}`);
+                                          } catch (error: any) {
+                                            toast.error(error.message || "Failed to register junior.");
+                                          }
+                                        }}
+                                      >
+                                        Register & Accept
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        className="flex-1 sm:flex-initial btn-premium-outline h-11 sm:h-7 px-3.5 text-[12px] sm:text-[10px] cursor-pointer"
+                                        onClick={async () => {
+                                          try {
+                                            await s.registerTrainingJunior(t.id, junior.id, "declined");
+                                            toast.success(`Registered and declined training for ${junior.firstName}`);
+                                          } catch (error: any) {
+                                            toast.error(error.message || "Failed to register junior.");
+                                          }
+                                        }}
+                                      >
+                                        Decline
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+            )}
           </CardContent>
         </Card>
       </div>

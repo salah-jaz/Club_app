@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import { useStore } from "@/lib/store";
 
 export function AuthShell({
   title,
@@ -12,6 +13,8 @@ export function AuthShell({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const appName = useStore((s) => s.appName);
+  const appLogoBase64 = useStore((s) => s.appLogoBase64);
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
       <div className="hidden lg:flex flex-col justify-between p-12 bg-[#0D1210] border-r border-[rgba(255,255,255,0.06)] relative overflow-hidden">
@@ -24,8 +27,11 @@ export function AuthShell({
         <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-[#10B981]/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#34D399]/5 rounded-full blur-[100px] pointer-events-none" />
 
-        <Link to="/" className="text-xl font-medium tracking-[0.12em] text-[#34D399] uppercase z-10">
-          ClubApp<span className="text-[#10B981]">.</span>
+        <Link to="/" className="flex items-center gap-2.5 text-xl font-medium tracking-[0.12em] text-[#34D399] uppercase z-10">
+          {appLogoBase64 ? (
+            <img src={appLogoBase64} alt={appName} className="size-8 rounded object-contain bg-white/5" />
+          ) : null}
+          <span>{appName}</span><span className="text-[#10B981] -ml-2.5">.</span>
         </Link>
         <div className="space-y-6 z-10 max-w-lg">
           <span className="text-[11px] font-medium tracking-[0.14em] text-[#8A8A98] uppercase block">
