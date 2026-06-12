@@ -74,7 +74,7 @@ function SchedulePage() {
         description={`${fmtDateTime(sch.date)} · ${sch.location}`}
         backTo="/schedules"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={sch.status} />
             {user.role === "admin" && (
               <>

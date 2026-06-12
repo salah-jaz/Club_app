@@ -69,18 +69,17 @@ function TrainingsList() {
                 <div className="flex items-center justify-between pt-2">
                   <StatusBadge status={t.status} />
                   <div className="flex items-center gap-1">
-                    <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
+                    <Button asChild variant="ghost" className="h-11 md:h-8 px-4 text-sm md:text-xs text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer">
                       <Link to="/trainings/$id" params={{ id: t.id }}>Manage</Link>
                     </Button>
                     {user.role === "admin" && (
                       <>
-                        <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
+                        <Button asChild variant="ghost" className="h-11 md:h-8 px-4 text-sm md:text-xs text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer">
                           <Link to="/trainings/$id/edit" params={{ id: t.id }}>Edit</Link>
                         </Button>
                         <Button
-                          size="sm"
                           variant="ghost"
-                          className="h-8 text-red-400 hover:text-red-300 hover:bg-red-950/20 cursor-pointer text-xs"
+                          className="h-11 md:h-8 px-4 text-sm md:text-xs text-red-400 hover:text-red-300 hover:bg-red-950/20 cursor-pointer"
                           onClick={async () => {
                             if (confirm("Are you sure you want to delete this training program?")) {
                               try {

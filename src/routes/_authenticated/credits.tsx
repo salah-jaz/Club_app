@@ -62,7 +62,7 @@ function CreditsPage() {
             <div className="space-y-2 sm:col-span-2">
               <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Member</Label>
               <Select value={memberId} onValueChange={setMemberId}>
-                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px] cursor-pointer">
+                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-11 md:h-[38px] cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -83,7 +83,7 @@ function CreditsPage() {
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px]"
+                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-11 md:h-[38px]"
               />
             </div>
             <div className="space-y-2">
@@ -92,10 +92,10 @@ function CreditsPage() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px] cursor-pointer"
+                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-11 md:h-[38px] cursor-pointer"
               />
             </div>
-            <Button type="submit" className="sm:col-span-4 btn-premium-solid h-[38px] font-medium hover:cursor-pointer mt-2">
+            <Button type="submit" className="sm:col-span-4 btn-premium-solid h-11 md:h-[38px] font-medium hover:cursor-pointer mt-2">
               {user.role === "admin" ? "Add credit" : "Submit request"}
             </Button>
           </form>
@@ -114,99 +114,170 @@ function CreditsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-[#0C0F0E]/30">
-              <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Member</TableHead>
-                <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Amount</TableHead>
-                <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Date</TableHead>
-                <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Status</TableHead>
-                {user.role === "admin" && (
-                  <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Actions</TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {myReqs.length === 0 ? (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={user.role === "admin" ? 5 : 4} className="py-12 text-center text-[#8A8A98]">
-                    <div className="flex flex-col items-center justify-center gap-2.5">
-                      <Wallet className="size-8 text-[#4A5E58]" />
-                      <span>No credit requests yet.</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                myReqs.map((r) => {
-                  const m = s.members.find((x) => x.id === r.memberId);
-                  const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
-                  const avatarBgClass = m?.memberType.toLowerCase() === "junior" ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
+          {/* Mobile view */}
+          <div className="block md:hidden divide-y divide-[rgba(255,255,255,0.06)]">
+            {myReqs.length === 0 ? (
+              <div className="py-12 text-center text-[#8A8A98] flex flex-col items-center justify-center gap-2.5">
+                <Wallet className="size-8 text-[#4A5E58]" />
+                <span>No credit requests yet.</span>
+              </div>
+            ) : (
+              myReqs.map((r) => {
+                const m = s.members.find((x) => x.id === r.memberId);
+                const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                const avatarBgClass = m?.memberType.toLowerCase() === "junior" ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
 
-                  return (
-                    <TableRow key={r.id} className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/40 transition-colors">
-                      <TableCell className="py-3 px-6">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="size-7.5 border border-white/5">
-                            <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
-                              {initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="font-semibold text-[13.5px] text-[#F1F0EE]">
-                            {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-3 px-6 font-mono text-[14px] text-[#F1F0EE]">
-                        {fmtMoney(r.amount)}
-                      </TableCell>
-                      <TableCell className="py-3 px-6 text-[#8A8A98] text-[13px]">
-                        {fmtDate(r.date)}
-                      </TableCell>
-                      <TableCell className="py-3 px-6">
-                        <StatusBadge status={r.status} />
-                      </TableCell>
-                      {user.role === "admin" && (
+                return (
+                  <div key={r.id} className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="size-8 border border-white/5">
+                          <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-semibold text-[13.5px] text-[#F1F0EE] truncate">
+                          {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                        </span>
+                      </div>
+                      <StatusBadge status={r.status} />
+                    </div>
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="text-[#8A8A98]">Date: {fmtDate(r.date)}</span>
+                      <span className="font-mono font-semibold text-[14.5px] text-[#F1F0EE]">{fmtMoney(r.amount)}</span>
+                    </div>
+                    {user.role === "admin" && r.status === "created" && (
+                      <div className="flex items-center gap-2 pt-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              await s.approveCredit(r.id);
+                              toast.success("Request approved successfully");
+                            } catch (error: any) {
+                              toast.error(error.message || "Failed to approve request.");
+                            }
+                          }}
+                          className="flex-1 min-h-[44px] py-2 text-center text-xs font-semibold rounded-lg border border-[rgba(45,212,191,0.3)] text-[#2DD4BF] bg-[#2DD4BF]/5 hover:bg-[#2DD4BF]/10 active:bg-[#2DD4BF]/20 cursor-pointer transition-all flex items-center justify-center"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await s.rejectCredit(r.id);
+                              toast.success("Request rejected successfully");
+                            } catch (error: any) {
+                              toast.error(error.message || "Failed to reject request.");
+                            }
+                          }}
+                          className="flex-1 min-h-[44px] py-2 text-center text-xs font-semibold rounded-lg border border-[rgba(239,68,68,0.3)] text-[#EF4444] bg-[#EF4444]/5 hover:bg-[#EF4444]/10 active:bg-[#EF4444]/20 cursor-pointer transition-all flex items-center justify-center"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop view */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader className="bg-[#0C0F0E]/30">
+                <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                  <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Member</TableHead>
+                  <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Amount</TableHead>
+                  <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Date</TableHead>
+                  <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Status</TableHead>
+                  {user.role === "admin" && (
+                    <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Actions</TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {myReqs.length === 0 ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={user.role === "admin" ? 5 : 4} className="py-12 text-center text-[#8A8A98]">
+                      <div className="flex flex-col items-center justify-center gap-2.5">
+                        <Wallet className="size-8 text-[#4A5E58]" />
+                        <span>No credit requests yet.</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  myReqs.map((r) => {
+                    const m = s.members.find((x) => x.id === r.memberId);
+                    const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                    const avatarBgClass = m?.memberType.toLowerCase() === "junior" ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
+
+                    return (
+                      <TableRow key={r.id} className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/40 transition-colors">
                         <TableCell className="py-3 px-6">
-                          {r.status === "created" ? (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await s.approveCredit(r.id);
-                                    toast.success("Request approved successfully");
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to approve request.");
-                                  }
-                                }}
-                                className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(45,212,191,0.3)] text-[#2DD4BF] hover:bg-[#2DD4BF]/10 cursor-pointer transition-all"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await s.rejectCredit(r.id);
-                                    toast.success("Request rejected successfully");
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to reject request.");
-                                  }
-                                }}
-                                className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-[12px] text-[#4A5E58]">Processed</span>
-                          )}
+                          <div className="flex items-center gap-3">
+                            <Avatar className="size-7.5 border border-white/5">
+                              <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-semibold text-[13.5px] text-[#F1F0EE]">
+                              {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                            </span>
+                          </div>
                         </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+                        <TableCell className="py-3 px-6 font-mono text-[14px] text-[#F1F0EE]">
+                          {fmtMoney(r.amount)}
+                        </TableCell>
+                        <TableCell className="py-3 px-6 text-[#8A8A98] text-[13px]">
+                          {fmtDate(r.date)}
+                        </TableCell>
+                        <TableCell className="py-3 px-6">
+                          <StatusBadge status={r.status} />
+                        </TableCell>
+                        {user.role === "admin" && (
+                          <TableCell className="py-3 px-6">
+                            {r.status === "created" ? (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await s.approveCredit(r.id);
+                                      toast.success("Request approved successfully");
+                                    } catch (error: any) {
+                                      toast.error(error.message || "Failed to approve request.");
+                                    }
+                                  }}
+                                  className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(45,212,191,0.3)] text-[#2DD4BF] hover:bg-[#2DD4BF]/10 cursor-pointer transition-all"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await s.rejectCredit(r.id);
+                                      toast.success("Request rejected successfully");
+                                    } catch (error: any) {
+                                      toast.error(error.message || "Failed to reject request.");
+                                    }
+                                  }}
+                                  className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[12px] text-[#4A5E58]">Processed</span>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -9,9 +9,9 @@ export const Route = createFileRoute("/_authenticated/profile")({ component: Pro
 function Profile() {
   const u = useCurrentUser()!;
   const Row = ({ k, v, isMono = false }: { k: string; v: string; isMono?: boolean }) => (
-    <div className="flex justify-between py-4 border-b border-white/[0.04] last:border-0 items-center">
+    <div className="flex flex-col sm:flex-row sm:justify-between py-4 border-b border-white/[0.04] last:border-0 sm:items-center gap-1 sm:gap-4">
       <span className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">{k}</span>
-      <span className={cn("text-[13px] text-[#F1F0EE] font-medium", isMono && "font-mono text-xs")}>{v}</span>
+      <span className={cn("text-[13px] text-[#F1F0EE] font-medium break-all sm:break-normal text-left sm:text-right", isMono && "font-mono text-xs")}>{v}</span>
     </div>
   );
   return (

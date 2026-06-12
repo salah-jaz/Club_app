@@ -107,12 +107,12 @@ function MembersList() {
 
                   <div className="mt-4 flex gap-2 w-full">
                     {user.role === "admin" && (
-                      <Button asChild variant="outline" size="sm" className="flex-1 btn-premium-outline hover:cursor-pointer">
-                        <Link to="/members/$id/edit" params={{ id: m.id }}><Pencil className="size-3.5" /> Edit</Link>
+                      <Button asChild variant="outline" className="flex-1 btn-premium-outline h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer">
+                        <Link to="/members/$id/edit" params={{ id: m.id }}><Pencil className="size-3.5 mr-1" /> Edit</Link>
                       </Button>
                     )}
                     {(user.role === "admin" || user.role === "member") && (
-                      <Button asChild variant="outline" size="sm" className="flex-1 btn-premium-violet-outline hover:cursor-pointer">
+                      <Button asChild variant="outline" className="flex-1 btn-premium-violet-outline h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer">
                         <Link to={`/credits?memberId=${m.id}` as any}>Credits</Link>
                       </Button>
                     )}

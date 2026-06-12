@@ -58,7 +58,7 @@ function Invitations() {
                    </div>
                     {i.status === "open" && (
                       <div className="flex gap-2 mt-3">
-                        <Button size="sm" className="flex-1 btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer" onClick={async () => {
+                        <Button className="flex-1 btn-premium-solid h-11 md:h-8 text-[13px] md:text-[11px] font-semibold cursor-pointer" onClick={async () => {
                           try {
                             await s.respondPlay(i.id, "accepted");
                             toast.success("Accepted invitation");
@@ -66,7 +66,7 @@ function Invitations() {
                             toast.error(error.message || "Failed to respond to invitation.");
                           }
                         }}>Accept</Button>
-                        <Button size="sm" variant="outline" className="flex-1 btn-premium-outline h-8 text-[11px] cursor-pointer" onClick={async () => {
+                        <Button variant="outline" className="flex-1 btn-premium-outline h-11 md:h-8 text-[13px] md:text-[11px] cursor-pointer" onClick={async () => {
                           try {
                             await s.respondPlay(i.id, "declined");
                             toast.success("Declined invitation");
@@ -122,15 +122,14 @@ function Invitations() {
                                   </div>
                                   <div className="text-[11px] text-[#8A8A98] mt-0.5 font-light">Grade: {junior.grade}</div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
                                   {invite ? (
                                     <>
                                       <StatusBadge status={invite.status} />
                                       {invite.status === "open" && (
-                                        <div className="flex gap-1.5 ml-2">
+                                        <div className="flex gap-1.5 w-full sm:w-auto">
                                           <Button
-                                            size="sm"
-                                            className="btn-premium-solid h-7 px-3 text-[10px] font-semibold cursor-pointer"
+                                            className="flex-1 sm:flex-initial btn-premium-solid h-11 sm:h-7 px-3.5 text-[12px] sm:text-[10px] font-semibold cursor-pointer"
                                             onClick={async () => {
                                               try {
                                                 await s.respondTraining(invite.id, "accepted");
@@ -143,9 +142,8 @@ function Invitations() {
                                             Accept
                                           </Button>
                                           <Button
-                                            size="sm"
                                             variant="outline"
-                                            className="btn-premium-outline h-7 px-3 text-[10px] cursor-pointer"
+                                            className="flex-1 sm:flex-initial btn-premium-outline h-11 sm:h-7 px-3.5 text-[12px] sm:text-[10px] cursor-pointer"
                                             onClick={async () => {
                                               try {
                                                 await s.respondTraining(invite.id, "declined");
@@ -161,10 +159,9 @@ function Invitations() {
                                       )}
                                     </>
                                   ) : (
-                                    <div className="flex gap-1.5">
+                                    <div className="flex gap-1.5 w-full sm:w-auto">
                                       <Button
-                                        size="sm"
-                                        className="btn-premium-solid h-7 px-3 text-[10px] font-semibold cursor-pointer"
+                                        className="flex-1 sm:flex-initial btn-premium-solid h-11 sm:h-7 px-3.5 text-[12px] sm:text-[10px] font-semibold cursor-pointer"
                                         onClick={async () => {
                                           try {
                                             await s.registerTrainingJunior(t.id, junior.id, "accepted");
@@ -177,9 +174,8 @@ function Invitations() {
                                         Register & Accept
                                       </Button>
                                       <Button
-                                        size="sm"
                                         variant="outline"
-                                        className="btn-premium-outline h-7 px-3 text-[10px] cursor-pointer"
+                                        className="flex-1 sm:flex-initial btn-premium-outline h-11 sm:h-7 px-3.5 text-[12px] sm:text-[10px] cursor-pointer"
                                         onClick={async () => {
                                           try {
                                             await s.registerTrainingJunior(t.id, junior.id, "declined");

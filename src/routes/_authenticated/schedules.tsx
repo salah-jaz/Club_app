@@ -139,12 +139,12 @@ function SchedulesList() {
                   <div className="flex-1 flex flex-col md:items-end gap-2">
                     <StatusBadge status={sch.status} />
                     <div className="flex items-center gap-1.5 mt-1 md:mt-0">
-                      <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "closed" ? "View Results" : "Manage"}>
+                      <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "closed" ? "View Results" : "Manage"}>
                         <Link to="/schedules/$id" params={{ id: sch.id }}>
                           <Eye className="size-4" />
                         </Link>
                       </Button>
-                      <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title="Edit Schedule">
+                      <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title="Edit Schedule">
                         <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
                           <Pencil className="size-4" />
                         </Link>
@@ -152,7 +152,7 @@ function SchedulesList() {
                       <Button
                         size="icon"
                         variant="destructive"
-                        className="h-8 w-8 p-0 bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 cursor-pointer transition-colors"
+                        className="h-11 w-11 md:h-8 md:w-8 p-0 bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 cursor-pointer transition-colors"
                         title="Delete Schedule"
                         onClick={async () => {
                           if (confirm("Are you sure you want to delete this schedule?")) {
@@ -170,7 +170,7 @@ function SchedulesList() {
                       {sch.status === "open" && (
                         <Button
                           size="icon"
-                          className="btn-premium-solid h-8 w-8 p-0 cursor-pointer"
+                          className="btn-premium-solid h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer"
                           title="Release Session"
                           onClick={async () => {
                             try {
@@ -187,7 +187,7 @@ function SchedulesList() {
                       {sch.status === "released" && (
                         <Button
                           size="icon"
-                          className="btn-premium-solid h-8 w-8 p-0 cursor-pointer"
+                          className="btn-premium-solid h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer"
                           title="Generate Rotation"
                           onClick={async () => {
                             try {

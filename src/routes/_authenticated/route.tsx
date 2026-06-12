@@ -1,10 +1,11 @@
-import { createFileRoute, Outlet, Navigate, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Outlet, Navigate, useRouterState, Link } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/AppSidebar";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { Separator } from "@/components/ui/separator";
 import { useState, useEffect } from "react";
-import { Bell, Sun, Moon } from "lucide-react";
+import { Bell, Sun, Moon, LayoutDashboard, Users, CalendarDays, Wallet, Menu, Inbox, GraduationCap, Receipt } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,66 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export const Route = createFileRoute("/_authenticated")({ component: Layout });
+
+function MobileBottomNav({ pathname, role }: { pathname: string; role: string }) {
+  const { toggleSidebar } = useSidebar();
+  
+  const getBottomTabs = () => {
+    if (role === "admin") {
+      return [
+        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/members", label: "Members", icon: Users },
+        { to: "/schedules", label: "Schedules", icon: CalendarDays },
+        { to: "/credits", label: "Credits", icon: Wallet },
+      ];
+    }
+    if (role === "member") {
+      return [
+        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/members", label: "Family", icon: Users },
+        { to: "/invitations", label: "Invites", icon: Inbox },
+        { to: "/credits", label: "Credits", icon: Wallet },
+      ];
+    }
+    // Volunteer or other roles:
+    return [
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/trainings", label: "Trainings", icon: GraduationCap },
+      { to: "/transactions", label: "Transactions", icon: Receipt },
+    ];
+  };
+
+  const bottomTabs = getBottomTabs();
+
+  return (
+    <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background/95 border-t border-border backdrop-blur-lg flex items-center justify-around px-2 z-20 pb-safe shadow-lg text-foreground">
+      {bottomTabs.map((tab) => {
+        const isActive = pathname.startsWith(tab.to);
+        return (
+          <Link
+            key={tab.to}
+            to={tab.to}
+            className={cn(
+              "flex flex-col items-center justify-center flex-1 py-1 gap-1 transition-all cursor-pointer",
+              isActive ? "text-[#10B981]" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <tab.icon className="size-5" />
+            <span className="text-[10px] font-medium tracking-wide">{tab.label}</span>
+          </Link>
+        );
+      })}
+      <button
+        onClick={toggleSidebar}
+        className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-muted-foreground hover:text-foreground transition-all cursor-pointer bg-transparent border-0 outline-none"
+      >
+        <Menu className="size-5" />
+        <span className="text-[10px] font-medium tracking-wide">More</span>
+      </button>
+    </div>
+  );
+}
+
 
 function Layout() {
   const userId = useStore((s) => s.currentUserId);
@@ -100,8 +161,8 @@ function Layout() {
               <SidebarTrigger className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors" />
               <Separator orientation="vertical" className="h-4 bg-border" />
               <div className="breadcrumbs text-[13px] font-normal text-muted-foreground/60 flex items-center gap-2">
-                <span>{appName}</span>
-                <span className="breadcrumbs-separator opacity-40">/</span>
+                <span className="hidden sm:inline">{appName}</span>
+                <span className="breadcrumbs-separator opacity-40 hidden sm:inline">/</span>
                 <span className="breadcrumbs-current text-muted-foreground">{screenName}</span>
               </div>
             </div>
@@ -117,7 +178,7 @@ function Layout() {
               </button>
 
               {/* Live clock */}
-              <div className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight">
+              <div className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight hidden sm:block">
                 {timeStr}
               </div>
 
@@ -130,10 +191,11 @@ function Layout() {
               </div>
             </div>
           </header>
-          <main className="p-8 px-6 w-full flex-1">
+          <main className="p-4 sm:p-6 md:p-8 w-full flex-1 pb-20 md:pb-8">
             <Outlet />
           </main>
         </SidebarInset>
+        <MobileBottomNav pathname={pathname} role={user.role} />
       </div>
     </SidebarProvider>
   );
