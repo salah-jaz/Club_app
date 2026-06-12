@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Plus, Pencil, Wallet } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
-import { useState } from "react";
+import { SearchFilterBar, useSearchFilters, EmptyState } from "@/components/SearchFilterBar";
 
 export const Route = createFileRoute("/_authenticated/members")({ component: MembersLayout });
 
@@ -20,12 +20,97 @@ function MembersLayout() {
 function MembersList() {
   const user = useCurrentUser()!;
   const all = useStore((s) => s.members);
-  const [filter, setFilter] = useState<"all" | "adult" | "junior">("all");
+
+  const {
+    search,
+    filters,
+    sortBy,
+    setSearch,
+    setFilter,
+    clearFilters,
+    setSortBy,
+  } = useSearchFilters({
+    category: "all",
+    status: "all",
+    balance: "all",
+  }, "name-asc");
+
+  const filterConfig = [
+    {
+      key: "category",
+      label: "Category",
+      options: [
+        { value: "all", label: "All Categories" },
+        { value: "adult", label: "Adult" },
+        { value: "junior", label: "Junior" },
+      ],
+    },
+    {
+      key: "status",
+      label: "Status",
+      options: [
+        { value: "all", label: "All Statuses" },
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" },
+      ],
+    },
+    {
+      key: "balance",
+      label: "Balance",
+      options: [
+        { value: "all", label: "All Balances" },
+        { value: "positive", label: "Positive Balance" },
+        { value: "negative", label: "Negative Balance" },
+      ],
+    },
+  ];
+
+  const sortOptions = [
+    { value: "name-asc", label: "Name A-Z" },
+    { value: "name-desc", label: "Name Z-A" },
+    { value: "balance-desc", label: "Balance: High to Low" },
+    { value: "balance-asc", label: "Balance: Low to High" },
+  ];
 
   const baseMembers = user.role === "admin" ? all : all.filter((m) => m.userId === user.id);
-  const members = baseMembers.filter((m) => {
-    if (filter === "all") return true;
-    return m.memberType.toLowerCase() === filter;
+
+  // Apply filters
+  let processed = baseMembers.filter((m) => {
+    const fullName = `${m.firstName} ${m.lastName}`.toLowerCase();
+    return fullName.includes(search.toLowerCase());
+  });
+
+  if (filters.category !== "all") {
+    processed = processed.filter((m) => m.memberType.toLowerCase() === filters.category);
+  }
+
+  if (filters.status !== "all") {
+    processed = processed.filter((m) => m.status.toLowerCase() === filters.status);
+  }
+
+  if (filters.balance !== "all") {
+    if (filters.balance === "positive") {
+      processed = processed.filter((m) => m.credit >= 0);
+    } else if (filters.balance === "negative") {
+      processed = processed.filter((m) => m.credit < 0);
+    }
+  }
+
+  // Apply sorting
+  processed = [...processed].sort((a, b) => {
+    if (sortBy === "name-asc") {
+      return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+    }
+    if (sortBy === "name-desc") {
+      return `${b.firstName} ${b.lastName}`.localeCompare(`${a.firstName} ${a.lastName}`);
+    }
+    if (sortBy === "balance-desc") {
+      return b.credit - a.credit;
+    }
+    if (sortBy === "balance-asc") {
+      return a.credit - b.credit;
+    }
+    return 0;
   });
 
   return (
@@ -42,37 +127,24 @@ function MembersList() {
         }
       />
 
-      {/* Filter bar */}
-      <div className="flex items-center gap-2 mb-6">
-        <button
-          onClick={() => setFilter("all")}
-          className={`px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all cursor-pointer border ${filter === "all" ? "bg-[rgba(16,185,129,0.12)] text-[#10B981] border-[rgba(16,185,129,0.4)]" : "bg-transparent text-[#8A8A98] border-transparent hover:text-[#F1F0EE]"}`}
-        >
-          All
-        </button>
-        <button
-          onClick={() => setFilter("adult")}
-          className={`px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all cursor-pointer border ${filter === "adult" ? "bg-[rgba(16,185,129,0.12)] text-[#10B981] border-[rgba(16,185,129,0.4)]" : "bg-transparent text-[#8A8A98] border-transparent hover:text-[#F1F0EE]"}`}
-        >
-          Adult
-        </button>
-        <button
-          onClick={() => setFilter("junior")}
-          className={`px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all cursor-pointer border ${filter === "junior" ? "bg-[rgba(16,185,129,0.12)] text-[#10B981] border-[rgba(16,185,129,0.4)]" : "bg-transparent text-[#8A8A98] border-transparent hover:text-[#F1F0EE]"}`}
-        >
-          Junior
-        </button>
-      </div>
+      <SearchFilterBar
+        searchPlaceholder="Search members by name..."
+        searchValue={search}
+        onSearchChange={setSearch}
+        filters={filterConfig}
+        activeFilters={filters}
+        onFilterChange={setFilter}
+        onClearAll={clearFilters}
+        sortOptions={sortOptions}
+        currentSort={sortBy}
+        onSortChange={setSortBy}
+      />
 
-      {members.length === 0 ? (
-        <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916]">
-          <CardContent className="p-10 text-center text-[#8A8A98]">
-            No members found.
-          </CardContent>
-        </Card>
+      {processed.length === 0 ? (
+        <EmptyState onClear={clearFilters} />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {members.map((m) => {
+          {processed.map((m) => {
             const isJunior = m.memberType.toLowerCase() === "junior";
             const avatarBgClass = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
 
