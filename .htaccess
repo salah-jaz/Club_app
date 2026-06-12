@@ -13,3 +13,6 @@
     # SPA fallback
     RewriteRule ^ index.html [L]
 </IfModule>
+
+# Hostinger: use PHP 8.4 for Laravel API
+AddHandler application/x-httpd-php84 .php
