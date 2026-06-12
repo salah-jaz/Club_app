@@ -116,7 +116,7 @@ function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl pb-10">
+    <div className="space-y-6 pb-10">
       <PageHeader
         title="Settings"
         description="Configure your software branding, court locations, member grades, and official club holidays."

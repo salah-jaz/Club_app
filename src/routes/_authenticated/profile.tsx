@@ -17,7 +17,7 @@ function Profile() {
   return (
     <div className="space-y-6">
       <PageHeader title="My profile" description="Review your personal member profile credentials." />
-      <Card className="max-w-2xl bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
+      <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
         <CardHeader className="pb-3 border-b border-white/[0.03]">
           <CardTitle className="text-xl font-playfair font-normal text-[#F1F0EE]">
             {u.firstName} {u.lastName}

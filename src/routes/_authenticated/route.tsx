@@ -130,7 +130,7 @@ function Layout() {
               </div>
             </div>
           </header>
-          <main className="p-8 max-w-[1200px] w-full mx-auto flex-1">
+          <main className="p-8 px-6 w-full flex-1">
             <Outlet />
           </main>
         </SidebarInset>

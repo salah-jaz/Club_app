@@ -90,8 +90,14 @@ class PlayScheduleController extends Controller
         $sch->status = 'released';
         $sch->save();
 
-        // Get active adult members
-        $adults = Member::where('member_type', 'adult')->where('status', 'active')->get();
+        // Calculate the minimum session fee a player would pay if the session is full
+        $minFee = $sch->session_rate + ($sch->hall_rate / max($sch->players, 1));
+
+        // Get active adult members who have enough credits
+        $adults = Member::where('member_type', 'adult')
+            ->where('status', 'active')
+            ->where('credit', '>=', $minFee)
+            ->get();
 
         // Delete old invitations for this schedule (if any)
         PlayInvitation::where('schedule_id', $id)->delete();
