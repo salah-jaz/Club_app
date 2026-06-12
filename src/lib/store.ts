@@ -29,6 +29,9 @@ interface State {
   locations: string[];
   grades: string[];
   holidays: string[];
+  appName: string;
+  appLogoText: string;
+  appLogoBase64: string | null;
 
   // sync
   syncData: () => Promise<void>;
@@ -73,6 +76,14 @@ interface State {
   registerTrainingJunior: (trainingId: string, memberId: string, status: "accepted" | "declined") => Promise<void>;
   respondTraining: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
+  updateSettings: (settings: {
+    appName?: string;
+    appLogoText?: string;
+    appLogoBase64?: string | null;
+    locations?: string[];
+    grades?: string[];
+    holidays?: string[];
+  }) => Promise<void>;
 }
 
 const getInitialUserId = () => {
@@ -98,6 +109,9 @@ export const useStore = create<State>((set, get) => ({
   locations: [],
   grades: [],
   holidays: [],
+  appName: "ClubApp",
+  appLogoText: "C",
+  appLogoBase64: null,
 
   syncCurrentUser: async () => {
     try {
@@ -138,7 +152,7 @@ export const useStore = create<State>((set, get) => ({
         api.get<TrainingInvitation[]>("/training-invitations"),
         api.get<TrainingDate[]>("/training-dates"),
         api.get<Transaction[]>("/transactions"),
-        api.get<{ locations: string[]; grades: string[]; holidays: string[] }>("/settings"),
+        api.get<{ locations: string[]; grades: string[]; holidays: string[]; appName: string; appLogoText: string; appLogoBase64?: string | null }>("/settings"),
       ]);
 
       let users: User[] = [];
@@ -161,6 +175,9 @@ export const useStore = create<State>((set, get) => ({
         locations: settings.locations,
         grades: settings.grades,
         holidays: settings.holidays,
+        appName: settings.appName || "ClubApp",
+        appLogoText: settings.appLogoText || "C",
+        appLogoBase64: settings.appLogoBase64 || null,
         users,
       });
     } catch (e) {
@@ -438,6 +455,25 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       trainingDates: s.trainingDates.map((d) => (d.id === dateId ? updated : d)),
     }));
+  },
+
+  updateSettings: async (settings) => {
+    const updated = await api.post<{
+      locations: string[];
+      grades: string[];
+      holidays: string[];
+      appName: string;
+      appLogoText: string;
+      appLogoBase64: string | null;
+    }>("/settings", settings);
+    set({
+      locations: updated.locations,
+      grades: updated.grades,
+      holidays: updated.holidays,
+      appName: updated.appName,
+      appLogoText: updated.appLogoText,
+      appLogoBase64: updated.appLogoBase64,
+    });
   },
 }));
 
