@@ -216,7 +216,7 @@ class PlayScheduleController extends Controller
             'rounds' => $rounds,
         ]);
 
-        $fee = $schedule->session_rate + ($schedule->hall_rate / max(count($playerIds), 1));
+        $fee = $schedule->session_rate + ($schedule->hall_rate / max($schedule->players, 1));
         $feeRounded = round($fee, 2);
 
         foreach ($playerIds as $memberId) {
