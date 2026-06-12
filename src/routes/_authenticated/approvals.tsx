@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useCurrentUser, useStore } from "@/lib/store";
@@ -15,28 +16,66 @@ function Approvals() {
   const user = useCurrentUser()!;
   if (user.role !== "admin") return <Navigate to="/dashboard" />;
   const s = useStore();
+  const [activeTab, setActiveTab] = useState<string>("users");
+  const [loading, setLoading] = useState(false);
+
   const pendingU = s.users.filter((u) => u.status === "created");
   const pendingC = s.creditRequests.filter((c) => c.status === "created");
+
+  const handleApproveAll = async () => {
+    setLoading(true);
+    const toastId = toast.loading(
+      activeTab === "users"
+        ? "Approving all member requests..."
+        : "Approving all credit requests..."
+    );
+    try {
+      if (activeTab === "users") {
+        await s.approveAllUsers();
+        toast.success("All pending members approved", { id: toastId });
+      } else {
+        await s.approveAllCredits();
+        toast.success("All pending credits approved", { id: toastId });
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to approve all requests", { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader title="Approvals" description="Review and authorize pending registrations and credit additions." />
       
-      <Tabs defaultValue="users" className="w-full">
-        <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-10">
-          <TabsTrigger 
-            value="users" 
-            className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
-          >
-            Member Requests ({pendingU.length})
-          </TabsTrigger>
-          <TabsTrigger 
-            value="credits" 
-            className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
-          >
-            Credit Requests ({pendingC.length})
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="flex items-center justify-between mb-6">
+          <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex h-10 mb-0">
+            <TabsTrigger 
+              value="users" 
+              className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
+            >
+              Member Requests ({pendingU.length})
+            </TabsTrigger>
+            <TabsTrigger 
+              value="credits" 
+              className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
+            >
+              Credit Requests ({pendingC.length})
+            </TabsTrigger>
+          </TabsList>
+
+          {((activeTab === "users" && pendingU.length > 0) ||
+            (activeTab === "credits" && pendingC.length > 0)) && (
+            <Button
+              disabled={loading}
+              onClick={handleApproveAll}
+              className="btn-premium-solid h-9 px-4 text-[12px] font-semibold flex items-center gap-2 cursor-pointer"
+            >
+              Approve All
+            </Button>
+          )}
+        </div>
 
         <TabsContent value="users" className="focus-visible:outline-none">
           <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">

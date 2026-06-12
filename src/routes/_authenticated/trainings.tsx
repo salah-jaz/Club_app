@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { Plus, MapPin, User } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/trainings")({ component: TrainingsLayout });
 
@@ -71,6 +72,30 @@ function TrainingsList() {
                     <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
                       <Link to="/trainings/$id" params={{ id: t.id }}>Manage</Link>
                     </Button>
+                    {user.role === "admin" && (
+                      <>
+                        <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
+                          <Link to="/trainings/$id/edit" params={{ id: t.id }}>Edit</Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-red-400 hover:text-red-300 hover:bg-red-950/20 cursor-pointer text-xs"
+                          onClick={async () => {
+                            if (confirm("Are you sure you want to delete this training program?")) {
+                              try {
+                                await s.deleteTraining(t.id);
+                                toast.success("Training program deleted");
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to delete training program.");
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>

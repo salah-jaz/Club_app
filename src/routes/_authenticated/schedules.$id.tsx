@@ -1,5 +1,5 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useStore } from "@/lib/store";
+import { createFileRoute, Navigate, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useStore, useCurrentUser } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,7 +14,11 @@ export const Route = createFileRoute("/_authenticated/schedules/$id")({ componen
 
 function SchedulePage() {
   const { id } = Route.useParams();
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  if (pathname !== `/schedules/${id}`) return <Outlet />;
+
   const s = useStore();
+  const user = useCurrentUser()!;
   const sch = s.schedules.find((x) => x.id === id);
   if (!sch) return <Navigate to="/schedules" />;
   const invs = s.playInvites.filter((i) => i.scheduleId === id);
@@ -41,6 +45,33 @@ function SchedulePage() {
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge status={sch.status} />
+            {user.role === "admin" && (
+              <>
+                <Button asChild variant="outline" size="sm" className="btn-premium-outline h-9 px-4 text-xs cursor-pointer">
+                  <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
+                    Edit
+                  </Link>
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="h-9 px-4 text-xs bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 cursor-pointer"
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to delete this schedule?")) {
+                      try {
+                        await s.deleteSchedule(sch.id);
+                        toast.success("Play schedule deleted");
+                        window.history.back();
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to delete schedule.");
+                      }
+                    }
+                  }}
+                >
+                  Delete
+                </Button>
+              </>
+            )}
             {sch.status === "released" && grouped.accepted.length > 0 && (
               <Button 
                 className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer" 

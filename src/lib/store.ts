@@ -41,6 +41,7 @@ interface State {
 
   // user admin
   approveUser: (id: string) => Promise<void>;
+  approveAllUsers: () => Promise<void>;
   rejectUser: (id: string) => Promise<void>;
   setUserRole: (id: string, role: User["role"]) => Promise<void>;
 
@@ -52,6 +53,7 @@ interface State {
   // credits
   requestCredit: (memberId: string, amount: number, date: string) => Promise<void>;
   approveCredit: (id: string) => Promise<void>;
+  approveAllCredits: () => Promise<void>;
   rejectCredit: (id: string) => Promise<void>;
 
   // schedules
@@ -59,13 +61,16 @@ interface State {
   updateSchedule: (id: string, patch: Partial<PlaySchedule>) => Promise<void>;
   releaseSchedule: (id: string) => Promise<void>;
   closeSchedule: (id: string) => Promise<void>;
+  deleteSchedule: (id: string) => Promise<void>;
   respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
   generateRotation: (scheduleId: string) => Promise<void>;
 
   // trainings
   createTraining: (t: Omit<Training, "id" | "status">) => Promise<void>;
   updateTraining: (id: string, patch: Partial<Training>) => Promise<void>;
-  releaseTraining: (id: string, memberIds: string[]) => Promise<void>;
+  releaseTraining: (id: string, memberIds?: string[]) => Promise<void>;
+  deleteTraining: (id: string) => Promise<void>;
+  registerTrainingJunior: (trainingId: string, memberId: string, status: "accepted" | "declined") => Promise<void>;
   respondTraining: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
 }
@@ -122,6 +127,7 @@ export const useStore = create<State>((set, get) => ({
         trainings,
         trainingInvites,
         trainingDates,
+        transactions,
         settings,
       ] = await Promise.all([
         api.get<Member[]>("/members"),
@@ -131,6 +137,7 @@ export const useStore = create<State>((set, get) => ({
         api.get<Training[]>("/trainings"),
         api.get<TrainingInvitation[]>("/training-invitations"),
         api.get<TrainingDate[]>("/training-dates"),
+        api.get<Transaction[]>("/transactions"),
         api.get<{ locations: string[]; grades: string[]; holidays: string[] }>("/settings"),
       ]);
 
@@ -150,6 +157,7 @@ export const useStore = create<State>((set, get) => ({
         trainings,
         trainingInvites,
         trainingDates,
+        transactions,
         locations: settings.locations,
         grades: settings.grades,
         holidays: settings.holidays,
@@ -190,9 +198,23 @@ export const useStore = create<State>((set, get) => ({
 
   approveUser: async (id) => {
     const res = await api.post<{ user: User }>(`/users/${id}/approve`);
+    const members = await api.get<Member[]>("/members");
     set((s) => ({
       users: s.users.map((u) => (u.id === id ? res.user : u)),
+      members,
     }));
+  },
+
+  approveAllUsers: async () => {
+    const res = await api.post<{ users: User[] }>("/users/approve-all");
+    const members = await api.get<Member[]>("/members");
+    set((s) => {
+      const updatedMap = new Map(res.users.map((u) => [u.id, u]));
+      return {
+        users: s.users.map((u) => updatedMap.get(u.id) || u),
+        members,
+      };
+    });
   },
 
   rejectUser: async (id) => {
@@ -233,7 +255,18 @@ export const useStore = create<State>((set, get) => ({
 
   requestCredit: async (memberId, amount, date) => {
     const req = await api.post<CreditRequest>("/credit-requests", { memberId, amount, date });
-    set((s) => ({ creditRequests: [...s.creditRequests, req] }));
+    const currentUser = get().currentUser;
+    if (currentUser && currentUser.role === "admin") {
+      const members = await api.get<Member[]>("/members");
+      const txs = await api.get<Transaction[]>("/transactions");
+      set((s) => ({
+        creditRequests: [...s.creditRequests, req],
+        members,
+        transactions: txs,
+      }));
+    } else {
+      set((s) => ({ creditRequests: [...s.creditRequests, req] }));
+    }
   },
 
   approveCredit: async (id) => {
@@ -248,6 +281,21 @@ export const useStore = create<State>((set, get) => ({
       members,
       transactions: txs,
     }));
+  },
+
+  approveAllCredits: async () => {
+    const res = await api.post<{ requests: CreditRequest[] }>("/credit-requests/approve-all");
+    // Refresh ledger/members
+    const members = await api.get<Member[]>("/members");
+    const txs = await api.get<Transaction[]>("/transactions");
+    set((s) => {
+      const updatedMap = new Map(res.requests.map((r) => [r.id, r]));
+      return {
+        creditRequests: s.creditRequests.map((c) => updatedMap.get(c.id) || c),
+        members,
+        transactions: txs,
+      };
+    });
   },
 
   rejectCredit: async (id) => {
@@ -285,6 +333,11 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       schedules: s.schedules.map((x) => (x.id === id ? res.schedule : x)),
     }));
+  },
+
+  deleteSchedule: async (id) => {
+    await api.delete(`/schedules/${id}`);
+    set((s) => ({ schedules: s.schedules.filter((x) => x.id !== id) }));
   },
 
   respondPlay: async (inviteId, status) => {
@@ -327,23 +380,45 @@ export const useStore = create<State>((set, get) => ({
     }));
   },
 
-  releaseTraining: async (trainingId, memberIds) => {
+  deleteTraining: async (id) => {
+    await api.delete(`/trainings/${id}`);
+    set((s) => ({ trainings: s.trainings.filter((x) => x.id !== id) }));
+  },
+
+  releaseTraining: async (trainingId, memberIds = []) => {
     const res = await api.post<{
       training: Training;
       invitations: TrainingInvitation[];
       dates: TrainingDate[];
     }>(`/trainings/${trainingId}/release`, { memberIds });
 
-    const [invites, dates] = await Promise.all([
+    const [invites, dates, trainings] = await Promise.all([
       api.get<TrainingInvitation[]>("/training-invitations"),
       api.get<TrainingDate[]>("/training-dates"),
+      api.get<Training[]>("/trainings"),
     ]);
 
-    set((s) => ({
-      trainings: s.trainings.map((x) => (x.id === trainingId ? res.training : x)),
+    set({
+      trainings,
       trainingInvites: invites,
       trainingDates: dates,
-    }));
+    });
+  },
+
+  registerTrainingJunior: async (trainingId, memberId, status) => {
+    await api.post(`/trainings/${trainingId}/register`, { memberId, status });
+
+    const [invites, dates, trainings] = await Promise.all([
+      api.get<TrainingInvitation[]>("/training-invitations"),
+      api.get<TrainingDate[]>("/training-dates"),
+      api.get<Training[]>("/trainings"),
+    ]);
+
+    set({
+      trainingInvites: invites,
+      trainingDates: dates,
+      trainings,
+    });
   },
 
   respondTraining: async (inviteId, status) => {

@@ -54,6 +54,19 @@ class PlayScheduleController extends Controller
     {
         $sch = PlaySchedule::findOrFail($id);
 
+        $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'date' => 'sometimes|required|date',
+            'courts' => 'sometimes|required|integer|min:1',
+            'players' => 'sometimes|required|integer|min:1',
+            'slotHours' => 'sometimes|required|numeric',
+            'slotDuration' => 'sometimes|required|string',
+            'sessionRate' => 'sometimes|required|numeric',
+            'hallRate' => 'sometimes|required|numeric',
+            'location' => 'sometimes|required|string',
+            'status' => 'sometimes|required|string|in:open,released,rotated,closed',
+        ]);
+
         $data = [];
         if ($request->has('name')) $data['name'] = $request->name;
         if ($request->has('date')) $data['date'] = $request->date;
@@ -266,6 +279,14 @@ class PlayScheduleController extends Controller
             'scheduleId' => $r->schedule_id,
             'rounds' => $r->rounds,
         ]));
+    }
+
+    public function destroy($id)
+    {
+        $sch = PlaySchedule::findOrFail($id);
+        $sch->delete();
+
+        return response()->json(['message' => 'Play schedule deleted successfully.']);
     }
 
     private function formatSchedule(PlaySchedule $s)

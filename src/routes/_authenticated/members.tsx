@@ -113,7 +113,7 @@ function MembersList() {
                     )}
                     {(user.role === "admin" || user.role === "member") && (
                       <Button asChild variant="outline" size="sm" className="flex-1 btn-premium-violet-outline hover:cursor-pointer">
-                        <Link to="/credits">Credits</Link>
+                        <Link to={`/credits?memberId=${m.id}` as any}>Credits</Link>
                       </Button>
                     )}
                   </div>

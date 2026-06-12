@@ -144,6 +144,28 @@ function SchedulesList() {
                           {sch.status === "rotated" || sch.status === "closed" ? "View Results" : "Manage"}
                         </Link>
                       </Button>
+                      <div className="flex gap-1.5 w-full">
+                        <Button asChild size="sm" variant="outline" className="flex-1 btn-premium-outline h-7.5 text-[11px] hover:cursor-pointer">
+                          <Link to="/schedules/$id/edit" params={{ id: sch.id }}>Edit</Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="flex-1 h-7.5 text-[11px] bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 cursor-pointer transition-colors"
+                          onClick={async () => {
+                            if (confirm("Are you sure you want to delete this schedule?")) {
+                              try {
+                                await s.deleteSchedule(sch.id);
+                                toast.success("Play schedule deleted");
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to delete schedule.");
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                       {sch.status === "open" && (
                         <Button
                           size="sm"

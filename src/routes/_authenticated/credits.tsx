@@ -20,7 +20,9 @@ function CreditsPage() {
   const user = useCurrentUser()!;
   const s = useStore();
   const myMembers = user.role === "admin" ? s.members : s.members.filter((m) => m.userId === user.id);
-  const [memberId, setMemberId] = useState(myMembers[0]?.id ?? "");
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const urlMemberId = searchParams?.get("memberId") || "";
+  const [memberId, setMemberId] = useState(urlMemberId || myMembers[0]?.id || "");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const myReqs = s.creditRequests.filter((r) =>
@@ -34,7 +36,11 @@ function CreditsPage() {
     if (!memberId || !amount) return;
     try {
       await s.requestCredit(memberId, parseFloat(amount), date);
-      toast.success("Credit request submitted for approval");
+      toast.success(
+        user.role === "admin"
+          ? "Credit added manually successfully"
+          : "Credit request submitted for approval"
+      );
       setAmount("");
     } catch (error: any) {
       toast.error(error.message || "Failed to submit credit request.");
@@ -45,58 +51,56 @@ function CreditsPage() {
     <div className="space-y-6">
       <PageHeader title="Credits" description="Top-up requests and balance management." />
 
-      {user.role !== "admin" && (
-        <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916]">
-          <CardHeader>
-            <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
-              Request credit top-up
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={submit} className="grid sm:grid-cols-4 gap-4 items-end">
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Member</Label>
-                <Select value={memberId} onValueChange={setMemberId}>
-                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px] cursor-pointer">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    {myMembers.map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="cursor-pointer hover:bg-white/5">
-                        {m.firstName} {m.lastName} — bal {fmtMoney(m.credit)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Amount</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  required
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Date</Label>
-                <Input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px] cursor-pointer"
-                />
-              </div>
-              <Button type="submit" className="sm:col-span-4 btn-premium-solid h-[38px] font-medium hover:cursor-pointer mt-2">
-                Submit request
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916]">
+        <CardHeader>
+          <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
+            {user.role === "admin" ? "Add credit manually" : "Request credit top-up"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={submit} className="grid sm:grid-cols-4 gap-4 items-end">
+            <div className="space-y-2 sm:col-span-2">
+              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Member</Label>
+              <Select value={memberId} onValueChange={setMemberId}>
+                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px] cursor-pointer">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  {myMembers.map((m) => (
+                    <SelectItem key={m.id} value={m.id} className="cursor-pointer hover:bg-white/5">
+                      {m.firstName} {m.lastName} — bal {fmtMoney(m.credit)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Amount</Label>
+              <Input
+                type="number"
+                min="1"
+                step="0.01"
+                required
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Date</Label>
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px] cursor-pointer"
+              />
+            </div>
+            <Button type="submit" className="sm:col-span-4 btn-premium-solid h-[38px] font-medium hover:cursor-pointer mt-2">
+              {user.role === "admin" ? "Add credit" : "Submit request"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] overflow-hidden">
         <CardHeader className="border-b border-[rgba(255,255,255,0.06)] py-4.5 px-6 flex flex-row items-center justify-between">
