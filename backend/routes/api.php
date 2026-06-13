@@ -19,6 +19,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Session / Info
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/profile', [AuthController::class, 'updateProfile']);
     
     // Settings constants
     Route::get('/settings', [SettingController::class, 'index']);

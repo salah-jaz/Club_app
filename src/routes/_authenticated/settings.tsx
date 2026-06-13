@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
@@ -17,6 +17,8 @@ export const Route = createFileRoute("/_authenticated/settings")({
 function SettingsPage() {
   const store = useStore();
   const updateSettings = useStore((state) => state.updateSettings);
+  const currentUser = useStore((state) => state.currentUser);
+  const updateProfile = useStore((state) => state.updateProfile);
 
   const [appName, setAppName] = useState(store.appName);
   const [appLogoText, setAppLogoText] = useState(store.appLogoText);
@@ -26,10 +28,59 @@ function SettingsPage() {
   const [grades, setGrades] = useState<string[]>(store.grades);
   const [holidays, setHolidays] = useState<string[]>(store.holidays);
 
+  // States for Admin Credentials
+  const [firstName, setFirstName] = useState(currentUser?.firstName || "");
+  const [lastName, setLastName] = useState(currentUser?.lastName || "");
+  const [sex, setSex] = useState<"male" | "female">(currentUser?.sex || "male");
+  const [dob, setDob] = useState(currentUser?.dob || "");
+  const [email, setEmail] = useState(currentUser?.email || "");
+  const [mobile, setMobile] = useState(currentUser?.mobile || "");
+  const [address, setAddress] = useState(currentUser?.address || "");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Sync state if currentUser updates
+  useEffect(() => {
+    if (currentUser) {
+      setFirstName(currentUser.firstName);
+      setLastName(currentUser.lastName);
+      setSex(currentUser.sex);
+      setDob(currentUser.dob);
+      setEmail(currentUser.email);
+      setMobile(currentUser.mobile);
+      setAddress(currentUser.address);
+    }
+  }, [currentUser]);
+
   // States for adding new items
   const [newLocation, setNewLocation] = useState("");
   const [newGrade, setNewGrade] = useState("");
   const [newHoliday, setNewHoliday] = useState("");
+
+  const handleSaveCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password && password !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    try {
+      await updateProfile({
+        firstName,
+        lastName,
+        sex,
+        dob,
+        email,
+        mobile,
+        address,
+        password: password || undefined,
+      });
+      toast.success("Credentials saved successfully");
+      setPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save credentials");
+    }
+  };
 
   const handleSaveBranding = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,6 +282,138 @@ function SettingsPage() {
               <div className="flex justify-end pt-2">
                 <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
                   Save Branding
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Admin Credentials & Profile */}
+        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
+          <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+              Admin Credentials & Profile
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <form onSubmit={handleSaveCredentials} className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    First Name
+                  </Label>
+                  <Input
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="First Name"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Last Name
+                  </Label>
+                  <Input
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Last Name"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Email Address
+                  </Label>
+                  <Input
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@example.com"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Mobile Contact
+                  </Label>
+                  <Input
+                    required
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value)}
+                    placeholder="+1 555 0100"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Sex / Gender
+                  </Label>
+                  <Select value={sex} onValueChange={(val: "male" | "female") => setSex(val)}>
+                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer text-xs">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                      <SelectItem value="male" className="cursor-pointer hover:bg-white/5">Male</SelectItem>
+                      <SelectItem value="female" className="cursor-pointer hover:bg-white/5">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Date of Birth
+                  </Label>
+                  <Input
+                    required
+                    type="date"
+                    value={dob}
+                    onChange={(e) => setDob(e.target.value)}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Registered Address
+                  </Label>
+                  <Input
+                    required
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Address"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    New Password (Optional)
+                  </Label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Confirm New Password
+                  </Label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                  Save Credentials
                 </Button>
               </div>
             </form>
