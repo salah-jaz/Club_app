@@ -86,6 +86,16 @@ interface State {
     grades?: string[];
     holidays?: string[];
   }) => Promise<void>;
+  updateProfile: (profile: {
+    firstName: string;
+    lastName: string;
+    sex: "male" | "female";
+    dob: string;
+    email: string;
+    mobile: string;
+    address: string;
+    password?: string;
+  }) => Promise<void>;
 }
 
 const getInitialUserId = () => {
@@ -483,6 +493,16 @@ export const useStore = create<State>((set, get) => ({
       appLogoBase64: updated.appLogoBase64,
       currency: updated.currency,
     });
+  },
+
+  updateProfile: async (profile) => {
+    const res = await api.post<{ message: string; user: User }>("/profile", profile);
+    const members = await api.get<Member[]>("/members");
+    set((s) => ({
+      currentUser: res.user,
+      users: s.users.map((u) => (u.id === res.user.id ? res.user : u)),
+      members,
+    }));
   },
 }));
 

@@ -111,4 +111,63 @@ class AuthController extends Controller
             'createdAt' => $user->created_at->toISOString(),
         ]);
     }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'firstName' => 'required|string|max:255',
+            'lastName' => 'required|string|max:255',
+            'sex' => 'required|in:male,female',
+            'dob' => 'required|date',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'mobile' => 'required|string|max:20',
+            'address' => 'required|string',
+            'password' => 'nullable|string|min:6',
+        ]);
+
+        $user->first_name = $request->firstName;
+        $user->last_name = $request->lastName;
+        $user->sex = $request->sex;
+        $user->dob = $request->dob;
+        $user->email = $request->email;
+        $user->mobile = $request->mobile;
+        $user->address = $request->address;
+
+        if ($request->filled('password')) {
+            $user->password = Hash::make($request->password);
+        }
+
+        $user->save();
+
+        // Synchronize member profile if exists
+        $member = \App\Models\Member::where('user_id', $user->id)->first();
+        if ($member) {
+            $member->update([
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'dob' => $user->dob,
+                'sex' => $user->sex,
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Credentials updated successfully.',
+            'user' => [
+                'id' => $user->id,
+                'firstName' => $user->first_name,
+                'lastName' => $user->last_name,
+                'sex' => $user->sex,
+                'dob' => $user->dob,
+                'email' => $user->email,
+                'mobile' => $user->mobile,
+                'address' => $user->address,
+                'role' => $user->role,
+                'status' => $user->status,
+                'createdAt' => $user->created_at->toISOString(),
+            ]
+        ]);
+    }
 }
