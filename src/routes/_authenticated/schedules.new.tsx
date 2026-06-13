@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,9 +17,15 @@ function NewSchedule() {
   const navigate = useNavigate();
   const [f, setF] = useState({
     name: "", date: "", courts: 2, players: 16, slotHours: 2, slotDuration: "15 min",
-    sessionRate: 8, hallRate: 40, location: locations[0],
+    sessionRate: 8, hallRate: 40, location: locations[0] || "",
   });
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  useEffect(() => {
+    if (locations.length > 0 && !f.location) {
+      set("location", locations[0]);
+    }
+  }, [locations, f.location]);
 
   return (
     <div className="space-y-6">
@@ -51,10 +57,22 @@ function NewSchedule() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Club Location</Label>
-              <Select value={f.location} onValueChange={(v) => set("location", v)}>
-                <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">{locations.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
-              </Select>
+              {locations.length > 0 && f.location ? (
+                <Select value={f.location} onValueChange={(v) => set("location", v)}>
+                  <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                    {locations.map((l) => (
+                      <SelectItem key={l} value={l}>
+                        {l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="h-10 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] rounded-lg animate-pulse" />
+              )}
             </div>
           </CardContent>
         </Card>

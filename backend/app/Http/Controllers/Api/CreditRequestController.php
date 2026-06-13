@@ -25,13 +25,33 @@ class CreditRequestController extends Controller
             'date' => 'required|date',
         ]);
 
+        $user = auth()->user();
+        $isAdmin = $user && $user->role === 'admin';
+
         $cr = CreditRequest::create([
             'id' => 'c_' . Str::random(8),
             'member_id' => $request->memberId,
             'amount' => $request->amount,
             'date' => $request->date,
-            'status' => 'created',
+            'status' => $isAdmin ? 'approved' : 'created',
         ]);
+
+        if ($isAdmin) {
+            // Credit the member
+            $member = Member::findOrFail($request->memberId);
+            $member->credit += $request->amount;
+            $member->save();
+
+            // Create transaction ledger entry
+            Transaction::create([
+                'id' => 't_' . Str::random(8),
+                'member_id' => $request->memberId,
+                'type' => 'credit',
+                'amount' => $request->amount,
+                'description' => 'Manual credit addition',
+                'date' => $request->date,
+            ]);
+        }
 
         return response()->json($this->formatRequest($cr), 201);
     }
@@ -66,6 +86,39 @@ class CreditRequestController extends Controller
             'message' => 'Credit request approved.',
             'request' => $this->formatRequest($cr),
             'memberCredit' => $member->credit
+        ]);
+    }
+
+    public function approveAll()
+    {
+        $requests = CreditRequest::where('status', 'created')->get();
+        $approvedRequests = [];
+
+        foreach ($requests as $cr) {
+            $cr->status = 'approved';
+            $cr->save();
+
+            // Credit the member
+            $member = Member::findOrFail($cr->member_id);
+            $member->credit += $cr->amount;
+            $member->save();
+
+            // Create transaction ledger entry
+            Transaction::create([
+                'id' => 't_' . Str::random(8),
+                'member_id' => $cr->member_id,
+                'type' => 'credit',
+                'amount' => $cr->amount,
+                'description' => 'Credit top-up approved',
+                'date' => now(),
+            ]);
+
+            $approvedRequests[] = $this->formatRequest($cr);
+        }
+
+        return response()->json([
+            'message' => 'All pending credit requests approved.',
+            'requests' => $approvedRequests
         ]);
     }
 

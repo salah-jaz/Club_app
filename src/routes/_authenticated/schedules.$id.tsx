@@ -1,5 +1,5 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useStore } from "@/lib/store";
+import { createFileRoute, Navigate, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useStore, useCurrentUser } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,7 +14,11 @@ export const Route = createFileRoute("/_authenticated/schedules/$id")({ componen
 
 function SchedulePage() {
   const { id } = Route.useParams();
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  if (pathname !== `/schedules/${id}`) return <Outlet />;
+
   const s = useStore();
+  const user = useCurrentUser()!;
   const sch = s.schedules.find((x) => x.id === id);
   if (!sch) return <Navigate to="/schedules" />;
   const invs = s.playInvites.filter((i) => i.scheduleId === id);
@@ -25,6 +29,37 @@ function SchedulePage() {
     }
     const m = s.members.find((x) => x.id === mid);
     return m ? `${m.firstName} ${m.lastName}` : "?";
+  };
+  const getRoundTimes = (roundNum: number) => {
+    const durationMinutes = parseInt(sch.slotDuration, 10) || 15;
+    const startMinutesOffset = (roundNum - 1) * durationMinutes;
+    const endMinutesOffset = roundNum * durationMinutes;
+
+    let startTimeStr = "";
+    let endTimeStr = "";
+    let relativeStr = `${startMinutesOffset}-${endMinutesOffset} min`;
+
+    try {
+      const baseDate = new Date(sch.date);
+      if (!isNaN(baseDate.getTime())) {
+        const startDate = new Date(baseDate.getTime() + startMinutesOffset * 60000);
+        const endDate = new Date(baseDate.getTime() + endMinutesOffset * 60000);
+        
+        const formatTime = (date: Date) => {
+          return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+        };
+        startTimeStr = formatTime(startDate);
+        endTimeStr = formatTime(endDate);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    return {
+      relative: relativeStr,
+      start: startTimeStr,
+      end: endTimeStr,
+    };
   };
   const grouped = {
     accepted: invs.filter((i) => i.status === "accepted"),
@@ -39,8 +74,35 @@ function SchedulePage() {
         description={`${fmtDateTime(sch.date)} · ${sch.location}`}
         backTo="/schedules"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={sch.status} />
+            {user.role === "admin" && (
+              <>
+                <Button asChild variant="outline" size="sm" className="btn-premium-outline h-9 px-4 text-xs cursor-pointer">
+                  <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
+                    Edit
+                  </Link>
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="h-9 px-4 text-xs bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 cursor-pointer"
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to delete this schedule?")) {
+                      try {
+                        await s.deleteSchedule(sch.id);
+                        toast.success("Play schedule deleted");
+                        window.history.back();
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to delete schedule.");
+                      }
+                    }
+                  }}
+                >
+                  Delete
+                </Button>
+              </>
+            )}
             {sch.status === "released" && grouped.accepted.length > 0 && (
               <Button 
                 className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer" 
@@ -114,20 +176,41 @@ function SchedulePage() {
             COURT ROTATIONS & MATCHUPS
           </span>
           <Tabs defaultValue="r1" className="w-full">
-            <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-10">
-              {rot.rounds.map((r) => (
-                <TabsTrigger 
-                  key={r.round} 
-                  value={`r${r.round}`}
-                  className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
-                >
-                  Round {r.round}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <div className="overflow-x-auto max-w-full pb-1">
+              <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-10">
+                {rot.rounds.map((r) => {
+                  const times = getRoundTimes(r.round);
+                  return (
+                    <TabsTrigger 
+                      key={r.round} 
+                      value={`r${r.round}`}
+                      className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all whitespace-nowrap"
+                    >
+                      Round {r.round} {times.start ? `(${times.start})` : ""}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </div>
             
             {rot.rounds.map((r) => (
               <TabsContent key={r.round} value={`r${r.round}`} className="focus-visible:outline-none space-y-6">
+                {(() => {
+                  const times = getRoundTimes(r.round);
+                  return (
+                    <div className="flex items-center gap-3 bg-[#1A2120]/60 border border-white/[0.04] p-3 px-4 rounded-xl w-fit">
+                      <div className="flex items-center gap-1.5 text-xs text-[#8A8A98]">
+                        <span className="inline-block size-2 rounded-full bg-[#34D399] animate-pulse" />
+                        <span className="font-semibold text-xs tracking-wider uppercase">Round Time:</span>
+                      </div>
+                      <span className="text-[13px] font-mono font-medium text-[#F1F0EE]">
+                        {times.start ? `${times.start} - ${times.end}` : ""}
+                        <span className="text-[#8A8A98] ml-2">({times.relative})</span>
+                      </span>
+                    </div>
+                  );
+                })()}
+
                 <div className="grid md:grid-cols-2 gap-5">
                   {r.courts.map((c) => (
                     <Card key={c.courtNo} className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
