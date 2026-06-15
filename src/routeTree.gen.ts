@@ -20,6 +20,7 @@ import { Route as AuthenticatedSchedulesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedMembersRouteImport } from './routes/_authenticated/members'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
+import { Route as AuthenticatedEmailTemplatesRouteImport } from './routes/_authenticated/email-templates'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCreditsRouteImport } from './routes/_authenticated/credits'
 import { Route as AuthenticatedApprovalsRouteImport } from './routes/_authenticated/approvals'
@@ -86,6 +87,12 @@ const AuthenticatedInvitationsRoute =
   AuthenticatedInvitationsRouteImport.update({
     id: '/invitations',
     path: '/invitations',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedEmailTemplatesRoute =
+  AuthenticatedEmailTemplatesRouteImport.update({
+    id: '/email-templates',
+    path: '/email-templates',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -158,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/email-templates': typeof AuthenticatedEmailTemplatesRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
   '/profile': typeof AuthenticatedProfileRoute
@@ -181,6 +189,7 @@ export interface FileRoutesByTo {
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/email-templates': typeof AuthenticatedEmailTemplatesRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
   '/profile': typeof AuthenticatedProfileRoute
@@ -206,6 +215,7 @@ export interface FileRoutesById {
   '/_authenticated/approvals': typeof AuthenticatedApprovalsRoute
   '/_authenticated/credits': typeof AuthenticatedCreditsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/email-templates': typeof AuthenticatedEmailTemplatesRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/members': typeof AuthenticatedMembersRouteWithChildren
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
@@ -231,6 +241,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/credits'
     | '/dashboard'
+    | '/email-templates'
     | '/invitations'
     | '/members'
     | '/profile'
@@ -254,6 +265,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/credits'
     | '/dashboard'
+    | '/email-templates'
     | '/invitations'
     | '/members'
     | '/profile'
@@ -278,6 +290,7 @@ export interface FileRouteTypes {
     | '/_authenticated/approvals'
     | '/_authenticated/credits'
     | '/_authenticated/dashboard'
+    | '/_authenticated/email-templates'
     | '/_authenticated/invitations'
     | '/_authenticated/members'
     | '/_authenticated/profile'
@@ -379,6 +392,13 @@ declare module '@tanstack/react-router' {
       path: '/invitations'
       fullPath: '/invitations'
       preLoaderRoute: typeof AuthenticatedInvitationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/email-templates': {
+      id: '/_authenticated/email-templates'
+      path: '/email-templates'
+      fullPath: '/email-templates'
+      preLoaderRoute: typeof AuthenticatedEmailTemplatesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -538,6 +558,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedApprovalsRoute: typeof AuthenticatedApprovalsRoute
   AuthenticatedCreditsRoute: typeof AuthenticatedCreditsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEmailTemplatesRoute: typeof AuthenticatedEmailTemplatesRoute
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
   AuthenticatedMembersRoute: typeof AuthenticatedMembersRouteWithChildren
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
@@ -551,6 +572,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedApprovalsRoute: AuthenticatedApprovalsRoute,
   AuthenticatedCreditsRoute: AuthenticatedCreditsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEmailTemplatesRoute: AuthenticatedEmailTemplatesRoute,
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
   AuthenticatedMembersRoute: AuthenticatedMembersRouteWithChildren,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,

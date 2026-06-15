@@ -13,12 +13,15 @@ use Illuminate\Support\Facades\Route;
 // Public auth routes
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/register/verify-otp', [AuthController::class, 'verifyOtp']);
+Route::post('/register/resend-otp', [AuthController::class, 'resendOtp']);
 
 // Authenticated API routes
 Route::middleware('auth:sanctum')->group(function () {
     // Session / Info
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/profile', [AuthController::class, 'updateProfile']);
     
     // Settings constants
     Route::get('/settings', [SettingController::class, 'index']);

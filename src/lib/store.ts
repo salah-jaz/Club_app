@@ -33,6 +33,18 @@ interface State {
   appLogoText: string;
   appLogoBase64: string | null;
   currency: string;
+  mailHost: string;
+  mailPort: string;
+  mailUsername: string;
+  mailPassword: string;
+  mailEncryption: string;
+  mailFromAddress: string;
+  mailFromName: string;
+  emailPrimaryColor: string;
+  emailBgColor: string;
+  emailTextColor: string;
+  emailCardBgColor: string;
+  emailFooterText: string;
 
   // sync
   syncData: () => Promise<void>;
@@ -40,6 +52,8 @@ interface State {
 
   // auth
   register: (u: Omit<User, "id" | "role" | "status" | "createdAt">) => Promise<string>;
+  verifyOtp: (email: string, otp: string) => Promise<void>;
+  resendOtp: (email: string) => Promise<void>;
   login: (email: string, password: string) => Promise<User | null>;
   logout: () => Promise<void>;
 
@@ -85,6 +99,28 @@ interface State {
     locations?: string[];
     grades?: string[];
     holidays?: string[];
+    mailHost?: string;
+    mailPort?: string;
+    mailUsername?: string;
+    mailPassword?: string;
+    mailEncryption?: string;
+    mailFromAddress?: string;
+    mailFromName?: string;
+    emailPrimaryColor?: string;
+    emailBgColor?: string;
+    emailTextColor?: string;
+    emailCardBgColor?: string;
+    emailFooterText?: string;
+  }) => Promise<void>;
+  updateProfile: (profile: {
+    firstName: string;
+    lastName: string;
+    sex: "male" | "female";
+    dob: string;
+    email: string;
+    mobile: string;
+    address: string;
+    password?: string;
   }) => Promise<void>;
 }
 
@@ -115,6 +151,18 @@ export const useStore = create<State>((set, get) => ({
   appLogoText: "C",
   appLogoBase64: null,
   currency: "$",
+  mailHost: "",
+  mailPort: "",
+  mailUsername: "",
+  mailPassword: "",
+  mailEncryption: "",
+  mailFromAddress: "",
+  mailFromName: "",
+  emailPrimaryColor: "#10B981",
+  emailBgColor: "#0C0F0E",
+  emailTextColor: "#E8F0EE",
+  emailCardBgColor: "#131916",
+  emailFooterText: "",
 
   syncCurrentUser: async () => {
     try {
@@ -156,7 +204,27 @@ export const useStore = create<State>((set, get) => ({
         api.get<TrainingInvitation[]>("/training-invitations"),
         api.get<TrainingDate[]>("/training-dates"),
         api.get<Transaction[]>("/transactions"),
-        api.get<{ locations: string[]; grades: string[]; holidays: string[]; appName: string; appLogoText: string; appLogoBase64?: string | null; currency?: string }>("/settings"),
+        api.get<{
+          locations: string[];
+          grades: string[];
+          holidays: string[];
+          appName: string;
+          appLogoText: string;
+          appLogoBase64?: string | null;
+          currency?: string;
+          mailHost?: string;
+          mailPort?: string;
+          mailUsername?: string;
+          mailPassword?: string;
+          mailEncryption?: string;
+          mailFromAddress?: string;
+          mailFromName?: string;
+          emailPrimaryColor?: string;
+          emailBgColor?: string;
+          emailTextColor?: string;
+          emailCardBgColor?: string;
+          emailFooterText?: string;
+        }>("/settings"),
         api.get<CreditRequest[]>("/credit-requests"),
       ]);
 
@@ -184,6 +252,18 @@ export const useStore = create<State>((set, get) => ({
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || null,
         currency: settings.currency || "$",
+        mailHost: settings.mailHost || "",
+        mailPort: settings.mailPort || "",
+        mailUsername: settings.mailUsername || "",
+        mailPassword: settings.mailPassword || "",
+        mailEncryption: settings.mailEncryption || "",
+        mailFromAddress: settings.mailFromAddress || "",
+        mailFromName: settings.mailFromName || "",
+        emailPrimaryColor: settings.emailPrimaryColor || "#10B981",
+        emailBgColor: settings.emailBgColor || "#0C0F0E",
+        emailTextColor: settings.emailTextColor || "#E8F0EE",
+        emailCardBgColor: settings.emailCardBgColor || "#131916",
+        emailFooterText: settings.emailFooterText || "",
         users,
         creditRequests,
       });
@@ -193,8 +273,16 @@ export const useStore = create<State>((set, get) => ({
   },
 
   register: async (u) => {
-    const res = await api.post<{ message: string; user_id: string }>("/register", u);
+    const res = await api.post<{ message: string; user_id: string; email?: string }>("/register", u);
     return res.user_id;
+  },
+
+  verifyOtp: async (email, otp) => {
+    await api.post("/register/verify-otp", { email, otp });
+  },
+
+  resendOtp: async (email) => {
+    await api.post("/register/resend-otp", { email });
   },
 
   login: async (email, password) => {
@@ -473,6 +561,18 @@ export const useStore = create<State>((set, get) => ({
       appLogoText: string;
       appLogoBase64: string | null;
       currency: string;
+      mailHost: string;
+      mailPort: string;
+      mailUsername: string;
+      mailPassword: string;
+      mailEncryption: string;
+      mailFromAddress: string;
+      mailFromName: string;
+      emailPrimaryColor: string;
+      emailBgColor: string;
+      emailTextColor: string;
+      emailCardBgColor: string;
+      emailFooterText: string;
     }>("/settings", settings);
     set({
       locations: updated.locations,
@@ -482,7 +582,29 @@ export const useStore = create<State>((set, get) => ({
       appLogoText: updated.appLogoText,
       appLogoBase64: updated.appLogoBase64,
       currency: updated.currency,
+      mailHost: updated.mailHost,
+      mailPort: updated.mailPort,
+      mailUsername: updated.mailUsername,
+      mailPassword: updated.mailPassword,
+      mailEncryption: updated.mailEncryption,
+      mailFromAddress: updated.mailFromAddress,
+      mailFromName: updated.mailFromName,
+      emailPrimaryColor: updated.emailPrimaryColor,
+      emailBgColor: updated.emailBgColor,
+      emailTextColor: updated.emailTextColor,
+      emailCardBgColor: updated.emailCardBgColor,
+      emailFooterText: updated.emailFooterText,
     });
+  },
+
+  updateProfile: async (profile) => {
+    const res = await api.post<{ message: string; user: User }>("/profile", profile);
+    const members = await api.get<Member[]>("/members");
+    set((s) => ({
+      currentUser: res.user,
+      users: s.users.map((u) => (u.id === res.user.id ? res.user : u)),
+      members,
+    }));
   },
 }));
 

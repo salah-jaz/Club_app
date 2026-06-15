@@ -80,7 +80,23 @@ class TrainingController extends Controller
         if ($request->has('location')) $data['location'] = $request->location;
         if ($request->has('status')) $data['status'] = $request->status;
 
+        $oldStatus = $tr->status;
         $tr->update($data);
+
+        // If status changed or date/location/coach changed, notify invited members
+        if (($request->has('status') && $request->status !== $oldStatus) || $request->has('startDate') || $request->has('endDate') || $request->has('location') || $request->has('coach')) {
+            $invitations = TrainingInvitation::where('training_id', $id)->get();
+            foreach ($invitations as $invite) {
+                $member = $invite->member;
+                if ($member && !empty($member->email)) {
+                    try {
+                        \App\Helpers\MailHelper::sendTrainingNotification($member, $tr, $tr->status, 'update');
+                    } catch (\Exception $e) {
+                        \Log::error("Failed to send training update email: " . $e->getMessage());
+                    }
+                }
+            }
+        }
 
         return response()->json($this->formatTraining($tr));
     }
@@ -121,6 +137,16 @@ class TrainingController extends Controller
                     'memberId' => $inv->member_id,
                     'status' => $inv->status,
                 ];
+
+                // Send email notification for training release
+                $member = Member::find($mid);
+                if ($member && !empty($member->email)) {
+                    try {
+                        \App\Helpers\MailHelper::sendTrainingNotification($member, $tr, 'released', 'release');
+                    } catch (\Exception $e) {
+                        \Log::error("Failed to send training release email: " . $e->getMessage());
+                    }
+                }
             }
 
             foreach ($memberIds as $mid) {

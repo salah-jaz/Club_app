@@ -15,23 +15,116 @@ export const Route = createFileRoute("/register")({ component: RegisterPage });
 
 function RegisterPage() {
   const register = useStore((s) => s.register);
+  const verifyOtp = useStore((s) => s.verifyOtp);
+  const resendOtp = useStore((s) => s.resendOtp);
   const navigate = useNavigate();
+  
   const [f, setF] = useState({
     firstName: "", lastName: "", sex: "male" as "male" | "female", dob: "",
     email: "", mobile: "", address: "", password: "",
   });
+  
+  const [showOtpScreen, setShowOtpScreen] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+
   const update = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await register(f);
-      toast.success("Registration submitted. Awaiting admin approval.");
-      navigate({ to: "/login" });
+      toast.success("OTP sent to your email. Please verify.");
+      setShowOtpScreen(true);
     } catch (error: any) {
       toast.error(error.message || "Failed to submit registration.");
     }
   };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length !== 6) {
+      toast.error("Please enter a valid 6-digit code.");
+      return;
+    }
+    setVerifying(true);
+    try {
+      await verifyOtp(f.email, otp);
+      toast.success("Email verified successfully. Awaiting admin approval.");
+      navigate({ to: "/login" });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to verify OTP.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setResending(true);
+    try {
+      await resendOtp(f.email);
+      toast.success("A new OTP has been sent to your email.");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to resend OTP.");
+    } finally {
+      setResending(false);
+    }
+  };
+
+  if (showOtpScreen) {
+    return (
+      <AuthShell
+        title="Verify your email"
+        subtitle={`We've sent a 6-digit verification code to ${f.email}`}
+        footer={
+          <button
+            onClick={() => setShowOtpScreen(false)}
+            className="text-[#10B981] font-medium hover:underline transition-all bg-transparent border-0 cursor-pointer text-xs"
+          >
+            ← Back to registration
+          </button>
+        }
+      >
+        <form onSubmit={handleVerifyOtp} className="space-y-6">
+          <div className="space-y-2">
+            <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase block text-center">
+              Verification Code
+            </Label>
+            <Input
+              required
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+              placeholder="000000"
+              className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] rounded-lg text-center text-2xl tracking-[0.5em] font-mono h-12"
+            />
+          </div>
+
+          <div className="space-y-3">
+            <Button
+              type="submit"
+              disabled={verifying}
+              className="w-full btn-premium-solid h-10 font-semibold cursor-pointer"
+            >
+              {verifying ? "Verifying..." : "Verify OTP"}
+            </Button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                disabled={resending}
+                onClick={handleResendOtp}
+                className="text-xs text-muted-foreground hover:text-foreground transition-all bg-transparent border-0 cursor-pointer disabled:opacity-50"
+              >
+                {resending ? "Resending..." : "Resend code"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell

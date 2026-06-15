@@ -73,6 +73,11 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith("/email-templates")}>
+                    <Link to="/email-templates"><Inbox /><span>Email Templates</span></Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname.startsWith("/settings")}>
                     <Link to="/settings"><Settings /><span>Settings</span></Link>
                   </SidebarMenuButton>
