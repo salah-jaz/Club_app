@@ -1,0 +1,18 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Laravel API → backend/public
+    RewriteCond %{REQUEST_URI} ^/api
+    RewriteRule ^ backend/public/index.php [L,QSA]
+
+    # Existing files & directories (built assets, images, etc.)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # SPA fallback
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# Hostinger: use PHP 8.4 for Laravel API
+AddHandler application/x-httpd-php84 .php

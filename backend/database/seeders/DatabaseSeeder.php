@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             'sex' => 'male',
             'dob' => '1985-01-01',
             'email' => 'admin@club.com',
+            'email_verified_at' => now(),
             'mobile' => '+1 555 0100',
             'address' => 'Club HQ',
             'password' => Hash::make('admin123'),

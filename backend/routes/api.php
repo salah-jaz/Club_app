@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Route;
 // Public auth routes
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/register/verify-otp', [AuthController::class, 'verifyOtp']);
+Route::post('/register/resend-otp', [AuthController::class, 'resendOtp']);
 
 // Authenticated API routes
 Route::middleware('auth:sanctum')->group(function () {

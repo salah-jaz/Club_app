@@ -28,6 +28,34 @@ function SettingsPage() {
   const [grades, setGrades] = useState<string[]>(store.grades);
   const [holidays, setHolidays] = useState<string[]>(store.holidays);
 
+  // States for SMTP Settings
+  const [mailHost, setMailHost] = useState(store.mailHost || "");
+  const [mailPort, setMailPort] = useState(store.mailPort || "");
+  const [mailUsername, setMailUsername] = useState(store.mailUsername || "");
+  const [mailPassword, setMailPassword] = useState(store.mailPassword || "");
+  const [mailEncryption, setMailEncryption] = useState(store.mailEncryption || "tls");
+  const [mailFromAddress, setMailFromAddress] = useState(store.mailFromAddress || "");
+  const [mailFromName, setMailFromName] = useState(store.mailFromName || "");
+
+  // Sync SMTP states when store syncs
+  useEffect(() => {
+    setMailHost(store.mailHost || "");
+    setMailPort(store.mailPort || "");
+    setMailUsername(store.mailUsername || "");
+    setMailPassword(store.mailPassword || "");
+    setMailEncryption(store.mailEncryption || "tls");
+    setMailFromAddress(store.mailFromAddress || "");
+    setMailFromName(store.mailFromName || "");
+  }, [
+    store.mailHost,
+    store.mailPort,
+    store.mailUsername,
+    store.mailPassword,
+    store.mailEncryption,
+    store.mailFromAddress,
+    store.mailFromName,
+  ]);
+
   // States for Admin Credentials
   const [firstName, setFirstName] = useState(currentUser?.firstName || "");
   const [lastName, setLastName] = useState(currentUser?.lastName || "");
@@ -79,6 +107,24 @@ function SettingsPage() {
       setConfirmPassword("");
     } catch (err: any) {
       toast.error(err.message || "Failed to save credentials");
+    }
+  };
+
+  const handleSaveMailSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateSettings({
+        mailHost,
+        mailPort,
+        mailUsername,
+        mailPassword,
+        mailEncryption,
+        mailFromAddress,
+        mailFromName,
+      });
+      toast.success("SMTP settings saved successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save SMTP settings");
     }
   };
 
@@ -414,6 +460,117 @@ function SettingsPage() {
               <div className="flex justify-end pt-2">
                 <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
                   Save Credentials
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Email SMTP Configuration */}
+        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
+          <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-1.5">
+              Email SMTP Configuration
+              <span title="Configures outgoing email settings. Recommended host for Google SMTP is smtp.gmail.com with port 587 and TLS.">
+                <HelpCircle className="size-3.5 text-muted-foreground/60 cursor-pointer" />
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <form onSubmit={handleSaveMailSettings} className="space-y-4">
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    SMTP Host
+                  </Label>
+                  <Input
+                    value={mailHost}
+                    onChange={(e) => setMailHost(e.target.value)}
+                    placeholder="smtp.gmail.com"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    SMTP Port
+                  </Label>
+                  <Input
+                    value={mailPort}
+                    onChange={(e) => setMailPort(e.target.value)}
+                    placeholder="587"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Encryption
+                  </Label>
+                  <Select value={mailEncryption} onValueChange={setMailEncryption}>
+                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer text-xs">
+                      <SelectValue placeholder="Select Encryption" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                      <SelectItem value="tls" className="cursor-pointer hover:bg-white/5">TLS</SelectItem>
+                      <SelectItem value="ssl" className="cursor-pointer hover:bg-white/5">SSL</SelectItem>
+                      <SelectItem value="none" className="cursor-pointer hover:bg-white/5">None</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    SMTP Username / Email
+                  </Label>
+                  <Input
+                    value={mailUsername}
+                    onChange={(e) => setMailUsername(e.target.value)}
+                    placeholder="your_email@gmail.com"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    SMTP Password
+                  </Label>
+                  <Input
+                    type="password"
+                    value={mailPassword}
+                    onChange={(e) => setMailPassword(e.target.value)}
+                    placeholder="••••••••••••••••"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    From Name
+                  </Label>
+                  <Input
+                    value={mailFromName}
+                    onChange={(e) => setMailFromName(e.target.value)}
+                    placeholder="ClubConnect"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-3">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    From Address
+                  </Label>
+                  <Input
+                    type="email"
+                    value={mailFromAddress}
+                    onChange={(e) => setMailFromAddress(e.target.value)}
+                    placeholder="no-reply@clubconnect.com"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="text-[11px] text-muted-foreground/60 leading-relaxed font-light mt-2 bg-[#1A2120]/40 p-3 rounded-lg border border-white/[0.02]">
+                <strong className="text-[#34D399] font-medium">Google SMTP Setup Tip:</strong> Use <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">smtp.gmail.com</code> with port <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">587</code> and encryption <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">TLS</code>. You must create an <strong>App Password</strong> in your Google Account settings; entering your normal Gmail password will result in a connection failure. Leave the host blank to disable SMTP and fallback to application log capture.
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                  Save SMTP Settings
                 </Button>
               </div>
             </form>
