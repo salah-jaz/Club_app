@@ -27,6 +27,13 @@ class UserController extends Controller
         $user->status = 'active';
         $user->save();
 
+        // Send approval email
+        try {
+            \App\Helpers\MailHelper::sendApprovalEmail($user);
+        } catch (\Exception $e) {
+            \Log::error("Failed to send approval email: " . $e->getMessage());
+        }
+
         // Automatically create a member profile for the approved user
         \App\Models\Member::create([
             'id' => 'm_' . \Illuminate\Support\Str::random(8),
@@ -59,6 +66,13 @@ class UserController extends Controller
             $user->status = 'active';
             $user->save();
 
+            // Send approval email
+            try {
+                \App\Helpers\MailHelper::sendApprovalEmail($user);
+            } catch (\Exception $e) {
+                \Log::error("Failed to send approval email: " . $e->getMessage());
+            }
+
             // Automatically create a member profile for the approved user
             \App\Models\Member::create([
                 'id' => 'm_' . \Illuminate\Support\Str::random(8),
@@ -90,6 +104,13 @@ class UserController extends Controller
         $user = User::findOrFail($id);
         $user->status = 'rejected';
         $user->save();
+
+        // Send rejection email
+        try {
+            \App\Helpers\MailHelper::sendRejectionEmail($user);
+        } catch (\Exception $e) {
+            \Log::error("Failed to send rejection email: " . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'User rejected successfully.',

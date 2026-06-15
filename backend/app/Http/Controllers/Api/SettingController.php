@@ -18,6 +18,20 @@ class SettingController extends Controller
         $appLogoBase64 = Setting::where('key', 'app_logo_base64')->value('value') ?? null;
         $currency = Setting::where('key', 'currency')->value('value') ?? '$';
 
+        $mailHost = Setting::where('key', 'mail_host')->value('value') ?? '';
+        $mailPort = Setting::where('key', 'mail_port')->value('value') ?? '';
+        $mailUsername = Setting::where('key', 'mail_username')->value('value') ?? '';
+        $mailPassword = Setting::where('key', 'mail_password')->value('value') ?? '';
+        $mailEncryption = Setting::where('key', 'mail_encryption')->value('value') ?? '';
+        $mailFromAddress = Setting::where('key', 'mail_from_address')->value('value') ?? '';
+        $mailFromName = Setting::where('key', 'mail_from_name')->value('value') ?? '';
+
+        $emailPrimaryColor = Setting::where('key', 'email_primary_color')->value('value') ?? '#10B981';
+        $emailBgColor = Setting::where('key', 'email_bg_color')->value('value') ?? '#0C0F0E';
+        $emailTextColor = Setting::where('key', 'email_text_color')->value('value') ?? '#E8F0EE';
+        $emailCardBgColor = Setting::where('key', 'email_card_bg_color')->value('value') ?? '#131916';
+        $emailFooterText = Setting::where('key', 'email_footer_text')->value('value') ?? '';
+
         return response()->json([
             'locations' => Location::pluck('name')->toArray(),
             'grades' => Grade::pluck('name')->toArray(),
@@ -26,6 +40,18 @@ class SettingController extends Controller
             'appLogoText' => $appLogoText,
             'appLogoBase64' => $appLogoBase64,
             'currency' => $currency,
+            'mailHost' => $mailHost,
+            'mailPort' => $mailPort,
+            'mailUsername' => $mailUsername,
+            'mailPassword' => $mailPassword,
+            'mailEncryption' => $mailEncryption,
+            'mailFromAddress' => $mailFromAddress,
+            'mailFromName' => $mailFromName,
+            'emailPrimaryColor' => $emailPrimaryColor,
+            'emailBgColor' => $emailBgColor,
+            'emailTextColor' => $emailTextColor,
+            'emailCardBgColor' => $emailCardBgColor,
+            'emailFooterText' => $emailFooterText,
         ]);
     }
 
@@ -47,6 +73,18 @@ class SettingController extends Controller
             'grades.*' => 'required|string',
             'holidays' => 'nullable|array',
             'holidays.*' => 'required|date_format:Y-m-d',
+            'mailHost' => 'nullable|string',
+            'mailPort' => 'nullable|string',
+            'mailUsername' => 'nullable|string',
+            'mailPassword' => 'nullable|string',
+            'mailEncryption' => 'nullable|string',
+            'mailFromAddress' => 'nullable|string',
+            'mailFromName' => 'nullable|string',
+            'emailPrimaryColor' => 'nullable|string',
+            'emailBgColor' => 'nullable|string',
+            'emailTextColor' => 'nullable|string',
+            'emailCardBgColor' => 'nullable|string',
+            'emailFooterText' => 'nullable|string',
         ]);
 
         if ($request->has('appName')) {
@@ -64,6 +102,54 @@ class SettingController extends Controller
 
         if ($request->has('currency')) {
             Setting::updateOrCreate(['key' => 'currency'], ['value' => $request->currency]);
+        }
+
+        if ($request->has('mailHost')) {
+            Setting::updateOrCreate(['key' => 'mail_host'], ['value' => $request->mailHost]);
+        }
+
+        if ($request->has('mailPort')) {
+            Setting::updateOrCreate(['key' => 'mail_port'], ['value' => $request->mailPort]);
+        }
+
+        if ($request->has('mailUsername')) {
+            Setting::updateOrCreate(['key' => 'mail_username'], ['value' => $request->mailUsername]);
+        }
+
+        if ($request->has('mailPassword')) {
+            Setting::updateOrCreate(['key' => 'mail_password'], ['value' => $request->mailPassword]);
+        }
+
+        if ($request->has('mailEncryption')) {
+            Setting::updateOrCreate(['key' => 'mail_encryption'], ['value' => $request->mailEncryption]);
+        }
+
+        if ($request->has('mailFromAddress')) {
+            Setting::updateOrCreate(['key' => 'mail_from_address'], ['value' => $request->mailFromAddress]);
+        }
+
+        if ($request->has('mailFromName')) {
+            Setting::updateOrCreate(['key' => 'mail_from_name'], ['value' => $request->mailFromName]);
+        }
+
+        if ($request->has('emailPrimaryColor')) {
+            Setting::updateOrCreate(['key' => 'email_primary_color'], ['value' => $request->emailPrimaryColor]);
+        }
+
+        if ($request->has('emailBgColor')) {
+            Setting::updateOrCreate(['key' => 'email_bg_color'], ['value' => $request->emailBgColor]);
+        }
+
+        if ($request->has('emailTextColor')) {
+            Setting::updateOrCreate(['key' => 'email_text_color'], ['value' => $request->emailTextColor]);
+        }
+
+        if ($request->has('emailCardBgColor')) {
+            Setting::updateOrCreate(['key' => 'email_card_bg_color'], ['value' => $request->emailCardBgColor]);
+        }
+
+        if ($request->has('emailFooterText')) {
+            Setting::updateOrCreate(['key' => 'email_footer_text'], ['value' => $request->emailFooterText]);
         }
 
         // Synchronize Locations

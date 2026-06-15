@@ -79,7 +79,23 @@ class PlayScheduleController extends Controller
         if ($request->has('location')) $data['location'] = $request->location;
         if ($request->has('status')) $data['status'] = $request->status;
 
+        $oldStatus = $sch->status;
         $sch->update($data);
+
+        // If status changed or date changed, notify invited members
+        if (($request->has('status') && $request->status !== $oldStatus) || $request->has('date') || $request->has('location')) {
+            $invitations = PlayInvitation::where('schedule_id', $id)->get();
+            foreach ($invitations as $invite) {
+                $member = $invite->member;
+                if ($member && !empty($member->email)) {
+                    try {
+                        \App\Helpers\MailHelper::sendScheduleNotification($member, $sch, $sch->status, 'update');
+                    } catch (\Exception $e) {
+                        \Log::error("Failed to send schedule update email: " . $e->getMessage());
+                    }
+                }
+            }
+        }
 
         return response()->json($this->formatSchedule($sch));
     }
@@ -117,6 +133,15 @@ class PlayScheduleController extends Controller
                 'memberId' => $inv->member_id,
                 'status' => $inv->status,
             ];
+
+            // Send schedule email invitation
+            if ($member && !empty($member->email)) {
+                try {
+                    \App\Helpers\MailHelper::sendScheduleNotification($member, $sch, 'released', 'release');
+                } catch (\Exception $e) {
+                    \Log::error("Failed to send schedule release email: " . $e->getMessage());
+                }
+            }
         }
 
         return response()->json([
@@ -131,6 +156,19 @@ class PlayScheduleController extends Controller
         $sch = PlaySchedule::findOrFail($id);
         $sch->status = 'closed';
         $sch->save();
+
+        // Notify invited members of the closure
+        $invitations = PlayInvitation::where('schedule_id', $id)->get();
+        foreach ($invitations as $invite) {
+            $member = $invite->member;
+            if ($member && !empty($member->email)) {
+                try {
+                    \App\Helpers\MailHelper::sendScheduleNotification($member, $sch, 'closed', 'update');
+                } catch (\Exception $e) {
+                    \Log::error("Failed to send schedule close email: " . $e->getMessage());
+                }
+            }
+        }
 
         return response()->json([
             'message' => 'Schedule closed successfully.',
