@@ -15,12 +15,10 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTransactionsRouteImport } from './routes/_authenticated/transactions'
 import { Route as AuthenticatedTrainingsRouteImport } from './routes/_authenticated/trainings'
-import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSchedulesRouteImport } from './routes/_authenticated/schedules'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedMembersRouteImport } from './routes/_authenticated/members'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
-import { Route as AuthenticatedEmailTemplatesRouteImport } from './routes/_authenticated/email-templates'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCreditsRouteImport } from './routes/_authenticated/credits'
 import { Route as AuthenticatedApprovalsRouteImport } from './routes/_authenticated/approvals'
@@ -29,8 +27,6 @@ import { Route as AuthenticatedTrainingsIdRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSchedulesNewRouteImport } from './routes/_authenticated/schedules.new'
 import { Route as AuthenticatedSchedulesIdRouteImport } from './routes/_authenticated/schedules.$id'
 import { Route as AuthenticatedMembersAddRouteImport } from './routes/_authenticated/members.add'
-import { Route as AuthenticatedTrainingsIdEditRouteImport } from './routes/_authenticated/trainings.$id.edit'
-import { Route as AuthenticatedSchedulesIdEditRouteImport } from './routes/_authenticated/schedules.$id.edit'
 import { Route as AuthenticatedMembersIdEditRouteImport } from './routes/_authenticated/members.$id.edit'
 
 const RegisterRoute = RegisterRouteImport.update({
@@ -63,11 +59,6 @@ const AuthenticatedTrainingsRoute = AuthenticatedTrainingsRouteImport.update({
   path: '/trainings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedSchedulesRoute = AuthenticatedSchedulesRouteImport.update({
   id: '/schedules',
   path: '/schedules',
@@ -87,12 +78,6 @@ const AuthenticatedInvitationsRoute =
   AuthenticatedInvitationsRouteImport.update({
     id: '/invitations',
     path: '/invitations',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedEmailTemplatesRoute =
-  AuthenticatedEmailTemplatesRouteImport.update({
-    id: '/email-templates',
-    path: '/email-templates',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -139,18 +124,6 @@ const AuthenticatedMembersAddRoute = AuthenticatedMembersAddRouteImport.update({
   path: '/add',
   getParentRoute: () => AuthenticatedMembersRoute,
 } as any)
-const AuthenticatedTrainingsIdEditRoute =
-  AuthenticatedTrainingsIdEditRouteImport.update({
-    id: '/edit',
-    path: '/edit',
-    getParentRoute: () => AuthenticatedTrainingsIdRoute,
-  } as any)
-const AuthenticatedSchedulesIdEditRoute =
-  AuthenticatedSchedulesIdEditRouteImport.update({
-    id: '/edit',
-    path: '/edit',
-    getParentRoute: () => AuthenticatedSchedulesIdRoute,
-  } as any)
 const AuthenticatedMembersIdEditRoute =
   AuthenticatedMembersIdEditRouteImport.update({
     id: '/$id/edit',
@@ -165,22 +138,18 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/email-templates': typeof AuthenticatedEmailTemplatesRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
   '/profile': typeof AuthenticatedProfileRoute
   '/schedules': typeof AuthenticatedSchedulesRouteWithChildren
-  '/settings': typeof AuthenticatedSettingsRoute
   '/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/transactions': typeof AuthenticatedTransactionsRoute
   '/members/add': typeof AuthenticatedMembersAddRoute
-  '/schedules/$id': typeof AuthenticatedSchedulesIdRouteWithChildren
+  '/schedules/$id': typeof AuthenticatedSchedulesIdRoute
   '/schedules/new': typeof AuthenticatedSchedulesNewRoute
-  '/trainings/$id': typeof AuthenticatedTrainingsIdRouteWithChildren
+  '/trainings/$id': typeof AuthenticatedTrainingsIdRoute
   '/trainings/new': typeof AuthenticatedTrainingsNewRoute
   '/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
-  '/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
-  '/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -189,22 +158,18 @@ export interface FileRoutesByTo {
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/email-templates': typeof AuthenticatedEmailTemplatesRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
   '/profile': typeof AuthenticatedProfileRoute
   '/schedules': typeof AuthenticatedSchedulesRouteWithChildren
-  '/settings': typeof AuthenticatedSettingsRoute
   '/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/transactions': typeof AuthenticatedTransactionsRoute
   '/members/add': typeof AuthenticatedMembersAddRoute
-  '/schedules/$id': typeof AuthenticatedSchedulesIdRouteWithChildren
+  '/schedules/$id': typeof AuthenticatedSchedulesIdRoute
   '/schedules/new': typeof AuthenticatedSchedulesNewRoute
-  '/trainings/$id': typeof AuthenticatedTrainingsIdRouteWithChildren
+  '/trainings/$id': typeof AuthenticatedTrainingsIdRoute
   '/trainings/new': typeof AuthenticatedTrainingsNewRoute
   '/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
-  '/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
-  '/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -215,22 +180,18 @@ export interface FileRoutesById {
   '/_authenticated/approvals': typeof AuthenticatedApprovalsRoute
   '/_authenticated/credits': typeof AuthenticatedCreditsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/email-templates': typeof AuthenticatedEmailTemplatesRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/members': typeof AuthenticatedMembersRouteWithChildren
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/schedules': typeof AuthenticatedSchedulesRouteWithChildren
-  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/_authenticated/transactions': typeof AuthenticatedTransactionsRoute
   '/_authenticated/members/add': typeof AuthenticatedMembersAddRoute
-  '/_authenticated/schedules/$id': typeof AuthenticatedSchedulesIdRouteWithChildren
+  '/_authenticated/schedules/$id': typeof AuthenticatedSchedulesIdRoute
   '/_authenticated/schedules/new': typeof AuthenticatedSchedulesNewRoute
-  '/_authenticated/trainings/$id': typeof AuthenticatedTrainingsIdRouteWithChildren
+  '/_authenticated/trainings/$id': typeof AuthenticatedTrainingsIdRoute
   '/_authenticated/trainings/new': typeof AuthenticatedTrainingsNewRoute
   '/_authenticated/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
-  '/_authenticated/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
-  '/_authenticated/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -241,12 +202,10 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/credits'
     | '/dashboard'
-    | '/email-templates'
     | '/invitations'
     | '/members'
     | '/profile'
     | '/schedules'
-    | '/settings'
     | '/trainings'
     | '/transactions'
     | '/members/add'
@@ -255,8 +214,6 @@ export interface FileRouteTypes {
     | '/trainings/$id'
     | '/trainings/new'
     | '/members/$id/edit'
-    | '/schedules/$id/edit'
-    | '/trainings/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -265,12 +222,10 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/credits'
     | '/dashboard'
-    | '/email-templates'
     | '/invitations'
     | '/members'
     | '/profile'
     | '/schedules'
-    | '/settings'
     | '/trainings'
     | '/transactions'
     | '/members/add'
@@ -279,8 +234,6 @@ export interface FileRouteTypes {
     | '/trainings/$id'
     | '/trainings/new'
     | '/members/$id/edit'
-    | '/schedules/$id/edit'
-    | '/trainings/$id/edit'
   id:
     | '__root__'
     | '/'
@@ -290,12 +243,10 @@ export interface FileRouteTypes {
     | '/_authenticated/approvals'
     | '/_authenticated/credits'
     | '/_authenticated/dashboard'
-    | '/_authenticated/email-templates'
     | '/_authenticated/invitations'
     | '/_authenticated/members'
     | '/_authenticated/profile'
     | '/_authenticated/schedules'
-    | '/_authenticated/settings'
     | '/_authenticated/trainings'
     | '/_authenticated/transactions'
     | '/_authenticated/members/add'
@@ -304,8 +255,6 @@ export interface FileRouteTypes {
     | '/_authenticated/trainings/$id'
     | '/_authenticated/trainings/new'
     | '/_authenticated/members/$id/edit'
-    | '/_authenticated/schedules/$id/edit'
-    | '/_authenticated/trainings/$id/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -359,13 +308,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTrainingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/schedules': {
       id: '/_authenticated/schedules'
       path: '/schedules'
@@ -392,13 +334,6 @@ declare module '@tanstack/react-router' {
       path: '/invitations'
       fullPath: '/invitations'
       preLoaderRoute: typeof AuthenticatedInvitationsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/email-templates': {
-      id: '/_authenticated/email-templates'
-      path: '/email-templates'
-      fullPath: '/email-templates'
-      preLoaderRoute: typeof AuthenticatedEmailTemplatesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -457,20 +392,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMembersAddRouteImport
       parentRoute: typeof AuthenticatedMembersRoute
     }
-    '/_authenticated/trainings/$id/edit': {
-      id: '/_authenticated/trainings/$id/edit'
-      path: '/edit'
-      fullPath: '/trainings/$id/edit'
-      preLoaderRoute: typeof AuthenticatedTrainingsIdEditRouteImport
-      parentRoute: typeof AuthenticatedTrainingsIdRoute
-    }
-    '/_authenticated/schedules/$id/edit': {
-      id: '/_authenticated/schedules/$id/edit'
-      path: '/edit'
-      fullPath: '/schedules/$id/edit'
-      preLoaderRoute: typeof AuthenticatedSchedulesIdEditRouteImport
-      parentRoute: typeof AuthenticatedSchedulesIdRoute
-    }
     '/_authenticated/members/$id/edit': {
       id: '/_authenticated/members/$id/edit'
       path: '/$id/edit'
@@ -494,28 +415,14 @@ const AuthenticatedMembersRouteChildren: AuthenticatedMembersRouteChildren = {
 const AuthenticatedMembersRouteWithChildren =
   AuthenticatedMembersRoute._addFileChildren(AuthenticatedMembersRouteChildren)
 
-interface AuthenticatedSchedulesIdRouteChildren {
-  AuthenticatedSchedulesIdEditRoute: typeof AuthenticatedSchedulesIdEditRoute
-}
-
-const AuthenticatedSchedulesIdRouteChildren: AuthenticatedSchedulesIdRouteChildren =
-  {
-    AuthenticatedSchedulesIdEditRoute: AuthenticatedSchedulesIdEditRoute,
-  }
-
-const AuthenticatedSchedulesIdRouteWithChildren =
-  AuthenticatedSchedulesIdRoute._addFileChildren(
-    AuthenticatedSchedulesIdRouteChildren,
-  )
-
 interface AuthenticatedSchedulesRouteChildren {
-  AuthenticatedSchedulesIdRoute: typeof AuthenticatedSchedulesIdRouteWithChildren
+  AuthenticatedSchedulesIdRoute: typeof AuthenticatedSchedulesIdRoute
   AuthenticatedSchedulesNewRoute: typeof AuthenticatedSchedulesNewRoute
 }
 
 const AuthenticatedSchedulesRouteChildren: AuthenticatedSchedulesRouteChildren =
   {
-    AuthenticatedSchedulesIdRoute: AuthenticatedSchedulesIdRouteWithChildren,
+    AuthenticatedSchedulesIdRoute: AuthenticatedSchedulesIdRoute,
     AuthenticatedSchedulesNewRoute: AuthenticatedSchedulesNewRoute,
   }
 
@@ -524,28 +431,14 @@ const AuthenticatedSchedulesRouteWithChildren =
     AuthenticatedSchedulesRouteChildren,
   )
 
-interface AuthenticatedTrainingsIdRouteChildren {
-  AuthenticatedTrainingsIdEditRoute: typeof AuthenticatedTrainingsIdEditRoute
-}
-
-const AuthenticatedTrainingsIdRouteChildren: AuthenticatedTrainingsIdRouteChildren =
-  {
-    AuthenticatedTrainingsIdEditRoute: AuthenticatedTrainingsIdEditRoute,
-  }
-
-const AuthenticatedTrainingsIdRouteWithChildren =
-  AuthenticatedTrainingsIdRoute._addFileChildren(
-    AuthenticatedTrainingsIdRouteChildren,
-  )
-
 interface AuthenticatedTrainingsRouteChildren {
-  AuthenticatedTrainingsIdRoute: typeof AuthenticatedTrainingsIdRouteWithChildren
+  AuthenticatedTrainingsIdRoute: typeof AuthenticatedTrainingsIdRoute
   AuthenticatedTrainingsNewRoute: typeof AuthenticatedTrainingsNewRoute
 }
 
 const AuthenticatedTrainingsRouteChildren: AuthenticatedTrainingsRouteChildren =
   {
-    AuthenticatedTrainingsIdRoute: AuthenticatedTrainingsIdRouteWithChildren,
+    AuthenticatedTrainingsIdRoute: AuthenticatedTrainingsIdRoute,
     AuthenticatedTrainingsNewRoute: AuthenticatedTrainingsNewRoute,
   }
 
@@ -558,12 +451,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedApprovalsRoute: typeof AuthenticatedApprovalsRoute
   AuthenticatedCreditsRoute: typeof AuthenticatedCreditsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedEmailTemplatesRoute: typeof AuthenticatedEmailTemplatesRoute
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
   AuthenticatedMembersRoute: typeof AuthenticatedMembersRouteWithChildren
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedSchedulesRoute: typeof AuthenticatedSchedulesRouteWithChildren
-  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTrainingsRoute: typeof AuthenticatedTrainingsRouteWithChildren
   AuthenticatedTransactionsRoute: typeof AuthenticatedTransactionsRoute
 }
@@ -572,12 +463,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedApprovalsRoute: AuthenticatedApprovalsRoute,
   AuthenticatedCreditsRoute: AuthenticatedCreditsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedEmailTemplatesRoute: AuthenticatedEmailTemplatesRoute,
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
   AuthenticatedMembersRoute: AuthenticatedMembersRouteWithChildren,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedSchedulesRoute: AuthenticatedSchedulesRouteWithChildren,
-  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTrainingsRoute: AuthenticatedTrainingsRouteWithChildren,
   AuthenticatedTransactionsRoute: AuthenticatedTransactionsRoute,
 }

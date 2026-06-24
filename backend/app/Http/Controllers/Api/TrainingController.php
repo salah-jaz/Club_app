@@ -7,8 +7,6 @@ use App\Models\Training;
 use App\Models\TrainingInvitation;
 use App\Models\TrainingDate;
 use App\Models\Holiday;
-use App\Models\Member;
-use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -55,19 +53,6 @@ class TrainingController extends Controller
     {
         $tr = Training::findOrFail($id);
 
-        $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'startDate' => 'sometimes|required|date',
-            'endDate' => 'sometimes|required|date',
-            'sessions' => 'sometimes|required|integer|min:1',
-            'slots' => 'sometimes|required|integer|min:1',
-            'duration' => 'sometimes|required|string',
-            'fees' => 'sometimes|required|numeric',
-            'coach' => 'sometimes|required|string',
-            'location' => 'sometimes|required|string',
-            'status' => 'sometimes|required|string|in:open,released,closed',
-        ]);
-
         $data = [];
         if ($request->has('name')) $data['name'] = $request->name;
         if ($request->has('startDate')) $data['start_date'] = $request->startDate;
@@ -80,23 +65,7 @@ class TrainingController extends Controller
         if ($request->has('location')) $data['location'] = $request->location;
         if ($request->has('status')) $data['status'] = $request->status;
 
-        $oldStatus = $tr->status;
         $tr->update($data);
-
-        // If status changed or date/location/coach changed, notify invited members
-        if (($request->has('status') && $request->status !== $oldStatus) || $request->has('startDate') || $request->has('endDate') || $request->has('location') || $request->has('coach')) {
-            $invitations = TrainingInvitation::where('training_id', $id)->get();
-            foreach ($invitations as $invite) {
-                $member = $invite->member;
-                if ($member && !empty($member->email)) {
-                    try {
-                        \App\Helpers\MailHelper::sendTrainingNotification($member, $tr, $tr->status, 'update');
-                    } catch (\Exception $e) {
-                        \Log::error("Failed to send training update email: " . $e->getMessage());
-                    }
-                }
-            }
-        }
 
         return response()->json($this->formatTraining($tr));
     }
@@ -104,7 +73,7 @@ class TrainingController extends Controller
     public function release(Request $request, $id)
     {
         $request->validate([
-            'memberIds' => 'nullable|array',
+            'memberIds' => 'required|array',
             'memberIds.*' => 'required|string',
         ]);
 
@@ -112,60 +81,47 @@ class TrainingController extends Controller
         $tr->status = 'released';
         $tr->save();
 
-        $memberIds = $request->memberIds ?? [];
+        $memberIds = $request->memberIds;
         $holidayDates = Holiday::pluck('date')->toArray();
         $dates = $this->generateWeeklyDates($tr->start_date, $tr->sessions, $holidayDates);
 
+        // Delete old invitations and dates for this training
+        TrainingInvitation::where('training_id', $id)->delete();
+        TrainingDate::where('training_id', $id)->delete();
+
         $invites = [];
+        foreach ($memberIds as $mid) {
+            $inv = TrainingInvitation::create([
+                'id' => 'ti_' . Str::random(8),
+                'training_id' => $id,
+                'member_id' => $mid,
+                'status' => 'open',
+            ]);
+            $invites[] = [
+                'id' => $inv->id,
+                'trainingId' => $inv->training_id,
+                'memberId' => $inv->member_id,
+                'status' => $inv->status,
+            ];
+        }
+
         $trainingDates = [];
-
-        if (!empty($memberIds)) {
-            // Delete old invitations and dates for this training for these members
-            TrainingInvitation::where('training_id', $id)->whereIn('member_id', $memberIds)->delete();
-            TrainingDate::where('training_id', $id)->whereIn('member_id', $memberIds)->delete();
-
-            foreach ($memberIds as $mid) {
-                $inv = TrainingInvitation::create([
-                    'id' => 'ti_' . Str::random(8),
+        foreach ($memberIds as $mid) {
+            foreach ($dates as $d) {
+                $tDate = TrainingDate::create([
+                    'id' => 'td_' . Str::random(8),
                     'training_id' => $id,
                     'member_id' => $mid,
-                    'status' => 'open',
+                    'date' => $d,
+                    'attended' => null,
                 ]);
-                $invites[] = [
-                    'id' => $inv->id,
-                    'trainingId' => $inv->training_id,
-                    'memberId' => $inv->member_id,
-                    'status' => $inv->status,
+                $trainingDates[] = [
+                    'id' => $tDate->id,
+                    'trainingId' => $tDate->training_id,
+                    'memberId' => $tDate->member_id,
+                    'date' => $tDate->date,
+                    'attended' => null,
                 ];
-
-                // Send email notification for training release
-                $member = Member::find($mid);
-                if ($member && !empty($member->email)) {
-                    try {
-                        \App\Helpers\MailHelper::sendTrainingNotification($member, $tr, 'released', 'release');
-                    } catch (\Exception $e) {
-                        \Log::error("Failed to send training release email: " . $e->getMessage());
-                    }
-                }
-            }
-
-            foreach ($memberIds as $mid) {
-                foreach ($dates as $d) {
-                    $tDate = TrainingDate::create([
-                        'id' => 'td_' . Str::random(8),
-                        'training_id' => $id,
-                        'member_id' => $mid,
-                        'date' => $d,
-                        'attended' => null,
-                    ]);
-                    $trainingDates[] = [
-                        'id' => $tDate->id,
-                        'trainingId' => $tDate->training_id,
-                        'memberId' => $tDate->member_id,
-                        'date' => $tDate->date,
-                        'attended' => null,
-                    ];
-                }
             }
         }
 
@@ -174,90 +130,6 @@ class TrainingController extends Controller
             'training' => $this->formatTraining($tr),
             'invitations' => $invites,
             'dates' => $trainingDates,
-        ]);
-    }
-
-    public function registerJuniors(Request $request, $id)
-    {
-        $request->validate([
-            'memberId' => 'required|string',
-            'status' => 'required|in:accepted,declined',
-        ]);
-
-        $tr = Training::findOrFail($id);
-        if ($tr->status !== 'released') {
-            return response()->json(['message' => 'Training program is not released yet.'], 400);
-        }
-
-        $memberId = $request->memberId;
-        $status = $request->status;
-
-        $inv = TrainingInvitation::where('training_id', $id)->where('member_id', $memberId)->first();
-        $isNewlyAccepted = false;
-
-        if ($inv) {
-            if ($inv->status !== 'accepted' && $status === 'accepted') {
-                $isNewlyAccepted = true;
-            }
-            $inv->status = $status;
-            $inv->save();
-        } else {
-            if ($status === 'accepted') {
-                $isNewlyAccepted = true;
-            }
-            $inv = TrainingInvitation::create([
-                'id' => 'ti_' . Str::random(8),
-                'training_id' => $id,
-                'member_id' => $memberId,
-                'status' => $status,
-            ]);
-        }
-
-        if ($status === 'accepted') {
-            $existingDatesCount = TrainingDate::where('training_id', $id)->where('member_id', $memberId)->count();
-            if ($existingDatesCount === 0) {
-                $holidayDates = Holiday::pluck('date')->toArray();
-                $dates = $this->generateWeeklyDates($tr->start_date, $tr->sessions, $holidayDates);
-
-                foreach ($dates as $d) {
-                    TrainingDate::create([
-                        'id' => 'td_' . Str::random(8),
-                        'training_id' => $id,
-                        'member_id' => $memberId,
-                        'date' => $d,
-                        'attended' => null,
-                    ]);
-                }
-            }
-
-            if ($isNewlyAccepted) {
-                $member = Member::find($memberId);
-                if ($member) {
-                    $member->credit -= $tr->fees;
-                    $member->save();
-
-                    Transaction::create([
-                        'id' => 't_' . Str::random(8),
-                        'member_id' => $memberId,
-                        'type' => 'debit',
-                        'amount' => $tr->fees,
-                        'description' => "Training registration: " . $tr->name,
-                        'date' => now(),
-                    ]);
-                }
-            }
-        } else {
-            TrainingDate::where('training_id', $id)->where('member_id', $memberId)->delete();
-        }
-
-        return response()->json([
-            'message' => 'Training invitation updated.',
-            'invitation' => [
-                'id' => $inv->id,
-                'trainingId' => $inv->training_id,
-                'memberId' => $inv->member_id,
-                'status' => $inv->status,
-            ]
         ]);
     }
 
@@ -279,28 +151,8 @@ class TrainingController extends Controller
         ]);
 
         $invite = TrainingInvitation::findOrFail($id);
-        $oldStatus = $invite->status;
         $invite->status = $request->status;
         $invite->save();
-
-        // If transitioning to accepted, deduct fee and log transaction
-        if ($invite->status === 'accepted' && $oldStatus !== 'accepted') {
-            $tr = Training::find($invite->training_id);
-            $member = Member::find($invite->member_id);
-            if ($tr && $member) {
-                $member->credit -= $tr->fees;
-                $member->save();
-
-                Transaction::create([
-                    'id' => 't_' . Str::random(8),
-                    'member_id' => $invite->member_id,
-                    'type' => 'debit',
-                    'amount' => $tr->fees,
-                    'description' => "Training invitation accepted: " . $tr->name,
-                    'date' => now(),
-                ]);
-            }
-        }
 
         return response()->json([
             'id' => $invite->id,
@@ -339,14 +191,6 @@ class TrainingController extends Controller
             'date' => $tDate->date,
             'attended' => (bool)$tDate->attended,
         ]);
-    }
-
-    public function destroy($id)
-    {
-        $tr = Training::findOrFail($id);
-        $tr->delete();
-
-        return response()->json(['message' => 'Training program deleted successfully.']);
     }
 
     private function generateWeeklyDates($startDate, $sessions, $holidayDates = [])
