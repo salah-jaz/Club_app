@@ -24,6 +24,10 @@ function SchedulesList() {
   const s = useStore();
   const [filter, setFilter] = useState<"all" | "open" | "released" | "closed">("all");
 
+  const leagueEligibleCount = s.members.filter(
+    (m) => m.memberType === "adult" && m.status === "active" && m.league,
+  ).length;
+
   const filtered = s.schedules.filter((sch) => {
     if (filter === "all") return true;
     if (filter === "closed") return sch.status === "rotated" || sch.status === "closed";
@@ -147,17 +151,19 @@ function SchedulesList() {
                       {sch.status === "open" && (
                         <Button
                           size="sm"
-                          className="btn-premium-solid h-7.5 w-full text-[11px] hover:cursor-pointer"
+                          disabled={leagueEligibleCount === 0}
+                          title={leagueEligibleCount === 0 ? "No league participants to invite" : undefined}
+                          className="btn-premium-solid h-7.5 w-full text-[11px] hover:cursor-pointer disabled:opacity-40"
                           onClick={async () => {
                             try {
-                              await s.releaseSchedule(sch.id);
-                              toast.success("Session released — invitations sent");
+                              const res = await s.releaseSchedule(sch.id);
+                              toast.success(res.message ?? `Invitations sent to ${leagueEligibleCount} league participants`);
                             } catch (error: any) {
                               toast.error(error.message || "Failed to release schedule.");
                             }
                           }}
                         >
-                          Release
+                          Release ({leagueEligibleCount})
                         </Button>
                       )}
                       {sch.status === "released" && (

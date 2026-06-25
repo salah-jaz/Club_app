@@ -7,6 +7,7 @@ use App\Models\Training;
 use App\Models\TrainingInvitation;
 use App\Models\TrainingDate;
 use App\Models\Holiday;
+use App\Models\Member;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -73,7 +74,7 @@ class TrainingController extends Controller
     public function release(Request $request, $id)
     {
         $request->validate([
-            'memberIds' => 'required|array',
+            'memberIds' => 'sometimes|array',
             'memberIds.*' => 'required|string',
         ]);
 
@@ -81,52 +82,95 @@ class TrainingController extends Controller
         $tr->status = 'released';
         $tr->save();
 
-        $memberIds = $request->memberIds;
-        $holidayDates = Holiday::pluck('date')->toArray();
-        $dates = $this->generateWeeklyDates($tr->start_date, $tr->sessions, $holidayDates);
+        $memberIds = $request->input('memberIds', []);
 
-        // Delete old invitations and dates for this training
+        if (count($memberIds) === 0) {
+            return response()->json([
+                'message' => 'Training program opened. Family heads can now enroll their children.',
+                'training' => $this->formatTraining($tr),
+                'invitations' => [],
+                'dates' => [],
+            ]);
+        }
+
+        $eligibleIds = Member::eligibleForTraining()
+            ->whereIn('id', $memberIds)
+            ->pluck('id')
+            ->all();
+
+        if (count($eligibleIds) !== count($memberIds)) {
+            return response()->json([
+                'message' => 'One or more selected members are not eligible for training invitations.',
+            ], 422);
+        }
+
         TrainingInvitation::where('training_id', $id)->delete();
         TrainingDate::where('training_id', $id)->delete();
 
-        $invites = [];
-        foreach ($memberIds as $mid) {
-            $inv = TrainingInvitation::create([
-                'id' => 'ti_' . Str::random(8),
-                'training_id' => $id,
-                'member_id' => $mid,
-                'status' => 'open',
-            ]);
-            $invites[] = [
-                'id' => $inv->id,
-                'trainingId' => $inv->training_id,
-                'memberId' => $inv->member_id,
-                'status' => $inv->status,
-            ];
-        }
-
-        $trainingDates = [];
-        foreach ($memberIds as $mid) {
-            foreach ($dates as $d) {
-                $tDate = TrainingDate::create([
-                    'id' => 'td_' . Str::random(8),
-                    'training_id' => $id,
-                    'member_id' => $mid,
-                    'date' => $d,
-                    'attended' => null,
-                ]);
-                $trainingDates[] = [
-                    'id' => $tDate->id,
-                    'trainingId' => $tDate->training_id,
-                    'memberId' => $tDate->member_id,
-                    'date' => $tDate->date,
-                    'attended' => null,
-                ];
-            }
-        }
+        [$invites, $trainingDates] = $this->createInvitationsForMembers($tr, $memberIds);
 
         return response()->json([
-            'message' => 'Training released.',
+            'message' => 'Training released and invitations sent.',
+            'training' => $this->formatTraining($tr),
+            'invitations' => $invites,
+            'dates' => $trainingDates,
+        ]);
+    }
+
+    public function enroll(Request $request, $id)
+    {
+        $request->validate([
+            'memberIds' => 'required|array|min:1',
+            'memberIds.*' => 'required|string',
+        ]);
+
+        $tr = Training::findOrFail($id);
+
+        if (!in_array($tr->status, ['open', 'released'], true)) {
+            return response()->json([
+                'message' => 'This training program is not open for enrollment.',
+            ], 422);
+        }
+
+        if ($tr->status === 'open') {
+            $tr->status = 'released';
+            $tr->save();
+        }
+
+        $memberIds = $request->memberIds;
+        $userId = $request->user()->id;
+
+        $familyJuniorIds = Member::query()
+            ->where('user_id', $userId)
+            ->where('member_type', 'junior')
+            ->where('status', 'active')
+            ->whereIn('id', $memberIds)
+            ->pluck('id')
+            ->all();
+
+        if (count($familyJuniorIds) !== count($memberIds)) {
+            return response()->json([
+                'message' => 'You can only enroll your own active junior family members.',
+            ], 422);
+        }
+
+        $alreadyInvited = TrainingInvitation::where('training_id', $id)
+            ->whereIn('member_id', $memberIds)
+            ->pluck('member_id')
+            ->all();
+
+        $newMemberIds = array_values(array_diff($memberIds, $alreadyInvited));
+
+        if (count($newMemberIds) === 0) {
+            return response()->json([
+                'message' => 'Selected family members are already enrolled in this program.',
+            ], 422);
+        }
+
+        [$invites, $trainingDates] = $this->createInvitationsForMembers($tr, $newMemberIds, false);
+
+        return response()->json([
+            'message' => 'Family members enrolled. Review and accept the invitations below.',
             'training' => $this->formatTraining($tr),
             'invitations' => $invites,
             'dates' => $trainingDates,
@@ -191,6 +235,53 @@ class TrainingController extends Controller
             'date' => $tDate->date,
             'attended' => (bool)$tDate->attended,
         ]);
+    }
+
+    private function createInvitationsForMembers(Training $tr, array $memberIds, bool $replaceDatesForMember = true): array
+    {
+        $holidayDates = Holiday::pluck('date')->toArray();
+        $dates = $this->generateWeeklyDates($tr->start_date, $tr->sessions, $holidayDates);
+
+        $invites = [];
+        foreach ($memberIds as $mid) {
+            $inv = TrainingInvitation::create([
+                'id' => 'ti_' . Str::random(8),
+                'training_id' => $tr->id,
+                'member_id' => $mid,
+                'status' => 'open',
+            ]);
+            $invites[] = [
+                'id' => $inv->id,
+                'trainingId' => $inv->training_id,
+                'memberId' => $inv->member_id,
+                'status' => $inv->status,
+            ];
+        }
+
+        $trainingDates = [];
+        foreach ($memberIds as $mid) {
+            if ($replaceDatesForMember) {
+                TrainingDate::where('training_id', $tr->id)->where('member_id', $mid)->delete();
+            }
+            foreach ($dates as $d) {
+                $tDate = TrainingDate::create([
+                    'id' => 'td_' . Str::random(8),
+                    'training_id' => $tr->id,
+                    'member_id' => $mid,
+                    'date' => $d,
+                    'attended' => null,
+                ]);
+                $trainingDates[] = [
+                    'id' => $tDate->id,
+                    'trainingId' => $tDate->training_id,
+                    'memberId' => $tDate->member_id,
+                    'date' => $tDate->date,
+                    'attended' => null,
+                ];
+            }
+        }
+
+        return [$invites, $trainingDates];
     }
 
     private function generateWeeklyDates($startDate, $sessions, $holidayDates = [])

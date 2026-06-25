@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { Plus, MapPin, User } from "lucide-react";
+import { Plus } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/trainings")({ component: TrainingsLayout });
 
@@ -20,6 +21,7 @@ function TrainingsLayout() {
 
 function TrainingsList() {
   const s = useStore();
+  const releaseTraining = useStore((st) => st.releaseTraining);
   const user = useCurrentUser()!;
   return (
     <div>
@@ -65,9 +67,25 @@ function TrainingsList() {
                 </div>
 
                 {/* Bottom Row */}
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center justify-between pt-2 gap-2">
                   <StatusBadge status={t.status} />
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
+                    {user.role === "admin" && t.status === "open" && (
+                      <Button
+                        size="sm"
+                        className="btn-premium-solid h-8 text-[11px] cursor-pointer"
+                        onClick={async () => {
+                          try {
+                            const res = await releaseTraining(t.id);
+                            toast.success(res.message ?? "Training opened for family enrollment");
+                          } catch (error: any) {
+                            toast.error(error.message || "Failed to open training.");
+                          }
+                        }}
+                      >
+                        Open enrollment
+                      </Button>
+                    )}
                     <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
                       <Link to="/trainings/$id" params={{ id: t.id }}>Manage</Link>
                     </Button>

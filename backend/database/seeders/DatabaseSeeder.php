@@ -18,19 +18,27 @@ class DatabaseSeeder extends Seeder
     {
         // 1. Seed Locations
         $locations = ["Main Hall", "North Court", "South Pavilion"];
-        foreach ($locations as $loc) {
-            Location::create(['name' => $loc]);
-        }
+        $now = now();
+        Location::insertOrIgnore(
+            collect($locations)->map(fn ($name) => [
+                'name' => $name,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all()
+        );
 
         // 2. Seed Grades
         $grades = ["A", "B", "C", "D", "Beginner", "Intermediate", "Advanced"];
-        foreach ($grades as $grade) {
-            Grade::create(['name' => $grade]);
-        }
+        Grade::insertOrIgnore(
+            collect($grades)->map(fn ($name) => [
+                'name' => $name,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all()
+        );
 
         // 3. Seed Users
-        User::create([
-            'id' => 'u_admin',
+        User::updateOrCreate(['id' => 'u_admin'], [
             'first_name' => 'Club',
             'last_name' => 'Admin',
             'sex' => 'male',
@@ -43,8 +51,7 @@ class DatabaseSeeder extends Seeder
             'status' => 'active',
         ]);
 
-        User::create([
-            'id' => 'u_vol',
+        User::updateOrCreate(['id' => 'u_vol'], [
             'first_name' => 'Vera',
             'last_name' => 'Volunteer',
             'sex' => 'female',
@@ -57,8 +64,7 @@ class DatabaseSeeder extends Seeder
             'status' => 'active',
         ]);
 
-        User::create([
-            'id' => 'u_mem',
+        User::updateOrCreate(['id' => 'u_mem'], [
             'first_name' => 'John',
             'last_name' => 'Smith',
             'sex' => 'male',
@@ -72,8 +78,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // 4. Seed Members
-        Member::create([
-            'id' => 'm_john',
+        Member::updateOrCreate(['id' => 'm_john'], [
             'user_id' => 'u_mem',
             'first_name' => 'John',
             'last_name' => 'Smith',
@@ -83,14 +88,14 @@ class DatabaseSeeder extends Seeder
             'member_type' => 'adult',
             'membership' => true,
             'league' => true,
+            'training_eligible' => false,
             'grade' => 'A',
             'bi_member_id' => 'BI-1001',
             'status' => 'active',
             'credit' => 80.00,
         ]);
 
-        Member::create([
-            'id' => 'm_mary',
+        Member::updateOrCreate(['id' => 'm_mary'], [
             'user_id' => 'u_mem',
             'first_name' => 'Mary',
             'last_name' => 'Smith',
@@ -100,14 +105,14 @@ class DatabaseSeeder extends Seeder
             'member_type' => 'adult',
             'membership' => true,
             'league' => false,
+            'training_eligible' => false,
             'grade' => 'B',
             'bi_member_id' => 'BI-1002',
             'status' => 'active',
             'credit' => 50.00,
         ]);
 
-        Member::create([
-            'id' => 'm_alex',
+        Member::updateOrCreate(['id' => 'm_alex'], [
             'user_id' => 'u_mem',
             'first_name' => 'Alex',
             'last_name' => 'Smith',
@@ -117,6 +122,7 @@ class DatabaseSeeder extends Seeder
             'member_type' => 'junior',
             'membership' => true,
             'league' => false,
+            'training_eligible' => true,
             'grade' => 'Beginner',
             'bi_member_id' => 'BI-1003',
             'status' => 'active',

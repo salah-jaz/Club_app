@@ -28,7 +28,7 @@ function NewTraining() {
         e.preventDefault();
         try {
           await create(f);
-          toast.success("Training created");
+          toast.success("Training created and opened for family enrollment");
           navigate({ to: "/trainings" });
         } catch (error: any) {
           toast.error(error.message || "Failed to create training.");

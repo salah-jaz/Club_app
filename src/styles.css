@@ -200,6 +200,8 @@
 .light .bg-\[\#0C0F0E\]\/30 { background-color: rgba(244, 247, 246, 0.30) !important; }
 .light .bg-\[\#1A2120\] { background-color: var(--bg-elevated) !important; }
 .light .bg-\[\#1A2120\]\/40 { background-color: rgba(235, 239, 239, 0.40) !important; }
+.light .bg-\[\#1A2120\]\/50 { background-color: rgba(235, 239, 239, 0.50) !important; }
+.light .bg-\[\#1A2120\]\/80 { background-color: rgba(235, 239, 239, 0.80) !important; }
 .light .border-\[rgba\(255\,255\,255\,0\.06\)\] { border-color: var(--border-subtle) !important; }
 .light .border-\[rgba\(255\,255\,255\,0\.04\)\] { border-color: rgba(12, 15, 14, 0.04) !important; }
 .light .border-\[rgba\(255\,255\,255\,0\.10\)\] { border-color: var(--border-medium) !important; }

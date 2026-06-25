@@ -20,7 +20,9 @@ function TrainingPage() {
   const user = useCurrentUser()!;
   const s = useStore();
   const t = s.trainings.find((x) => x.id === id);
-  const juniors = s.members.filter((m) => m.memberType === "junior" && m.status === "active");
+  const juniors = s.members.filter(
+    (m) => m.memberType === "junior" && m.status === "active" && (m.trainingEligible ?? true),
+  );
   const [selected, setSelected] = useState<string[]>(juniors.map((j) => j.id));
   if (!t) return <Navigate to="/trainings" />;
 
@@ -65,11 +67,31 @@ function TrainingPage() {
             <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
               <CardHeader className="pb-3 border-b border-white/[0.03]">
                 <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-                  Select juniors to invite
+                  Release training program
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4">
-                <div className="grid sm:grid-cols-2 gap-3 mb-5">
+              <CardContent className="pt-4 space-y-5">
+                <p className="text-[13px] text-muted-foreground font-light">
+                  Open the program so family heads can enroll their children from My Invitations, or directly invite selected juniors below.
+                </p>
+                <Button
+                  className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer"
+                  onClick={async () => {
+                    try {
+                      const res = await s.releaseTraining(t.id);
+                      toast.success(res.message ?? "Training opened for family enrollment");
+                    } catch (error: any) {
+                      toast.error(error.message || "Failed to open training.");
+                    }
+                  }}
+                >
+                  <Send className="size-3.5 mr-1" /> Open for family enrollment
+                </Button>
+                <div className="signature-divider !h-[1px]" />
+                <p className="text-[11px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                  Or invite juniors directly
+                </p>
+                <div className="grid sm:grid-cols-2 gap-3">
                   {juniors.map((j) => (
                     <label key={j.id} className="flex items-center gap-3.5 p-3.5 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(16,185,129,0.3)] hover:bg-[#1A2120]/80 rounded-lg cursor-pointer transition-all">
                       <Checkbox
@@ -83,21 +105,21 @@ function TrainingPage() {
                       </div>
                     </label>
                   ))}
-                  {juniors.length === 0 && <p className="text-[13px] font-light text-[#4A5E58] py-3 col-span-2">No active junior members.</p>}
+                  {juniors.length === 0 && <p className="text-[13px] font-light text-[#4A5E58] py-3 col-span-2">No training-eligible junior members.</p>}
                 </div>
                 <Button 
                   disabled={selected.length === 0} 
                   className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
                   onClick={async () => {
                     try {
-                      await s.releaseTraining(t.id, selected);
-                      toast.success(`Invited ${selected.length} juniors & generated ${t.sessions} weekly sessions`);
+                      const res = await s.releaseTraining(t.id, selected);
+                      toast.success(res.message ?? `Invited ${selected.length} juniors & generated ${t.sessions} weekly sessions`);
                     } catch (error: any) {
                       toast.error(error.message || "Failed to release training.");
                     }
                   }}
                 >
-                  <Send className="size-3.5 mr-1" /> Release & invite
+                  <Send className="size-3.5 mr-1" /> Release & invite selected
                 </Button>
               </CardContent>
             </Card>
@@ -126,7 +148,9 @@ function TrainingPage() {
                     {invs.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={2} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
-                          Not released yet.
+                          {t.status === "released"
+                            ? "No enrollments yet. Family heads can select children from My Invitations."
+                            : "Not released yet."}
                         </TableCell>
                       </TableRow>
                     )}

@@ -77,15 +77,15 @@ class PlayScheduleController extends Controller
         $sch->status = 'released';
         $sch->save();
 
-        // Get active adult members
-        $adults = Member::where('member_type', 'adult')->where('status', 'active')->get();
+        // Get active adult league participants
+        $eligible = Member::eligibleForPlay()->get();
 
         // Delete old invitations for this schedule (if any)
         PlayInvitation::where('schedule_id', $id)->delete();
 
         // Create new invitations
         $invites = [];
-        foreach ($adults as $member) {
+        foreach ($eligible as $member) {
             $inv = PlayInvitation::create([
                 'id' => 'pi_' . Str::random(8),
                 'schedule_id' => $id,
@@ -101,7 +101,8 @@ class PlayScheduleController extends Controller
         }
 
         return response()->json([
-            'message' => 'Schedule released and invitations sent.',
+            'message' => 'Schedule released and invitations sent to ' . count($invites) . ' league participants.',
+            'inviteCount' => count($invites),
             'schedule' => $this->formatSchedule($sch),
             'invitations' => $invites,
         ]);

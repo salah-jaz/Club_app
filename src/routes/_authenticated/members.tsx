@@ -36,7 +36,9 @@ function MembersList() {
         actions={
           (user.role === "admin" || user.role === "member") && (
             <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
-              <Link to="/members/add"><Plus className="size-4" /> Add member</Link>
+              <Link to="/members/add">
+                <Plus className="size-4" /> {user.role === "admin" ? "Add member" : "Add family member"}
+              </Link>
             </Button>
           )
         }
@@ -106,7 +108,7 @@ function MembersList() {
                   </div>
 
                   <div className="mt-4 flex gap-2 w-full">
-                    {user.role === "admin" && (
+                    {(user.role === "admin" || m.userId === user.id) && (
                       <Button asChild variant="outline" size="sm" className="flex-1 btn-premium-outline hover:cursor-pointer">
                         <Link to="/members/$id/edit" params={{ id: m.id }}><Pencil className="size-3.5" /> Edit</Link>
                       </Button>

@@ -62,6 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/trainings', [TrainingController::class, 'store']);
     Route::patch('/trainings/{id}', [TrainingController::class, 'update']);
     Route::post('/trainings/{id}/release', [TrainingController::class, 'release']);
+    Route::post('/trainings/{id}/enroll', [TrainingController::class, 'enroll']);
     
     // Training Invitations & Dates
     Route::get('/training-invitations', [TrainingController::class, 'listInvitations']);
