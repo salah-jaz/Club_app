@@ -1,2 +1,0 @@
-# Ensure generated route tree always uses LF line endings to match TanStack Router generator output
-src/routeTree.gen.ts text eol=lf

@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Member;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class MemberController extends Controller
@@ -17,8 +20,10 @@ class MemberController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'userId' => 'required|string',
+        $createLogin = $request->boolean('createLogin')
+            && $request->user()->role === 'admin';
+
+        $memberRules = [
             'firstName' => 'required|string|max:255',
             'lastName' => 'required|string|max:255',
             'dob' => 'required|date',
@@ -27,27 +32,76 @@ class MemberController extends Controller
             'memberType' => 'required|in:adult,junior',
             'membership' => 'required|boolean',
             'league' => 'required|boolean',
+            'trainingEligible' => 'sometimes|boolean',
             'grade' => 'required|string',
             'biMemberId' => 'nullable|string',
             'status' => 'required|in:active,disabled',
-        ]);
+        ];
 
-        $member = Member::create([
-            'id' => 'm_' . Str::random(8),
-            'user_id' => $request->userId,
-            'first_name' => $request->firstName,
-            'last_name' => $request->lastName,
-            'dob' => $request->dob,
-            'email' => $request->email,
-            'sex' => $request->sex,
-            'member_type' => $request->memberType,
-            'membership' => $request->membership,
-            'league' => $request->league,
-            'grade' => $request->grade,
-            'bi_member_id' => $request->biMemberId,
-            'status' => $request->status,
-            'credit' => 0.00,
-        ]);
+        if ($createLogin) {
+            $request->validate(array_merge($memberRules, [
+                'password' => 'required|string|min:6',
+                'mobile' => 'required|string|max:20',
+                'address' => 'required|string',
+                'email' => 'required|email|max:255|unique:users,email',
+            ]));
+
+            $member = DB::transaction(function () use ($request) {
+                $user = User::create([
+                    'id' => 'u_' . Str::random(8),
+                    'first_name' => $request->firstName,
+                    'last_name' => $request->lastName,
+                    'sex' => $request->sex,
+                    'dob' => $request->dob,
+                    'email' => $request->email,
+                    'mobile' => $request->mobile,
+                    'address' => $request->address,
+                    'password' => Hash::make($request->password),
+                    'role' => 'member',
+                    'status' => 'active',
+                ]);
+
+                return Member::create([
+                    'id' => 'm_' . Str::random(8),
+                    'user_id' => $user->id,
+                    'first_name' => $request->firstName,
+                    'last_name' => $request->lastName,
+                    'dob' => $request->dob,
+                    'email' => $request->email,
+                    'sex' => $request->sex,
+                    'member_type' => $request->memberType,
+                    'membership' => $request->membership,
+                    'league' => $request->league,
+                    'training_eligible' => $this->resolveTrainingEligible($request),
+                    'grade' => $request->grade,
+                    'bi_member_id' => $request->biMemberId,
+                    'status' => $request->status,
+                    'credit' => 0.00,
+                ]);
+            });
+        } else {
+            $request->validate(array_merge($memberRules, [
+                'userId' => 'required|string',
+            ]));
+
+            $member = Member::create([
+                'id' => 'm_' . Str::random(8),
+                'user_id' => $request->userId,
+                'first_name' => $request->firstName,
+                'last_name' => $request->lastName,
+                'dob' => $request->dob,
+                'email' => $request->email,
+                'sex' => $request->sex,
+                'member_type' => $request->memberType,
+                'membership' => $request->membership,
+                'league' => $request->league,
+                'training_eligible' => $this->resolveTrainingEligible($request),
+                'grade' => $request->grade,
+                'bi_member_id' => $request->biMemberId,
+                'status' => $request->status,
+                'credit' => 0.00,
+            ]);
+        }
 
         return response()->json($this->formatMember($member), 201);
     }
@@ -65,6 +119,7 @@ class MemberController extends Controller
         if ($request->has('memberType')) $data['member_type'] = $request->memberType;
         if ($request->has('membership')) $data['membership'] = $request->membership;
         if ($request->has('league')) $data['league'] = $request->league;
+        if ($request->has('trainingEligible')) $data['training_eligible'] = $request->trainingEligible;
         if ($request->has('grade')) $data['grade'] = $request->grade;
         if ($request->has('biMemberId')) $data['bi_member_id'] = $request->biMemberId;
         if ($request->has('status')) $data['status'] = $request->status;
@@ -96,10 +151,20 @@ class MemberController extends Controller
             'memberType' => $m->member_type,
             'membership' => (bool)$m->membership,
             'league' => (bool)$m->league,
+            'trainingEligible' => (bool)$m->training_eligible,
             'grade' => $m->grade,
             'biMemberId' => $m->bi_member_id ?? "",
             'status' => $m->status,
             'credit' => (float)$m->credit,
         ];
+    }
+
+    private function resolveTrainingEligible(Request $request): bool
+    {
+        if ($request->has('trainingEligible')) {
+            return $request->boolean('trainingEligible');
+        }
+
+        return $request->memberType === 'junior';
     }
 }

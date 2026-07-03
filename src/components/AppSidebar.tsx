@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Wallet, CalendarDays, GraduationCap,
-  Inbox, Receipt, ShieldCheck, LogOut, User as UserIcon, Settings,
+  Inbox, Receipt, ShieldCheck, LogOut, User as UserIcon,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -12,9 +12,6 @@ import { useCurrentUser, useStore } from "@/lib/store";
 export function AppSidebar() {
   const user = useCurrentUser();
   const logout = useStore((s) => s.logout);
-  const appName = useStore((s) => s.appName);
-  const appLogoText = useStore((s) => s.appLogoText);
-  const appLogoBase64 = useStore((s) => s.appLogoBase64);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   if (!user) return null;
@@ -36,13 +33,9 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
-          {appLogoBase64 ? (
-            <img src={appLogoBase64} alt={appName} className="size-8 rounded object-contain bg-white/5" />
-          ) : (
-            <div className="size-8 rounded-md bg-primary text-primary-foreground grid place-items-center font-bold">{appLogoText}</div>
-          )}
+          <div className="size-8 rounded-md bg-primary text-primary-foreground grid place-items-center font-bold">C</div>
           <div className="flex flex-col leading-none">
-            <span className="font-semibold">{appName}</span>
+            <span className="font-semibold">ClubApp</span>
             <span className="text-[11px] text-muted-foreground capitalize">{user.role}</span>
           </div>
         </div>
@@ -70,16 +63,6 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname.startsWith("/approvals")}>
                     <Link to="/approvals"><ShieldCheck /><span>Approvals</span></Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith("/email-templates")}>
-                    <Link to="/email-templates"><Inbox /><span>Email Templates</span></Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith("/settings")}>
-                    <Link to="/settings"><Settings /><span>Settings</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>

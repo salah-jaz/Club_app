@@ -22,6 +22,7 @@ class Member extends Model
         'member_type',
         'membership',
         'league',
+        'training_eligible',
         'grade',
         'bi_member_id',
         'status',
@@ -31,6 +32,7 @@ class Member extends Model
     protected $casts = [
         'membership' => 'boolean',
         'league' => 'boolean',
+        'training_eligible' => 'boolean',
         'credit' => 'float',
     ];
 
@@ -62,5 +64,19 @@ class Member extends Model
     public function trainingDates(): HasMany
     {
         return $this->hasMany(TrainingDate::class);
+    }
+
+    public function scopeEligibleForPlay($query)
+    {
+        return $query->where('member_type', 'adult')
+            ->where('status', 'active')
+            ->where('league', true);
+    }
+
+    public function scopeEligibleForTraining($query)
+    {
+        return $query->where('member_type', 'junior')
+            ->where('status', 'active')
+            ->where('training_eligible', true);
     }
 }

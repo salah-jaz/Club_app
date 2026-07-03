@@ -29,22 +29,6 @@ interface State {
   locations: string[];
   grades: string[];
   holidays: string[];
-  appName: string;
-  appLogoText: string;
-  appLogoBase64: string | null;
-  currency: string;
-  mailHost: string;
-  mailPort: string;
-  mailUsername: string;
-  mailPassword: string;
-  mailEncryption: string;
-  mailFromAddress: string;
-  mailFromName: string;
-  emailPrimaryColor: string;
-  emailBgColor: string;
-  emailTextColor: string;
-  emailCardBgColor: string;
-  emailFooterText: string;
 
   // sync
   syncData: () => Promise<void>;
@@ -52,76 +36,45 @@ interface State {
 
   // auth
   register: (u: Omit<User, "id" | "role" | "status" | "createdAt">) => Promise<string>;
-  verifyOtp: (email: string, otp: string) => Promise<void>;
-  resendOtp: (email: string) => Promise<void>;
   login: (email: string, password: string) => Promise<User | null>;
   logout: () => Promise<void>;
 
   // user admin
-  approveUser: (id: string) => Promise<void>;
-  approveAllUsers: () => Promise<void>;
+  approveUser: (
+    id: string,
+    opts?: { memberType?: Member["memberType"]; grade?: string; league?: boolean; trainingEligible?: boolean },
+  ) => Promise<void>;
   rejectUser: (id: string) => Promise<void>;
   setUserRole: (id: string, role: User["role"]) => Promise<void>;
 
   // members
-  addMember: (m: Omit<Member, "id" | "credit">) => Promise<void>;
+  addMember: (
+    m: Omit<Member, "id" | "credit"> & { mobile?: string; address?: string; password?: string },
+    createLogin?: boolean,
+  ) => Promise<void>;
   updateMember: (id: string, patch: Partial<Member>) => Promise<void>;
   deleteMember: (id: string) => Promise<void>;
 
   // credits
   requestCredit: (memberId: string, amount: number, date: string) => Promise<void>;
   approveCredit: (id: string) => Promise<void>;
-  approveAllCredits: () => Promise<void>;
   rejectCredit: (id: string) => Promise<void>;
 
   // schedules
   createSchedule: (s: Omit<PlaySchedule, "id" | "status">) => Promise<void>;
   updateSchedule: (id: string, patch: Partial<PlaySchedule>) => Promise<void>;
-  releaseSchedule: (id: string) => Promise<void>;
+  releaseSchedule: (id: string) => Promise<{ message?: string; inviteCount?: number }>;
   closeSchedule: (id: string) => Promise<void>;
-  deleteSchedule: (id: string) => Promise<void>;
   respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
   generateRotation: (scheduleId: string) => Promise<void>;
 
   // trainings
   createTraining: (t: Omit<Training, "id" | "status">) => Promise<void>;
   updateTraining: (id: string, patch: Partial<Training>) => Promise<void>;
-  releaseTraining: (id: string, memberIds?: string[]) => Promise<void>;
-  deleteTraining: (id: string) => Promise<void>;
-  registerTrainingJunior: (trainingId: string, memberId: string, status: "accepted" | "declined") => Promise<void>;
+  releaseTraining: (id: string, memberIds?: string[]) => Promise<{ message?: string }>;
+  enrollTraining: (trainingId: string, memberIds: string[]) => Promise<void>;
   respondTraining: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
-  updateSettings: (settings: {
-    appName?: string;
-    appLogoText?: string;
-    appLogoBase64?: string | null;
-    currency?: string;
-    locations?: string[];
-    grades?: string[];
-    holidays?: string[];
-    mailHost?: string;
-    mailPort?: string;
-    mailUsername?: string;
-    mailPassword?: string;
-    mailEncryption?: string;
-    mailFromAddress?: string;
-    mailFromName?: string;
-    emailPrimaryColor?: string;
-    emailBgColor?: string;
-    emailTextColor?: string;
-    emailCardBgColor?: string;
-    emailFooterText?: string;
-  }) => Promise<void>;
-  updateProfile: (profile: {
-    firstName: string;
-    lastName: string;
-    sex: "male" | "female";
-    dob: string;
-    email: string;
-    mobile: string;
-    address: string;
-    password?: string;
-  }) => Promise<void>;
 }
 
 const getInitialUserId = () => {
@@ -147,22 +100,6 @@ export const useStore = create<State>((set, get) => ({
   locations: [],
   grades: [],
   holidays: [],
-  appName: "ClubApp",
-  appLogoText: "C",
-  appLogoBase64: null,
-  currency: "$",
-  mailHost: "",
-  mailPort: "",
-  mailUsername: "",
-  mailPassword: "",
-  mailEncryption: "",
-  mailFromAddress: "",
-  mailFromName: "",
-  emailPrimaryColor: "#10B981",
-  emailBgColor: "#0C0F0E",
-  emailTextColor: "#E8F0EE",
-  emailCardBgColor: "#131916",
-  emailFooterText: "",
 
   syncCurrentUser: async () => {
     try {
@@ -192,9 +129,7 @@ export const useStore = create<State>((set, get) => ({
         trainings,
         trainingInvites,
         trainingDates,
-        transactions,
         settings,
-        creditRequests,
       ] = await Promise.all([
         api.get<Member[]>("/members"),
         api.get<PlaySchedule[]>("/schedules"),
@@ -203,29 +138,7 @@ export const useStore = create<State>((set, get) => ({
         api.get<Training[]>("/trainings"),
         api.get<TrainingInvitation[]>("/training-invitations"),
         api.get<TrainingDate[]>("/training-dates"),
-        api.get<Transaction[]>("/transactions"),
-        api.get<{
-          locations: string[];
-          grades: string[];
-          holidays: string[];
-          appName: string;
-          appLogoText: string;
-          appLogoBase64?: string | null;
-          currency?: string;
-          mailHost?: string;
-          mailPort?: string;
-          mailUsername?: string;
-          mailPassword?: string;
-          mailEncryption?: string;
-          mailFromAddress?: string;
-          mailFromName?: string;
-          emailPrimaryColor?: string;
-          emailBgColor?: string;
-          emailTextColor?: string;
-          emailCardBgColor?: string;
-          emailFooterText?: string;
-        }>("/settings"),
-        api.get<CreditRequest[]>("/credit-requests"),
+        api.get<{ locations: string[]; grades: string[]; holidays: string[] }>("/settings"),
       ]);
 
       let users: User[] = [];
@@ -244,28 +157,10 @@ export const useStore = create<State>((set, get) => ({
         trainings,
         trainingInvites,
         trainingDates,
-        transactions,
         locations: settings.locations,
         grades: settings.grades,
         holidays: settings.holidays,
-        appName: settings.appName || "ClubApp",
-        appLogoText: settings.appLogoText || "C",
-        appLogoBase64: settings.appLogoBase64 || null,
-        currency: settings.currency || "$",
-        mailHost: settings.mailHost || "",
-        mailPort: settings.mailPort || "",
-        mailUsername: settings.mailUsername || "",
-        mailPassword: settings.mailPassword || "",
-        mailEncryption: settings.mailEncryption || "",
-        mailFromAddress: settings.mailFromAddress || "",
-        mailFromName: settings.mailFromName || "",
-        emailPrimaryColor: settings.emailPrimaryColor || "#10B981",
-        emailBgColor: settings.emailBgColor || "#0C0F0E",
-        emailTextColor: settings.emailTextColor || "#E8F0EE",
-        emailCardBgColor: settings.emailCardBgColor || "#131916",
-        emailFooterText: settings.emailFooterText || "",
         users,
-        creditRequests,
       });
     } catch (e) {
       console.error("Failed to sync backend data:", e);
@@ -273,16 +168,8 @@ export const useStore = create<State>((set, get) => ({
   },
 
   register: async (u) => {
-    const res = await api.post<{ message: string; user_id: string; email?: string }>("/register", u);
+    const res = await api.post<{ message: string; user_id: string }>("/register", u);
     return res.user_id;
-  },
-
-  verifyOtp: async (email, otp) => {
-    await api.post("/register/verify-otp", { email, otp });
-  },
-
-  resendOtp: async (email) => {
-    await api.post("/register/resend-otp", { email });
   },
 
   login: async (email, password) => {
@@ -308,25 +195,12 @@ export const useStore = create<State>((set, get) => ({
     set({ currentUserId: null, currentUser: null });
   },
 
-  approveUser: async (id) => {
-    const res = await api.post<{ user: User }>(`/users/${id}/approve`);
-    const members = await api.get<Member[]>("/members");
+  approveUser: async (id, opts) => {
+    const res = await api.post<{ user: User; member: Member }>(`/users/${id}/approve`, opts ?? {});
     set((s) => ({
       users: s.users.map((u) => (u.id === id ? res.user : u)),
-      members,
+      members: [...s.members, res.member],
     }));
-  },
-
-  approveAllUsers: async () => {
-    const res = await api.post<{ users: User[] }>("/users/approve-all");
-    const members = await api.get<Member[]>("/members");
-    set((s) => {
-      const updatedMap = new Map(res.users.map((u) => [u.id, u]));
-      return {
-        users: s.users.map((u) => updatedMap.get(u.id) || u),
-        members,
-      };
-    });
   },
 
   rejectUser: async (id) => {
@@ -348,8 +222,12 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
-  addMember: async (m) => {
-    const newMember = await api.post<Member>("/members", m);
+  addMember: async (m, createLogin = false) => {
+    const { mobile, address, password, ...member } = m;
+    const payload = createLogin
+      ? { ...member, createLogin: true, mobile, address, password }
+      : member;
+    const newMember = await api.post<Member>("/members", payload);
     set((s) => ({ members: [...s.members, newMember] }));
   },
 
@@ -367,18 +245,7 @@ export const useStore = create<State>((set, get) => ({
 
   requestCredit: async (memberId, amount, date) => {
     const req = await api.post<CreditRequest>("/credit-requests", { memberId, amount, date });
-    const currentUser = get().currentUser;
-    if (currentUser && currentUser.role === "admin") {
-      const members = await api.get<Member[]>("/members");
-      const txs = await api.get<Transaction[]>("/transactions");
-      set((s) => ({
-        creditRequests: [...s.creditRequests, req],
-        members,
-        transactions: txs,
-      }));
-    } else {
-      set((s) => ({ creditRequests: [...s.creditRequests, req] }));
-    }
+    set((s) => ({ creditRequests: [...s.creditRequests, req] }));
   },
 
   approveCredit: async (id) => {
@@ -393,21 +260,6 @@ export const useStore = create<State>((set, get) => ({
       members,
       transactions: txs,
     }));
-  },
-
-  approveAllCredits: async () => {
-    const res = await api.post<{ requests: CreditRequest[] }>("/credit-requests/approve-all");
-    // Refresh ledger/members
-    const members = await api.get<Member[]>("/members");
-    const txs = await api.get<Transaction[]>("/transactions");
-    set((s) => {
-      const updatedMap = new Map(res.requests.map((r) => [r.id, r]));
-      return {
-        creditRequests: s.creditRequests.map((c) => updatedMap.get(c.id) || c),
-        members,
-        transactions: txs,
-      };
-    });
   },
 
   rejectCredit: async (id) => {
@@ -430,14 +282,18 @@ export const useStore = create<State>((set, get) => ({
   },
 
   releaseSchedule: async (id) => {
-    const res = await api.post<{ schedule: PlaySchedule; invitations: PlayInvitation[] }>(
-      `/schedules/${id}/release`
-    );
+    const res = await api.post<{
+      schedule: PlaySchedule;
+      invitations: PlayInvitation[];
+      message?: string;
+      inviteCount?: number;
+    }>(`/schedules/${id}/release`);
     const invites = await api.get<PlayInvitation[]>("/play-invitations");
     set((s) => ({
       schedules: s.schedules.map((x) => (x.id === id ? res.schedule : x)),
       playInvites: invites,
     }));
+    return { message: res.message, inviteCount: res.inviteCount };
   },
 
   closeSchedule: async (id) => {
@@ -445,11 +301,6 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       schedules: s.schedules.map((x) => (x.id === id ? res.schedule : x)),
     }));
-  },
-
-  deleteSchedule: async (id) => {
-    await api.delete(`/schedules/${id}`);
-    set((s) => ({ schedules: s.schedules.filter((x) => x.id !== id) }));
   },
 
   respondPlay: async (inviteId, status) => {
@@ -482,7 +333,8 @@ export const useStore = create<State>((set, get) => ({
 
   createTraining: async (t) => {
     const tr = await api.post<Training>("/trainings", t);
-    set((s) => ({ trainings: [...s.trainings, tr] }));
+    const res = await api.post<{ training: Training }>(`/trainings/${tr.id}/release`, { memberIds: [] });
+    set((s) => ({ trainings: [...s.trainings, res.training] }));
   },
 
   updateTraining: async (id, patch) => {
@@ -492,45 +344,41 @@ export const useStore = create<State>((set, get) => ({
     }));
   },
 
-  deleteTraining: async (id) => {
-    await api.delete(`/trainings/${id}`);
-    set((s) => ({ trainings: s.trainings.filter((x) => x.id !== id) }));
-  },
-
-  releaseTraining: async (trainingId, memberIds = []) => {
+  releaseTraining: async (trainingId, memberIds) => {
     const res = await api.post<{
       training: Training;
       invitations: TrainingInvitation[];
       dates: TrainingDate[];
-    }>(`/trainings/${trainingId}/release`, { memberIds });
+      message?: string;
+    }>(`/trainings/${trainingId}/release`, { memberIds: memberIds ?? [] });
 
-    const [invites, dates, trainings] = await Promise.all([
+    const [invites, dates] = await Promise.all([
       api.get<TrainingInvitation[]>("/training-invitations"),
       api.get<TrainingDate[]>("/training-dates"),
-      api.get<Training[]>("/trainings"),
     ]);
 
-    set({
-      trainings,
+    set((s) => ({
+      trainings: s.trainings.map((x) => (x.id === trainingId ? res.training : x)),
       trainingInvites: invites,
       trainingDates: dates,
-    });
+    }));
+    return { message: res.message };
   },
 
-  registerTrainingJunior: async (trainingId, memberId, status) => {
-    await api.post(`/trainings/${trainingId}/register`, { memberId, status });
+  enrollTraining: async (trainingId, memberIds) => {
+    await api.post(`/trainings/${trainingId}/enroll`, { memberIds });
 
-    const [invites, dates, trainings] = await Promise.all([
+    const [trainings, invites, dates] = await Promise.all([
+      api.get<Training[]>("/trainings"),
       api.get<TrainingInvitation[]>("/training-invitations"),
       api.get<TrainingDate[]>("/training-dates"),
-      api.get<Training[]>("/trainings"),
     ]);
 
-    set({
+    set((s) => ({
+      trainings,
       trainingInvites: invites,
       trainingDates: dates,
-      trainings,
-    });
+    }));
   },
 
   respondTraining: async (inviteId, status) => {
@@ -549,61 +397,6 @@ export const useStore = create<State>((set, get) => ({
     });
     set((s) => ({
       trainingDates: s.trainingDates.map((d) => (d.id === dateId ? updated : d)),
-    }));
-  },
-
-  updateSettings: async (settings) => {
-    const updated = await api.post<{
-      locations: string[];
-      grades: string[];
-      holidays: string[];
-      appName: string;
-      appLogoText: string;
-      appLogoBase64: string | null;
-      currency: string;
-      mailHost: string;
-      mailPort: string;
-      mailUsername: string;
-      mailPassword: string;
-      mailEncryption: string;
-      mailFromAddress: string;
-      mailFromName: string;
-      emailPrimaryColor: string;
-      emailBgColor: string;
-      emailTextColor: string;
-      emailCardBgColor: string;
-      emailFooterText: string;
-    }>("/settings", settings);
-    set({
-      locations: updated.locations,
-      grades: updated.grades,
-      holidays: updated.holidays,
-      appName: updated.appName,
-      appLogoText: updated.appLogoText,
-      appLogoBase64: updated.appLogoBase64,
-      currency: updated.currency,
-      mailHost: updated.mailHost,
-      mailPort: updated.mailPort,
-      mailUsername: updated.mailUsername,
-      mailPassword: updated.mailPassword,
-      mailEncryption: updated.mailEncryption,
-      mailFromAddress: updated.mailFromAddress,
-      mailFromName: updated.mailFromName,
-      emailPrimaryColor: updated.emailPrimaryColor,
-      emailBgColor: updated.emailBgColor,
-      emailTextColor: updated.emailTextColor,
-      emailCardBgColor: updated.emailCardBgColor,
-      emailFooterText: updated.emailFooterText,
-    });
-  },
-
-  updateProfile: async (profile) => {
-    const res = await api.post<{ message: string; user: User }>("/profile", profile);
-    const members = await api.get<Member[]>("/members");
-    set((s) => ({
-      currentUser: res.user,
-      users: s.users.map((u) => (u.id === res.user.id ? res.user : u)),
-      members,
     }));
   },
 }));
