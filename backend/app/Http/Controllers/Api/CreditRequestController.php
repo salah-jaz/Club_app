@@ -8,6 +8,7 @@ use App\Models\Member;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Helpers\MailHelper;
 
 class CreditRequestController extends Controller
 {
@@ -53,7 +54,7 @@ class CreditRequestController extends Controller
         $member->save();
 
         // Create transaction ledger entry
-        Transaction::create([
+        $transaction = Transaction::create([
             'id' => 't_' . Str::random(8),
             'member_id' => $cr->member_id,
             'type' => 'credit',
@@ -61,6 +62,12 @@ class CreditRequestController extends Controller
             'description' => 'Credit top-up approved',
             'date' => now(),
         ]);
+
+        try {
+            MailHelper::sendTransactionEmail($member, $transaction);
+        } catch (\Exception $e) {
+            logger()->error("Transaction credit email failed: " . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'Credit request approved.',

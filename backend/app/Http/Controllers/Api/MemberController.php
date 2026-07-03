@@ -33,6 +33,7 @@ class MemberController extends Controller
             'membership' => 'required|boolean',
             'league' => 'required|boolean',
             'trainingEligible' => 'sometimes|boolean',
+            'skipCreditConsumption' => 'sometimes|boolean',
             'grade' => 'required|string',
             'biMemberId' => 'nullable|string',
             'status' => 'required|in:active,disabled',
@@ -77,6 +78,7 @@ class MemberController extends Controller
                     'bi_member_id' => $request->biMemberId,
                     'status' => $request->status,
                     'credit' => 0.00,
+                    'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
                 ]);
             });
         } else {
@@ -100,6 +102,7 @@ class MemberController extends Controller
                 'bi_member_id' => $request->biMemberId,
                 'status' => $request->status,
                 'credit' => 0.00,
+                'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
             ]);
         }
 
@@ -124,8 +127,27 @@ class MemberController extends Controller
         if ($request->has('biMemberId')) $data['bi_member_id'] = $request->biMemberId;
         if ($request->has('status')) $data['status'] = $request->status;
         if ($request->has('credit')) $data['credit'] = $request->credit;
+        if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->skipCreditConsumption;
 
         $member->update($data);
+
+        if ($member->user_id) {
+            $user = User::find($member->user_id);
+            if ($user) {
+                $userUpdates = [];
+                if ($request->has('firstName')) $userUpdates['first_name'] = $request->firstName;
+                if ($request->has('lastName')) $userUpdates['last_name'] = $request->lastName;
+                if ($request->has('dob')) $userUpdates['dob'] = $request->dob;
+                if ($request->has('email')) $userUpdates['email'] = $request->email;
+                if ($request->has('sex')) $userUpdates['sex'] = $request->sex;
+                if ($request->has('password') && !empty($request->password)) {
+                    $userUpdates['password'] = Hash::make($request->password);
+                }
+                if (!empty($userUpdates)) {
+                    $user->update($userUpdates);
+                }
+            }
+        }
 
         return response()->json($this->formatMember($member));
     }
@@ -156,6 +178,7 @@ class MemberController extends Controller
             'biMemberId' => $m->bi_member_id ?? "",
             'status' => $m->status,
             'credit' => (float)$m->credit,
+            'skipCreditConsumption' => (bool)$m->skip_credit_consumption,
         ];
     }
 

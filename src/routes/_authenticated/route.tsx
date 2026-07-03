@@ -104,7 +104,7 @@ function Layout() {
               <SidebarTrigger className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors" />
               <Separator orientation="vertical" className="h-4 bg-border" />
               <div className="breadcrumbs text-[13px] font-normal text-muted-foreground/60 flex items-center gap-2">
-                <span>ClubApp</span>
+                <span>Connect App</span>
                 <span className="breadcrumbs-separator opacity-40">/</span>
                 <span className="breadcrumbs-current text-muted-foreground">{screenName}</span>
               </div>

@@ -22,6 +22,8 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Settings constants
     Route::get('/settings', [SettingController::class, 'index']);
+    Route::post('/settings', [SettingController::class, 'update']);
+    Route::post('/settings/test-smtp', [SettingController::class, 'testSmtp']);
 
     // User admin management
     Route::get('/users', [UserController::class, 'index']);

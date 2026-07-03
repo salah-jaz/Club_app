@@ -37,6 +37,7 @@ function AddMember() {
           membership: false,
           league: false,
           trainingEligible: !isAdmin,
+          skipCreditConsumption: false,
           grade: "B",
           biMemberId: "",
           status: "active",

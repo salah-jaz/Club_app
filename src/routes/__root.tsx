@@ -78,9 +78,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ClubApp — Badminton Club Management" },
+      { title: "Connect App — Badminton Club Management" },
       { name: "description", content: "Manage members, credits, play sessions, court rotations, and training." },
-      { property: "og:title", content: "ClubApp" },
+      { property: "og:title", content: "Connect App" },
       { property: "og:description", content: "Badminton club management made simple." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -114,7 +114,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
         <script
