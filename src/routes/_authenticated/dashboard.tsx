@@ -37,9 +37,14 @@ function Dashboard() {
   const pendingUsers = s.users.filter((u) => u.status === "created").length;
   const pendingCredits = s.creditRequests.filter((c) => c.status === "created").length;
   const upcomingSchedules = s.schedules.filter((x) => x.status !== "closed");
-  const myInvites = s.playInvites.filter(
-    (i) => myMembers.some((m) => m.id === i.memberId) && i.status === "open",
-  );
+  const myInvites = [
+    ...s.playInvites.filter(
+      (i) => myMembers.some((m) => m.id === i.memberId) && i.status === "open",
+    ),
+    ...s.trainingInvites.filter(
+      (i) => myMembers.some((m) => m.id === i.memberId) && i.status === "open",
+    ),
+  ];
 
   return (
     <div>

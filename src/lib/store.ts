@@ -58,13 +58,19 @@ interface State {
   logout: () => Promise<void>;
 
   // user admin
-  approveUser: (id: string) => Promise<void>;
+  approveUser: (
+    id: string,
+    opts?: { memberType?: Member["memberType"]; grade?: string; league?: boolean; trainingEligible?: boolean },
+  ) => Promise<void>;
   approveAllUsers: () => Promise<void>;
   rejectUser: (id: string) => Promise<void>;
   setUserRole: (id: string, role: User["role"]) => Promise<void>;
 
   // members
-  addMember: (m: Omit<Member, "id" | "credit">) => Promise<void>;
+  addMember: (
+    m: Omit<Member, "id" | "credit"> & { mobile?: string; address?: string; password?: string },
+    createLogin?: boolean,
+  ) => Promise<void>;
   updateMember: (id: string, patch: Partial<Member>) => Promise<void>;
   deleteMember: (id: string) => Promise<void>;
 
@@ -77,7 +83,7 @@ interface State {
   // schedules
   createSchedule: (s: Omit<PlaySchedule, "id" | "status">) => Promise<void>;
   updateSchedule: (id: string, patch: Partial<PlaySchedule>) => Promise<void>;
-  releaseSchedule: (id: string) => Promise<void>;
+  releaseSchedule: (id: string) => Promise<{ message?: string; inviteCount?: number }>;
   closeSchedule: (id: string) => Promise<void>;
   deleteSchedule: (id: string) => Promise<void>;
   respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
@@ -86,8 +92,9 @@ interface State {
   // trainings
   createTraining: (t: Omit<Training, "id" | "status">) => Promise<void>;
   updateTraining: (id: string, patch: Partial<Training>) => Promise<void>;
-  releaseTraining: (id: string, memberIds?: string[]) => Promise<void>;
+  releaseTraining: (id: string, memberIds?: string[]) => Promise<{ message?: string }>;
   deleteTraining: (id: string) => Promise<void>;
+  enrollTraining: (trainingId: string, memberIds: string[]) => Promise<void>;
   registerTrainingJunior: (trainingId: string, memberId: string, status: "accepted" | "declined") => Promise<void>;
   respondTraining: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
@@ -348,8 +355,12 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
-  addMember: async (m) => {
-    const newMember = await api.post<Member>("/members", m);
+  addMember: async (m, createLogin = false) => {
+    const { mobile, address, password, ...member } = m;
+    const payload = createLogin
+      ? { ...member, createLogin: true, mobile, address, password }
+      : member;
+    const newMember = await api.post<Member>("/members", payload);
     set((s) => ({ members: [...s.members, newMember] }));
   },
 
@@ -430,14 +441,18 @@ export const useStore = create<State>((set, get) => ({
   },
 
   releaseSchedule: async (id) => {
-    const res = await api.post<{ schedule: PlaySchedule; invitations: PlayInvitation[] }>(
-      `/schedules/${id}/release`
-    );
+    const res = await api.post<{
+      schedule: PlaySchedule;
+      invitations: PlayInvitation[];
+      message?: string;
+      inviteCount?: number;
+    }>(`/schedules/${id}/release`);
     const invites = await api.get<PlayInvitation[]>("/play-invitations");
     set((s) => ({
       schedules: s.schedules.map((x) => (x.id === id ? res.schedule : x)),
       playInvites: invites,
     }));
+    return { message: res.message, inviteCount: res.inviteCount };
   },
 
   closeSchedule: async (id) => {
@@ -482,7 +497,8 @@ export const useStore = create<State>((set, get) => ({
 
   createTraining: async (t) => {
     const tr = await api.post<Training>("/trainings", t);
-    set((s) => ({ trainings: [...s.trainings, tr] }));
+    const res = await api.post<{ training: Training }>(`/trainings/${tr.id}/release`, { memberIds: [] });
+    set((s) => ({ trainings: [...s.trainings, res.training] }));
   },
 
   updateTraining: async (id, patch) => {
@@ -497,24 +513,41 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({ trainings: s.trainings.filter((x) => x.id !== id) }));
   },
 
-  releaseTraining: async (trainingId, memberIds = []) => {
+  releaseTraining: async (trainingId, memberIds) => {
     const res = await api.post<{
       training: Training;
       invitations: TrainingInvitation[];
       dates: TrainingDate[];
-    }>(`/trainings/${trainingId}/release`, { memberIds });
+      message?: string;
+    }>(`/trainings/${trainingId}/release`, { memberIds: memberIds ?? [] });
 
-    const [invites, dates, trainings] = await Promise.all([
+    const [invites, dates] = await Promise.all([
       api.get<TrainingInvitation[]>("/training-invitations"),
       api.get<TrainingDate[]>("/training-dates"),
-      api.get<Training[]>("/trainings"),
     ]);
 
-    set({
+    set((s) => ({
+      trainings: s.trainings.map((x) => (x.id === trainingId ? res.training : x)),
+      trainingInvites: invites,
+      trainingDates: dates,
+    }));
+    return { message: res.message };
+  },
+
+  enrollTraining: async (trainingId, memberIds) => {
+    await api.post(`/trainings/${trainingId}/enroll`, { memberIds });
+
+    const [trainings, invites, dates] = await Promise.all([
+      api.get<Training[]>("/trainings"),
+      api.get<TrainingInvitation[]>("/training-invitations"),
+      api.get<TrainingDate[]>("/training-dates"),
+    ]);
+
+    set((s) => ({
       trainings,
       trainingInvites: invites,
       trainingDates: dates,
-    });
+    }));
   },
 
   registerTrainingJunior: async (trainingId, memberId, status) => {

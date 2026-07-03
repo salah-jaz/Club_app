@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Member;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class UserController extends Controller
 {
@@ -21,81 +23,45 @@ class UserController extends Controller
         return response()->json($users->map(fn($u) => $this->formatUser($u)));
     }
 
-    public function approve($id)
+    public function approve(Request $request, $id)
     {
+        $request->validate([
+            'memberType' => 'sometimes|in:adult,junior',
+            'grade' => 'sometimes|string',
+            'league' => 'sometimes|boolean',
+            'trainingEligible' => 'sometimes|boolean',
+        ]);
+
         $user = User::findOrFail($id);
         $user->status = 'active';
         $user->save();
 
-        // Send approval email
-        try {
-            \App\Helpers\MailHelper::sendApprovalEmail($user);
-        } catch (\Exception $e) {
-            \Log::error("Failed to send approval email: " . $e->getMessage());
-        }
+        $memberType = $request->input('memberType', 'adult');
+        $trainingEligible = $request->has('trainingEligible')
+            ? $request->boolean('trainingEligible')
+            : ($memberType === 'junior');
 
-        // Automatically create a member profile for the approved user
-        \App\Models\Member::create([
-            'id' => 'm_' . \Illuminate\Support\Str::random(8),
+        $member = Member::create([
+            'id' => 'm_' . Str::random(8),
             'user_id' => $user->id,
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'dob' => $user->dob,
             'email' => $user->email,
             'sex' => $user->sex,
-            'member_type' => 'adult',
+            'member_type' => $memberType,
             'membership' => true,
-            'league' => false,
-            'grade' => 'Beginner',
+            'league' => $request->boolean('league'),
+            'training_eligible' => $trainingEligible,
+            'grade' => $request->input('grade', 'Beginner'),
             'status' => 'active',
             'credit' => 0.00,
         ]);
 
         return response()->json([
             'message' => 'User approved successfully.',
-            'user' => $this->formatUser($user)
-        ]);
-    }
-
-    public function approveAll()
-    {
-        $users = User::where('status', 'created')->get();
-        $approvedUsers = [];
-
-        foreach ($users as $user) {
-            $user->status = 'active';
-            $user->save();
-
-            // Send approval email
-            try {
-                \App\Helpers\MailHelper::sendApprovalEmail($user);
-            } catch (\Exception $e) {
-                \Log::error("Failed to send approval email: " . $e->getMessage());
-            }
-
-            // Automatically create a member profile for the approved user
-            \App\Models\Member::create([
-                'id' => 'm_' . \Illuminate\Support\Str::random(8),
-                'user_id' => $user->id,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'dob' => $user->dob,
-                'email' => $user->email,
-                'sex' => $user->sex,
-                'member_type' => 'adult',
-                'membership' => true,
-                'league' => false,
-                'grade' => 'Beginner',
-                'status' => 'active',
-                'credit' => 0.00,
-            ]);
-
-            $approvedUsers[] = $this->formatUser($user);
-        }
-
-        return response()->json([
-            'message' => 'All pending users approved successfully.',
-            'users' => $approvedUsers
+            'user' => $this->formatUser($user),
+            'member' => $this->formatMember($member),
         ]);
     }
 
@@ -104,13 +70,6 @@ class UserController extends Controller
         $user = User::findOrFail($id);
         $user->status = 'rejected';
         $user->save();
-
-        // Send rejection email
-        try {
-            \App\Helpers\MailHelper::sendRejectionEmail($user);
-        } catch (\Exception $e) {
-            \Log::error("Failed to send rejection email: " . $e->getMessage());
-        }
 
         return response()->json([
             'message' => 'User rejected successfully.',
@@ -148,6 +107,27 @@ class UserController extends Controller
             'role' => $u->role,
             'status' => $u->status,
             'createdAt' => $u->created_at->toISOString(),
+        ];
+    }
+
+    private function formatMember(Member $m)
+    {
+        return [
+            'id' => $m->id,
+            'userId' => $m->user_id,
+            'firstName' => $m->first_name,
+            'lastName' => $m->last_name,
+            'dob' => $m->dob,
+            'email' => $m->email,
+            'sex' => $m->sex,
+            'memberType' => $m->member_type,
+            'membership' => (bool) $m->membership,
+            'league' => (bool) $m->league,
+            'trainingEligible' => (bool) $m->training_eligible,
+            'grade' => $m->grade,
+            'biMemberId' => $m->bi_member_id ?? '',
+            'status' => $m->status,
+            'credit' => (float) $m->credit,
         ];
     }
 }
