@@ -37,9 +37,9 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
           {appLogoBase64 ? (
-            <img src={appLogoBase64} alt={appName} className="size-8 rounded object-contain bg-white/5" />
+            <img src={appLogoBase64} alt={appName} className="size-12 rounded-lg object-contain bg-white/5" />
           ) : (
-            <div className="size-8 rounded-md bg-primary text-primary-foreground grid place-items-center font-bold">{appLogoText}</div>
+            <div className="size-12 rounded-lg bg-primary text-primary-foreground grid place-items-center font-bold text-lg">{appLogoText}</div>
           )}
           <div className="flex flex-col leading-none">
             <span className="font-semibold">{appName}</span>

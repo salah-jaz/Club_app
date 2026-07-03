@@ -27,9 +27,9 @@ export function AuthShell({
         <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-[#10B981]/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#34D399]/5 rounded-full blur-[100px] pointer-events-none" />
 
-        <Link to="/" className="flex items-center gap-2.5 text-xl font-medium tracking-[0.12em] text-[#34D399] uppercase z-10">
+        <Link to="/" className="flex items-center gap-3.5 text-xl font-medium tracking-[0.12em] text-[#34D399] uppercase z-10">
           {appLogoBase64 ? (
-            <img src={appLogoBase64} alt={appName} className="size-8 rounded object-contain bg-white/5" />
+            <img src={appLogoBase64} alt={appName} className="size-16 rounded-xl object-contain bg-white/5 p-1" />
           ) : null}
           <span>{appName}</span><span className="text-[#10B981] -ml-2.5">.</span>
         </Link>
