@@ -27,12 +27,14 @@ class Member extends Model
         'bi_member_id',
         'status',
         'credit',
+        'skip_credit_consumption',
     ];
 
     protected $casts = [
         'membership' => 'boolean',
         'league' => 'boolean',
         'training_eligible' => 'boolean',
+        'skip_credit_consumption' => 'boolean',
         'credit' => 'float',
     ];
 

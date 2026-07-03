@@ -7,6 +7,7 @@ use App\Models\Member;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Helpers\MailHelper;
 
 class UserController extends Controller
 {
@@ -58,6 +59,12 @@ class UserController extends Controller
             'credit' => 0.00,
         ]);
 
+        try {
+            MailHelper::sendApprovalEmail($user);
+        } catch (\Exception $e) {
+            logger()->error("Approval email failed: " . $e->getMessage());
+        }
+
         return response()->json([
             'message' => 'User approved successfully.',
             'user' => $this->formatUser($user),
@@ -70,6 +77,12 @@ class UserController extends Controller
         $user = User::findOrFail($id);
         $user->status = 'rejected';
         $user->save();
+
+        try {
+            MailHelper::sendRejectionEmail($user);
+        } catch (\Exception $e) {
+            logger()->error("Rejection email failed: " . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'User rejected successfully.',

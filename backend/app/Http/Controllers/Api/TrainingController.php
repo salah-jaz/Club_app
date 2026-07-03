@@ -8,6 +8,7 @@ use App\Models\TrainingInvitation;
 use App\Models\TrainingDate;
 use App\Models\Holiday;
 use App\Models\Member;
+use App\Helpers\MailHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -67,6 +68,18 @@ class TrainingController extends Controller
         if ($request->has('status')) $data['status'] = $request->status;
 
         $tr->update($data);
+
+        try {
+            $invitations = TrainingInvitation::where('training_id', $tr->id)->get();
+            foreach ($invitations as $inv) {
+                $member = Member::find($inv->member_id);
+                if ($member) {
+                    MailHelper::sendTrainingNotification($member, $tr, $inv->status, 'update');
+                }
+            }
+        } catch (\Exception $e) {
+            logger()->error("Training update email notification failed: " . $e->getMessage());
+        }
 
         return response()->json($this->formatTraining($tr));
     }
@@ -256,6 +269,15 @@ class TrainingController extends Controller
                 'memberId' => $inv->member_id,
                 'status' => $inv->status,
             ];
+
+            $member = Member::find($mid);
+            if ($member) {
+                try {
+                    MailHelper::sendTrainingNotification($member, $tr, 'open', 'release');
+                } catch (\Exception $e) {
+                    logger()->error("Training release email failed for member {$mid}: " . $e->getMessage());
+                }
+            }
         }
 
         $trainingDates = [];

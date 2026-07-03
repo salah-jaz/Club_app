@@ -29,6 +29,7 @@ export interface Member {
   membership: boolean;
   league: boolean;
   trainingEligible: boolean;
+  skipCreditConsumption: boolean;
   grade: string;
   biMemberId: string;
   status: "active" | "disabled";

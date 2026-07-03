@@ -69,6 +69,18 @@ export function MemberForm({
               </SelectContent>
             </Select>
           </div>
+          {!showLoginFields && (
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Password</Label>
+              <Input
+                type="password"
+                placeholder="Leave blank to keep unchanged"
+                value={v.password ?? ""}
+                onChange={(e) => set("password", e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -187,6 +199,17 @@ export function MemberForm({
             <Switch
               checked={v.trainingEligible ?? false}
               onCheckedChange={(x) => set("trainingEligible", x)}
+              className="data-[state=checked]:bg-[#10B981]"
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+            <div>
+              <Label className="text-[11px] font-medium text-[#F1F0EE]">Bypass Credit Consumption</Label>
+              <p className="text-xs text-muted-foreground">Do not deduct credits when participating in play schedules.</p>
+            </div>
+            <Switch
+              checked={v.skipCreditConsumption ?? false}
+              onCheckedChange={(x) => set("skipCreditConsumption", x)}
               className="data-[state=checked]:bg-[#10B981]"
             />
           </div>

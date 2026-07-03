@@ -63,8 +63,34 @@ class MailHelper
         return $template;
     }
 
+    public static function applySmtpSettings($customSettings = null)
+    {
+        $host = $customSettings ? ($customSettings['mailHost'] ?? null) : Setting::where('key', 'mail_host')->value('value');
+        if ($host) {
+            $port = $customSettings ? ($customSettings['mailPort'] ?? null) : Setting::where('key', 'mail_port')->value('value');
+            $encryption = $customSettings ? ($customSettings['mailEncryption'] ?? null) : Setting::where('key', 'mail_encryption')->value('value');
+            $username = $customSettings ? ($customSettings['mailUsername'] ?? null) : Setting::where('key', 'mail_username')->value('value');
+            $password = $customSettings ? ($customSettings['mailPassword'] ?? null) : Setting::where('key', 'mail_password')->value('value');
+            $fromAddress = $customSettings ? ($customSettings['mailFromAddress'] ?? null) : Setting::where('key', 'mail_from_address')->value('value');
+            $fromName = $customSettings ? ($customSettings['mailFromName'] ?? null) : Setting::where('key', 'mail_from_name')->value('value');
+
+            config([
+                'mail.default' => 'smtp',
+                'mail.mailers.smtp.transport' => 'smtp',
+                'mail.mailers.smtp.host' => $host,
+                'mail.mailers.smtp.port' => (int) ($port ?? 587),
+                'mail.mailers.smtp.encryption' => $encryption ?? 'tls',
+                'mail.mailers.smtp.username' => $username,
+                'mail.mailers.smtp.password' => $password,
+                'mail.from.address' => $fromAddress ?? 'noreply@clubconnect.com',
+                'mail.from.name' => $fromName ?? 'ClubConnect',
+            ]);
+        }
+    }
+
     public static function sendEmail($to, $subject, $content)
     {
+        self::applySmtpSettings();
         $html = self::renderWithTemplate($subject, $content);
         
         Mail::html($html, function ($message) use ($to, $subject) {

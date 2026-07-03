@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Trash2, Plus, HelpCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -24,7 +25,12 @@ function SettingsPage() {
   const [appLogoText, setAppLogoText] = useState(store.appLogoText);
   const [appLogoBase64, setAppLogoBase64] = useState<string | null>(store.appLogoBase64);
   const [currency, setCurrency] = useState(store.currency);
+  const [skipCreditConsumption, setSkipCreditConsumption] = useState(store.skipCreditConsumption);
   const [locations, setLocations] = useState<string[]>(store.locations);
+
+  useEffect(() => {
+    setSkipCreditConsumption(store.skipCreditConsumption);
+  }, [store.skipCreditConsumption]);
   const [grades, setGrades] = useState<string[]>(store.grades);
   const [holidays, setHolidays] = useState<string[]>(store.holidays);
 
@@ -36,6 +42,7 @@ function SettingsPage() {
   const [mailEncryption, setMailEncryption] = useState(store.mailEncryption || "tls");
   const [mailFromAddress, setMailFromAddress] = useState(store.mailFromAddress || "");
   const [mailFromName, setMailFromName] = useState(store.mailFromName || "");
+  const [testingSmtp, setTestingSmtp] = useState(false);
 
   // Sync SMTP states when store syncs
   useEffect(() => {
@@ -128,6 +135,49 @@ function SettingsPage() {
     }
   };
 
+  const handleTestSmtp = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!mailHost || !mailPort || !mailFromAddress || !mailFromName) {
+      toast.error("Please fill in SMTP Host, Port, From Name, and From Address first.");
+      return;
+    }
+
+    const testEmail = window.prompt(
+      "Enter the recipient email address for the SMTP test:",
+      currentUser?.email || "admin@club.com"
+    );
+    if (testEmail === null) {
+      return;
+    }
+    if (!testEmail || !testEmail.includes("@")) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    setTestingSmtp(true);
+    try {
+      const res = await store.testSmtp({
+        mailHost,
+        mailPort,
+        mailUsername,
+        mailPassword,
+        mailEncryption,
+        mailFromAddress,
+        mailFromName,
+        testEmail,
+      });
+      if (res.status === "success") {
+        toast.success(res.message);
+      } else {
+        toast.error(res.message || "Failed to connect to SMTP server");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to test SMTP connection. Check configuration details.");
+    } finally {
+      setTestingSmtp(false);
+    }
+  };
+
   const handleSaveBranding = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -136,6 +186,7 @@ function SettingsPage() {
         appLogoText,
         appLogoBase64,
         currency,
+        skipCreditConsumption,
       });
       toast.success("Branding settings saved successfully");
     } catch (err: any) {
@@ -241,7 +292,7 @@ function SettingsPage() {
                     required
                     value={appName}
                     onChange={(e) => setAppName(e.target.value)}
-                    placeholder="ClubApp"
+                    placeholder="Connect App"
                     className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
                   />
                 </div>
@@ -324,6 +375,8 @@ function SettingsPage() {
                   </span>
                 </div>
               </div>
+
+
 
               <div className="flex justify-end pt-2">
                 <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
@@ -568,7 +621,15 @@ function SettingsPage() {
                 <strong className="text-[#34D399] font-medium">Google SMTP Setup Tip:</strong> Use <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">smtp.gmail.com</code> with port <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">587</code> and encryption <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">TLS</code>. You must create an <strong>App Password</strong> in your Google Account settings; entering your normal Gmail password will result in a connection failure. Leave the host blank to disable SMTP and fallback to application log capture.
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  onClick={handleTestSmtp}
+                  disabled={testingSmtp}
+                  className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer disabled:opacity-50"
+                >
+                  {testingSmtp ? "Testing..." : "Test Connection"}
+                </Button>
                 <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
                   Save SMTP Settings
                 </Button>

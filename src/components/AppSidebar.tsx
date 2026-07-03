@@ -35,13 +35,13 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1.5">
+        <div className="flex items-center gap-3 px-2 py-2">
           {appLogoBase64 ? (
-            <img src={appLogoBase64} alt={appName} className="size-12 rounded-lg object-contain bg-white/5" />
+            <img src={appLogoBase64} alt={appName} className="size-16 group-data-[collapsible=icon]:size-10 rounded-lg object-contain bg-white/5 transition-all duration-200" />
           ) : (
-            <div className="size-12 rounded-lg bg-primary text-primary-foreground grid place-items-center font-bold text-lg">{appLogoText}</div>
+            <div className="size-16 group-data-[collapsible=icon]:size-10 rounded-lg bg-primary text-primary-foreground grid place-items-center font-bold text-xl transition-all duration-200">{appLogoText}</div>
           )}
-          <div className="flex flex-col leading-none">
+          <div className="flex flex-col leading-none group-data-[collapsible=icon]:hidden">
             <span className="font-semibold">{appName}</span>
             <span className="text-[11px] text-muted-foreground capitalize">{user.role}</span>
           </div>

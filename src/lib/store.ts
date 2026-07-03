@@ -45,6 +45,7 @@ interface State {
   emailTextColor: string;
   emailCardBgColor: string;
   emailFooterText: string;
+  skipCreditConsumption: boolean;
 
   // sync
   syncData: () => Promise<void>;
@@ -118,6 +119,7 @@ interface State {
     emailTextColor?: string;
     emailCardBgColor?: string;
     emailFooterText?: string;
+    skipCreditConsumption?: boolean;
   }) => Promise<void>;
   updateProfile: (profile: {
     firstName: string;
@@ -129,6 +131,16 @@ interface State {
     address: string;
     password?: string;
   }) => Promise<void>;
+  testSmtp: (settings: {
+    mailHost: string;
+    mailPort: string;
+    mailUsername?: string;
+    mailPassword?: string;
+    mailEncryption?: string;
+    mailFromAddress: string;
+    mailFromName: string;
+    testEmail?: string;
+  }) => Promise<{ status: string; message: string }>;
 }
 
 const getInitialUserId = () => {
@@ -154,9 +166,9 @@ export const useStore = create<State>((set, get) => ({
   locations: [],
   grades: [],
   holidays: [],
-  appName: "ClubApp",
+  appName: "Connect App",
   appLogoText: "C",
-  appLogoBase64: null,
+  appLogoBase64: "/logo.png",
   currency: "$",
   mailHost: "",
   mailPort: "",
@@ -170,6 +182,7 @@ export const useStore = create<State>((set, get) => ({
   emailTextColor: "#E8F0EE",
   emailCardBgColor: "#131916",
   emailFooterText: "",
+  skipCreditConsumption: false,
 
   syncCurrentUser: async () => {
     try {
@@ -231,6 +244,7 @@ export const useStore = create<State>((set, get) => ({
           emailTextColor?: string;
           emailCardBgColor?: string;
           emailFooterText?: string;
+          skipCreditConsumption?: boolean;
         }>("/settings"),
         api.get<CreditRequest[]>("/credit-requests"),
       ]);
@@ -255,9 +269,9 @@ export const useStore = create<State>((set, get) => ({
         locations: settings.locations,
         grades: settings.grades,
         holidays: settings.holidays,
-        appName: settings.appName || "ClubApp",
+        appName: settings.appName || "Connect App",
         appLogoText: settings.appLogoText || "C",
-        appLogoBase64: settings.appLogoBase64 || null,
+        appLogoBase64: settings.appLogoBase64 || "/logo.png",
         currency: settings.currency || "$",
         mailHost: settings.mailHost || "",
         mailPort: settings.mailPort || "",
@@ -271,6 +285,7 @@ export const useStore = create<State>((set, get) => ({
         emailTextColor: settings.emailTextColor || "#E8F0EE",
         emailCardBgColor: settings.emailCardBgColor || "#131916",
         emailFooterText: settings.emailFooterText || "",
+        skipCreditConsumption: settings.skipCreditConsumption ?? false,
         users,
         creditRequests,
       });
@@ -315,8 +330,8 @@ export const useStore = create<State>((set, get) => ({
     set({ currentUserId: null, currentUser: null });
   },
 
-  approveUser: async (id) => {
-    const res = await api.post<{ user: User }>(`/users/${id}/approve`);
+  approveUser: async (id, opts) => {
+    const res = await api.post<{ user: User }>(`/users/${id}/approve`, opts);
     const members = await api.get<Member[]>("/members");
     set((s) => ({
       users: s.users.map((u) => (u.id === id ? res.user : u)),
@@ -606,6 +621,7 @@ export const useStore = create<State>((set, get) => ({
       emailTextColor: string;
       emailCardBgColor: string;
       emailFooterText: string;
+      skipCreditConsumption: boolean;
     }>("/settings", settings);
     set({
       locations: updated.locations,
@@ -627,6 +643,7 @@ export const useStore = create<State>((set, get) => ({
       emailTextColor: updated.emailTextColor,
       emailCardBgColor: updated.emailCardBgColor,
       emailFooterText: updated.emailFooterText,
+      skipCreditConsumption: updated.skipCreditConsumption,
     });
   },
 
@@ -638,6 +655,10 @@ export const useStore = create<State>((set, get) => ({
       users: s.users.map((u) => (u.id === res.user.id ? res.user : u)),
       members,
     }));
+  },
+
+  testSmtp: async (settings) => {
+    return await api.post<{ status: string; message: string }>("/settings/test-smtp", settings);
   },
 }));
 

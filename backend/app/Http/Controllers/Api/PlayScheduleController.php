@@ -8,6 +8,8 @@ use App\Models\PlayInvitation;
 use App\Models\Member;
 use App\Models\Rotation;
 use App\Models\Transaction;
+use App\Models\Setting;
+use App\Helpers\MailHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -68,6 +70,18 @@ class PlayScheduleController extends Controller
 
         $sch->update($data);
 
+        try {
+            $invitations = PlayInvitation::where('schedule_id', $sch->id)->get();
+            foreach ($invitations as $inv) {
+                $member = Member::find($inv->member_id);
+                if ($member) {
+                    MailHelper::sendScheduleNotification($member, $sch, $inv->status, 'update');
+                }
+            }
+        } catch (\Exception $e) {
+            logger()->error("Schedule update email notification failed: " . $e->getMessage());
+        }
+ 
         return response()->json($this->formatSchedule($sch));
     }
 
@@ -98,6 +112,12 @@ class PlayScheduleController extends Controller
                 'memberId' => $inv->member_id,
                 'status' => $inv->status,
             ];
+
+            try {
+                MailHelper::sendScheduleNotification($member, $sch, 'open', 'release');
+            } catch (\Exception $e) {
+                logger()->error("Schedule release email failed for member {$member->id}: " . $e->getMessage());
+            }
         }
 
         return response()->json([
@@ -204,10 +224,13 @@ class PlayScheduleController extends Controller
         foreach ($playerIds as $memberId) {
             $member = Member::find($memberId);
             if ($member) {
+                if ($member->skip_credit_consumption) {
+                    continue;
+                }
                 $member->credit -= $feeRounded;
                 $member->save();
-
-                Transaction::create([
+ 
+                $transaction = Transaction::create([
                     'id' => 't_' . Str::random(8),
                     'member_id' => $memberId,
                     'type' => 'debit',
@@ -215,6 +238,12 @@ class PlayScheduleController extends Controller
                     'description' => "Play session: " . $schedule->name,
                     'date' => now(),
                 ]);
+
+                try {
+                    MailHelper::sendTransactionEmail($member, $transaction);
+                } catch (\Exception $e) {
+                    logger()->error("Transaction debit email failed for member {$memberId}: " . $e->getMessage());
+                }
             }
         }
 
