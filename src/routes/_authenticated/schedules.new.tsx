@@ -9,15 +9,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+
 export const Route = createFileRoute("/_authenticated/schedules/new")({ component: NewSchedule });
 
 function NewSchedule() {
   const create = useStore((s) => s.createSchedule);
   const locations = useStore((s) => s.locations);
+  const leagueGroups = useStore((s) => s.leagueGroups || []);
   const navigate = useNavigate();
   const [f, setF] = useState({
     name: "", date: "", courts: 2, players: 16, slotHours: 2, slotDuration: "15 min",
     sessionRate: 8, hallRate: 40, location: locations[0],
+    isLeagueMatch: false, leagueGroupIds: [] as string[],
   });
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
 
@@ -56,6 +61,57 @@ function NewSchedule() {
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">{locations.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
+          <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+              League Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+              <div>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable League Match</Label>
+                <p className="text-xs text-muted-foreground">Limit invitations to specific league groups</p>
+              </div>
+              <Switch checked={f.isLeagueMatch} onCheckedChange={(v) => set("isLeagueMatch", v)} className="data-[state=checked]:bg-[#10B981]" />
+            </div>
+
+            {f.isLeagueMatch && (
+              <div className="space-y-2">
+                <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Select League Groups</Label>
+                {leagueGroups.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">No league groups found. Create one in the League Groups module.</p>
+                ) : (
+                  <div className="grid sm:grid-cols-3 gap-2">
+                    {leagueGroups.map((g) => (
+                      <label
+                        key={g.id}
+                        className={`flex items-center gap-2.5 p-2.5 bg-[#1A2120] border rounded-lg cursor-pointer transition-all ${
+                          f.leagueGroupIds.includes(g.id)
+                            ? "border-[#10B981] bg-[#1A2120]/80"
+                            : "border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={f.leagueGroupIds.includes(g.id)}
+                          onCheckedChange={(checked) => {
+                            const next = checked
+                              ? [...f.leagueGroupIds, g.id]
+                              : f.leagueGroupIds.filter((id) => id !== g.id);
+                            set("leagueGroupIds", next);
+                          }}
+                          className="border-[rgba(255,255,255,0.2)] data-[state=checked]:bg-[#10B981] data-[state=checked]:border-[#10B981]"
+                        />
+                        <span className="text-xs text-[#F1F0EE] truncate">{g.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

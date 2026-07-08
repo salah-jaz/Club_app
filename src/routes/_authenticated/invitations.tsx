@@ -116,6 +116,41 @@ function Invitations() {
                       }}>Decline</Button>
                     </div>
                   )}
+                  {i.status === "accepted" && (() => {
+                    const lockHours = s.cancellationLockHours ?? 24;
+                    const matchTime = new Date(sch.date).getTime();
+                    const now = new Date().getTime();
+                    const diffHours = (matchTime - now) / (1000 * 60 * 60);
+                    const isLocked = diffHours < lockHours;
+
+                    return (
+                      <div className="mt-3 space-y-1.5">
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={isLocked}
+                          className="w-full h-8 text-[11px] font-semibold cursor-pointer bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-red-950/40 disabled:hover:text-red-400"
+                          onClick={async () => {
+                            if (confirm("Are you sure you want to cancel your participation?")) {
+                              try {
+                                await s.respondPlay(i.id, "declined");
+                                toast.success("Cancelled match participation");
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to cancel invitation.");
+                              }
+                            }
+                          }}
+                        >
+                          Cancel Participation
+                        </Button>
+                        {isLocked && (
+                          <p className="text-[10px] text-red-400/80 text-center font-light">
+                            Cancellation locked ({lockHours}h limit reached)
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}

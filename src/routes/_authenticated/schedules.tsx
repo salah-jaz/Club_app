@@ -17,8 +17,9 @@ export const Route = createFileRoute("/_authenticated/schedules")({ component: S
 
 function SchedulesLayout() {
   const user = useCurrentUser()!;
+  const activeRole = useStore((s) => s.activeRole) || user.role;
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  if (user.role !== "admin") return <Navigate to="/dashboard" />;
+  if (activeRole !== "admin") return <Navigate to="/dashboard" />;
   if (pathname !== "/schedules") return <Outlet />;
   return <SchedulesList />;
 }

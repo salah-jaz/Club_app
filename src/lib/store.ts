@@ -10,12 +10,14 @@ import type {
   TrainingInvitation,
   Transaction,
   User,
+  LeagueGroup,
 } from "./types";
 import { api } from "./api";
 
 interface State {
   currentUserId: string | null;
   currentUser: User | null;
+  activeRole: Role | null;
   users: User[];
   members: Member[];
   creditRequests: CreditRequest[];
@@ -29,6 +31,7 @@ interface State {
   locations: string[];
   grades: string[];
   holidays: string[];
+  leagueGroups: LeagueGroup[];
   appName: string;
   appLogoText: string;
   appLogoBase64: string | null;
@@ -46,6 +49,8 @@ interface State {
   emailCardBgColor: string;
   emailFooterText: string;
   skipCreditConsumption: boolean;
+  cancellationLockHours: number;
+  debitTimingHours: number;
 
   // sync
   syncData: () => Promise<void>;
@@ -120,6 +125,8 @@ interface State {
     emailCardBgColor?: string;
     emailFooterText?: string;
     skipCreditConsumption?: boolean;
+    cancellationLockHours?: number;
+    debitTimingHours?: number;
   }) => Promise<void>;
   updateProfile: (profile: {
     firstName: string;
@@ -141,6 +148,11 @@ interface State {
     mailFromName: string;
     testEmail?: string;
   }) => Promise<{ status: string; message: string }>;
+  createLeagueGroup: (g: { name: string; description: string; memberIds: string[] }) => Promise<void>;
+  updateLeagueGroup: (id: string, patch: { name?: string; description?: string; memberIds?: string[] }) => Promise<void>;
+  deleteLeagueGroup: (id: string) => Promise<void>;
+  setActiveRole: (role: Role) => void;
+  bulkUploadMembers: (file: File) => Promise<void>;
 }
 
 const getInitialUserId = () => {
@@ -150,15 +162,24 @@ const getInitialUserId = () => {
   return null;
 };
 
+const getInitialActiveRole = () => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("clubapp_active_role") as Role | null;
+  }
+  return null;
+};
+
 export const useStore = create<State>((set, get) => ({
   currentUserId: getInitialUserId(),
   currentUser: null,
+  activeRole: getInitialActiveRole(),
   users: [],
   members: [],
   creditRequests: [],
   transactions: [],
   schedules: [],
   playInvites: [],
+  leagueGroups: [],
   rotations: [],
   trainings: [],
   trainingInvites: [],
@@ -183,11 +204,16 @@ export const useStore = create<State>((set, get) => ({
   emailCardBgColor: "#131916",
   emailFooterText: "",
   skipCreditConsumption: false,
+  cancellationLockHours: 24,
+  debitTimingHours: 24,
 
   syncCurrentUser: async () => {
     try {
       const user = await api.get<User>("/me");
       set({ currentUser: user, currentUserId: user.id });
+      if (!get().activeRole) {
+        set({ activeRole: user.role });
+      }
       if (typeof window !== "undefined") {
         localStorage.setItem("clubapp_user_id", user.id);
       }
@@ -215,6 +241,7 @@ export const useStore = create<State>((set, get) => ({
         transactions,
         settings,
         creditRequests,
+        leagueGroups,
       ] = await Promise.all([
         api.get<Member[]>("/members"),
         api.get<PlaySchedule[]>("/schedules"),
@@ -245,8 +272,11 @@ export const useStore = create<State>((set, get) => ({
           emailCardBgColor?: string;
           emailFooterText?: string;
           skipCreditConsumption?: boolean;
+          cancellationLockHours?: number;
+          debitTimingHours?: number;
         }>("/settings"),
         api.get<CreditRequest[]>("/credit-requests"),
+        api.get<LeagueGroup[]>("/league-groups"),
       ]);
 
       let users: User[] = [];
@@ -286,8 +316,11 @@ export const useStore = create<State>((set, get) => ({
         emailCardBgColor: settings.emailCardBgColor || "#131916",
         emailFooterText: settings.emailFooterText || "",
         skipCreditConsumption: settings.skipCreditConsumption ?? false,
+        cancellationLockHours: settings.cancellationLockHours ?? 24,
+        debitTimingHours: settings.debitTimingHours ?? 24,
         users,
         creditRequests,
+        leagueGroups,
       });
     } catch (e) {
       console.error("Failed to sync backend data:", e);
@@ -312,8 +345,9 @@ export const useStore = create<State>((set, get) => ({
     if (typeof window !== "undefined") {
       localStorage.setItem("clubapp_token", res.token);
       localStorage.setItem("clubapp_user_id", res.user.id);
+      localStorage.setItem("clubapp_active_role", res.user.role);
     }
-    set({ currentUserId: res.user.id, currentUser: res.user });
+    set({ currentUserId: res.user.id, currentUser: res.user, activeRole: res.user.role });
     return res.user;
   },
 
@@ -326,8 +360,9 @@ export const useStore = create<State>((set, get) => ({
     if (typeof window !== "undefined") {
       localStorage.removeItem("clubapp_token");
       localStorage.removeItem("clubapp_user_id");
+      localStorage.removeItem("clubapp_active_role");
     }
-    set({ currentUserId: null, currentUser: null });
+    set({ currentUserId: null, currentUser: null, activeRole: null });
   },
 
   approveUser: async (id, opts) => {
@@ -622,6 +657,8 @@ export const useStore = create<State>((set, get) => ({
       emailCardBgColor: string;
       emailFooterText: string;
       skipCreditConsumption: boolean;
+      cancellationLockHours: number;
+      debitTimingHours: number;
     }>("/settings", settings);
     set({
       locations: updated.locations,
@@ -644,6 +681,8 @@ export const useStore = create<State>((set, get) => ({
       emailCardBgColor: updated.emailCardBgColor,
       emailFooterText: updated.emailFooterText,
       skipCreditConsumption: updated.skipCreditConsumption,
+      cancellationLockHours: updated.cancellationLockHours,
+      debitTimingHours: updated.debitTimingHours,
     });
   },
 
@@ -659,6 +698,38 @@ export const useStore = create<State>((set, get) => ({
 
   testSmtp: async (settings) => {
     return await api.post<{ status: string; message: string }>("/settings/test-smtp", settings);
+  },
+
+  createLeagueGroup: async (g) => {
+    const newGroup = await api.post<LeagueGroup>("/league-groups", g);
+    set((s) => ({ leagueGroups: [...s.leagueGroups, newGroup] }));
+  },
+
+  updateLeagueGroup: async (id, patch) => {
+    const updated = await api.patch<LeagueGroup>(`/league-groups/${id}`, patch);
+    set((s) => ({
+      leagueGroups: s.leagueGroups.map((g) => (g.id === id ? updated : g)),
+    }));
+  },
+
+  deleteLeagueGroup: async (id) => {
+    await api.delete(`/league-groups/${id}`);
+    set((s) => ({ leagueGroups: s.leagueGroups.filter((g) => g.id !== id) }));
+  },
+
+  setActiveRole: (role: Role) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clubapp_active_role", role);
+    }
+    set({ activeRole: role });
+  },
+
+  bulkUploadMembers: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    await api.post("/members/bulk-upload", formData);
+    const members = await api.get<Member[]>("/members");
+    set({ members });
   },
 }));
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\PlayScheduleController;
 use App\Http\Controllers\Api\TrainingController;
 use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\LeagueGroupController;
 use Illuminate\Support\Facades\Route;
 
 // Public auth routes
@@ -34,6 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Members CRUD
     Route::get('/members', [MemberController::class, 'index']);
     Route::post('/members', [MemberController::class, 'store']);
+    Route::post('/members/bulk-upload', [MemberController::class, 'bulkUpload']);
     Route::patch('/members/{id}', [MemberController::class, 'update']);
     Route::delete('/members/{id}', [MemberController::class, 'destroy']);
 
@@ -71,4 +73,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/training-invitations/{id}/respond', [TrainingController::class, 'respondInvitation']);
     Route::get('/training-dates', [TrainingController::class, 'listDates']);
     Route::patch('/training-dates/{id}/attendance', [TrainingController::class, 'markAttendance']);
+    // League Groups
+    Route::get('/league-groups', [LeagueGroupController::class, 'index']);
+    Route::post('/league-groups', [LeagueGroupController::class, 'store']);
+    Route::patch('/league-groups/{id}', [LeagueGroupController::class, 'update']);
+    Route::delete('/league-groups/{id}', [LeagueGroupController::class, 'destroy']);
 });

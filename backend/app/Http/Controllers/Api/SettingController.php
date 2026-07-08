@@ -30,6 +30,8 @@ class SettingController extends Controller
         'emailTextColor' => 'email_text_color',
         'emailCardBgColor' => 'email_card_bg_color',
         'emailFooterText' => 'email_footer_text',
+        'cancellationLockHours' => 'cancellation_lock_hours',
+        'debitTimingHours' => 'debit_timing_hours',
     ];
 
     public function index()
@@ -46,6 +48,8 @@ class SettingController extends Controller
             $val = $dbSettings->get($snake);
             if ($camel === 'skipCreditConsumption') {
                 $data[$camel] = $val === 'true';
+            } else if ($camel === 'cancellationLockHours' || $camel === 'debitTimingHours') {
+                $data[$camel] = $val !== null ? (int)$val : null;
             } else {
                 $data[$camel] = $val;
             }
@@ -56,6 +60,8 @@ class SettingController extends Controller
         if (empty($data['appLogoText'])) $data['appLogoText'] = 'C';
         if (empty($data['appLogoBase64'])) $data['appLogoBase64'] = '/logo.png';
         if (empty($data['currency'])) $data['currency'] = '$';
+        if ($data['cancellationLockHours'] === null) $data['cancellationLockHours'] = 24;
+        if ($data['debitTimingHours'] === null) $data['debitTimingHours'] = 24;
 
         return response()->json($data);
     }

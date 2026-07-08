@@ -190,4 +190,85 @@ class MemberController extends Controller
 
         return $request->memberType === 'junior';
     }
+
+    public function bulkUpload(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt',
+        ]);
+
+        $file = $request->file('file');
+        $filePath = $file->getRealPath();
+
+        $rows = [];
+        if (($handle = fopen($filePath, 'r')) !== false) {
+            $header = null;
+            while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+                if (!$header) {
+                    $header = array_map(fn($h) => strtolower(trim(str_replace(['"', "'"], '', $h))), $row);
+                } else {
+                    $rows[] = array_combine($header, $row);
+                }
+            }
+            fclose($handle);
+        }
+
+        $createdCount = 0;
+
+        DB::transaction(function () use ($rows, &$createdCount) {
+            foreach ($rows as $row) {
+                $firstName = $row['first_name'] ?? $row['firstname'] ?? null;
+                $lastName = $row['last_name'] ?? $row['lastname'] ?? '';
+                $email = $row['email'] ?? null;
+
+                if (empty($firstName) || empty($email)) {
+                    continue;
+                }
+
+                $user = User::where('email', $email)->first();
+                if (!$user) {
+                    $user = User::create([
+                        'id' => 'u_' . Str::random(8),
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'email' => $email,
+                        'sex' => $row['sex'] ?? 'male',
+                        'dob' => $row['dob'] ?? '1990-01-01',
+                        'mobile' => $row['mobile'] ?? $row['phone'] ?? '',
+                        'address' => $row['address'] ?? '',
+                        'password' => Hash::make('password123'),
+                        'role' => 'member',
+                        'status' => 'active',
+                    ]);
+                }
+
+                $member = Member::where('email', $email)->first();
+                if (!$member) {
+                    Member::create([
+                        'id' => 'm_' . Str::random(8),
+                        'user_id' => $user->id,
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'dob' => $row['dob'] ?? '1990-01-01',
+                        'email' => $email,
+                        'sex' => $row['sex'] ?? 'male',
+                        'member_type' => $row['member_type'] ?? $row['membertype'] ?? 'adult',
+                        'membership' => filter_var($row['membership'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                        'league' => filter_var($row['league'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'training_eligible' => filter_var($row['training_eligible'] ?? $row['trainingeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'grade' => $row['grade'] ?? 'Beginner',
+                        'bi_member_id' => $row['bi_member_id'] ?? $row['bimemberid'] ?? null,
+                        'status' => $row['status'] ?? 'active',
+                        'credit' => 0.00,
+                    ]);
+                    $createdCount++;
+                }
+            }
+        });
+
+        return response()->json([
+            'message' => "Successfully uploaded and created {$createdCount} members.",
+            'createdCount' => $createdCount
+        ]);
+    }
 }
