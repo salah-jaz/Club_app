@@ -94,11 +94,7 @@ function Layout() {
       <div className="min-h-screen flex w-full bg-background text-foreground">
         <AppSidebar />
         <SidebarInset className="bg-background relative overflow-hidden flex-1">
-          {/* Subtle luxury background shuttlecock watermark */}
-          <div 
-            className="absolute inset-0 bg-cover bg-center opacity-[0.03] mix-blend-luminosity pointer-events-none z-0" 
-            style={{ backgroundImage: "url('/shuttlecock_luxury.png')" }} 
-          />
+
           <header className="h-12 flex items-center justify-between px-6 border-b border-border bg-background sticky top-0 z-10">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors" />
