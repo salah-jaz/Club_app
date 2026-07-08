@@ -54,6 +54,13 @@ export interface Transaction {
   date: string;
 }
 
+export interface LeagueGroup {
+  id: string;
+  name: string;
+  description: string;
+  memberIds: string[];
+}
+
 export interface PlaySchedule {
   id: string;
   name: string;
@@ -66,6 +73,8 @@ export interface PlaySchedule {
   hallRate: number;
   location: string;
   status: "open" | "released" | "rotated" | "closed";
+  isLeagueMatch?: boolean;
+  leagueGroupIds?: string[];
 }
 
 export type InviteStatus = "open" | "accepted" | "declined" | "waiting";
@@ -74,6 +83,7 @@ export interface PlayInvitation {
   scheduleId: string;
   memberId: string;
   status: InviteStatus;
+  debited?: boolean;
 }
 
 export interface RotationRound {

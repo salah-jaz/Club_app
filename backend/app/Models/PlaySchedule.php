@@ -23,6 +23,8 @@ class PlaySchedule extends Model
         'hall_rate',
         'location',
         'status',
+        'is_league_match',
+        'league_group_ids',
     ];
 
     protected $casts = [
@@ -31,6 +33,8 @@ class PlaySchedule extends Model
         'slot_hours' => 'float',
         'session_rate' => 'float',
         'hall_rate' => 'float',
+        'is_league_match' => 'boolean',
+        'league_group_ids' => 'array',
     ];
 
     public function playInvitations(): HasMany

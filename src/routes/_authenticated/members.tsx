@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
+import { useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -8,6 +9,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Plus, Pencil, Wallet } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { SearchFilterBar, useSearchFilters, EmptyState } from "@/components/SearchFilterBar";
+import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/members")({ component: MembersLayout });
 
@@ -20,6 +23,29 @@ function MembersLayout() {
 function MembersList() {
   const user = useCurrentUser()!;
   const all = useStore((s) => s.members);
+  const deleteMember = useStore((s) => s.deleteMember);
+  const activeRole = useStore((s) => s.activeRole) || user.role;
+  const store = useStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const loadingToast = toast.loading("Uploading CSV and creating members...");
+    try {
+      await store.bulkUploadMembers(file);
+      toast.dismiss(loadingToast);
+      toast.success("Members uploaded successfully!");
+    } catch (err: any) {
+      toast.dismiss(loadingToast);
+      toast.error(err.message || "Failed to upload members.");
+    }
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const {
     search,
@@ -33,6 +59,7 @@ function MembersList() {
     category: "all",
     status: "all",
     balance: "all",
+    league: "all",
   }, "name-asc");
 
   const filterConfig = [
@@ -63,6 +90,15 @@ function MembersList() {
         { value: "negative", label: "Negative Balance" },
       ],
     },
+    {
+      key: "league",
+      label: "League",
+      options: [
+        { value: "all", label: "All Members" },
+        { value: "league", label: "League Only" },
+        { value: "non-league", label: "Exclude League" },
+      ],
+    },
   ];
 
   const sortOptions = [
@@ -72,7 +108,7 @@ function MembersList() {
     { value: "balance-asc", label: "Balance: Low to High" },
   ];
 
-  const baseMembers = user.role === "admin" ? all : all.filter((m) => m.userId === user.id);
+  const baseMembers = activeRole === "admin" ? all : all.filter((m) => m.userId === user.id);
 
   // Apply filters
   let processed = baseMembers.filter((m) => {
@@ -96,6 +132,14 @@ function MembersList() {
     }
   }
 
+  if (filters.league !== "all") {
+    if (filters.league === "league") {
+      processed = processed.filter((m) => m.league);
+    } else if (filters.league === "non-league") {
+      processed = processed.filter((m) => !m.league);
+    }
+  }
+
   // Apply sorting
   processed = [...processed].sort((a, b) => {
     if (sortBy === "name-asc") {
@@ -116,14 +160,32 @@ function MembersList() {
   return (
     <div>
       <PageHeader
-        title={user.role === "admin" ? "Members" : "Family roster"}
-        description={user.role === "admin" ? "Every member registered in the club." : "Manage your family's club profiles."}
+        title={activeRole === "admin" ? "Members" : "Family roster"}
+        description={activeRole === "admin" ? "Every member registered in the club." : "Manage your family's club profiles."}
         actions={
-          (user.role === "admin" || user.role === "member") && (
-            <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
-              <Link to="/members/add"><Plus className="size-4" /> Add member</Link>
-            </Button>
-          )
+          <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleBulkUpload}
+              accept=".csv"
+              className="hidden"
+            />
+            {activeRole === "admin" && (
+              <Button
+                variant="outline"
+                className="btn-premium-outline h-[38px] px-4 hover:cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Bulk Upload
+              </Button>
+            )}
+            {(activeRole === "admin" || activeRole === "member") && (
+              <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
+                <Link to="/members/add"><Plus className="size-4" /> Add member</Link>
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -178,12 +240,30 @@ function MembersList() {
                   </div>
 
                   <div className="mt-4 flex gap-2 w-full">
-                    {user.role === "admin" && (
+                    {activeRole === "admin" && (
                       <Button asChild variant="outline" className="flex-1 btn-premium-outline h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer">
                         <Link to="/members/$id/edit" params={{ id: m.id }}><Pencil className="size-3.5 mr-1" /> Edit</Link>
                       </Button>
                     )}
-                    {(user.role === "admin" || user.role === "member") && (
+                    {activeRole === "admin" && (
+                      <Button
+                        variant="destructive"
+                        className="flex-1 h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200"
+                        onClick={async () => {
+                          if (confirm(`Are you sure you want to remove ${m.firstName} ${m.lastName}?`)) {
+                            try {
+                              await deleteMember(m.id);
+                              toast.success("Member removed successfully");
+                            } catch (e: any) {
+                              toast.error(e.message || "Failed to remove member");
+                            }
+                          }
+                        }}
+                      >
+                        <Trash2 className="size-3.5 mr-1" /> Remove
+                      </Button>
+                    )}
+                    {(activeRole === "admin" || activeRole === "member") && (
                       <Button asChild variant="outline" className="flex-1 btn-premium-violet-outline h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer">
                         <Link to={`/credits?memberId=${m.id}` as any}>Credits</Link>
                       </Button>

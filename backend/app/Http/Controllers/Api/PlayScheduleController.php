@@ -33,6 +33,9 @@ class PlayScheduleController extends Controller
             'sessionRate' => 'required|numeric',
             'hallRate' => 'required|numeric',
             'location' => 'required|string',
+            'isLeagueMatch' => 'sometimes|boolean',
+            'leagueGroupIds' => 'sometimes|array',
+            'leagueGroupIds.*' => 'string',
         ]);
 
         $sch = PlaySchedule::create([
@@ -47,6 +50,8 @@ class PlayScheduleController extends Controller
             'hall_rate' => $request->hallRate,
             'location' => $request->location,
             'status' => 'open',
+            'is_league_match' => $request->boolean('isLeagueMatch'),
+            'league_group_ids' => $request->leagueGroupIds,
         ]);
 
         return response()->json($this->formatSchedule($sch), 201);
@@ -67,6 +72,8 @@ class PlayScheduleController extends Controller
         if ($request->has('hallRate')) $data['hall_rate'] = $request->hallRate;
         if ($request->has('location')) $data['location'] = $request->location;
         if ($request->has('status')) $data['status'] = $request->status;
+        if ($request->has('isLeagueMatch')) $data['is_league_match'] = $request->boolean('isLeagueMatch');
+        if ($request->has('leagueGroupIds')) $data['league_group_ids'] = $request->leagueGroupIds;
 
         $sch->update($data);
 
@@ -92,7 +99,15 @@ class PlayScheduleController extends Controller
         $sch->save();
 
         // Get active adult league participants
-        $eligible = Member::eligibleForPlay()->get();
+        $eligible = Member::eligibleForPlay();
+        if ($sch->is_league_match && !empty($sch->league_group_ids)) {
+            $memberIds = \DB::table('league_group_member')
+                ->whereIn('league_group_id', $sch->league_group_ids)
+                ->pluck('member_id')
+                ->toArray();
+            $eligible = $eligible->whereIn('id', $memberIds);
+        }
+        $eligible = $eligible->get();
 
         // Delete old invitations for this schedule (if any)
         PlayInvitation::where('schedule_id', $id)->delete();
@@ -111,6 +126,7 @@ class PlayScheduleController extends Controller
                 'scheduleId' => $inv->schedule_id,
                 'memberId' => $inv->member_id,
                 'status' => $inv->status,
+                'debited' => (bool)$inv->debited,
             ];
 
             try {
@@ -222,28 +238,37 @@ class PlayScheduleController extends Controller
         $feeRounded = round($fee, 2);
 
         foreach ($playerIds as $memberId) {
+            $invite = PlayInvitation::where('schedule_id', $id)->where('member_id', $memberId)->first();
+            if ($invite && $invite->debited) {
+                continue;
+            }
+
             $member = Member::find($memberId);
             if ($member) {
-                if ($member->skip_credit_consumption) {
-                    continue;
-                }
-                $member->credit -= $feeRounded;
-                $member->save();
- 
-                $transaction = Transaction::create([
-                    'id' => 't_' . Str::random(8),
-                    'member_id' => $memberId,
-                    'type' => 'debit',
-                    'amount' => $feeRounded,
-                    'description' => "Play session: " . $schedule->name,
-                    'date' => now(),
-                ]);
+                if (!$member->skip_credit_consumption) {
+                    $member->credit -= $feeRounded;
+                    $member->save();
+     
+                    $transaction = Transaction::create([
+                        'id' => 't_' . Str::random(8),
+                        'member_id' => $memberId,
+                        'type' => 'debit',
+                        'amount' => $feeRounded,
+                        'description' => "Play session: " . $schedule->name,
+                        'date' => now(),
+                    ]);
 
-                try {
-                    MailHelper::sendTransactionEmail($member, $transaction);
-                } catch (\Exception $e) {
-                    logger()->error("Transaction debit email failed for member {$memberId}: " . $e->getMessage());
+                    try {
+                        MailHelper::sendTransactionEmail($member, $transaction);
+                    } catch (\Exception $e) {
+                        logger()->error("Transaction debit email failed for member {$memberId}: " . $e->getMessage());
+                    }
                 }
+            }
+
+            if ($invite) {
+                $invite->debited = true;
+                $invite->save();
             }
         }
 
@@ -268,6 +293,7 @@ class PlayScheduleController extends Controller
             'scheduleId' => $i->schedule_id,
             'memberId' => $i->member_id,
             'status' => $i->status,
+            'debited' => (bool)$i->debited,
         ]));
     }
 
@@ -278,6 +304,21 @@ class PlayScheduleController extends Controller
         ]);
 
         $invite = PlayInvitation::findOrFail($id);
+        
+        // If declining an already accepted invitation, check cancellation hours
+        if ($request->status === 'declined' && $invite->status === 'accepted') {
+            $lockHoursSetting = Setting::where('key', 'cancellation_lock_hours')->first();
+            $lockHours = $lockHoursSetting ? (int)$lockHoursSetting->value : 24;
+            
+            $sch = PlaySchedule::find($invite->schedule_id);
+            if ($sch) {
+                $matchTime = Carbon::parse($sch->date);
+                if (Carbon::now()->addHours($lockHours)->greaterThan($matchTime)) {
+                    return response()->json(['message' => 'Cancellation is locked ' . $lockHours . ' hours before the match starts.'], 422);
+                }
+            }
+        }
+
         $invite->status = $request->status;
         $invite->save();
 
@@ -286,6 +327,7 @@ class PlayScheduleController extends Controller
             'scheduleId' => $invite->schedule_id,
             'memberId' => $invite->member_id,
             'status' => $invite->status,
+            'debited' => (bool)$invite->debited,
         ]);
     }
 
@@ -312,6 +354,8 @@ class PlayScheduleController extends Controller
             'hallRate' => (float)$s->hall_rate,
             'location' => $s->location,
             'status' => $s->status,
+            'isLeagueMatch' => (bool)$s->is_league_match,
+            'leagueGroupIds' => $s->league_group_ids ?? [],
         ];
     }
 }

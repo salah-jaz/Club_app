@@ -13,8 +13,9 @@ export const Route = createFileRoute("/_authenticated/trainings")({ component: T
 
 function TrainingsLayout() {
   const user = useCurrentUser()!;
+  const activeRole = useStore((s) => s.activeRole) || user.role;
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  if (user.role !== "admin" && user.role !== "volunteer") return <Navigate to="/dashboard" />;
+  if (activeRole !== "admin" && activeRole !== "volunteer") return <Navigate to="/dashboard" />;
   if (pathname !== "/trainings") return <Outlet />;
   return <TrainingsList />;
 }
