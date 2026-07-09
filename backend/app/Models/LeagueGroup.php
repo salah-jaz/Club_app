@@ -18,6 +18,8 @@ class LeagueGroup extends Model
 
     public function members(): BelongsToMany
     {
-        return $this->belongsToMany(Member::class, 'league_group_member', 'league_group_id', 'member_id')->withTimestamps();
+        return $this->belongsToMany(Member::class, 'league_group_member', 'league_group_id', 'member_id')
+            ->withPivot('position')
+            ->withTimestamps();
     }
 }

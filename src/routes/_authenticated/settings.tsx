@@ -43,6 +43,7 @@ function SettingsPage() {
   }, [store.debitTimingHours]);
   const [grades, setGrades] = useState<string[]>(store.grades);
   const [holidays, setHolidays] = useState<string[]>(store.holidays);
+  const [playerPositions, setPlayerPositions] = useState<string[]>(store.playerPositions);
 
   // States for SMTP Settings
   const [mailHost, setMailHost] = useState(store.mailHost || "");
@@ -101,6 +102,7 @@ function SettingsPage() {
   const [newLocation, setNewLocation] = useState("");
   const [newGrade, setNewGrade] = useState("");
   const [newHoliday, setNewHoliday] = useState("");
+  const [newPlayerPosition, setNewPlayerPosition] = useState("");
 
   const handleSaveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -262,8 +264,27 @@ function SettingsPage() {
     saveUpdatedList({ holidays: updated }, "Holiday removed");
   };
 
+  const handleAddPlayerPosition = () => {
+    const trimmed = newPlayerPosition.trim();
+    if (!trimmed) return;
+    if (playerPositions.includes(trimmed)) {
+      toast.error("Position already exists");
+      return;
+    }
+    const updated = [...playerPositions, trimmed];
+    setPlayerPositions(updated);
+    setNewPlayerPosition("");
+    saveUpdatedList({ playerPositions: updated }, "Player position added");
+  };
+
+  const handleDeletePlayerPosition = (pos: string) => {
+    const updated = playerPositions.filter((x) => x !== pos);
+    setPlayerPositions(updated);
+    saveUpdatedList({ playerPositions: updated }, "Player position removed");
+  };
+
   const saveUpdatedList = async (
-    payload: { locations?: string[]; grades?: string[]; holidays?: string[] },
+    payload: { locations?: string[]; grades?: string[]; holidays?: string[]; playerPositions?: string[] },
     successMsg: string
   ) => {
     try {
@@ -275,6 +296,7 @@ function SettingsPage() {
       setLocations(store.locations);
       setGrades(store.grades);
       setHolidays(store.holidays);
+      setPlayerPositions(store.playerPositions);
     }
   };
 
@@ -828,6 +850,55 @@ function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Player Positions Manager */}
+        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
+          <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+              Player Positions / Roles
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 flex-1 flex flex-col">
+            <div className="flex gap-2 mb-4">
+              <Input
+                value={newPlayerPosition}
+                onChange={(e) => setNewPlayerPosition(e.target.value)}
+                placeholder="Add new position (e.g. Singles, Doubles)"
+                onKeyDown={(e) => e.key === "Enter" && handleAddPlayerPosition()}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+              />
+              <Button
+                type="button"
+                onClick={handleAddPlayerPosition}
+                className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
+              >
+                <Plus className="size-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+              {playerPositions.length === 0 ? (
+                <div className="text-center py-6 text-xs text-muted-foreground/60">No player positions configured.</div>
+              ) : (
+                playerPositions.map((pos) => (
+                  <div
+                    key={pos}
+                    className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
+                  >
+                    <span className="text-[#F1F0EE] font-medium">{pos}</span>
+                    <button
+                      onClick={() => handleDeletePlayerPosition(pos)}
+                      className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+                      title="Delete position"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
       </div>
     </div>
   );

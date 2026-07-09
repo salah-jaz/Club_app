@@ -59,6 +59,7 @@ export interface LeagueGroup {
   name: string;
   description: string;
   memberIds: string[];
+  memberPositions?: Record<string, string | null>;
 }
 
 export interface PlaySchedule {

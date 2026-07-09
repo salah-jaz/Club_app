@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState, useMatches } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,8 +15,9 @@ import { Trash2 } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/members")({ component: MembersLayout });
 
 function MembersLayout() {
-  const pathname = useRouterState({ select: (r) => r.location.pathname });
-  if (pathname !== "/members") return <Outlet />;
+  const matches = useMatches();
+  const isIndex = matches[matches.length - 1].routeId === Route.id;
+  if (!isIndex) return <Outlet />;
   return <MembersList />;
 }
 
