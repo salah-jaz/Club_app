@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Location;
 use App\Models\Grade;
 use App\Models\Holiday;
+use App\Models\PlayerPosition;
 use App\Models\Setting;
 use App\Helpers\MailHelper;
 use Illuminate\Http\Request;
@@ -39,9 +40,10 @@ class SettingController extends Controller
         $dbSettings = Setting::all()->pluck('value', 'key');
 
         $data = [
-            'locations' => Location::pluck('name')->toArray(),
-            'grades' => Grade::pluck('name')->toArray(),
-            'holidays' => Holiday::pluck('date')->toArray(),
+            'locations'       => Location::pluck('name')->toArray(),
+            'grades'          => Grade::pluck('name')->toArray(),
+            'holidays'        => Holiday::pluck('date')->toArray(),
+            'playerPositions' => PlayerPosition::pluck('name')->toArray(),
         ];
 
         foreach ($this->settingKeys as $camel => $snake) {
@@ -101,6 +103,14 @@ class SettingController extends Controller
             $now = now();
             foreach ($request->holidays as $h) {
                 Holiday::create(['date' => $h, 'created_at' => $now, 'updated_at' => $now]);
+            }
+        }
+
+        if ($request->has('playerPositions')) {
+            PlayerPosition::truncate();
+            $now = now();
+            foreach ($request->playerPositions as $pos) {
+                PlayerPosition::create(['name' => $pos, 'created_at' => $now, 'updated_at' => $now]);
             }
         }
 

@@ -31,6 +31,7 @@ interface State {
   locations: string[];
   grades: string[];
   holidays: string[];
+  playerPositions: string[];
   leagueGroups: LeagueGroup[];
   appName: string;
   appLogoText: string;
@@ -112,6 +113,7 @@ interface State {
     locations?: string[];
     grades?: string[];
     holidays?: string[];
+    playerPositions?: string[];
     mailHost?: string;
     mailPort?: string;
     mailUsername?: string;
@@ -148,8 +150,8 @@ interface State {
     mailFromName: string;
     testEmail?: string;
   }) => Promise<{ status: string; message: string }>;
-  createLeagueGroup: (g: { name: string; description: string; memberIds: string[] }) => Promise<void>;
-  updateLeagueGroup: (id: string, patch: { name?: string; description?: string; memberIds?: string[] }) => Promise<void>;
+  createLeagueGroup: (g: { name: string; description: string; memberIds: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
+  updateLeagueGroup: (id: string, patch: { name?: string; description?: string; memberIds?: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
   deleteLeagueGroup: (id: string) => Promise<void>;
   setActiveRole: (role: Role) => void;
   bulkUploadMembers: (file: File) => Promise<void>;
@@ -187,6 +189,7 @@ export const useStore = create<State>((set, get) => ({
   locations: [],
   grades: [],
   holidays: [],
+  playerPositions: [],
   appName: "Connect App",
   appLogoText: "C",
   appLogoBase64: "/logo.png",
@@ -255,6 +258,7 @@ export const useStore = create<State>((set, get) => ({
           locations: string[];
           grades: string[];
           holidays: string[];
+          playerPositions: string[];
           appName: string;
           appLogoText: string;
           appLogoBase64?: string | null;
@@ -299,6 +303,7 @@ export const useStore = create<State>((set, get) => ({
         locations: settings.locations,
         grades: settings.grades,
         holidays: settings.holidays,
+        playerPositions: settings.playerPositions || [],
         appName: settings.appName || "Connect App",
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || "/logo.png",
@@ -640,6 +645,7 @@ export const useStore = create<State>((set, get) => ({
       locations: string[];
       grades: string[];
       holidays: string[];
+      playerPositions: string[];
       appName: string;
       appLogoText: string;
       appLogoBase64: string | null;
@@ -664,6 +670,7 @@ export const useStore = create<State>((set, get) => ({
       locations: updated.locations,
       grades: updated.grades,
       holidays: updated.holidays,
+      playerPositions: updated.playerPositions || [],
       appName: updated.appName,
       appLogoText: updated.appLogoText,
       appLogoBase64: updated.appLogoBase64,

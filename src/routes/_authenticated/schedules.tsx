@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState, useMatches } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { Navigate } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,9 +18,10 @@ export const Route = createFileRoute("/_authenticated/schedules")({ component: S
 function SchedulesLayout() {
   const user = useCurrentUser()!;
   const activeRole = useStore((s) => s.activeRole) || user.role;
-  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const matches = useMatches();
+  const isIndex = matches[matches.length - 1].routeId === Route.id;
   if (activeRole !== "admin") return <Navigate to="/dashboard" />;
-  if (pathname !== "/schedules") return <Outlet />;
+  if (!isIndex) return <Outlet />;
   return <SchedulesList />;
 }
 

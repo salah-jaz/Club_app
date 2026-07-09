@@ -18,20 +18,23 @@ class LeagueGroupController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'memberIds' => 'sometimes|array',
-            'memberIds.*' => 'string|exists:members,id',
+            'name'                  => 'required|string|max:255',
+            'description'           => 'nullable|string',
+            'memberIds'             => 'sometimes|array',
+            'memberIds.*'           => 'string|exists:members,id',
+            'memberPositions'       => 'sometimes|array',
+            'memberPositions.*'     => 'nullable|string|max:255',
         ]);
 
         $group = LeagueGroup::create([
-            'id' => 'lg_' . Str::random(8),
-            'name' => $request->name,
+            'id'          => 'lg_' . Str::random(8),
+            'name'        => $request->name,
             'description' => $request->description,
         ]);
 
         if ($request->has('memberIds')) {
-            $group->members()->sync($request->memberIds);
+            $syncData = $this->buildSyncData($request->memberIds, $request->memberPositions ?? []);
+            $group->members()->sync($syncData);
         }
 
         return response()->json($this->formatGroup($group->load('members')), 201);
@@ -42,18 +45,21 @@ class LeagueGroupController extends Controller
         $group = LeagueGroup::findOrFail($id);
 
         $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'description' => 'nullable|string',
-            'memberIds' => 'sometimes|array',
-            'memberIds.*' => 'string|exists:members,id',
+            'name'                  => 'sometimes|required|string|max:255',
+            'description'           => 'nullable|string',
+            'memberIds'             => 'sometimes|array',
+            'memberIds.*'           => 'string|exists:members,id',
+            'memberPositions'       => 'sometimes|array',
+            'memberPositions.*'     => 'nullable|string|max:255',
         ]);
 
-        if ($request->has('name')) $group->name = $request->name;
+        if ($request->has('name'))        $group->name        = $request->name;
         if ($request->has('description')) $group->description = $request->description;
         $group->save();
 
         if ($request->has('memberIds')) {
-            $group->members()->sync($request->memberIds);
+            $syncData = $this->buildSyncData($request->memberIds, $request->memberPositions ?? []);
+            $group->members()->sync($syncData);
         }
 
         return response()->json($this->formatGroup($group->load('members')));
@@ -67,13 +73,34 @@ class LeagueGroupController extends Controller
         return response()->json(['message' => 'League group deleted successfully.']);
     }
 
-    private function formatGroup(LeagueGroup $g)
+    /**
+     * Build the sync array: [ memberId => ['position' => value], ... ]
+     */
+    private function buildSyncData(array $memberIds, array $memberPositions): array
     {
+        $data = [];
+        foreach ($memberIds as $memberId) {
+            $data[$memberId] = ['position' => $memberPositions[$memberId] ?? null];
+        }
+        return $data;
+    }
+
+    private function formatGroup(LeagueGroup $g): array
+    {
+        $memberIds       = [];
+        $memberPositions = [];
+
+        foreach ($g->members as $member) {
+            $memberIds[]                         = $member->id;
+            $memberPositions[$member->id]        = $member->pivot->position ?? null;
+        }
+
         return [
-            'id' => $g->id,
-            'name' => $g->name,
-            'description' => $g->description ?? "",
-            'memberIds' => $g->members->pluck('id')->toArray(),
+            'id'              => $g->id,
+            'name'            => $g->name,
+            'description'     => $g->description ?? '',
+            'memberIds'       => $memberIds,
+            'memberPositions' => $memberPositions,
         ];
     }
 }
