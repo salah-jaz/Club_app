@@ -155,6 +155,12 @@ class MemberController extends Controller
     public function destroy($id)
     {
         $member = Member::findOrFail($id);
+        $user = auth()->user();
+        
+        if ($user->role !== 'admin' && $member->user_id !== $user->id) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+        
         $member->delete();
 
         return response()->json(['message' => 'Member deleted successfully.']);

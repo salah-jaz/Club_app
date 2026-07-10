@@ -69,13 +69,6 @@ function LoginPage() {
         <Button type="submit" className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">
           Sign in
         </Button>
-        
-        <div className="rounded-lg bg-[#131916] border border-[rgba(255,255,255,0.06)] p-4 text-[12px] text-[#8A8A98] space-y-2 font-light">
-          <span className="text-[10px] font-medium tracking-[0.1em] text-[#34D399] uppercase block mb-1">DEMO CREDENTIALS</span>
-          <div className="flex justify-between border-b border-white/5 pb-1"><span className="font-semibold text-[#F1F0EE]">Admin:</span> <span className="font-mono">admin@club.com / admin123</span></div>
-          <div className="flex justify-between border-b border-white/5 pb-1"><span className="font-semibold text-[#F1F0EE]">Member:</span> <span className="font-mono">john@club.com / john123</span></div>
-          <div className="flex justify-between"><span className="font-semibold text-[#F1F0EE]">Volunteer:</span> <span className="font-mono">vera@club.com / vera123</span></div>
-        </div>
       </form>
     </AuthShell>
   );

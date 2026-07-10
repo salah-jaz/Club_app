@@ -77,7 +77,7 @@ function EditSchedule() {
       <PageHeader
         title={`Edit ${sch.name}`}
         description="Update court capacity, scheduling details, and pricing."
-        backTo={`/schedules/${sch.id}`}
+        backTo="/schedules"
       />
       <form
         onSubmit={async (e) => {
@@ -85,7 +85,7 @@ function EditSchedule() {
           try {
             await update(sch.id, f);
             toast.success("Schedule updated successfully");
-            navigate({ to: `/schedules/${sch.id}` });
+            navigate({ to: "/schedules" });
           } catch (error: any) {
             toast.error(error.message || "Failed to update schedule.");
           }

@@ -26,10 +26,10 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCreditsRouteImport } from './routes/_authenticated/credits'
 import { Route as AuthenticatedApprovalsRouteImport } from './routes/_authenticated/approvals'
 import { Route as AuthenticatedTrainingsNewRouteImport } from './routes/_authenticated/trainings.new'
-import { Route as AuthenticatedTrainingsIdRouteImport } from './routes/_authenticated/trainings.$id'
 import { Route as AuthenticatedSchedulesNewRouteImport } from './routes/_authenticated/schedules.new'
-import { Route as AuthenticatedSchedulesIdRouteImport } from './routes/_authenticated/schedules.$id'
 import { Route as AuthenticatedMembersAddRouteImport } from './routes/_authenticated/members.add'
+import { Route as AuthenticatedTrainingsIdIndexRouteImport } from './routes/_authenticated/trainings.$id.index'
+import { Route as AuthenticatedSchedulesIdIndexRouteImport } from './routes/_authenticated/schedules.$id.index'
 import { Route as AuthenticatedTrainingsIdEditRouteImport } from './routes/_authenticated/trainings.$id.edit'
 import { Route as AuthenticatedSchedulesIdEditRouteImport } from './routes/_authenticated/schedules.$id.edit'
 import { Route as AuthenticatedMembersIdEditRouteImport } from './routes/_authenticated/members.$id.edit'
@@ -123,22 +123,10 @@ const AuthenticatedTrainingsNewRoute =
     path: '/new',
     getParentRoute: () => AuthenticatedTrainingsRoute,
   } as any)
-const AuthenticatedTrainingsIdRoute =
-  AuthenticatedTrainingsIdRouteImport.update({
-    id: '/$id',
-    path: '/$id',
-    getParentRoute: () => AuthenticatedTrainingsRoute,
-  } as any)
 const AuthenticatedSchedulesNewRoute =
   AuthenticatedSchedulesNewRouteImport.update({
     id: '/new',
     path: '/new',
-    getParentRoute: () => AuthenticatedSchedulesRoute,
-  } as any)
-const AuthenticatedSchedulesIdRoute =
-  AuthenticatedSchedulesIdRouteImport.update({
-    id: '/$id',
-    path: '/$id',
     getParentRoute: () => AuthenticatedSchedulesRoute,
   } as any)
 const AuthenticatedMembersAddRoute = AuthenticatedMembersAddRouteImport.update({
@@ -146,17 +134,29 @@ const AuthenticatedMembersAddRoute = AuthenticatedMembersAddRouteImport.update({
   path: '/add',
   getParentRoute: () => AuthenticatedMembersRoute,
 } as any)
+const AuthenticatedTrainingsIdIndexRoute =
+  AuthenticatedTrainingsIdIndexRouteImport.update({
+    id: '/$id/',
+    path: '/$id/',
+    getParentRoute: () => AuthenticatedTrainingsRoute,
+  } as any)
+const AuthenticatedSchedulesIdIndexRoute =
+  AuthenticatedSchedulesIdIndexRouteImport.update({
+    id: '/$id/',
+    path: '/$id/',
+    getParentRoute: () => AuthenticatedSchedulesRoute,
+  } as any)
 const AuthenticatedTrainingsIdEditRoute =
   AuthenticatedTrainingsIdEditRouteImport.update({
-    id: '/edit',
-    path: '/edit',
-    getParentRoute: () => AuthenticatedTrainingsIdRoute,
+    id: '/$id/edit',
+    path: '/$id/edit',
+    getParentRoute: () => AuthenticatedTrainingsRoute,
   } as any)
 const AuthenticatedSchedulesIdEditRoute =
   AuthenticatedSchedulesIdEditRouteImport.update({
-    id: '/edit',
-    path: '/edit',
-    getParentRoute: () => AuthenticatedSchedulesIdRoute,
+    id: '/$id/edit',
+    path: '/$id/edit',
+    getParentRoute: () => AuthenticatedSchedulesRoute,
   } as any)
 const AuthenticatedMembersIdEditRoute =
   AuthenticatedMembersIdEditRouteImport.update({
@@ -182,13 +182,13 @@ export interface FileRoutesByFullPath {
   '/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/transactions': typeof AuthenticatedTransactionsRoute
   '/members/add': typeof AuthenticatedMembersAddRoute
-  '/schedules/$id': typeof AuthenticatedSchedulesIdRouteWithChildren
   '/schedules/new': typeof AuthenticatedSchedulesNewRoute
-  '/trainings/$id': typeof AuthenticatedTrainingsIdRouteWithChildren
   '/trainings/new': typeof AuthenticatedTrainingsNewRoute
   '/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
   '/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
   '/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
+  '/schedules/$id/': typeof AuthenticatedSchedulesIdIndexRoute
+  '/trainings/$id/': typeof AuthenticatedTrainingsIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -207,13 +207,13 @@ export interface FileRoutesByTo {
   '/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/transactions': typeof AuthenticatedTransactionsRoute
   '/members/add': typeof AuthenticatedMembersAddRoute
-  '/schedules/$id': typeof AuthenticatedSchedulesIdRouteWithChildren
   '/schedules/new': typeof AuthenticatedSchedulesNewRoute
-  '/trainings/$id': typeof AuthenticatedTrainingsIdRouteWithChildren
   '/trainings/new': typeof AuthenticatedTrainingsNewRoute
   '/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
   '/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
   '/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
+  '/schedules/$id': typeof AuthenticatedSchedulesIdIndexRoute
+  '/trainings/$id': typeof AuthenticatedTrainingsIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -234,13 +234,13 @@ export interface FileRoutesById {
   '/_authenticated/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/_authenticated/transactions': typeof AuthenticatedTransactionsRoute
   '/_authenticated/members/add': typeof AuthenticatedMembersAddRoute
-  '/_authenticated/schedules/$id': typeof AuthenticatedSchedulesIdRouteWithChildren
   '/_authenticated/schedules/new': typeof AuthenticatedSchedulesNewRoute
-  '/_authenticated/trainings/$id': typeof AuthenticatedTrainingsIdRouteWithChildren
   '/_authenticated/trainings/new': typeof AuthenticatedTrainingsNewRoute
   '/_authenticated/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
   '/_authenticated/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
   '/_authenticated/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
+  '/_authenticated/schedules/$id/': typeof AuthenticatedSchedulesIdIndexRoute
+  '/_authenticated/trainings/$id/': typeof AuthenticatedTrainingsIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -261,13 +261,13 @@ export interface FileRouteTypes {
     | '/trainings'
     | '/transactions'
     | '/members/add'
-    | '/schedules/$id'
     | '/schedules/new'
-    | '/trainings/$id'
     | '/trainings/new'
     | '/members/$id/edit'
     | '/schedules/$id/edit'
     | '/trainings/$id/edit'
+    | '/schedules/$id/'
+    | '/trainings/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -286,13 +286,13 @@ export interface FileRouteTypes {
     | '/trainings'
     | '/transactions'
     | '/members/add'
-    | '/schedules/$id'
     | '/schedules/new'
-    | '/trainings/$id'
     | '/trainings/new'
     | '/members/$id/edit'
     | '/schedules/$id/edit'
     | '/trainings/$id/edit'
+    | '/schedules/$id'
+    | '/trainings/$id'
   id:
     | '__root__'
     | '/'
@@ -312,13 +312,13 @@ export interface FileRouteTypes {
     | '/_authenticated/trainings'
     | '/_authenticated/transactions'
     | '/_authenticated/members/add'
-    | '/_authenticated/schedules/$id'
     | '/_authenticated/schedules/new'
-    | '/_authenticated/trainings/$id'
     | '/_authenticated/trainings/new'
     | '/_authenticated/members/$id/edit'
     | '/_authenticated/schedules/$id/edit'
     | '/_authenticated/trainings/$id/edit'
+    | '/_authenticated/schedules/$id/'
+    | '/_authenticated/trainings/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -449,25 +449,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTrainingsNewRouteImport
       parentRoute: typeof AuthenticatedTrainingsRoute
     }
-    '/_authenticated/trainings/$id': {
-      id: '/_authenticated/trainings/$id'
-      path: '/$id'
-      fullPath: '/trainings/$id'
-      preLoaderRoute: typeof AuthenticatedTrainingsIdRouteImport
-      parentRoute: typeof AuthenticatedTrainingsRoute
-    }
     '/_authenticated/schedules/new': {
       id: '/_authenticated/schedules/new'
       path: '/new'
       fullPath: '/schedules/new'
       preLoaderRoute: typeof AuthenticatedSchedulesNewRouteImport
-      parentRoute: typeof AuthenticatedSchedulesRoute
-    }
-    '/_authenticated/schedules/$id': {
-      id: '/_authenticated/schedules/$id'
-      path: '/$id'
-      fullPath: '/schedules/$id'
-      preLoaderRoute: typeof AuthenticatedSchedulesIdRouteImport
       parentRoute: typeof AuthenticatedSchedulesRoute
     }
     '/_authenticated/members/add': {
@@ -477,19 +463,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMembersAddRouteImport
       parentRoute: typeof AuthenticatedMembersRoute
     }
+    '/_authenticated/trainings/$id/': {
+      id: '/_authenticated/trainings/$id/'
+      path: '/$id'
+      fullPath: '/trainings/$id/'
+      preLoaderRoute: typeof AuthenticatedTrainingsIdIndexRouteImport
+      parentRoute: typeof AuthenticatedTrainingsRoute
+    }
+    '/_authenticated/schedules/$id/': {
+      id: '/_authenticated/schedules/$id/'
+      path: '/$id'
+      fullPath: '/schedules/$id/'
+      preLoaderRoute: typeof AuthenticatedSchedulesIdIndexRouteImport
+      parentRoute: typeof AuthenticatedSchedulesRoute
+    }
     '/_authenticated/trainings/$id/edit': {
       id: '/_authenticated/trainings/$id/edit'
-      path: '/edit'
+      path: '/$id/edit'
       fullPath: '/trainings/$id/edit'
       preLoaderRoute: typeof AuthenticatedTrainingsIdEditRouteImport
-      parentRoute: typeof AuthenticatedTrainingsIdRoute
+      parentRoute: typeof AuthenticatedTrainingsRoute
     }
     '/_authenticated/schedules/$id/edit': {
       id: '/_authenticated/schedules/$id/edit'
-      path: '/edit'
+      path: '/$id/edit'
       fullPath: '/schedules/$id/edit'
       preLoaderRoute: typeof AuthenticatedSchedulesIdEditRouteImport
-      parentRoute: typeof AuthenticatedSchedulesIdRoute
+      parentRoute: typeof AuthenticatedSchedulesRoute
     }
     '/_authenticated/members/$id/edit': {
       id: '/_authenticated/members/$id/edit'
@@ -514,29 +514,17 @@ const AuthenticatedMembersRouteChildren: AuthenticatedMembersRouteChildren = {
 const AuthenticatedMembersRouteWithChildren =
   AuthenticatedMembersRoute._addFileChildren(AuthenticatedMembersRouteChildren)
 
-interface AuthenticatedSchedulesIdRouteChildren {
-  AuthenticatedSchedulesIdEditRoute: typeof AuthenticatedSchedulesIdEditRoute
-}
-
-const AuthenticatedSchedulesIdRouteChildren: AuthenticatedSchedulesIdRouteChildren =
-  {
-    AuthenticatedSchedulesIdEditRoute: AuthenticatedSchedulesIdEditRoute,
-  }
-
-const AuthenticatedSchedulesIdRouteWithChildren =
-  AuthenticatedSchedulesIdRoute._addFileChildren(
-    AuthenticatedSchedulesIdRouteChildren,
-  )
-
 interface AuthenticatedSchedulesRouteChildren {
-  AuthenticatedSchedulesIdRoute: typeof AuthenticatedSchedulesIdRouteWithChildren
   AuthenticatedSchedulesNewRoute: typeof AuthenticatedSchedulesNewRoute
+  AuthenticatedSchedulesIdEditRoute: typeof AuthenticatedSchedulesIdEditRoute
+  AuthenticatedSchedulesIdIndexRoute: typeof AuthenticatedSchedulesIdIndexRoute
 }
 
 const AuthenticatedSchedulesRouteChildren: AuthenticatedSchedulesRouteChildren =
   {
-    AuthenticatedSchedulesIdRoute: AuthenticatedSchedulesIdRouteWithChildren,
     AuthenticatedSchedulesNewRoute: AuthenticatedSchedulesNewRoute,
+    AuthenticatedSchedulesIdEditRoute: AuthenticatedSchedulesIdEditRoute,
+    AuthenticatedSchedulesIdIndexRoute: AuthenticatedSchedulesIdIndexRoute,
   }
 
 const AuthenticatedSchedulesRouteWithChildren =
@@ -544,29 +532,17 @@ const AuthenticatedSchedulesRouteWithChildren =
     AuthenticatedSchedulesRouteChildren,
   )
 
-interface AuthenticatedTrainingsIdRouteChildren {
-  AuthenticatedTrainingsIdEditRoute: typeof AuthenticatedTrainingsIdEditRoute
-}
-
-const AuthenticatedTrainingsIdRouteChildren: AuthenticatedTrainingsIdRouteChildren =
-  {
-    AuthenticatedTrainingsIdEditRoute: AuthenticatedTrainingsIdEditRoute,
-  }
-
-const AuthenticatedTrainingsIdRouteWithChildren =
-  AuthenticatedTrainingsIdRoute._addFileChildren(
-    AuthenticatedTrainingsIdRouteChildren,
-  )
-
 interface AuthenticatedTrainingsRouteChildren {
-  AuthenticatedTrainingsIdRoute: typeof AuthenticatedTrainingsIdRouteWithChildren
   AuthenticatedTrainingsNewRoute: typeof AuthenticatedTrainingsNewRoute
+  AuthenticatedTrainingsIdEditRoute: typeof AuthenticatedTrainingsIdEditRoute
+  AuthenticatedTrainingsIdIndexRoute: typeof AuthenticatedTrainingsIdIndexRoute
 }
 
 const AuthenticatedTrainingsRouteChildren: AuthenticatedTrainingsRouteChildren =
   {
-    AuthenticatedTrainingsIdRoute: AuthenticatedTrainingsIdRouteWithChildren,
     AuthenticatedTrainingsNewRoute: AuthenticatedTrainingsNewRoute,
+    AuthenticatedTrainingsIdEditRoute: AuthenticatedTrainingsIdEditRoute,
+    AuthenticatedTrainingsIdIndexRoute: AuthenticatedTrainingsIdIndexRoute,
   }
 
 const AuthenticatedTrainingsRouteWithChildren =

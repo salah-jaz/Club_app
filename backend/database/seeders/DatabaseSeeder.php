@@ -78,6 +78,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // 4. Seed Members
+        /*
         Member::updateOrCreate(['id' => 'm_john'], [
             'user_id' => 'u_mem',
             'first_name' => 'John',
@@ -128,5 +129,6 @@ class DatabaseSeeder extends Seeder
             'status' => 'active',
             'credit' => 30.00,
         ]);
+        */
     }
 }

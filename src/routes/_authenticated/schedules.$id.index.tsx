@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Shuffle, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/schedules/$id")({ component: SchedulePage });
+export const Route = createFileRoute("/_authenticated/schedules/$id/")({ component: SchedulePage });
 
 function SchedulePage() {
   const { id } = Route.useParams();
@@ -96,7 +96,7 @@ function SchedulePage() {
                   <p className="text-[13px] font-light text-[#4A5E58] py-3 text-center">No members listed.</p>
                 ) : (
                   grouped[k].map((i) => (
-                    <div key={i.id} className="text-[13px] text-[#F1F0EE] py-2 border-b border-white/[0.03] last:border-0 font-medium">
+                    <div key={i.id} className="text-[13px] text-[#EEF2F0] py-2 border-b border-white/[0.03] last:border-0 font-semibold">
                       {memberName(i.memberId)}
                     </div>
                   ))

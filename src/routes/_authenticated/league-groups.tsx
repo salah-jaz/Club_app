@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const Route = createFileRoute("/_authenticated/league-groups")({
   component: LeagueGroupsPage,
@@ -22,6 +23,9 @@ function LeagueGroupsPage() {
   const members = allMembers.filter((m) => m.league && m.status === "active");
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const playerPositions = useStore((s) => s.playerPositions) || [];
+  const [viewMode, setViewMode] = useState<"grid" | "list">(
+    () => (localStorage.getItem("clubapp-view-mode-league-groups") as "grid" | "list") || "grid"
+  );
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -261,86 +265,167 @@ function LeagueGroupsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {leagueGroups.length === 0 ? (
-            <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] sm:col-span-2 lg:col-span-3">
-              <CardContent className="p-10 text-center text-[#8A8A98]">
-                <div className="flex flex-col items-center justify-center gap-3">
-                  <Users className="size-12 text-[#4A4A5A]" />
-                  <h3 className="text-[14px] font-normal text-[#8A8A98]">No league groups created yet.</h3>
-                  <p className="text-[12px] font-light text-[#4A4A5A] max-w-[280px]">
-                    Create groups to target specific match invitations to a subset of players.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            leagueGroups.map((g) => {
-              // Build member list with positions for display
-              const groupMembers = (g.memberIds || []).map((id) => {
-                const member = allMembers.find((m) => m.id === id);
-                const position = g.memberPositions?.[id] || null;
-                return { member, position };
-              }).filter((x) => x.member);
-
-              return (
-                <Card key={g.id} className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-all duration-200">
-                  <CardContent className="p-5 flex flex-col justify-between h-full">
-                    <div>
-                      <div className="flex justify-between items-start gap-2">
-                        <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">{g.name}</h3>
-                        <div className="text-[11px] bg-[#10B981]/10 text-[#10B981] px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1 shrink-0">
-                          <Users className="size-3" /> {g.memberIds?.length || 0}
-                        </div>
-                      </div>
-                      {g.description && (
-                        <p className="text-xs text-[#8A8A98] mt-2 font-light line-clamp-2 leading-relaxed">{g.description}</p>
-                      )}
-
-                      {/* Member positions list */}
-                      {groupMembers.length > 0 && (
-                        <div className="mt-3 space-y-1">
-                          {groupMembers.map(({ member, position }) => (
-                            <div key={member!.id} className="flex items-center justify-between gap-2 text-[11px]">
-                              <span className="text-[#C1C1C8] truncate">
-                                {member!.firstName} {member!.lastName}
-                              </span>
-                              {position ? (
-                                <span className="shrink-0 flex items-center gap-1 bg-[#10B981]/10 text-[#10B981] px-1.5 py-0.5 rounded text-[10px] font-medium">
-                                  <ShieldCheck className="size-2.5" />
-                                  {position}
-                                </span>
-                              ) : (
-                                <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">no position</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-6 flex gap-2 w-full pt-3 border-t border-white/[0.03]">
-                      <Button
-                        variant="outline"
-                        className="flex-1 btn-premium-outline h-9 text-[12px] hover:cursor-pointer"
-                        onClick={() => handleStartEdit(g)}
-                      >
-                        <Pencil className="size-3.5 mr-1" /> Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        className="flex-1 btn-premium-danger h-9 text-[12px] hover:cursor-pointer"
-                        onClick={() => handleDelete(g.id)}
-                      >
-                        <Trash2 className="size-3.5 mr-1" /> Delete
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
+        <>
+          {leagueGroups.length > 0 && (
+            <div className="flex items-center justify-between mb-4 mt-2">
+              <span className="type-helper text-xs">{leagueGroups.length} groups found</span>
+              <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg">
+                <button
+                  onClick={() => {
+                    setViewMode("grid");
+                    localStorage.setItem("clubapp-view-mode-league-groups", "grid");
+                  }}
+                  className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                    viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
+                  }`}
+                  title="Grid view"
+                >
+                  <LayoutGrid className="size-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setViewMode("list");
+                    localStorage.setItem("clubapp-view-mode-league-groups", "list");
+                  }}
+                  className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                    viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
+                  }`}
+                  title="List view"
+                >
+                  <List className="size-4" />
+                </button>
+              </div>
+            </div>
           )}
-        </div>
+
+          {leagueGroups.length === 0 ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] sm:col-span-2 lg:col-span-3">
+                <CardContent className="p-10 text-center text-[#8A8A98]">
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <Users className="size-12 text-[#4A4A5A]" />
+                    <h3 className="text-[14px] font-normal text-[#8A8A98]">No league groups created yet.</h3>
+                    <p className="text-[12px] font-light text-[#4A4A5A] max-w-[280px]">
+                      Create groups to target specific match invitations to a subset of players.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : viewMode === "grid" ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {leagueGroups.map((g) => {
+                // Build member list with positions for display
+                const groupMembers = (g.memberIds || []).map((id) => {
+                  const member = allMembers.find((m) => m.id === id);
+                  const position = g.memberPositions?.[id] || null;
+                  return { member, position };
+                }).filter((x) => x.member);
+
+                return (
+                  <Card key={g.id} className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-all duration-200">
+                    <CardContent className="p-5 flex flex-col justify-between h-full">
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">{g.name}</h3>
+                          <div className="text-[11px] bg-[#10B981]/10 text-[#10B981] px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1 shrink-0">
+                            <Users className="size-3" /> {g.memberIds?.length || 0}
+                          </div>
+                        </div>
+                        {g.description && (
+                          <p className="text-xs text-[#8A8A98] mt-2 font-light line-clamp-2 leading-relaxed">{g.description}</p>
+                        )}
+
+                        {/* Member positions list */}
+                        {groupMembers.length > 0 && (
+                          <div className="mt-3 space-y-1">
+                            {groupMembers.map(({ member, position }) => (
+                              <div key={member!.id} className="flex items-center justify-between gap-2 text-[11px]">
+                                <span className="text-[#C1C1C8] truncate">
+                                  {member!.firstName} {member!.lastName}
+                                </span>
+                                {position ? (
+                                  <span className="shrink-0 flex items-center gap-1 bg-[#10B981]/10 text-[#10B981] px-1.5 py-0.5 rounded text-[10px] font-medium">
+                                    <ShieldCheck className="size-2.5" />
+                                    {position}
+                                  </span>
+                                ) : (
+                                  <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">no position</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-6 flex gap-2 w-full pt-3 border-t border-white/[0.03]">
+                        <Button
+                          variant="outline"
+                          className="flex-1 btn-premium-outline h-9 text-[12px] hover:cursor-pointer"
+                          onClick={() => handleStartEdit(g)}
+                        >
+                          <Pencil className="size-3.5 mr-1" /> Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          className="flex-1 btn-premium-danger h-9 text-[12px] hover:cursor-pointer"
+                          onClick={() => handleDelete(g.id)}
+                        >
+                          <Trash2 className="size-3.5 mr-1" /> Delete
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="bg-[#131916] border border-[rgba(255,255,255,0.06)] rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader className="bg-[#0C0F0E]/60">
+                  <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                    <TableHead className="type-table-head h-11 px-5">Group Name</TableHead>
+                    <TableHead className="type-table-head h-11">Description</TableHead>
+                    <TableHead className="type-table-head h-11">Members Count</TableHead>
+                    <TableHead className="type-table-head h-11 text-right px-5">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leagueGroups.map((g) => (
+                    <TableRow key={g.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
+                      <TableCell className="px-5 py-3.5 font-bold text-[14.5px] text-[#EEF2F0]">{g.name}</TableCell>
+                      <TableCell className="type-table-body">{g.description || <span className="text-[#4A4A5A] italic">No description</span>}</TableCell>
+                      <TableCell className="type-mono-value">
+                        <span className="flex items-center gap-1.5">
+                          <Users className="size-3.5 text-[#10B981] mr-1.5" />
+                          {g.memberIds?.length || 0} members
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right px-5 py-3 space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="btn-premium-outline h-8 text-xs hover:cursor-pointer"
+                          onClick={() => handleStartEdit(g)}
+                        >
+                          <Pencil className="size-3 mr-1" /> Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="btn-premium-danger h-8 text-xs hover:cursor-pointer"
+                          onClick={() => handleDelete(g.id)}
+                        >
+                          <Trash2 className="size-3 mr-1" /> Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

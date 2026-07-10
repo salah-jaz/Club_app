@@ -45,8 +45,8 @@ function AddMember() {
         }}
         onSubmit={async (v) => {
           try {
-            await add(v, isAdmin);
-            toast.success(isAdmin ? "Member and login account created" : "Member added");
+            await add(v, isAdmin && v.memberType !== "junior");
+            toast.success(isAdmin && v.memberType !== "junior" ? "Member and login account created" : "Member added");
             navigate({ to: "/members" });
           } catch (error: any) {
             toast.error(error.message || "Failed to add member.");

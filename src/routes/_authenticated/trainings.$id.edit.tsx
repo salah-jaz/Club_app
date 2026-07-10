@@ -58,7 +58,7 @@ function EditTraining() {
       <PageHeader
         title={`Edit ${tr.name}`}
         description="Update coaching program details, session duration, and fees."
-        backTo={`/trainings/${tr.id}`}
+        backTo="/trainings"
       />
       <form
         onSubmit={async (e) => {
@@ -66,7 +66,7 @@ function EditTraining() {
           try {
             await update(tr.id, f);
             toast.success("Training program updated successfully");
-            navigate({ to: `/trainings/${tr.id}` });
+            navigate({ to: "/trainings" });
           } catch (error: any) {
             toast.error(error.message || "Failed to update training.");
           }

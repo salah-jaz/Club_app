@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { CheckCircle2, XCircle, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/trainings/$id")({ component: TrainingPage });
+export const Route = createFileRoute("/_authenticated/trainings/$id/")({ component: TrainingPage });
 
 function TrainingPage() {
   const { id } = Route.useParams();

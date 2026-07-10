@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Member } from "@/lib/types";
-import { useStore } from "@/lib/store";
+import { useStore, useCurrentUser } from "@/lib/store";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 
@@ -51,17 +51,33 @@ export function MemberForm({
   familyMemberMode?: boolean;
 }) {
   const grades = useStore((s) => s.grades);
+  const users = useStore((s) => s.users);
+  const currentUser = useCurrentUser();
   const [v, setV] = useState(initial);
   const [submitting, setSubmitting] = useState(false);
   const set = <K extends keyof MemberFormValues>(k: K, val: MemberFormValues[K]) =>
     setV((p) => ({ ...p, [k]: val }));
+
+  const getParentEmail = () => {
+    if (v.userId) {
+      const parent = users.find((u) => u.id === v.userId);
+      if (parent) return parent.email;
+    }
+    if (currentUser) return currentUser.email;
+    return "";
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
     setSubmitting(true);
     try {
-      const payload = familyMemberMode ? { ...v, memberType: "junior" as const, league: false } : v;
+      let finalV = { ...v };
+      if (v.memberType === "junior") {
+        finalV.email = getParentEmail();
+        finalV.password = "";
+      }
+      const payload = familyMemberMode ? { ...finalV, memberType: "junior" as const, league: false } : finalV;
       await Promise.resolve(onSubmit(payload));
     } finally {
       setSubmitting(false);
@@ -85,6 +101,13 @@ export function MemberForm({
             </CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-4">
+            <FormField label="BI Member ID">
+              <Input
+                value={v.biMemberId}
+                onChange={(e) => set("biMemberId", e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
+              />
+            </FormField>
             <FormField label="First name">
               <Input
                 required
@@ -110,15 +133,17 @@ export function MemberForm({
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
               />
             </FormField>
-            <FormField label="Email">
-              <Input
-                required
-                type="email"
-                value={v.email}
-                onChange={(e) => set("email", e.target.value)}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
-              />
-            </FormField>
+            {v.memberType !== "junior" && (
+              <FormField label="Email">
+                <Input
+                  required
+                  type="email"
+                  value={v.email}
+                  onChange={(e) => set("email", e.target.value)}
+                  className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
+                />
+              </FormField>
+            )}
             <FormField label="Sex">
               <Select value={v.sex} onValueChange={(x) => set("sex", x as any)}>
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
@@ -130,7 +155,7 @@ export function MemberForm({
                 </SelectContent>
               </Select>
             </FormField>
-            {!showLoginFields && (
+            {!showLoginFields && v.memberType !== "junior" && (
               <FormField label="Password">
                 <Input
                   type="password"
@@ -146,7 +171,7 @@ export function MemberForm({
       </motion.div>
 
       {/* Login Account (conditional) */}
-      {showLoginFields && (
+      {showLoginFields && v.memberType !== "junior" && (
         <motion.div variants={staggerItem}>
           <Card className="signature-card-top bg-[#131916] border-[rgba(255,255,255,0.06)]">
             <CardHeader className="p-6 pb-4">
@@ -234,13 +259,7 @@ export function MemberForm({
                 </SelectContent>
               </Select>
             </FormField>
-            <FormField label="BI Member ID">
-              <Input
-                value={v.biMemberId}
-                onChange={(e) => set("biMemberId", e.target.value)}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
-              />
-            </FormField>
+
             <FormField label="Status">
               <Select value={v.status} onValueChange={(x) => set("status", x as any)}>
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
@@ -252,52 +271,54 @@ export function MemberForm({
                 </SelectContent>
               </Select>
             </FormField>
-            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-              <div>
-                <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Club membership</Label>
-                <p className="type-helper mt-1">Paid yearly fee</p>
+            <div className="sm:col-span-2 grid sm:grid-cols-2 gap-4 mt-2">
+              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                <div>
+                  <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Club membership</Label>
+                  <p className="type-helper mt-1">Paid yearly fee</p>
+                </div>
+                <Switch checked={v.membership} onCheckedChange={(x) => set("membership", x)} className="data-[state=checked]:bg-[#10B981]" />
               </div>
-              <Switch checked={v.membership} onCheckedChange={(x) => set("membership", x)} className="data-[state=checked]:bg-[#10B981]" />
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-              <div>
-                <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">League participant</Label>
-                <p className="type-helper mt-1">Receives play schedule invitations</p>
+              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                <div>
+                  <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">League participant</Label>
+                  <p className="type-helper mt-1">Receives play schedule invitations</p>
+                </div>
+                <Switch
+                  checked={v.league}
+                  onCheckedChange={(x) => set("league", x)}
+                  disabled={v.memberType === "junior"}
+                  className="data-[state=checked]:bg-[#10B981]"
+                />
               </div>
-              <Switch
-                checked={v.league}
-                onCheckedChange={(x) => set("league", x)}
-                disabled={v.memberType === "junior"}
-                className="data-[state=checked]:bg-[#10B981]"
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-              <div>
-                <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Training eligible</Label>
-                <p className="type-helper mt-1">
-                  {familyMemberMode
-                    ? "Child can be selected for training when a program opens (My Invitations)"
-                    : v.memberType === "adult"
-                      ? "Family can enroll children in junior training sessions"
-                      : "Can be invited to junior training sessions"}
-                </p>
+              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                <div>
+                  <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Training eligible</Label>
+                  <p className="type-helper mt-1">
+                    {familyMemberMode
+                      ? "Child can be selected for training when a program opens (My Invitations)"
+                      : v.memberType === "adult"
+                        ? "Family can enroll children in junior training sessions"
+                        : "Can be invited to junior training sessions"}
+                  </p>
+                </div>
+                <Switch
+                  checked={v.trainingEligible ?? false}
+                  onCheckedChange={(x) => set("trainingEligible", x)}
+                  className="data-[state=checked]:bg-[#10B981]"
+                />
               </div>
-              <Switch
-                checked={v.trainingEligible ?? false}
-                onCheckedChange={(x) => set("trainingEligible", x)}
-                className="data-[state=checked]:bg-[#10B981]"
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-              <div>
-                <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Bypass Credit Consumption</Label>
-                <p className="type-helper mt-1">Do not deduct credits when participating in play schedules.</p>
+              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                <div>
+                  <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Bypass Credit Consumption</Label>
+                  <p className="type-helper mt-1">Do not deduct credits when participating in play schedules.</p>
+                </div>
+                <Switch
+                  checked={v.skipCreditConsumption ?? false}
+                  onCheckedChange={(x) => set("skipCreditConsumption", x)}
+                  className="data-[state=checked]:bg-[#10B981]"
+                />
               </div>
-              <Switch
-                checked={v.skipCreditConsumption ?? false}
-                onCheckedChange={(x) => set("skipCreditConsumption", x)}
-                className="data-[state=checked]:bg-[#10B981]"
-              />
             </div>
           </CardContent>
         </Card>
