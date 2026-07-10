@@ -40,7 +40,7 @@ export function PageHeader({
     <div className="mb-6 w-full">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <span className="text-[10px] font-medium tracking-[0.14em] text-[#10B981] uppercase block mb-2">
+          <span className="text-[11px] font-semibold tracking-[0.12em] text-[#10B981] uppercase block mb-1.5">
             {getEyebrow()}
           </span>
           <div className="flex items-center gap-3">
@@ -53,12 +53,12 @@ export function PageHeader({
                 <ArrowLeft className="size-4" />
               </Link>
             )}
-            <h1 className="text-28 font-playfair font-normal leading-normal text-[#F1F0EE]">
+            <h1 className="type-page-title">
               {title}
             </h1>
           </div>
           {description && (
-            <p className="text-[14px] font-light text-[#8A8A9A] mt-1">
+            <p className="text-[14px] font-normal text-[#C4D4CF] mt-1.5 leading-relaxed">
               {description}
             </p>
           )}

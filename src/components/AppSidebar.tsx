@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function AppSidebar() {
   const user = useCurrentUser();
@@ -44,6 +45,16 @@ export function AppSidebar() {
     { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isAdmin || isVol },
     { to: "/transactions", label: "Transactions", icon: Receipt, show: true },
   ];
+
+  const adminItems = [
+    { to: "/approvals", label: "Approvals", icon: ShieldCheck },
+    { to: "/email-templates", label: "Email Templates", icon: Inbox },
+    { to: "/settings", label: "Settings", icon: Settings },
+  ];
+
+  // Find the active item key for the layout animation
+  const activeMainItem = main.filter((i) => i.show).find((i) => pathname.startsWith(i.to));
+  const activeAdminItem = adminItems.find((i) => pathname.startsWith(i.to));
 
   return (
     <Sidebar collapsible="icon">
@@ -80,13 +91,40 @@ export function AppSidebar() {
           <SidebarGroupLabel>Main</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {main.filter((i) => i.show).map((i) => (
-                <SidebarMenuItem key={i.to}>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith(i.to)}>
-                    <Link to={i.to} onClick={closeSidebarMobile}><i.icon /><span>{i.label}</span></Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {main.filter((i) => i.show).map((i) => {
+                const isActive = pathname.startsWith(i.to);
+                return (
+                  <SidebarMenuItem key={i.to} className="relative">
+                    {/* Sliding active pill — Framer Motion layout animation */}
+                    <AnimatePresence>
+                      {isActive && (
+                        <motion.div
+                          layoutId="sidebar-main-pill"
+                          className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)]"
+                          style={{ margin: "2px 10px" }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                        />
+                      )}
+                    </AnimatePresence>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link to={i.to} onClick={closeSidebarMobile}>
+                        <motion.span
+                          whileHover={{ scale: 1.15, rotate: 5 }}
+                          whileTap={{ scale: 0.9 }}
+                          transition={{ duration: 0.15 }}
+                          className="inline-flex"
+                        >
+                          <i.icon />
+                        </motion.span>
+                        <span>{i.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -95,21 +133,39 @@ export function AppSidebar() {
             <SidebarGroupLabel>Admin</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith("/approvals")}>
-                    <Link to="/approvals" onClick={closeSidebarMobile}><ShieldCheck /><span>Approvals</span></Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith("/email-templates")}>
-                    <Link to="/email-templates" onClick={closeSidebarMobile}><Inbox /><span>Email Templates</span></Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith("/settings")}>
-                    <Link to="/settings" onClick={closeSidebarMobile}><Settings /><span>Settings</span></Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {adminItems.map((i) => {
+                  const isActive = pathname.startsWith(i.to);
+                  return (
+                    <SidebarMenuItem key={i.to} className="relative">
+                      <AnimatePresence>
+                        {isActive && (
+                          <motion.div
+                            layoutId="sidebar-admin-pill"
+                            className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)]"
+                            style={{ margin: "2px 10px" }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                          />
+                        )}
+                      </AnimatePresence>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <Link to={i.to} onClick={closeSidebarMobile}>
+                          <motion.span
+                            whileHover={{ scale: 1.15, rotate: 5 }}
+                            whileTap={{ scale: 0.9 }}
+                            transition={{ duration: 0.15 }}
+                            className="inline-flex"
+                          >
+                            <i.icon />
+                          </motion.span>
+                          <span>{i.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -119,12 +175,22 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <Link to="/profile" onClick={closeSidebarMobile}><UserIcon /><span>{user.firstName} {user.lastName}</span></Link>
+              <Link to="/profile" onClick={closeSidebarMobile}>
+                <motion.span whileHover={{ scale: 1.15 }} transition={{ duration: 0.15 }} className="inline-flex">
+                  <UserIcon />
+                </motion.span>
+                <span>{user.firstName} {user.lastName}</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => { logout(); navigate({ to: "/login" }); closeSidebarMobile(); }}>
-              <LogOut /><span>Sign out</span>
+            <SidebarMenuButton
+              onClick={() => { logout(); navigate({ to: "/login" }); closeSidebarMobile(); }}
+            >
+              <motion.span whileHover={{ scale: 1.15, x: -2 }} transition={{ duration: 0.15 }} className="inline-flex">
+                <LogOut />
+              </motion.span>
+              <span>Sign out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

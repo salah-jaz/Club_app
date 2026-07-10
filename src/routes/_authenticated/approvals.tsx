@@ -1,4 +1,6 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
+import type { Variants } from "framer-motion";
+
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCurrentUser, useStore } from "@/lib/store";
@@ -16,6 +18,8 @@ import {
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import type { MemberType, User } from "@/lib/types";
+import { motion } from "framer-motion";
+import { EmptyIllustration } from "@/components/EmptyIllustration";
 
 export const Route = createFileRoute("/_authenticated/approvals")({ component: Approvals });
 
@@ -30,6 +34,16 @@ function defaultApproveOptions(): ApproveOptions {
   return { memberType: "adult", grade: "Beginner", league: false, trainingEligible: false };
 }
 
+/** Inline spinner SVG for button loading states */
+function BtnSpinner() {
+  return (
+    <svg className="animate-spin size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+      <path d="M12 2a10 10 0 0 1 10 10" />
+    </svg>
+  );
+}
+
 function Approvals() {
   const user = useCurrentUser()!;
   if (user.role !== "admin") return <Navigate to="/dashboard" />;
@@ -41,6 +55,11 @@ function Approvals() {
   const [approveTarget, setApproveTarget] = useState<User | null>(null);
   const [opts, setOpts] = useState<ApproveOptions>(defaultApproveOptions);
   const [submitting, setSubmitting] = useState(false);
+
+  // Per-row loading states
+  const [rejectingUserId, setRejectingUserId] = useState<string | null>(null);
+  const [approvingCreditId, setApprovingCreditId] = useState<string | null>(null);
+  const [rejectingCreditId, setRejectingCreditId] = useState<string | null>(null);
 
   const openApprove = (u: User) => {
     setApproveTarget(u);
@@ -69,6 +88,16 @@ function Approvals() {
     }
   };
 
+  const staggerRow = {
+    hidden: { opacity: 0, x: -8 },
+    show: (i: number) => ({
+      opacity: 1,
+      x: 0,
+      transition: { delay: i * 0.05, duration: 0.18, ease: "easeOut" as const },
+    }),
+  } satisfies Variants;
+
+
   return (
     <div className="space-y-6">
       <PageHeader title="Approvals" description="Review and authorize pending registrations and credit additions." />
@@ -89,41 +118,49 @@ function Approvals() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Member Requests Tab */}
         <TabsContent value="users" className="focus-visible:outline-none">
-          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-[#0C0F0E]/60">
-                  <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 px-5">Name</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Email</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Mobile</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Registered</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Status</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 text-right px-5">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pendingU.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
-                        All caught up. No pending member requests.
-                      </TableCell>
+          {pendingU.length === 0 ? (
+            <EmptyIllustration
+              icon="check"
+              title="All caught up!"
+              description="No pending member requests. All registrations have been reviewed."
+            />
+          ) : (
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-[#0C0F0E]/60">
+                    <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                      <TableHead className="type-table-head h-11 px-5">Name</TableHead>
+                      <TableHead className="type-table-head h-11">Email</TableHead>
+                      <TableHead className="type-table-head h-11">Mobile</TableHead>
+                      <TableHead className="type-table-head h-11">Registered</TableHead>
+                      <TableHead className="type-table-head h-11">Status</TableHead>
+                      <TableHead className="type-table-head h-11 text-right px-5">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    pendingU.map((u) => (
-                      <TableRow key={u.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
-                        <TableCell className="font-semibold text-[#F1F0EE] text-[13px] px-5 py-4">
+                  </TableHeader>
+                  <TableBody>
+                    {pendingU.map((u, i) => (
+                      <motion.tr
+                        key={u.id}
+                        custom={i}
+                        variants={staggerRow}
+                        initial="hidden"
+                        animate="show"
+                        className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
+                      >
+                        <TableCell className="font-bold text-[#EEF2F0] text-[14px] type-table-body px-5 py-4">
                           {u.firstName} {u.lastName}
                         </TableCell>
-                        <TableCell className="text-[#8A8A98] text-[13px]">{u.email}</TableCell>
-                        <TableCell className="text-[#8A8A98] text-[13px] font-mono">{u.mobile}</TableCell>
-                        <TableCell className="text-[#8A8A98] text-[13px] font-mono">{fmtDate(u.createdAt)}</TableCell>
+                        <TableCell className="type-table-body text-[#C4D4CF]">{u.email}</TableCell>
+                        <TableCell className="type-mono-value text-[#EEF2F0]">{u.mobile}</TableCell>
+                        <TableCell className="type-mono-value text-[#EEF2F0]">{fmtDate(u.createdAt)}</TableCell>
                         <TableCell className="py-4"><StatusBadge status={u.status} /></TableCell>
                         <TableCell className="text-right px-5 py-4 space-x-2">
                           <Button
                             size="sm"
-                            className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer"
+                            className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer min-w-[70px]"
                             onClick={() => openApprove(u)}
                           >
                             Approve
@@ -131,101 +168,122 @@ function Approvals() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer"
+                            disabled={rejectingUserId === u.id}
+                            className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer min-w-[60px]"
                             onClick={async () => {
+                              setRejectingUserId(u.id);
                               try {
                                 await s.rejectUser(u.id);
                                 toast.success(`${u.firstName} rejected`);
                               } catch (error: any) {
                                 toast.error(error.message || "Failed to reject user.");
+                              } finally {
+                                setRejectingUserId(null);
                               }
                             }}
                           >
-                            Reject
+                            {rejectingUserId === u.id ? <BtnSpinner /> : "Reject"}
                           </Button>
                         </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                      </motion.tr>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
+        {/* Credit Requests Tab */}
         <TabsContent value="credits" className="focus-visible:outline-none">
-          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-[#0C0F0E]/60">
-                  <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 px-5">Member</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Amount</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Date</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11">Status</TableHead>
-                    <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 text-right px-5">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pendingC.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
-                        No pending credit requests.
-                      </TableCell>
+          {pendingC.length === 0 ? (
+            <EmptyIllustration
+              icon="wallet"
+              title="No pending credit requests"
+              description="All credit top-up requests have been reviewed. Come back later."
+            />
+          ) : (
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-[#0C0F0E]/60">
+                    <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                      <TableHead className="type-table-head h-11 px-5">Member</TableHead>
+                      <TableHead className="type-table-head h-11">Amount</TableHead>
+                      <TableHead className="type-table-head h-11">Date</TableHead>
+                      <TableHead className="type-table-head h-11">Status</TableHead>
+                      <TableHead className="type-table-head h-11 text-right px-5">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    pendingC.map((r) => {
+                  </TableHeader>
+                  <TableBody>
+                    {pendingC.map((r, i) => {
                       const m = s.members.find((x) => x.id === r.memberId);
                       return (
-                        <TableRow key={r.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
-                          <TableCell className="font-semibold text-[#F1F0EE] text-[13px] px-5 py-4">
+                        <motion.tr
+                          key={r.id}
+                          custom={i}
+                          variants={staggerRow}
+                          initial="hidden"
+                          animate="show"
+                          className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
+                        >
+                          <TableCell className="font-bold text-[#EEF2F0] text-[14px] type-table-body px-5 py-4">
                             {m?.firstName} {m?.lastName}
                           </TableCell>
-                          <TableCell className="text-[#2DD4BF] font-mono text-[14px] font-medium">{fmtMoney(r.amount)}</TableCell>
-                          <TableCell className="text-[#8A8A98] text-[13px] font-mono">{fmtDate(r.date)}</TableCell>
+                          <TableCell className="text-[#2DD4BF] type-mono-value text-[14px] font-semibold">{fmtMoney(r.amount)}</TableCell>
+                          <TableCell className="type-mono-value text-[#EEF2F0]">{fmtDate(r.date)}</TableCell>
                           <TableCell className="py-4"><StatusBadge status={r.status} /></TableCell>
                           <TableCell className="text-right px-5 py-4 space-x-2">
                             <Button
                               size="sm"
-                              className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer"
+                              disabled={approvingCreditId === r.id}
+                              className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer min-w-[70px]"
                               onClick={async () => {
+                                setApprovingCreditId(r.id);
                                 try {
                                   await s.approveCredit(r.id);
                                   toast.success("Credit approved & balance updated");
                                 } catch (error: any) {
                                   toast.error(error.message || "Failed to approve credit request.");
+                                } finally {
+                                  setApprovingCreditId(null);
                                 }
                               }}
                             >
-                              Approve
+                              {approvingCreditId === r.id ? <BtnSpinner /> : "Approve"}
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer"
+                              disabled={rejectingCreditId === r.id}
+                              className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer min-w-[60px]"
                               onClick={async () => {
+                                setRejectingCreditId(r.id);
                                 try {
                                   await s.rejectCredit(r.id);
                                   toast.success("Credit request rejected");
                                 } catch (error: any) {
                                   toast.error(error.message || "Failed to reject credit request.");
+                                } finally {
+                                  setRejectingCreditId(null);
                                 }
                               }}
                             >
-                              Reject
+                              {rejectingCreditId === r.id ? <BtnSpinner /> : "Reject"}
                             </Button>
                           </TableCell>
-                        </TableRow>
+                        </motion.tr>
                       );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
+      {/* Approve Dialog — unchanged logic, added spinner */}
       <Dialog open={!!approveTarget} onOpenChange={(open) => !open && setApproveTarget(null)}>
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] sm:max-w-md">
           <DialogHeader>
@@ -297,8 +355,18 @@ function Approvals() {
             <Button variant="outline" className="btn-premium-outline cursor-pointer" onClick={() => setApproveTarget(null)}>
               Cancel
             </Button>
-            <Button className="btn-premium-solid cursor-pointer" disabled={submitting} onClick={confirmApprove}>
-              Confirm approval
+            <Button
+              className="btn-premium-solid cursor-pointer min-w-[130px]"
+              disabled={submitting}
+              onClick={confirmApprove}
+            >
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <BtnSpinner /> Approving...
+                </span>
+              ) : (
+                "Confirm approval"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

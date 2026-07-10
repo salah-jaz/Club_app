@@ -13,6 +13,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { Wallet } from "lucide-react";
+import { motion } from "framer-motion";
+import { EmptyIllustration } from "@/components/EmptyIllustration";
 
 export const Route = createFileRoute("/_authenticated/credits")({ component: CreditsPage });
 
@@ -113,33 +115,40 @@ function CreditsPage() {
           <Table>
             <TableHeader className="bg-[#0C0F0E]/30">
               <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Member</TableHead>
-                <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Amount</TableHead>
-                <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Date</TableHead>
-                <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Status</TableHead>
+                <TableHead className="type-table-head py-3.5 px-6">Member</TableHead>
+                <TableHead className="type-table-head py-3.5 px-6">Amount</TableHead>
+                <TableHead className="type-table-head py-3.5 px-6">Date</TableHead>
+                <TableHead className="type-table-head py-3.5 px-6">Status</TableHead>
                 {user.role === "admin" && (
-                  <TableHead className="text-[11px] font-medium tracking-[0.08em] text-[#4A5E58] uppercase py-3.5 px-6">Actions</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-6">Actions</TableHead>
                 )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {myReqs.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={user.role === "admin" ? 5 : 4} className="py-12 text-center text-[#8A8A98]">
-                    <div className="flex flex-col items-center justify-center gap-2.5">
-                      <Wallet className="size-8 text-[#4A5E58]" />
-                      <span>No credit requests yet.</span>
-                    </div>
+                  <TableCell colSpan={user.role === "admin" ? 5 : 4} className="p-0">
+                    <EmptyIllustration
+                      icon="wallet"
+                      title="No credit requests yet"
+                      description="Submit a top-up request and it will appear here for admin approval."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
-                myReqs.map((r) => {
+                myReqs.map((r, i) => {
                   const m = s.members.find((x) => x.id === r.memberId);
                   const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
                   const avatarBgClass = m?.memberType.toLowerCase() === "junior" ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
 
                   return (
-                    <TableRow key={r.id} className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/40 transition-colors">
+                    <motion.tr
+                      key={r.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05, duration: 0.18, ease: "easeOut" }}
+                      className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/40 transition-colors"
+                    >
                       <TableCell className="py-3 px-6">
                         <div className="flex items-center gap-3">
                           <Avatar className="size-7.5 border border-white/5">
@@ -147,15 +156,15 @@ function CreditsPage() {
                               {initials}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-semibold text-[13.5px] text-[#F1F0EE]">
+                          <span className="font-bold text-[14px] text-[#EEF2F0]">
                             {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-3 px-6 font-mono text-[14px] text-[#F1F0EE]">
+                      <TableCell className="py-3 px-6 type-mono-value">
                         {fmtMoney(r.amount)}
                       </TableCell>
-                      <TableCell className="py-3 px-6 text-[#8A8A98] text-[13px]">
+                      <TableCell className="py-3 px-6 type-mono-value text-[#EEF2F0]">
                         {fmtDate(r.date)}
                       </TableCell>
                       <TableCell className="py-3 px-6">
@@ -197,7 +206,7 @@ function CreditsPage() {
                           )}
                         </TableCell>
                       )}
-                    </TableRow>
+                    </motion.tr>
                   );
                 })
               )}

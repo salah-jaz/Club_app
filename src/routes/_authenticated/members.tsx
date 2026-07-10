@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState, useMatches } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,9 +8,12 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Plus, Pencil, Wallet } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
-import { SearchFilterBar, useSearchFilters, EmptyState } from "@/components/SearchFilterBar";
+import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
+import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 
 export const Route = createFileRoute("/_authenticated/members")({ component: MembersLayout });
 
@@ -182,9 +185,11 @@ function MembersList() {
               </Button>
             )}
             {(activeRole === "admin" || activeRole === "member") && (
-              <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
-                <Link to="/members/add"><Plus className="size-4" /> Add member</Link>
-              </Button>
+              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
+                  <Link to="/members/add"><Plus className="size-4" /> Add member</Link>
+                </Button>
+              </motion.div>
             )}
           </div>
         }
@@ -204,77 +209,113 @@ function MembersList() {
       />
 
       {processed.length === 0 ? (
-        <EmptyState onClear={clearFilters} />
+        <EmptyIllustration
+          icon="users"
+          title="No members found"
+          description={
+            search || Object.values(filters).some((f) => f !== "all")
+              ? "Try adjusting your search or filters to find what you're looking for."
+              : "No members have been added yet. Add your first member to get started."
+          }
+          ctaLabel={
+            search || Object.values(filters).some((f) => f !== "all")
+              ? "Clear filters"
+              : activeRole !== "volunteer" ? "Add member" : undefined
+          }
+          onCta={
+            search || Object.values(filters).some((f) => f !== "all")
+              ? clearFilters
+              : undefined
+          }
+          ctaTo={
+            !(search || Object.values(filters).some((f) => f !== "all")) && activeRole !== "volunteer"
+              ? "/members/add"
+              : undefined
+          }
+        />
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="show"
+          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5"
+        >
           {processed.map((m) => {
             const isJunior = m.memberType.toLowerCase() === "junior";
             const avatarBgClass = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
 
             return (
-              <Card key={m.id} className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-all duration-200">
-                <CardContent className="p-5 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="size-10 border border-white/5">
-                          <AvatarFallback className={`${avatarBgClass} font-semibold text-[14px]`}>
-                            {m.firstName[0]}{m.lastName[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col min-w-0">
-                          <div className="font-semibold text-[15px] text-[#F1F0EE] truncate">{m.firstName} {m.lastName}</div>
-                          <div className="text-[12px] text-[#8A8A9A] capitalize mt-0.5">{m.memberType} · {m.grade}</div>
+              <motion.div
+                key={m.id}
+                variants={staggerItem}
+                whileHover={{ y: -4, boxShadow: "0 14px 36px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.10)" }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+              >
+                <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200 h-full">
+                  <CardContent className="p-6 flex flex-col justify-between h-full">
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="size-10 border border-white/5">
+                            <AvatarFallback className={`${avatarBgClass} font-semibold text-[14px]`}>
+                              {m.firstName[0]}{m.lastName[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col min-w-0">
+                            <div className="font-bold text-[16px] text-[#EEF2F0] truncate">{m.firstName} {m.lastName}</div>
+                            <div className="text-[12.5px] font-medium text-[#8FA89F] capitalize mt-0.5">{m.memberType} · {m.grade}</div>
+                          </div>
                         </div>
+                        <StatusBadge status={m.status} />
                       </div>
-                      <StatusBadge status={m.status} />
+
+                      <div className="h-[1px] bg-[rgba(255,255,255,0.06)] my-4.5" />
+
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-1.5 text-[#8FA89F] text-[12.5px] font-medium">
+                          <Wallet className="size-3.5 text-[#5A7068]" /> Balance
+                        </div>
+                        <div className="type-mono-value">{fmtMoney(m.credit)}</div>
+                      </div>
                     </div>
 
-                    <div className="h-[1px] bg-[rgba(255,255,255,0.06)] my-4.5" />
-
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-1.5 text-[#8A8A9A] text-[12px]">
-                        <Wallet className="size-3.5 text-[#4A4A5A]" /> Balance
-                      </div>
-                      <div className="font-mono text-[15px] text-[#F1F0EE]">{fmtMoney(m.credit)}</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex gap-2 w-full">
-                    {activeRole === "admin" && (
-                      <Button asChild variant="outline" className="flex-1 btn-premium-outline h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer">
-                        <Link to="/members/$id/edit" params={{ id: m.id }}><Pencil className="size-3.5 mr-1" /> Edit</Link>
-                      </Button>
-                    )}
-                    {activeRole === "admin" && (
-                      <Button
-                        variant="destructive"
-                        className="flex-1 h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200"
-                        onClick={async () => {
-                          if (confirm(`Are you sure you want to remove ${m.firstName} ${m.lastName}?`)) {
-                            try {
-                              await deleteMember(m.id);
-                              toast.success("Member removed successfully");
-                            } catch (e: any) {
-                              toast.error(e.message || "Failed to remove member");
+                    <div className="mt-4 flex gap-2 w-full">
+                      {activeRole === "admin" && (
+                        <Button asChild variant="outline" className="flex-1 btn-premium-outline h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer">
+                          <Link to="/members/$id/edit" params={{ id: m.id }}><Pencil className="size-3.5 mr-1" /> Edit</Link>
+                        </Button>
+                      )}
+                      {activeRole === "admin" && (
+                        <Button
+                          variant="destructive"
+                          className="flex-1 btn-premium-danger h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer"
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to remove ${m.firstName} ${m.lastName}?`)) {
+                              try {
+                                await deleteMember(m.id);
+                                toast.success("Member removed successfully");
+                              } catch (e: any) {
+                                toast.error(e.message || "Failed to remove member");
+                              }
                             }
-                          }
-                        }}
-                      >
-                        <Trash2 className="size-3.5 mr-1" /> Remove
-                      </Button>
-                    )}
-                    {(activeRole === "admin" || activeRole === "member") && (
-                      <Button asChild variant="outline" className="flex-1 btn-premium-violet-outline h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer">
-                        <Link to={`/credits?memberId=${m.id}` as any}>Credits</Link>
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                          }}
+                        >
+                          <Trash2 className="size-3.5 mr-1" /> Remove
+                        </Button>
+                      )}
+                      {(activeRole === "admin" || activeRole === "member") && (
+                        <Button asChild variant="outline" className="flex-1 btn-premium-violet-outline h-11 md:h-8 text-[13px] md:text-xs hover:cursor-pointer">
+                          <Link to={`/credits?memberId=${m.id}` as any}>Credits</Link>
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       )}
     </div>
   );

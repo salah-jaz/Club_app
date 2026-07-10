@@ -129,7 +129,7 @@ function Invitations() {
                           size="sm"
                           variant="destructive"
                           disabled={isLocked}
-                          className="w-full h-8 text-[11px] font-semibold cursor-pointer bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-red-950/40 disabled:hover:text-red-400"
+                          className="w-full btn-premium-danger h-8 text-[11px] font-semibold cursor-pointer"
                           onClick={async () => {
                             if (confirm("Are you sure you want to cancel your participation?")) {
                               try {

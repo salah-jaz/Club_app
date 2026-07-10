@@ -5,12 +5,8 @@ import { useCurrentUser, useStore } from "@/lib/store";
 import { Separator } from "@/components/ui/separator";
 import { useState, useEffect } from "react";
 import { Bell, Sun, Moon } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { motion, AnimatePresence } from "framer-motion";
+import { MotionWrapper } from "@/components/MotionWrapper";
 
 export const Route = createFileRoute("/_authenticated")({ component: Layout });
 
@@ -77,9 +73,26 @@ function Layout() {
   if (!userId) return <Navigate to="/login" />;
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#090D0A] flex flex-col items-center justify-center gap-3">
-        <div className="animate-spin size-6 rounded-full border-2 border-[#10B981] border-t-transparent" />
-        <div className="text-[#8A8A98] font-light text-xs tracking-widest uppercase">Syncing club records...</div>
+      <div className="min-h-screen bg-[#090D0A] flex flex-col items-center justify-center gap-6">
+        {/* Pulse ring */}
+        <div className="relative flex items-center justify-center">
+          <div
+            className="pulse-ring absolute rounded-full border-2 border-[#10B981]/30"
+            style={{ width: 72, height: 72 }}
+          />
+          <div
+            className="pulse-ring absolute rounded-full border border-[#10B981]/15"
+            style={{ width: 96, height: 96, animationDelay: "0.5s" }}
+          />
+          {/* Spinner */}
+          <div className="animate-spin size-8 rounded-full border-2 border-[#10B981] border-t-transparent" />
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <div className="text-[#E8F0EE] font-medium text-sm">Connect App</div>
+          <div className="text-[#8A8A98] font-light text-xs tracking-widest uppercase">
+            Syncing club records...
+          </div>
+        </div>
       </div>
     );
   }
@@ -95,6 +108,15 @@ function Layout() {
         <AppSidebar />
         <SidebarInset className="bg-background relative overflow-hidden flex-1">
 
+          {/* Route-level top progress bar — slim 2px bar at absolute top */}
+          <AnimatePresence>
+            {loading && (
+              <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden z-50">
+                <div className="progress-bar-indeterminate" />
+              </div>
+            )}
+          </AnimatePresence>
+
           <header className="h-12 flex items-center justify-between px-6 border-b border-border bg-background sticky top-0 z-10">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors" />
@@ -107,31 +129,56 @@ function Layout() {
             </div>
 
             <div className="flex items-center gap-5">
-              {/* Theme Toggle Switcher */}
-              <button
+              {/* Theme Toggle — animated rotation on hover */}
+              <motion.button
                 onClick={toggleTheme}
-                className="flex items-center justify-center size-8 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-border/80 cursor-pointer transition-all"
+                whileHover={{ rotate: 20, scale: 1.1 }}
+                whileTap={{ scale: 0.88 }}
+                className="flex items-center justify-center size-8 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-border/80 cursor-pointer transition-colors"
                 title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
               >
-                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-              </button>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={theme}
+                    initial={{ opacity: 0, rotate: -30 }}
+                    animate={{ opacity: 1, rotate: 0 }}
+                    exit={{ opacity: 0, rotate: 30 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                  </motion.span>
+                </AnimatePresence>
+              </motion.button>
 
               {/* Live clock */}
               <div className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight">
                 {timeStr}
               </div>
 
-              {/* Notification Bell */}
-              <div className="relative cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+              {/* Notification Bell — animated */}
+              <motion.div
+                whileHover={{ scale: 1.12 }}
+                whileTap={{ scale: 0.9 }}
+                className="relative cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+              >
                 <Bell className="size-[18px]" />
                 {notifCount > 0 && (
-                  <span className="absolute top-[1px] right-[1px] w-1.5 h-1.5 bg-[#F59E0B] rounded-full border border-background" />
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="badge-pulse absolute top-[1px] right-[1px] w-1.5 h-1.5 bg-[#F59E0B] rounded-full border border-background"
+                  />
                 )}
-              </div>
+              </motion.div>
             </div>
           </header>
+
           <main className="p-8 max-w-[1200px] w-full mx-auto flex-1">
-            <Outlet />
+            <AnimatePresence mode="wait">
+              <MotionWrapper key={pathname}>
+                <Outlet />
+              </MotionWrapper>
+            </AnimatePresence>
           </main>
         </SidebarInset>
       </div>

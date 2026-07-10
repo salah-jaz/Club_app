@@ -329,7 +329,7 @@ function LeagueGroupsPage() {
                       </Button>
                       <Button
                         variant="destructive"
-                        className="flex-1 h-9 text-[12px] hover:cursor-pointer bg-red-950/40 border border-red-900/40 text-red-400 hover:bg-red-900/60 hover:text-red-200"
+                        className="flex-1 btn-premium-danger h-9 text-[12px] hover:cursor-pointer"
                         onClick={() => handleDelete(g.id)}
                       >
                         <Trash2 className="size-3.5 mr-1" /> Delete
