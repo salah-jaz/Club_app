@@ -9,12 +9,91 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2, Plus, HelpCircle } from "lucide-react";
+import { Trash2, Plus, HelpCircle, Pencil, Check, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
+
+type EditableListKey = "locations" | "grades" | "playerPositions";
+
+function EditableConfigRow({
+  value,
+  isEditing,
+  editValue,
+  onEditValueChange,
+  onStartEdit,
+  onSave,
+  onCancel,
+  onDelete,
+}: {
+  value: string;
+  isEditing: boolean;
+  editValue: string;
+  onEditValueChange: (value: string) => void;
+  onStartEdit: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2 px-2 py-1.5 bg-[#1A2120]/40 border border-[#10B981]/30 rounded-lg text-xs">
+        <Input
+          value={editValue}
+          onChange={(e) => onEditValueChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSave();
+            if (e.key === "Escape") onCancel();
+          }}
+          autoFocus
+          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-8 text-xs flex-1"
+        />
+        <button
+          type="button"
+          onClick={onSave}
+          className="text-[#10B981] hover:text-[#34D399] transition-colors p-1"
+          title="Save"
+        >
+          <Check className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-[#8A8A98] hover:text-[#F1F0EE] transition-colors p-1"
+          title="Cancel"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs">
+      <span className="text-[#F1F0EE] font-medium">{value}</span>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={onStartEdit}
+          className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1"
+          title="Edit"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+          title="Delete"
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function SettingsPage() {
   const store = useStore();
@@ -216,6 +295,52 @@ function SettingsPage() {
   const [newGrade, setNewGrade] = useState("");
   const [newHoliday, setNewHoliday] = useState("");
   const [newPlayerPosition, setNewPlayerPosition] = useState("");
+  const [editingList, setEditingList] = useState<EditableListKey | null>(null);
+  const [editingOriginal, setEditingOriginal] = useState("");
+  const [editingValue, setEditingValue] = useState("");
+
+  const startEditing = (list: EditableListKey, value: string) => {
+    setEditingList(list);
+    setEditingOriginal(value);
+    setEditingValue(value);
+  };
+
+  const cancelEditing = () => {
+    setEditingList(null);
+    setEditingOriginal("");
+    setEditingValue("");
+  };
+
+  const renameListItem = async (
+    list: EditableListKey,
+    items: string[],
+    setItems: (items: string[]) => void,
+    successLabel: string,
+  ) => {
+    const trimmed = editingValue.trim();
+    if (!trimmed) {
+      toast.error("Name cannot be empty");
+      return;
+    }
+    if (trimmed === editingOriginal) {
+      cancelEditing();
+      return;
+    }
+    if (items.includes(trimmed)) {
+      toast.error(`${successLabel} already exists`);
+      return;
+    }
+    const updated = items.map((item) => (item === editingOriginal ? trimmed : item));
+    setItems(updated);
+    cancelEditing();
+    const payload =
+      list === "locations"
+        ? { locations: updated }
+        : list === "grades"
+          ? { grades: updated }
+          : { playerPositions: updated };
+    await saveUpdatedList(payload, `${successLabel} updated`);
+  };
 
   const handleSaveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -940,19 +1065,17 @@ function SettingsPage() {
                     <div className="text-center py-6 text-xs text-muted-foreground/60">No locations configured.</div>
                   ) : (
                     locations.map((loc) => (
-                      <div
+                      <EditableConfigRow
                         key={loc}
-                        className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
-                      >
-                        <span className="text-[#F1F0EE] font-medium">{loc}</span>
-                        <button
-                          onClick={() => handleDeleteLocation(loc)}
-                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
-                          title="Delete location"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
+                        value={loc}
+                        isEditing={editingList === "locations" && editingOriginal === loc}
+                        editValue={editingValue}
+                        onEditValueChange={setEditingValue}
+                        onStartEdit={() => startEditing("locations", loc)}
+                        onSave={() => renameListItem("locations", locations, setLocations, "Location")}
+                        onCancel={cancelEditing}
+                        onDelete={() => handleDeleteLocation(loc)}
+                      />
                     ))
                   )}
                 </div>
@@ -988,19 +1111,17 @@ function SettingsPage() {
                     <div className="text-center py-6 text-xs text-muted-foreground/60">No grades configured.</div>
                   ) : (
                     grades.map((g) => (
-                      <div
+                      <EditableConfigRow
                         key={g}
-                        className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
-                      >
-                        <span className="text-[#F1F0EE] font-medium">{g}</span>
-                        <button
-                          onClick={() => handleDeleteGrade(g)}
-                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
-                          title="Delete grade"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
+                        value={g}
+                        isEditing={editingList === "grades" && editingOriginal === g}
+                        editValue={editingValue}
+                        onEditValueChange={setEditingValue}
+                        onStartEdit={() => startEditing("grades", g)}
+                        onSave={() => renameListItem("grades", grades, setGrades, "Grade")}
+                        onCancel={cancelEditing}
+                        onDelete={() => handleDeleteGrade(g)}
+                      />
                     ))
                   )}
                 </div>
@@ -1088,19 +1209,17 @@ function SettingsPage() {
                     <div className="text-center py-6 text-xs text-muted-foreground/60">No player positions configured.</div>
                   ) : (
                     playerPositions.map((pos) => (
-                      <div
+                      <EditableConfigRow
                         key={pos}
-                        className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
-                      >
-                        <span className="text-[#F1F0EE] font-medium">{pos}</span>
-                        <button
-                          onClick={() => handleDeletePlayerPosition(pos)}
-                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
-                          title="Delete position"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
+                        value={pos}
+                        isEditing={editingList === "playerPositions" && editingOriginal === pos}
+                        editValue={editingValue}
+                        onEditValueChange={setEditingValue}
+                        onStartEdit={() => startEditing("playerPositions", pos)}
+                        onSave={() => renameListItem("playerPositions", playerPositions, setPlayerPositions, "Player position")}
+                        onCancel={cancelEditing}
+                        onDelete={() => handleDeletePlayerPosition(pos)}
+                      />
                     ))
                   )}
                 </div>
