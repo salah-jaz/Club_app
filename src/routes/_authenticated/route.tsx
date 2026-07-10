@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, Navigate, useRouterState } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/AppSidebar";
+import { applyCustomTheme } from "@/lib/utils";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { Separator } from "@/components/ui/separator";
@@ -53,13 +54,64 @@ function Layout() {
 
   // Theme state
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  const updateActiveThemeClass = (colorTheme: string, isLight: boolean) => {
+    document.documentElement.classList.forEach((cls) => {
+      if (cls.startsWith("theme-")) {
+        document.documentElement.classList.remove(cls);
+      }
+    });
+    if (colorTheme === "custom") {
+      document.documentElement.classList.add("theme-custom");
+      const hex = localStorage.getItem("clubapp-custom-hex") || "#10B981";
+      const secHex = localStorage.getItem("clubapp-custom-sec-hex") || "#2DD4BF";
+      applyCustomTheme(hex, secHex, isLight);
+    } else {
+      const root = document.documentElement;
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--ring');
+      root.style.removeProperty('--sidebar-primary');
+      root.style.removeProperty('--sidebar-ring');
+      root.style.removeProperty('--violet');
+      root.style.removeProperty('--input-border-focus');
+      root.style.removeProperty('--accent-foreground');
+      root.style.removeProperty('--success-text');
+      root.style.removeProperty('--success-color');
+      root.style.removeProperty('--border-accent');
+      root.style.removeProperty('--violet-dim');
+      root.style.removeProperty('--bg-glass');
+      root.style.removeProperty('--gold');
+      root.style.removeProperty('--gold-dim');
+      root.style.removeProperty('--success-bg');
+      root.style.removeProperty('--success-border');
+      
+      if (colorTheme !== "emerald") {
+        document.documentElement.classList.add(`theme-${colorTheme}`);
+      }
+    }
+  };
+
   useEffect(() => {
     const isLight = document.documentElement.classList.contains("light");
     setTheme(isLight ? "light" : "dark");
+    const colorTheme = localStorage.getItem("clubapp-color-theme") || "emerald";
+    updateActiveThemeClass(colorTheme, isLight);
+  }, []);
+
+  useEffect(() => {
+    const handleThemeChange = () => {
+      const isLight = document.documentElement.classList.contains("light");
+      setTheme(isLight ? "light" : "dark");
+      const colorTheme = localStorage.getItem("clubapp-color-theme") || "emerald";
+      updateActiveThemeClass(colorTheme, isLight);
+    };
+    window.addEventListener("clubapp-theme-changed", handleThemeChange);
+    return () => window.removeEventListener("clubapp-theme-changed", handleThemeChange);
   }, []);
 
   const toggleTheme = () => {
-    if (theme === "dark") {
+    const nextLight = theme === "dark";
+    if (nextLight) {
       document.documentElement.classList.add("light");
       localStorage.setItem("clubapp-theme", "light");
       setTheme("light");
@@ -68,6 +120,8 @@ function Layout() {
       localStorage.setItem("clubapp-theme", "dark");
       setTheme("dark");
     }
+    const colorTheme = localStorage.getItem("clubapp-color-theme") || "emerald";
+    updateActiveThemeClass(colorTheme, nextLight);
   };
 
   if (!userId) return <Navigate to="/login" />;

@@ -230,7 +230,7 @@ function Approvals() {
                           <TableCell className="font-bold text-[#EEF2F0] text-[14px] type-table-body px-5 py-4">
                             {m?.firstName} {m?.lastName}
                           </TableCell>
-                          <TableCell className="text-[#2DD4BF] type-mono-value text-[14px] font-semibold">{fmtMoney(r.amount)}</TableCell>
+                          <TableCell className="static-financial-credit-text type-mono-value text-[14px] font-semibold">{fmtMoney(r.amount)}</TableCell>
                           <TableCell className="type-mono-value text-[#EEF2F0]">{fmtDate(r.date)}</TableCell>
                           <TableCell className="py-4"><StatusBadge status={r.status} /></TableCell>
                           <TableCell className="text-right px-5 py-4 space-x-2">

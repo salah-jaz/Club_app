@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
+import { applyCustomTheme } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,118 @@ function SettingsPage() {
   const [address, setAddress] = useState(currentUser?.address || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [localTheme, setLocalTheme] = useState<"dark" | "light">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("clubapp-theme") as "dark" | "light") || "dark";
+    }
+    return "dark";
+  });
+
+  const handleThemeChange = (mode: "dark" | "light") => {
+    setLocalTheme(mode);
+    localStorage.setItem("clubapp-theme", mode);
+    if (mode === "light") {
+      document.documentElement.classList.add("light");
+    } else {
+      document.documentElement.classList.remove("light");
+    }
+    window.dispatchEvent(new Event("clubapp-theme-changed"));
+    toast.success(`Theme switched to ${mode} mode`);
+  };
+
+  const [localColorTheme, setLocalColorTheme] = useState<"emerald" | "sapphire" | "ruby" | "amber" | "amethyst" | "custom">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("clubapp-color-theme") as any) || "emerald";
+    }
+    return "emerald";
+  });
+
+  const [customHex, setCustomHex] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("clubapp-custom-hex") || "#10B981";
+    }
+    return "#10B981";
+  });
+
+  const [customSecHex, setCustomSecHex] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("clubapp-custom-sec-hex") || "#2DD4BF";
+    }
+    return "#2DD4BF";
+  });
+
+  const handleCustomHexChange = (hex: string) => {
+    setCustomHex(hex);
+    localStorage.setItem("clubapp-custom-hex", hex);
+    if (localColorTheme === "custom") {
+      applyCustomTheme(hex, customSecHex, localTheme === "light");
+      window.dispatchEvent(new Event("clubapp-color-theme-changed"));
+    }
+  };
+
+  const handleCustomSecHexChange = (hex: string) => {
+    setCustomSecHex(hex);
+    localStorage.setItem("clubapp-custom-sec-hex", hex);
+    if (localColorTheme === "custom") {
+      applyCustomTheme(customHex, hex, localTheme === "light");
+      window.dispatchEvent(new Event("clubapp-color-theme-changed"));
+    }
+  };
+
+  const handleColorThemeChange = (color: "emerald" | "sapphire" | "ruby" | "amber" | "amethyst" | "custom") => {
+    setLocalColorTheme(color);
+    localStorage.setItem("clubapp-color-theme", color);
+    
+    document.documentElement.classList.forEach((cls) => {
+      if (cls.startsWith("theme-")) {
+        document.documentElement.classList.remove(cls);
+      }
+    });
+    
+    if (color === "custom") {
+      document.documentElement.classList.add("theme-custom");
+      applyCustomTheme(customHex, customSecHex, localTheme === "light");
+    } else {
+      const root = document.documentElement;
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--ring');
+      root.style.removeProperty('--sidebar-primary');
+      root.style.removeProperty('--sidebar-ring');
+      root.style.removeProperty('--violet');
+      root.style.removeProperty('--input-border-focus');
+      root.style.removeProperty('--accent-foreground');
+      root.style.removeProperty('--success-text');
+      root.style.removeProperty('--success-color');
+      root.style.removeProperty('--border-accent');
+      root.style.removeProperty('--violet-dim');
+      root.style.removeProperty('--bg-glass');
+      root.style.removeProperty('--gold');
+      root.style.removeProperty('--gold-dim');
+      root.style.removeProperty('--success-bg');
+      root.style.removeProperty('--success-border');
+      
+      if (color !== "emerald") {
+        document.documentElement.classList.add(`theme-${color}`);
+      }
+    }
+    
+    window.dispatchEvent(new Event("clubapp-color-theme-changed"));
+    toast.success(`Color Theme switched to ${color}`);
+  };
+
+  useEffect(() => {
+    const syncColorTheme = () => {
+      const color = (localStorage.getItem("clubapp-color-theme") as any) || "emerald";
+      setLocalColorTheme(color);
+      const hex = localStorage.getItem("clubapp-custom-hex") || "#10B981";
+      setCustomHex(hex);
+      const secHex = localStorage.getItem("clubapp-custom-sec-hex") || "#2DD4BF";
+      setCustomSecHex(secHex);
+    };
+    window.addEventListener("clubapp-color-theme-changed", syncColorTheme);
+    return () => window.removeEventListener("clubapp-color-theme-changed", syncColorTheme);
+  }, []);
 
   // Sync state if currentUser updates
   useEffect(() => {
@@ -304,159 +417,165 @@ function SettingsPage() {
     <div className="space-y-6 pb-10">
       <PageHeader
         title="Settings"
-        description="Configure your software branding, court locations, member grades, and official club holidays."
+        description={
+          currentUser?.role === "admin"
+            ? "Configure your software branding, court locations, member grades, and official club holidays."
+            : "Manage your profile details, credentials, and app theme preferences."
+        }
       />
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Branding Configurations */}
+        {currentUser?.role === "admin" && (
+          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
+            <CardHeader className="pb-3 border-b border-white/[0.03]">
+              <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                Branding & App Configuration
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <form onSubmit={handleSaveBranding} className="space-y-4">
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Software / Club Name
+                    </Label>
+                    <Input
+                      required
+                      value={appName}
+                      onChange={(e) => setAppName(e.target.value)}
+                      placeholder="Connect App"
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Logo Text / Initial
+                    </Label>
+                    <Input
+                      required
+                      maxLength={5}
+                      value={appLogoText}
+                      onChange={(e) => setAppLogoText(e.target.value)}
+                      placeholder="C"
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Currency Symbol
+                    </Label>
+                    <Select value={currency} onValueChange={setCurrency}>
+                      <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer">
+                        <SelectValue placeholder="Select Currency" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                        <SelectItem value="$" className="cursor-pointer hover:bg-white/5">USD ($)</SelectItem>
+                        <SelectItem value="£" className="cursor-pointer hover:bg-white/5">GBP (£)</SelectItem>
+                        <SelectItem value="€" className="cursor-pointer hover:bg-white/5">EUR (€)</SelectItem>
+                        <SelectItem value="₹" className="cursor-pointer hover:bg-white/5">INR (₹)</SelectItem>
+                        <SelectItem value="¥" className="cursor-pointer hover:bg-white/5">JPY (¥)</SelectItem>
+                        <SelectItem value="CA$" className="cursor-pointer hover:bg-white/5">CAD (CA$)</SelectItem>
+                        <SelectItem value="A$" className="cursor-pointer hover:bg-white/5">AUD (A$)</SelectItem>
+                        <SelectItem value="S$" className="cursor-pointer hover:bg-white/5">SGD (S$)</SelectItem>
+                        <SelectItem value="RM" className="cursor-pointer hover:bg-white/5">MYR (RM)</SelectItem>
+                        <SelectItem value="AED" className="cursor-pointer hover:bg-white/5">AED (AED)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4 items-center border-t border-white/[0.03] pt-4 mt-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Logo Image
+                    </Label>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setAppLogoBase64(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg cursor-pointer file:bg-primary file:text-primary-foreground file:border-none file:rounded-md file:px-2 file:py-1 file:mr-2 file:text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-4 pt-1.5">
+                    {appLogoBase64 ? (
+                      <div className="relative size-12 bg-white/5 rounded border border-white/[0.06] flex items-center justify-center overflow-hidden shrink-0">
+                        <img src={appLogoBase64} alt="Preview" className="size-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => setAppLogoBase64(null)}
+                          className="absolute inset-0 bg-black/60 hover:bg-black/80 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-red-500 font-semibold text-[10px] uppercase"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="size-12 rounded border border-dashed border-white/[0.1] flex items-center justify-center text-[10px] text-muted-foreground uppercase text-center shrink-0 leading-tight p-1">
+                        No Image Logo
+                      </div>
+                    )}
+                    <span className="text-[11px] text-muted-foreground/60 leading-relaxed font-light">
+                      Upload a square PNG or JPEG logo (recommended size 64x64px). If not uploaded, the text logo above will be used.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4 border-t border-white/[0.03] pt-4 mt-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Cancellation Lock Window (Hours)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={cancellationLockHours}
+                      onChange={(e) => setCancellationLockHours(Number(e.target.value))}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                    />
+                    <p className="text-[10px] text-muted-foreground/60 font-light">
+                      Hours before the match starts when users are blocked from cancelling accepted invitations.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Auto-Debit Timing (Hours)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={debitTimingHours}
+                      onChange={(e) => setDebitTimingHours(Number(e.target.value))}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                    />
+                    <p className="text-[10px] text-muted-foreground/60 font-light">
+                      Hours before the match starts when accepted users are automatically debited.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                    Save Branding
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Credentials & Profile */}
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-              Branding & App Configuration
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <form onSubmit={handleSaveBranding} className="space-y-4">
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    Software / Club Name
-                  </Label>
-                  <Input
-                    required
-                    value={appName}
-                    onChange={(e) => setAppName(e.target.value)}
-                    placeholder="Connect App"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    Logo Text / Initial
-                  </Label>
-                  <Input
-                    required
-                    maxLength={5}
-                    value={appLogoText}
-                    onChange={(e) => setAppLogoText(e.target.value)}
-                    placeholder="C"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    Currency Symbol
-                  </Label>
-                  <Select value={currency} onValueChange={setCurrency}>
-                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer">
-                      <SelectValue placeholder="Select Currency" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                      <SelectItem value="$" className="cursor-pointer hover:bg-white/5">USD ($)</SelectItem>
-                      <SelectItem value="£" className="cursor-pointer hover:bg-white/5">GBP (£)</SelectItem>
-                      <SelectItem value="€" className="cursor-pointer hover:bg-white/5">EUR (€)</SelectItem>
-                      <SelectItem value="₹" className="cursor-pointer hover:bg-white/5">INR (₹)</SelectItem>
-                      <SelectItem value="¥" className="cursor-pointer hover:bg-white/5">JPY (¥)</SelectItem>
-                      <SelectItem value="CA$" className="cursor-pointer hover:bg-white/5">CAD (CA$)</SelectItem>
-                      <SelectItem value="A$" className="cursor-pointer hover:bg-white/5">AUD (A$)</SelectItem>
-                      <SelectItem value="S$" className="cursor-pointer hover:bg-white/5">SGD (S$)</SelectItem>
-                      <SelectItem value="RM" className="cursor-pointer hover:bg-white/5">MYR (RM)</SelectItem>
-                      <SelectItem value="AED" className="cursor-pointer hover:bg-white/5">AED (AED)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4 items-center border-t border-white/[0.03] pt-4 mt-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    Logo Image
-                  </Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        setAppLogoBase64(reader.result as string);
-                      };
-                      reader.readAsDataURL(file);
-                    }}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg cursor-pointer file:bg-[#10B981] file:text-white file:border-none file:rounded-md file:px-2 file:py-1 file:mr-2 file:text-xs"
-                  />
-                </div>
-                <div className="flex items-center gap-4 pt-1.5">
-                  {appLogoBase64 ? (
-                    <div className="relative size-12 bg-white/5 rounded border border-white/[0.06] flex items-center justify-center overflow-hidden shrink-0">
-                      <img src={appLogoBase64} alt="Preview" className="size-full object-contain" />
-                      <button
-                        type="button"
-                        onClick={() => setAppLogoBase64(null)}
-                        className="absolute inset-0 bg-black/60 hover:bg-black/80 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-red-500 font-semibold text-[10px] uppercase"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="size-12 rounded border border-dashed border-white/[0.1] flex items-center justify-center text-[10px] text-muted-foreground uppercase text-center shrink-0 leading-tight p-1">
-                      No Image Logo
-                    </div>
-                  )}
-                  <span className="text-[11px] text-muted-foreground/60 leading-relaxed font-light">
-                    Upload a square PNG or JPEG logo (recommended size 64x64px). If not uploaded, the text logo above will be used.
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4 border-t border-white/[0.03] pt-4 mt-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    Cancellation Lock Window (Hours)
-                  </Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={cancellationLockHours}
-                    onChange={(e) => setCancellationLockHours(Number(e.target.value))}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
-                  />
-                  <p className="text-[10px] text-muted-foreground/60 font-light">
-                    Hours before the match starts when users are blocked from cancelling accepted invitations.
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    Auto-Debit Timing (Hours)
-                  </Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={debitTimingHours}
-                    onChange={(e) => setDebitTimingHours(Number(e.target.value))}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
-                  />
-                  <p className="text-[10px] text-muted-foreground/60 font-light">
-                    Hours before the match starts when accepted users are automatically debited.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
-                  Save Branding
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Admin Credentials & Profile */}
-        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
-          <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-              Admin Credentials & Profile
+              {currentUser?.role === "admin" ? "Admin Credentials & Profile" : "Profile Details & Credentials"}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
@@ -584,320 +703,411 @@ function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Email SMTP Configuration */}
+        {/* Theme Preference */}
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-1.5">
-              Email SMTP Configuration
-              <span title="Configures outgoing email settings. Recommended host for Google SMTP is smtp.gmail.com with port 587 and TLS.">
-                <HelpCircle className="size-3.5 text-muted-foreground/60 cursor-pointer" />
-              </span>
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+              Theme Preference
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <form onSubmit={handleSaveMailSettings} className="space-y-4">
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    SMTP Host
-                  </Label>
-                  <Input
-                    value={mailHost}
-                    onChange={(e) => setMailHost(e.target.value)}
-                    placeholder="smtp.gmail.com"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-                  />
+            <div className="space-y-6">
+              {/* Theme Mode */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.03]">
+                <div>
+                  <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">App Theme Mode</Label>
+                  <p className="text-xs text-muted-foreground mt-1 font-light">Select your preferred color layout theme for the portal.</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    SMTP Port
-                  </Label>
-                  <Input
-                    value={mailPort}
-                    onChange={(e) => setMailPort(e.target.value)}
-                    placeholder="587"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    Encryption
-                  </Label>
-                  <Select value={mailEncryption} onValueChange={setMailEncryption}>
-                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer text-xs">
-                      <SelectValue placeholder="Select Encryption" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                      <SelectItem value="tls" className="cursor-pointer hover:bg-white/5">TLS</SelectItem>
-                      <SelectItem value="ssl" className="cursor-pointer hover:bg-white/5">SSL</SelectItem>
-                      <SelectItem value="none" className="cursor-pointer hover:bg-white/5">None</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    SMTP Username / Email
-                  </Label>
-                  <Input
-                    value={mailUsername}
-                    onChange={(e) => setMailUsername(e.target.value)}
-                    placeholder="your_email@gmail.com"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    SMTP Password
-                  </Label>
-                  <Input
-                    type="password"
-                    value={mailPassword}
-                    onChange={(e) => setMailPassword(e.target.value)}
-                    placeholder="••••••••••••••••"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    From Name
-                  </Label>
-                  <Input
-                    value={mailFromName}
-                    onChange={(e) => setMailFromName(e.target.value)}
-                    placeholder="ClubConnect"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-3">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                    From Address
-                  </Label>
-                  <Input
-                    type="email"
-                    value={mailFromAddress}
-                    onChange={(e) => setMailFromAddress(e.target.value)}
-                    placeholder="no-reply@clubconnect.com"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-                  />
-                </div>
+                <Select value={localTheme} onValueChange={(v) => handleThemeChange(v as "dark" | "light")}>
+                  <SelectTrigger className="w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                    <SelectItem value="dark" className="cursor-pointer hover:bg-white/5 text-xs">Dark Mode</SelectItem>
+                    <SelectItem value="light" className="cursor-pointer hover:bg-white/5 text-xs">Light Mode</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="text-[11px] text-muted-foreground/60 leading-relaxed font-light mt-2 bg-[#1A2120]/40 p-3 rounded-lg border border-white/[0.02]">
-                <strong className="text-[#34D399] font-medium">Google SMTP Setup Tip:</strong> Use <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">smtp.gmail.com</code> with port <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">587</code> and encryption <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">TLS</code>. You must create an <strong>App Password</strong> in your Google Account settings; entering your normal Gmail password will result in a connection failure. Leave the host blank to disable SMTP and fallback to application log capture.
+              {/* Color Scheme Preset */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">Brand Color Theme</Label>
+                  <p className="text-xs text-muted-foreground mt-1 font-light">Select your preferred branding colors for accents, buttons, and badges.</p>
+                </div>
+                <Select value={localColorTheme} onValueChange={(v) => handleColorThemeChange(v as any)}>
+                  <SelectTrigger className="w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                    <SelectItem value="emerald" className="cursor-pointer hover:bg-white/5 text-xs">Emerald Green (Default)</SelectItem>
+                    <SelectItem value="sapphire" className="cursor-pointer hover:bg-white/5 text-xs">Sapphire Blue</SelectItem>
+                    <SelectItem value="ruby" className="cursor-pointer hover:bg-white/5 text-xs">Ruby Crimson</SelectItem>
+                    <SelectItem value="amber" className="cursor-pointer hover:bg-white/5 text-xs">Amber Gold</SelectItem>
+                    <SelectItem value="amethyst" className="cursor-pointer hover:bg-white/5 text-xs">Amethyst Purple</SelectItem>
+                    <SelectItem value="custom" className="cursor-pointer hover:bg-white/5 text-xs">Custom Theme Color</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  type="button"
-                  onClick={handleTestSmtp}
-                  disabled={testingSmtp}
-                  className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer disabled:opacity-50"
-                >
-                  {testingSmtp ? "Testing..." : "Test Connection"}
-                </Button>
-                <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
-                  Save SMTP Settings
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Locations Manager */}
-        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-          <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-              Club Locations
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4 flex-1 flex flex-col">
-            <div className="flex gap-2 mb-4">
-              <Input
-                value={newLocation}
-                onChange={(e) => setNewLocation(e.target.value)}
-                placeholder="Add new location (e.g. Hall A)"
-                onKeyDown={(e) => e.key === "Enter" && handleAddLocation()}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-              />
-              <Button
-                type="button"
-                onClick={handleAddLocation}
-                className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
-              >
-                <Plus className="size-4" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
-              {locations.length === 0 ? (
-                <div className="text-center py-6 text-xs text-muted-foreground/60">No locations configured.</div>
-              ) : (
-                locations.map((loc) => (
-                  <div
-                    key={loc}
-                    className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
-                  >
-                    <span className="text-[#F1F0EE] font-medium">{loc}</span>
-                    <button
-                      onClick={() => handleDeleteLocation(loc)}
-                      className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
-                      title="Delete location"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
+              {/* Custom Color Pickers (conditional) */}
+              {localColorTheme === "custom" && (
+                <div className="space-y-4 pt-4 border-t border-white/[0.03] animate-in fade-in-50 duration-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">Select Primary Accent Color</Label>
+                      <p className="text-xs text-muted-foreground mt-1 font-light">Pick a custom primary brand color for your portal interface.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono text-muted-foreground uppercase">{customHex}</span>
+                      <input
+                        type="color"
+                        value={customHex}
+                        onChange={(e) => handleCustomHexChange(e.target.value)}
+                        className="size-10 rounded-lg cursor-pointer bg-transparent border-0 p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-lg [&::-webkit-color-swatch]:border-border"
+                      />
+                    </div>
                   </div>
-                ))
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-white/[0.03]">
+                    <div>
+                      <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">Select Secondary Accent Color</Label>
+                      <p className="text-xs text-muted-foreground mt-1 font-light">Pick a custom secondary color (for credits, positive amounts, and badges).</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono text-muted-foreground uppercase">{customSecHex}</span>
+                      <input
+                        type="color"
+                        value={customSecHex}
+                        onChange={(e) => handleCustomSecHexChange(e.target.value)}
+                        className="size-10 rounded-lg cursor-pointer bg-transparent border-0 p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-lg [&::-webkit-color-swatch]:border-border"
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Grades Manager */}
-        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-          <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-              Member Grades / Levels
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4 flex-1 flex flex-col">
-            <div className="flex gap-2 mb-4">
-              <Input
-                value={newGrade}
-                onChange={(e) => setNewGrade(e.target.value)}
-                placeholder="Add new grade (e.g. Advanced)"
-                onKeyDown={(e) => e.key === "Enter" && handleAddGrade()}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-              />
-              <Button
-                type="button"
-                onClick={handleAddGrade}
-                className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
-              >
-                <Plus className="size-4" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
-              {grades.length === 0 ? (
-                <div className="text-center py-6 text-xs text-muted-foreground/60">No grades configured.</div>
-              ) : (
-                grades.map((g) => (
-                  <div
-                    key={g}
-                    className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
-                  >
-                    <span className="text-[#F1F0EE] font-medium">{g}</span>
-                    <button
-                      onClick={() => handleDeleteGrade(g)}
-                      className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
-                      title="Delete grade"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
+        {/* Email SMTP Configuration */}
+        {currentUser?.role === "admin" && (
+          <>
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
+              <CardHeader className="pb-3 border-b border-white/[0.03]">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-1.5">
+                  Email SMTP Configuration
+                  <span title="Configures outgoing email settings. Recommended host for Google SMTP is smtp.gmail.com with port 587 and TLS.">
+                    <HelpCircle className="size-3.5 text-muted-foreground/60 cursor-pointer" />
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <form onSubmit={handleSaveMailSettings} className="space-y-4">
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        SMTP Host
+                      </Label>
+                      <Input
+                        value={mailHost}
+                        onChange={(e) => setMailHost(e.target.value)}
+                        placeholder="smtp.gmail.com"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        SMTP Port
+                      </Label>
+                      <Input
+                        value={mailPort}
+                        onChange={(e) => setMailPort(e.target.value)}
+                        placeholder="587"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        Encryption
+                      </Label>
+                      <Select value={mailEncryption} onValueChange={setMailEncryption}>
+                        <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer text-xs">
+                          <SelectValue placeholder="Select Encryption" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                          <SelectItem value="tls" className="cursor-pointer hover:bg-white/5">TLS</SelectItem>
+                          <SelectItem value="ssl" className="cursor-pointer hover:bg-white/5">SSL</SelectItem>
+                          <SelectItem value="none" className="cursor-pointer hover:bg-white/5">None</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        SMTP Username / Email
+                      </Label>
+                      <Input
+                        value={mailUsername}
+                        onChange={(e) => setMailUsername(e.target.value)}
+                        placeholder="your_email@gmail.com"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        SMTP Password
+                      </Label>
+                      <Input
+                        type="password"
+                        value={mailPassword}
+                        onChange={(e) => setMailPassword(e.target.value)}
+                        placeholder="••••••••••••••••"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        From Name
+                      </Label>
+                      <Input
+                        value={mailFromName}
+                        onChange={(e) => setMailFromName(e.target.value)}
+                        placeholder="ClubConnect"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-3">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        From Address
+                      </Label>
+                      <Input
+                        type="email"
+                        value={mailFromAddress}
+                        onChange={(e) => setMailFromAddress(e.target.value)}
+                        placeholder="no-reply@clubconnect.com"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                      />
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Holidays Manager */}
-        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col md:col-span-2">
-          <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-              Official Club / Public Holidays
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4 flex-1">
-            <div className="grid sm:grid-cols-2 gap-4 mb-4 items-end">
-              <div className="space-y-1">
-                <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Select Holiday Date</Label>
-                <Input
-                  type="date"
-                  value={newHoliday}
-                  onChange={(e) => setNewHoliday(e.target.value)}
-                  className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-                />
-              </div>
-              <Button
-                type="button"
-                onClick={handleAddHoliday}
-                className="h-9 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer w-full sm:w-auto font-semibold text-xs"
-              >
-                <Plus className="size-4 mr-1.5 inline" /> Add Holiday
-              </Button>
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 overflow-y-auto max-h-[300px] pr-1">
-              {holidays.length === 0 ? (
-                <div className="text-center py-8 text-xs text-muted-foreground/60 sm:col-span-2 lg:col-span-3">
-                  No holidays registered. Weekly training sessions will generate on all consecutive dates.
+                  <div className="text-[11px] text-muted-foreground/60 leading-relaxed font-light mt-2 bg-[#1A2120]/40 p-3 rounded-lg border border-white/[0.02]">
+                    <strong className="text-[#34D399] font-medium">Google SMTP Setup Tip:</strong> Use <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">smtp.gmail.com</code> with port <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">587</code> and encryption <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">TLS</code>. You must create an <strong>App Password</strong> in your Google Account settings; entering your normal Gmail password will result in a connection failure. Leave the host blank to disable SMTP and fallback to application log capture.
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <Button
+                      type="button"
+                      onClick={handleTestSmtp}
+                      disabled={testingSmtp}
+                      className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      {testingSmtp ? "Testing..." : "Test Connection"}
+                    </Button>
+                    <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                      Save SMTP Settings
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Locations Manager */}
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
+              <CardHeader className="pb-3 border-b border-white/[0.03]">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                  Club Locations
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 flex-1 flex flex-col">
+                <div className="flex gap-2 mb-4">
+                  <Input
+                    value={newLocation}
+                    onChange={(e) => setNewLocation(e.target.value)}
+                    placeholder="Add new location (e.g. Hall A)"
+                    onKeyDown={(e) => e.key === "Enter" && handleAddLocation()}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddLocation}
+                    className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
                 </div>
-              ) : (
-                holidays.map((h) => (
-                  <div
-                    key={h}
-                    className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
-                  >
-                    <span className="text-[#F1F0EE] font-mono font-medium">{h}</span>
-                    <button
-                      onClick={() => handleDeleteHoliday(h)}
-                      className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
-                      title="Delete holiday"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                  {locations.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">No locations configured.</div>
+                  ) : (
+                    locations.map((loc) => (
+                      <div
+                        key={loc}
+                        className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
+                      >
+                        <span className="text-[#F1F0EE] font-medium">{loc}</span>
+                        <button
+                          onClick={() => handleDeleteLocation(loc)}
+                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+                          title="Delete location"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Player Positions Manager */}
-        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-          <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-              Player Positions / Roles
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4 flex-1 flex flex-col">
-            <div className="flex gap-2 mb-4">
-              <Input
-                value={newPlayerPosition}
-                onChange={(e) => setNewPlayerPosition(e.target.value)}
-                placeholder="Add new position (e.g. Singles, Doubles)"
-                onKeyDown={(e) => e.key === "Enter" && handleAddPlayerPosition()}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-              />
-              <Button
-                type="button"
-                onClick={handleAddPlayerPosition}
-                className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
-              >
-                <Plus className="size-4" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
-              {playerPositions.length === 0 ? (
-                <div className="text-center py-6 text-xs text-muted-foreground/60">No player positions configured.</div>
-              ) : (
-                playerPositions.map((pos) => (
-                  <div
-                    key={pos}
-                    className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
+            {/* Grades Manager */}
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
+              <CardHeader className="pb-3 border-b border-white/[0.03]">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                  Member Grades / Levels
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 flex-1 flex flex-col">
+                <div className="flex gap-2 mb-4">
+                  <Input
+                    value={newGrade}
+                    onChange={(e) => setNewGrade(e.target.value)}
+                    placeholder="Add new grade (e.g. Advanced)"
+                    onKeyDown={(e) => e.key === "Enter" && handleAddGrade()}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddGrade}
+                    className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
                   >
-                    <span className="text-[#F1F0EE] font-medium">{pos}</span>
-                    <button
-                      onClick={() => handleDeletePlayerPosition(pos)}
-                      className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
-                      title="Delete position"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                  {grades.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">No grades configured.</div>
+                  ) : (
+                    grades.map((g) => (
+                      <div
+                        key={g}
+                        className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
+                      >
+                        <span className="text-[#F1F0EE] font-medium">{g}</span>
+                        <button
+                          onClick={() => handleDeleteGrade(g)}
+                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+                          title="Delete grade"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Holidays Manager */}
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col md:col-span-2">
+              <CardHeader className="pb-3 border-b border-white/[0.03]">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                  Official Club / Public Holidays
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 flex-1">
+                <div className="grid sm:grid-cols-2 gap-4 mb-4 items-end">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Select Holiday Date</Label>
+                    <Input
+                      type="date"
+                      value={newHoliday}
+                      onChange={(e) => setNewHoliday(e.target.value)}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    />
                   </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  <Button
+                    type="button"
+                    onClick={handleAddHoliday}
+                    className="h-9 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer w-full sm:w-auto font-semibold text-xs"
+                  >
+                    <Plus className="size-4 mr-1.5 inline" /> Add Holiday
+                  </Button>
+                </div>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 overflow-y-auto max-h-[300px] pr-1">
+                  {holidays.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-muted-foreground/60 sm:col-span-2 lg:col-span-3">
+                      No holidays registered. Weekly training sessions will generate on all consecutive dates.
+                    </div>
+                  ) : (
+                    holidays.map((h) => (
+                      <div
+                        key={h}
+                        className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
+                      >
+                        <span className="text-[#F1F0EE] font-mono font-medium">{h}</span>
+                        <button
+                          onClick={() => handleDeleteHoliday(h)}
+                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+                          title="Delete holiday"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Player Positions Manager */}
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
+              <CardHeader className="pb-3 border-b border-white/[0.03]">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                  Player Positions / Roles
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 flex-1 flex flex-col">
+                <div className="flex gap-2 mb-4">
+                  <Input
+                    value={newPlayerPosition}
+                    onChange={(e) => setNewPlayerPosition(e.target.value)}
+                    placeholder="Add new position (e.g. Singles, Doubles)"
+                    onKeyDown={(e) => e.key === "Enter" && handleAddPlayerPosition()}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddPlayerPosition}
+                    className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                  {playerPositions.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">No player positions configured.</div>
+                  ) : (
+                    playerPositions.map((pos) => (
+                      <div
+                        key={pos}
+                        className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
+                      >
+                        <span className="text-[#F1F0EE] font-medium">{pos}</span>
+                        <button
+                          onClick={() => handleDeletePlayerPosition(pos)}
+                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+                          title="Delete position"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
 
       </div>
     </div>

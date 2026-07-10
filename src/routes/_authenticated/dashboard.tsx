@@ -15,9 +15,9 @@ export const Route = createFileRoute("/_authenticated/dashboard")({ component: D
 
 // Per-card accent configs: left border color + icon bg tint + icon text color
 const CARD_ACCENTS = [
-  { border: "#10B981", iconBg: "rgba(16,185,129,0.12)", iconColor: "#10B981" },  // mint green — members
+  { border: "var(--primary)", iconBg: "var(--violet-dim)", iconColor: "var(--primary)" },  // theme brand primary — members
   { border: "#F59E0B", iconBg: "rgba(245,158,11,0.12)",  iconColor: "#F59E0B" }, // amber — requests/credit
-  { border: "#2DD4BF", iconBg: "rgba(45,212,191,0.12)",  iconColor: "#2DD4BF" }, // teal — credits/invites
+  { border: "var(--gold)", iconBg: "var(--gold-dim)",  iconColor: "var(--gold)" }, // theme brand secondary (teal) — credits/invites
   { border: "#818CF8", iconBg: "rgba(129,140,248,0.12)", iconColor: "#818CF8" }, // indigo — sessions/trainings
 ];
 

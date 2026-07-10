@@ -183,7 +183,7 @@ function CreditsPage() {
                                     toast.error(error.message || "Failed to approve request.");
                                   }
                                 }}
-                                className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(45,212,191,0.3)] text-[#2DD4BF] hover:bg-[#2DD4BF]/10 cursor-pointer transition-all"
+                                className="px-3 py-1 text-[11.5px] font-medium rounded border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer transition-all"
                               >
                                 Approve
                               </button>

@@ -33,9 +33,9 @@ function Txns() {
           <CardContent className="p-5 flex items-center justify-between">
             <div>
               <span className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase block">Total Credited</span>
-              <div className="text-xl font-semibold mt-1 font-mono text-[#2DD4BF]">{fmtMoney(totalCredited)}</div>
+              <div className="text-xl font-semibold mt-1 font-mono static-financial-credit-text">{fmtMoney(totalCredited)}</div>
             </div>
-            <div className="size-9 rounded-lg bg-[#2DD4BF]/10 text-[#2DD4BF] grid place-items-center">
+            <div className="size-9 rounded-lg static-financial-credit-bg-dim static-financial-credit-text grid place-items-center">
               <ArrowUpRight className="size-5" />
             </div>
           </CardContent>
@@ -57,11 +57,11 @@ function Txns() {
           <CardContent className="p-5 flex items-center justify-between">
             <div>
               <span className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase block">Net Account Flow</span>
-              <div className={cn("text-xl font-semibold mt-1 font-mono", netFlow >= 0 ? "text-[#34D399]" : "text-[#EF4444]")}>
+              <div className={cn("text-xl font-semibold mt-1 font-mono", netFlow >= 0 ? "static-financial-inflow-text" : "text-[#EF4444]")}>
                 {netFlow >= 0 ? "+" : ""}{fmtMoney(netFlow)}
               </div>
             </div>
-            <div className={cn("size-9 rounded-lg grid place-items-center", netFlow >= 0 ? "bg-[#34D399]/10 text-[#34D399]" : "bg-[#EF4444]/10 text-[#EF4444]")}>
+            <div className={cn("size-9 rounded-lg grid place-items-center", netFlow >= 0 ? "static-financial-inflow-bg-dim static-financial-inflow-text" : "bg-[#EF4444]/10 text-[#EF4444]")}>
               <Scale className="size-5" />
             </div>
           </CardContent>
@@ -100,14 +100,14 @@ function Txns() {
                       <TableCell className="py-4">
                         <span className={cn(
                           "px-2 py-0.5 rounded text-[10px] font-medium tracking-wider uppercase",
-                          isCredit ? "bg-[#2DD4BF]/10 text-[#2DD4BF] border border-[#2DD4BF]/20" : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20"
+                          isCredit ? "static-financial-credit-bg-dim static-financial-credit-text border static-financial-credit-border-dim" : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20"
                         )}>
                           {t.type}
                         </span>
                       </TableCell>
                       <TableCell className={cn(
                         "text-right font-mono text-[14px] font-medium px-5 py-4",
-                        isCredit ? "text-[#2DD4BF]" : "text-[#EF4444]"
+                        isCredit ? "static-financial-credit-text" : "text-[#EF4444]"
                       )}>
                         {isCredit ? "+" : "−"}{fmtMoney(t.amount)}
                       </TableCell>
