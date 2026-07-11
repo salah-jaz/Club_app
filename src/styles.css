@@ -402,10 +402,14 @@ h2, h3 {
 /* Table column headers */
 .type-table-head {
   font-size: 11px !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  color: var(--text-secondary) !important;
+  color: var(--text-muted) !important;
+}
+
+.light .type-table-head {
+  color: #3D524C !important;
 }
 
 /* Table row body text */

@@ -541,11 +541,11 @@ function MembersList() {
           })}
         </motion.div>
       ) : (
-        <div className="bg-[#131916] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-[#0C0F0E]/80">
-                <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+              <TableHeader className="bg-muted/70 border-b border-border">
+                <TableRow className="border-b border-border hover:bg-transparent">
                   <TableHead className="type-table-head h-11 px-4 min-w-[200px]">Member</TableHead>
                   <TableHead className="type-table-head h-11">Type</TableHead>
                   <TableHead className="type-table-head h-11">Grade</TableHead>
@@ -562,7 +562,7 @@ function MembersList() {
                   return (
                     <TableRow
                       key={m.id}
-                      className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
+                      className="border-b border-border hover:bg-muted/40 transition-colors"
                     >
                       <TableCell className="px-4 py-3.5">
                         <div className="flex items-center gap-3 min-w-0">
@@ -610,7 +610,7 @@ function MembersList() {
               </TableBody>
             </Table>
           </div>
-          <div className="px-4 py-2.5 border-t border-white/[0.04] text-[10px] text-[#6B7F78] bg-[#0C0F0E]/40">
+          <div className="px-4 py-2.5 border-t border-border text-[10px] text-muted-foreground bg-muted/30">
             Flags: <span className="text-[#A5B4FC]">L</span> = League · <span className="text-[#5EEAD4]">M</span> = Membership · <span className="text-[#8FA89F]">T</span> = Training eligible
           </div>
         </div>

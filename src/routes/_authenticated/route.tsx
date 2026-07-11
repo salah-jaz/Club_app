@@ -227,7 +227,7 @@ function Layout() {
             </div>
           </header>
 
-          <main className="p-8 max-w-[1200px] w-full mx-auto flex-1">
+          <main className="flex-1 w-full min-w-0 px-4 py-6 sm:px-6 lg:px-8">
             <AnimatePresence mode="wait">
               <MotionWrapper key={pathname}>
                 <Outlet />
