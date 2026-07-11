@@ -21,6 +21,7 @@ return new class extends Migration
             $table->boolean('membership')->default(false);
             $table->boolean('league')->default(false);
             $table->string('grade');
+            $table->foreign('grade')->references('name')->on('grades')->onUpdate('cascade')->onDelete('restrict');
             $table->string('bi_member_id')->nullable();
             $table->string('status')->default('active'); // 'active' or 'disabled'
             $table->decimal('credit', 10, 2)->default(0.00);

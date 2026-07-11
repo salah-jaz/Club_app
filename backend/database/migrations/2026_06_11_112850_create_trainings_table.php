@@ -19,6 +19,7 @@ return new class extends Migration
             $table->decimal('fees', 10, 2);
             $table->string('coach');
             $table->string('location');
+            $table->foreign('location')->references('name')->on('locations')->onUpdate('cascade')->onDelete('restrict');
             $table->string('status')->default('open'); // 'open', 'released', 'closed'
             $table->timestamps();
         });
