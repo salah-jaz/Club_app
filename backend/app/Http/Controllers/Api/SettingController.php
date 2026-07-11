@@ -83,18 +83,20 @@ class SettingController extends Controller
 
         // 2. Save lists if provided
         if ($request->has('locations')) {
-            Location::truncate();
+            $newLocations = $request->locations ?? [];
+            Location::whereNotIn('name', $newLocations)->delete();
             $now = now();
-            foreach ($request->locations as $loc) {
-                Location::create(['name' => $loc, 'created_at' => $now, 'updated_at' => $now]);
+            foreach ($newLocations as $loc) {
+                Location::firstOrCreate(['name' => $loc], ['created_at' => $now, 'updated_at' => $now]);
             }
         }
 
         if ($request->has('grades')) {
-            Grade::truncate();
+            $newGrades = $request->grades ?? [];
+            Grade::whereNotIn('name', $newGrades)->delete();
             $now = now();
-            foreach ($request->grades as $g) {
-                Grade::create(['name' => $g, 'created_at' => $now, 'updated_at' => $now]);
+            foreach ($newGrades as $g) {
+                Grade::firstOrCreate(['name' => $g], ['created_at' => $now, 'updated_at' => $now]);
             }
         }
 
@@ -107,10 +109,11 @@ class SettingController extends Controller
         }
 
         if ($request->has('playerPositions')) {
-            PlayerPosition::truncate();
+            $newPositions = $request->playerPositions ?? [];
+            PlayerPosition::whereNotIn('name', $newPositions)->delete();
             $now = now();
-            foreach ($request->playerPositions as $pos) {
-                PlayerPosition::create(['name' => $pos, 'created_at' => $now, 'updated_at' => $now]);
+            foreach ($newPositions as $pos) {
+                PlayerPosition::firstOrCreate(['name' => $pos], ['created_at' => $now, 'updated_at' => $now]);
             }
         }
 

@@ -80,7 +80,11 @@ class LeagueGroupController extends Controller
     {
         $data = [];
         foreach ($memberIds as $memberId) {
-            $data[$memberId] = ['position' => $memberPositions[$memberId] ?? null];
+            $pos = $memberPositions[$memberId] ?? null;
+            if ($pos !== null && $pos !== '') {
+                \App\Models\PlayerPosition::firstOrCreate(['name' => $pos]);
+            }
+            $data[$memberId] = ['position' => $pos ?: null];
         }
         return $data;
     }
