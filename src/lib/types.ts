@@ -5,6 +5,7 @@ export interface User {
   id: string;
   firstName: string;
   lastName: string;
+  nickname?: string;
   sex: "male" | "female";
   dob: string;
   email: string;

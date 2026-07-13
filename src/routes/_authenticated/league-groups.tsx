@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck, LayoutGrid, List } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck, LayoutGrid, List, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,6 +23,41 @@ function LeagueGroupsPage() {
   const members = allMembers.filter((m) => m.league && m.status === "active");
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const playerPositions = useStore((s) => s.playerPositions) || [];
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("name_asc");
+
+  const filteredGroups = useMemo(() => {
+    let result = [...leagueGroups];
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter((g) => {
+        if (g.name.toLowerCase().includes(term)) return true;
+        if (g.description?.toLowerCase().includes(term)) return true;
+        const hasMember = (g.memberIds || []).some((id) => {
+          const m = allMembers.find((x) => x.id === id);
+          if (!m) return false;
+          return `${m.firstName} ${m.lastName}`.toLowerCase().includes(term);
+        });
+        return hasMember;
+      });
+    }
+
+    return result.sort((a, b) => {
+      if (sortBy === "name_asc") {
+        return a.name.localeCompare(b.name);
+      }
+      if (sortBy === "name_desc") {
+        return b.name.localeCompare(a.name);
+      }
+      if (sortBy === "members_desc") {
+        return (b.memberIds?.length || 0) - (a.memberIds?.length || 0);
+      }
+      if (sortBy === "members_asc") {
+        return (a.memberIds?.length || 0) - (b.memberIds?.length || 0);
+      }
+      return 0;
+    });
+  }, [leagueGroups, allMembers, searchTerm, sortBy]);
   const [viewMode, setViewMode] = useState<"grid" | "list">(
     () => (localStorage.getItem("clubapp-view-mode-league-groups") as "grid" | "list") || "grid"
   );
@@ -266,55 +301,99 @@ function LeagueGroupsPage() {
         </Card>
       ) : (
         <>
-          {leagueGroups.length > 0 && (
-            <div className="flex items-center justify-between mb-4 mt-2">
-              <span className="type-helper text-xs">{leagueGroups.length} groups found</span>
-              <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg">
-                <button
-                  onClick={() => {
-                    setViewMode("grid");
-                    localStorage.setItem("clubapp-view-mode-league-groups", "grid");
-                  }}
-                  className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                    viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                  }`}
-                  title="Grid view"
-                >
-                  <LayoutGrid className="size-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    setViewMode("list");
-                    localStorage.setItem("clubapp-view-mode-league-groups", "list");
-                  }}
-                  className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                    viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                  }`}
-                  title="List view"
-                >
-                  <List className="size-4" />
-                </button>
+          {/* Filter Toolbar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-3.5 rounded-xl">
+            <div className="flex items-center gap-3 flex-1 flex-wrap">
+              {/* Search */}
+              <div className="relative w-full max-w-[320px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search groups or members..."
+                  className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
               </div>
-            </div>
-          )}
 
-          {leagueGroups.length === 0 ? (
+              {/* Sort By */}
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[180px] rounded-lg cursor-pointer text-xs">
+                  <SelectValue placeholder="Sort By" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="name_asc" className="text-xs">Name (A-Z)</SelectItem>
+                  <SelectItem value="name_desc" className="text-xs">Name (Z-A)</SelectItem>
+                  <SelectItem value="members_desc" className="text-xs">Members Count (High-Low)</SelectItem>
+                  <SelectItem value="members_asc" className="text-xs">Members Count (Low-High)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-10">
+              <button
+                onClick={() => {
+                  setViewMode("grid");
+                  localStorage.setItem("clubapp-view-mode-league-groups", "grid");
+                }}
+                className={`px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center ${
+                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
+                }`}
+                title="Grid view"
+              >
+                <LayoutGrid className="size-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode("list");
+                  localStorage.setItem("clubapp-view-mode-league-groups", "list");
+                }}
+                className={`px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center ${
+                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
+                }`}
+                title="List view"
+              >
+                <List className="size-4" />
+              </button>
+            </div>
+          </div>
+
+          {filteredGroups.length === 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] sm:col-span-2 lg:col-span-3">
                 <CardContent className="p-10 text-center text-[#8A8A98]">
                   <div className="flex flex-col items-center justify-center gap-3">
                     <Users className="size-12 text-[#4A4A5A]" />
-                    <h3 className="text-[14px] font-normal text-[#8A8A98]">No league groups created yet.</h3>
+                    <h3 className="text-[14px] font-normal text-[#8A8A98]">
+                      {searchTerm ? "No matching league groups found." : "No league groups created yet."}
+                    </h3>
                     <p className="text-[12px] font-light text-[#4A4A5A] max-w-[280px]">
-                      Create groups to target specific match invitations to a subset of players.
+                      {searchTerm ? "Try adjusting your search terms." : "Create groups to target specific match invitations to a subset of players."}
                     </p>
+                    {searchTerm && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setSearchTerm("")}
+                        className="border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] hover:bg-white/5 text-[#F1F0EE] h-9 text-xs rounded-lg mt-2 px-4 cursor-pointer"
+                      >
+                        Reset Search
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             </div>
           ) : viewMode === "grid" ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {leagueGroups.map((g) => {
+              {filteredGroups.map((g) => {
                 // Build member list with positions for display
                 const groupMembers = (g.memberIds || []).map((id) => {
                   const member = allMembers.find((m) => m.id === id);
@@ -391,7 +470,7 @@ function LeagueGroupsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {leagueGroups.map((g) => (
+                  {filteredGroups.map((g) => (
                     <TableRow key={g.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
                       <TableCell className="px-5 py-3.5 font-bold text-[14.5px] text-[#EEF2F0]">{g.name}</TableCell>
                       <TableCell className="type-table-body">{g.description || <span className="text-[#4A4A5A] italic">No description</span>}</TableCell>

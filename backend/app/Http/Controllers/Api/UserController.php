@@ -63,6 +63,7 @@ class UserController extends Controller
             'league' => $request->has('league') ? $request->boolean('league') : ($memberType === 'adult'),
             'training_eligible' => $trainingEligible,
             'grade' => $request->input('grade', $defaultGrade),
+            'nickname' => $user->nickname,
             'status' => 'active',
             'credit' => 0.00,
         ]);
@@ -117,10 +118,11 @@ class UserController extends Controller
     private function formatUser(User $u)
     {
         return [
-            'id' => $u->id,
-            'firstName' => $u->first_name,
-            'lastName' => $u->last_name,
-            'sex' => $u->sex,
+             'id' => $u->id,
+             'firstName' => $u->first_name,
+             'lastName' => $u->last_name,
+             'nickname' => $u->nickname,
+             'sex' => $u->sex,
             'dob' => $u->dob,
             'email' => $u->email,
             'mobile' => $u->mobile,
