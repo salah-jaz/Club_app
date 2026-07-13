@@ -28,13 +28,22 @@ class DatabaseSeeder extends Seeder
         );
 
         // 2. Seed Grades
-        $grades = ["A", "B", "C", "D", "Beginner", "Intermediate", "Advanced"];
+        $adultGrades = ["A", "B", "C", "D"];
+        $juniorGrades = ["Beginner", "Intermediate", "Advanced"];
         Grade::insertOrIgnore(
-            collect($grades)->map(fn ($name) => [
+            collect($adultGrades)->map(fn ($name) => [
                 'name' => $name,
+                'type' => 'adult',
                 'created_at' => $now,
                 'updated_at' => $now,
-            ])->all()
+            ])->merge(
+                collect($juniorGrades)->map(fn ($name) => [
+                    'name' => $name,
+                    'type' => 'junior',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])
+            )->all()
         );
 
         // 3. Seed Users

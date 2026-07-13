@@ -28,7 +28,13 @@ class UserController extends Controller
     {
         $request->validate([
             'memberType' => 'sometimes|in:adult,junior',
-            'grade' => 'sometimes|string',
+            'grade' => [
+                'sometimes',
+                'string',
+                \Illuminate\Validation\Rule::exists('grades', 'name')->where(function ($query) use ($request) {
+                    $query->where('type', $request->input('memberType', 'adult'));
+                })
+            ],
             'league' => 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
         ]);
@@ -42,6 +48,8 @@ class UserController extends Controller
             ? $request->boolean('trainingEligible')
             : ($memberType === 'junior');
 
+        $defaultGrade = Grade::where('type', $memberType)->first()?->name ?? ($memberType === 'junior' ? 'Beginner' : 'B');
+
         $member = Member::create([
             'id' => 'm_' . Str::random(8),
             'user_id' => $user->id,
@@ -54,7 +62,7 @@ class UserController extends Controller
             'membership' => true,
             'league' => $request->boolean('league'),
             'training_eligible' => $trainingEligible,
-            'grade' => $request->input('grade', 'Beginner'),
+            'grade' => $request->input('grade', $defaultGrade),
             'status' => 'active',
             'credit' => 0.00,
         ]);

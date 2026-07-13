@@ -50,7 +50,8 @@ export function MemberForm({
   /** Adult users adding juniors under their account — training eligibility applies here. */
   familyMemberMode?: boolean;
 }) {
-  const grades = useStore((s) => s.grades);
+  const adultGrades = useStore((s) => s.adultGrades);
+  const juniorGrades = useStore((s) => s.juniorGrades);
   const users = useStore((s) => s.users);
   const currentUser = useCurrentUser();
   const [v, setV] = useState(initial);
@@ -239,10 +240,13 @@ export function MemberForm({
                   value={v.memberType}
                   onValueChange={(x) => {
                     const type = x as Member["memberType"];
+                    const relevantGrades = type === "junior" ? juniorGrades : adultGrades;
+                    const nextGrade = relevantGrades.length > 0 ? relevantGrades[0] : "";
                     setV((p) => ({
                       ...p,
                       memberType: type,
                       league: type === "junior" ? false : p.league,
+                      grade: nextGrade,
                     }));
                   }}
                 >
@@ -262,7 +266,9 @@ export function MemberForm({
                   <SelectValue placeholder="Select grade" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  {grades.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                  {(v.memberType === "junior" ? juniorGrades : adultGrades).map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </FormField>

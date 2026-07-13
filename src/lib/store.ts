@@ -30,6 +30,8 @@ interface State {
   trainingDates: TrainingDate[];
   locations: string[];
   grades: string[];
+  adultGrades: string[];
+  juniorGrades: string[];
   holidays: string[];
   playerPositions: string[];
   leagueGroups: LeagueGroup[];
@@ -113,6 +115,8 @@ interface State {
     currency?: string;
     locations?: string[];
     grades?: string[];
+    adultGrades?: string[];
+    juniorGrades?: string[];
     holidays?: string[];
     playerPositions?: string[];
     mailHost?: string;
@@ -189,6 +193,8 @@ export const useStore = create<State>((set, get) => ({
   trainingDates: [],
   locations: [],
   grades: [],
+  adultGrades: [],
+  juniorGrades: [],
   holidays: [],
   playerPositions: [],
   appName: "Connect App",
@@ -258,6 +264,8 @@ export const useStore = create<State>((set, get) => ({
         api.get<{
           locations: string[];
           grades: string[];
+          adultGrades?: string[];
+          juniorGrades?: string[];
           holidays: string[];
           playerPositions: string[];
           appName: string;
@@ -303,6 +311,8 @@ export const useStore = create<State>((set, get) => ({
         transactions,
         locations: settings.locations,
         grades: settings.grades,
+        adultGrades: settings.adultGrades || [],
+        juniorGrades: settings.juniorGrades || [],
         holidays: settings.holidays,
         playerPositions: settings.playerPositions || [],
         appName: settings.appName || "Connect App",
@@ -655,6 +665,8 @@ export const useStore = create<State>((set, get) => ({
     const updated = await api.post<{
       locations: string[];
       grades: string[];
+      adultGrades?: string[];
+      juniorGrades?: string[];
       holidays: string[];
       playerPositions: string[];
       appName: string;
@@ -680,6 +692,8 @@ export const useStore = create<State>((set, get) => ({
     set({
       locations: updated.locations,
       grades: updated.grades,
+      adultGrades: updated.adultGrades || [],
+      juniorGrades: updated.juniorGrades || [],
       holidays: updated.holidays,
       playerPositions: updated.playerPositions || [],
       appName: updated.appName,

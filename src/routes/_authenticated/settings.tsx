@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
 
-type EditableListKey = "locations" | "grades" | "playerPositions";
+type EditableListKey = "locations" | "adultGrades" | "juniorGrades" | "playerPositions";
 
 function EditableConfigRow({
   value,
@@ -121,7 +121,16 @@ function SettingsPage() {
   useEffect(() => {
     setDebitTimingHours(store.debitTimingHours);
   }, [store.debitTimingHours]);
-  const [grades, setGrades] = useState<string[]>(store.grades);
+  const [adultGrades, setAdultGrades] = useState<string[]>(store.adultGrades);
+  const [juniorGrades, setJuniorGrades] = useState<string[]>(store.juniorGrades);
+
+  useEffect(() => {
+    setAdultGrades(store.adultGrades);
+  }, [store.adultGrades]);
+
+  useEffect(() => {
+    setJuniorGrades(store.juniorGrades);
+  }, [store.juniorGrades]);
   const [holidays, setHolidays] = useState<string[]>(store.holidays);
   const [playerPositions, setPlayerPositions] = useState<string[]>(store.playerPositions);
 
@@ -292,7 +301,8 @@ function SettingsPage() {
 
   // States for adding new items
   const [newLocation, setNewLocation] = useState("");
-  const [newGrade, setNewGrade] = useState("");
+  const [newAdultGrade, setNewAdultGrade] = useState("");
+  const [newJuniorGrade, setNewJuniorGrade] = useState("");
   const [newHoliday, setNewHoliday] = useState("");
   const [newPlayerPosition, setNewPlayerPosition] = useState("");
   const [editingList, setEditingList] = useState<EditableListKey | null>(null);
@@ -336,9 +346,11 @@ function SettingsPage() {
     const payload =
       list === "locations"
         ? { locations: updated }
-        : list === "grades"
-          ? { grades: updated }
-          : { playerPositions: updated };
+        : list === "adultGrades"
+          ? { adultGrades: updated }
+          : list === "juniorGrades"
+            ? { juniorGrades: updated }
+            : { playerPositions: updated };
     await saveUpdatedList(payload, `${successLabel} updated`);
   };
 
@@ -465,23 +477,42 @@ function SettingsPage() {
     saveUpdatedList({ locations: updated }, "Location removed");
   };
 
-  const handleAddGrade = () => {
-    const trimmed = newGrade.trim();
+  const handleAddAdultGrade = () => {
+    const trimmed = newAdultGrade.trim();
     if (!trimmed) return;
-    if (grades.includes(trimmed)) {
-      toast.error("Grade already exists");
+    if (adultGrades.includes(trimmed)) {
+      toast.error("Grade already exists in Adult Grades");
       return;
     }
-    const updated = [...grades, trimmed];
-    setGrades(updated);
-    setNewGrade("");
-    saveUpdatedList({ grades: updated }, "Grade added");
+    const updated = [...adultGrades, trimmed];
+    setAdultGrades(updated);
+    setNewAdultGrade("");
+    saveUpdatedList({ adultGrades: updated }, "Adult grade added");
   };
 
-  const handleDeleteGrade = (g: string) => {
-    const updated = grades.filter((x) => x !== g);
-    setGrades(updated);
-    saveUpdatedList({ grades: updated }, "Grade removed");
+  const handleDeleteAdultGrade = (g: string) => {
+    const updated = adultGrades.filter((x) => x !== g);
+    setAdultGrades(updated);
+    saveUpdatedList({ adultGrades: updated }, "Adult grade removed");
+  };
+
+  const handleAddJuniorGrade = () => {
+    const trimmed = newJuniorGrade.trim();
+    if (!trimmed) return;
+    if (juniorGrades.includes(trimmed)) {
+      toast.error("Grade already exists in Junior Grades");
+      return;
+    }
+    const updated = [...juniorGrades, trimmed];
+    setJuniorGrades(updated);
+    setNewJuniorGrade("");
+    saveUpdatedList({ juniorGrades: updated }, "Junior grade added");
+  };
+
+  const handleDeleteJuniorGrade = (g: string) => {
+    const updated = juniorGrades.filter((x) => x !== g);
+    setJuniorGrades(updated);
+    saveUpdatedList({ juniorGrades: updated }, "Junior grade removed");
   };
 
   const handleAddHoliday = () => {
@@ -522,7 +553,13 @@ function SettingsPage() {
   };
 
   const saveUpdatedList = async (
-    payload: { locations?: string[]; grades?: string[]; holidays?: string[]; playerPositions?: string[] },
+    payload: {
+      locations?: string[];
+      adultGrades?: string[];
+      juniorGrades?: string[];
+      holidays?: string[];
+      playerPositions?: string[];
+    },
     successMsg: string
   ) => {
     try {
@@ -532,7 +569,8 @@ function SettingsPage() {
       toast.error(err.message || "Failed to update configuration list");
       // Revert states from store
       setLocations(store.locations);
-      setGrades(store.grades);
+      setAdultGrades(store.adultGrades);
+      setJuniorGrades(store.juniorGrades);
       setHolidays(store.holidays);
       setPlayerPositions(store.playerPositions);
     }
@@ -1082,45 +1120,93 @@ function SettingsPage() {
               </CardContent>
             </Card>
 
-            {/* Grades Manager */}
+            {/* Adult Grades Manager */}
             <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
               <CardHeader className="pb-3 border-b border-white/[0.03]">
-                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-                  Member Grades / Levels
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center justify-between">
+                  <span>Adult Grades</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">For Adult Members</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
                 <div className="flex gap-2 mb-4">
                   <Input
-                    value={newGrade}
-                    onChange={(e) => setNewGrade(e.target.value)}
-                    placeholder="Add new grade (e.g. Advanced)"
-                    onKeyDown={(e) => e.key === "Enter" && handleAddGrade()}
+                    value={newAdultGrade}
+                    onChange={(e) => setNewAdultGrade(e.target.value)}
+                    placeholder="Add adult grade (e.g. A)"
+                    onKeyDown={(e) => e.key === "Enter" && handleAddAdultGrade()}
                     className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
                   />
                   <Button
                     type="button"
-                    onClick={handleAddGrade}
+                    onClick={handleAddAdultGrade}
                     className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
                   >
                     <Plus className="size-4" />
                   </Button>
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
-                  {grades.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-muted-foreground/60">No grades configured.</div>
+                  {adultGrades.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">No adult grades configured.</div>
                   ) : (
-                    grades.map((g) => (
+                    adultGrades.map((g) => (
                       <EditableConfigRow
                         key={g}
                         value={g}
-                        isEditing={editingList === "grades" && editingOriginal === g}
+                        isEditing={editingList === "adultGrades" && editingOriginal === g}
                         editValue={editingValue}
                         onEditValueChange={setEditingValue}
-                        onStartEdit={() => startEditing("grades", g)}
-                        onSave={() => renameListItem("grades", grades, setGrades, "Grade")}
+                        onStartEdit={() => startEditing("adultGrades", g)}
+                        onSave={() => renameListItem("adultGrades", adultGrades, setAdultGrades, "Adult Grade")}
                         onCancel={cancelEditing}
-                        onDelete={() => handleDeleteGrade(g)}
+                        onDelete={() => handleDeleteAdultGrade(g)}
+                      />
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Junior Grades Manager */}
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
+              <CardHeader className="pb-3 border-b border-white/[0.03]">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#818CF8] uppercase flex items-center justify-between">
+                  <span>Junior Grades</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">For Junior Members</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 flex-1 flex flex-col">
+                <div className="flex gap-2 mb-4">
+                  <Input
+                    value={newJuniorGrade}
+                    onChange={(e) => setNewJuniorGrade(e.target.value)}
+                    placeholder="Add junior grade (e.g. Beginner)"
+                    onKeyDown={(e) => e.key === "Enter" && handleAddJuniorGrade()}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddJuniorGrade}
+                    className="h-9 px-3 bg-[#818CF8] hover:bg-[#6366F1] text-white rounded-lg cursor-pointer shrink-0"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                  {juniorGrades.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">No junior grades configured.</div>
+                  ) : (
+                    juniorGrades.map((g) => (
+                      <EditableConfigRow
+                        key={g}
+                        value={g}
+                        isEditing={editingList === "juniorGrades" && editingOriginal === g}
+                        editValue={editingValue}
+                        onEditValueChange={setEditingValue}
+                        onStartEdit={() => startEditing("juniorGrades", g)}
+                        onSave={() => renameListItem("juniorGrades", juniorGrades, setJuniorGrades, "Junior Grade")}
+                        onCancel={cancelEditing}
+                        onDelete={() => handleDeleteJuniorGrade(g)}
                       />
                     ))
                   )}

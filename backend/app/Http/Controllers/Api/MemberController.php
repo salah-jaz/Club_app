@@ -34,7 +34,13 @@ class MemberController extends Controller
             'league' => 'required|boolean',
             'trainingEligible' => 'sometimes|boolean',
             'skipCreditConsumption' => 'sometimes|boolean',
-            'grade' => 'required|string',
+            'grade' => [
+                'required',
+                'string',
+                \Illuminate\Validation\Rule::exists('grades', 'name')->where(function ($query) use ($request) {
+                    $query->where('type', $request->memberType);
+                })
+            ],
             'biMemberId' => 'nullable|string',
             'nickname' => 'nullable|string|max:255',
             'status' => 'required|in:active,disabled',

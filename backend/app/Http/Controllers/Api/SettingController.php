@@ -42,6 +42,8 @@ class SettingController extends Controller
         $data = [
             'locations'       => Location::pluck('name')->toArray(),
             'grades'          => Grade::pluck('name')->toArray(),
+            'adultGrades'     => Grade::where('type', 'adult')->pluck('name')->toArray(),
+            'juniorGrades'    => Grade::where('type', 'junior')->pluck('name')->toArray(),
             'holidays'        => Holiday::pluck('date')->toArray(),
             'playerPositions' => PlayerPosition::pluck('name')->toArray(),
         ];
@@ -91,12 +93,27 @@ class SettingController extends Controller
             }
         }
 
-        if ($request->has('grades')) {
-            $newGrades = $request->grades ?? [];
-            Grade::whereNotIn('name', $newGrades)->delete();
+        if ($request->has('adultGrades')) {
+            $newAdultGrades = $request->adultGrades ?? [];
+            Grade::where('type', 'adult')->whereNotIn('name', $newAdultGrades)->delete();
             $now = now();
-            foreach ($newGrades as $g) {
-                Grade::firstOrCreate(['name' => $g], ['created_at' => $now, 'updated_at' => $now]);
+            foreach ($newAdultGrades as $g) {
+                Grade::firstOrCreate(
+                    ['name' => $g],
+                    ['type' => 'adult', 'created_at' => $now, 'updated_at' => $now]
+                );
+            }
+        }
+
+        if ($request->has('juniorGrades')) {
+            $newJuniorGrades = $request->juniorGrades ?? [];
+            Grade::where('type', 'junior')->whereNotIn('name', $newJuniorGrades)->delete();
+            $now = now();
+            foreach ($newJuniorGrades as $g) {
+                Grade::firstOrCreate(
+                    ['name' => $g],
+                    ['type' => 'junior', 'created_at' => $now, 'updated_at' => $now]
+                );
             }
         }
 
