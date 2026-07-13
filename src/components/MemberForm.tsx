@@ -50,13 +50,20 @@ export function MemberForm({
   /** Adult users adding juniors under their account — training eligibility applies here. */
   familyMemberMode?: boolean;
 }) {
-  const grades = useStore((s) => s.grades);
+  const adultGrades = useStore((s) => s.adultGrades);
+  const juniorGrades = useStore((s) => s.juniorGrades);
   const users = useStore((s) => s.users);
   const currentUser = useCurrentUser();
   const [v, setV] = useState(initial);
   const [submitting, setSubmitting] = useState(false);
   const set = <K extends keyof MemberFormValues>(k: K, val: MemberFormValues[K]) =>
-    setV((p) => ({ ...p, [k]: val }));
+    setV((p) => {
+      const next = { ...p, [k]: val };
+      if (k === "membership") {
+        next.league = val as boolean;
+      }
+      return next;
+    });
 
   const getParentEmail = () => {
     if (v.userId) {
@@ -77,6 +84,8 @@ export function MemberForm({
         finalV.email = getParentEmail();
         finalV.password = "";
       }
+      // Keep league in sync with membership
+      finalV.league = finalV.membership;
       const payload = familyMemberMode ? { ...finalV, memberType: "junior" as const, league: false } : finalV;
       await Promise.resolve(onSubmit(payload));
     } finally {
@@ -105,6 +114,13 @@ export function MemberForm({
               <Input
                 value={v.biMemberId}
                 onChange={(e) => set("biMemberId", e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
+              />
+            </FormField>
+            <FormField label="Nickname">
+              <Input
+                value={v.nickname ?? ""}
+                onChange={(e) => set("nickname", e.target.value)}
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
               />
             </FormField>
@@ -232,10 +248,13 @@ export function MemberForm({
                   value={v.memberType}
                   onValueChange={(x) => {
                     const type = x as Member["memberType"];
+                    const relevantGrades = type === "junior" ? juniorGrades : adultGrades;
+                    const nextGrade = relevantGrades.length > 0 ? relevantGrades[0] : "";
                     setV((p) => ({
                       ...p,
                       memberType: type,
-                      league: type === "junior" ? false : p.league,
+                      league: type === "junior" ? false : p.membership,
+                      grade: nextGrade,
                     }));
                   }}
                 >
@@ -255,7 +274,9 @@ export function MemberForm({
                   <SelectValue placeholder="Select grade" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  {grades.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                  {(v.memberType === "junior" ? juniorGrades : adultGrades).map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </FormField>
@@ -275,21 +296,9 @@ export function MemberForm({
               <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                 <div>
                   <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Club membership</Label>
-                  <p className="type-helper mt-1">Paid yearly fee</p>
+                  <p className="type-helper mt-1">Paid yearly fee. Receives play schedule invitations.</p>
                 </div>
                 <Switch checked={v.membership} onCheckedChange={(x) => set("membership", x)} className="data-[state=checked]:bg-[#10B981]" />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-                <div>
-                  <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">League participant</Label>
-                  <p className="type-helper mt-1">Receives play schedule invitations</p>
-                </div>
-                <Switch
-                  checked={v.league}
-                  onCheckedChange={(x) => set("league", x)}
-                  disabled={v.memberType === "junior"}
-                  className="data-[state=checked]:bg-[#10B981]"
-                />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                 <div>

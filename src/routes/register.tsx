@@ -17,7 +17,7 @@ function RegisterPage() {
   const register = useStore((s) => s.register);
   const navigate = useNavigate();
   const [f, setF] = useState({
-    firstName: "", lastName: "", sex: "male" as "male" | "female", dob: "",
+    firstName: "", lastName: "", nickname: "", sex: "male" as "male" | "female", dob: "",
     email: "", mobile: "", address: "", password: "",
   });
   const update = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -49,6 +49,10 @@ function RegisterPage() {
             <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Last name</Label>
             <Input required value={f.lastName} onChange={(e) => update("lastName", e.target.value)} className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] rounded-lg" />
           </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Nickname</Label>
+          <Input value={f.nickname} onChange={(e) => update("nickname", e.target.value)} className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] rounded-lg" placeholder="Optional" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">

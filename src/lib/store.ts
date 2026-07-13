@@ -30,6 +30,8 @@ interface State {
   trainingDates: TrainingDate[];
   locations: string[];
   grades: string[];
+  adultGrades: string[];
+  juniorGrades: string[];
   holidays: string[];
   playerPositions: string[];
   leagueGroups: LeagueGroup[];
@@ -62,6 +64,7 @@ interface State {
   verifyOtp: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
   login: (email: string, password: string) => Promise<User | null>;
+  loginAs: (memberId: string) => Promise<void>;
   logout: () => Promise<void>;
 
   // user admin
@@ -112,6 +115,8 @@ interface State {
     currency?: string;
     locations?: string[];
     grades?: string[];
+    adultGrades?: string[];
+    juniorGrades?: string[];
     holidays?: string[];
     playerPositions?: string[];
     mailHost?: string;
@@ -188,6 +193,8 @@ export const useStore = create<State>((set, get) => ({
   trainingDates: [],
   locations: [],
   grades: [],
+  adultGrades: [],
+  juniorGrades: [],
   holidays: [],
   playerPositions: [],
   appName: "Connect App",
@@ -257,6 +264,8 @@ export const useStore = create<State>((set, get) => ({
         api.get<{
           locations: string[];
           grades: string[];
+          adultGrades?: string[];
+          juniorGrades?: string[];
           holidays: string[];
           playerPositions: string[];
           appName: string;
@@ -302,6 +311,8 @@ export const useStore = create<State>((set, get) => ({
         transactions,
         locations: settings.locations,
         grades: settings.grades,
+        adultGrades: settings.adultGrades || [],
+        juniorGrades: settings.juniorGrades || [],
         holidays: settings.holidays,
         playerPositions: settings.playerPositions || [],
         appName: settings.appName || "Connect App",
@@ -356,6 +367,16 @@ export const useStore = create<State>((set, get) => ({
     return res.user;
   },
 
+  loginAs: async (memberId) => {
+    const res = await api.post<{ token: string; user: User }>(`/members/${memberId}/login-as`);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clubapp_token", res.token);
+      localStorage.setItem("clubapp_user_id", res.user.id);
+      localStorage.setItem("clubapp_active_role", res.user.role);
+    }
+    set({ currentUserId: res.user.id, currentUser: res.user, activeRole: res.user.role });
+  },
+
   logout: async () => {
     try {
       await api.post("/logout");
@@ -371,43 +392,28 @@ export const useStore = create<State>((set, get) => ({
   },
 
   approveUser: async (id, opts) => {
-    const res = await api.post<{ user: User }>(`/users/${id}/approve`, opts);
-    const members = await api.get<Member[]>("/members");
-    set((s) => ({
-      users: s.users.map((u) => (u.id === id ? res.user : u)),
-      members,
-    }));
+    await api.post<{ user: User }>(`/users/${id}/approve`, opts);
+    await get().syncData();
   },
 
   approveAllUsers: async () => {
-    const res = await api.post<{ users: User[] }>("/users/approve-all");
-    const members = await api.get<Member[]>("/members");
-    set((s) => {
-      const updatedMap = new Map(res.users.map((u) => [u.id, u]));
-      return {
-        users: s.users.map((u) => updatedMap.get(u.id) || u),
-        members,
-      };
-    });
+    await api.post<{ users: User[] }>("/users/approve-all");
+    await get().syncData();
   },
 
   rejectUser: async (id) => {
-    const res = await api.post<{ user: User }>(`/users/${id}/reject`);
-    set((s) => ({
-      users: s.users.map((u) => (u.id === id ? res.user : u)),
-    }));
+    await api.post<{ user: User }>(`/users/${id}/reject`);
+    await get().syncData();
   },
 
   setUserRole: async (id, role) => {
     const res = await api.patch<{ user: User }>(`/users/${id}/role`, { role });
-    set((s) => ({
-      users: s.users.map((u) => (u.id === id ? res.user : u)),
-    }));
     // If the active user updated their own role, update local state
     const currentUser = get().currentUser;
     if (currentUser && currentUser.id === id) {
       set({ currentUser: res.user });
     }
+    await get().syncData();
   },
 
   addMember: async (m, createLogin = false) => {
@@ -415,84 +421,50 @@ export const useStore = create<State>((set, get) => ({
     const payload = createLogin
       ? { ...member, createLogin: true, mobile, address, password }
       : member;
-    const newMember = await api.post<Member>("/members", payload);
-    set((s) => ({ members: [...s.members, newMember] }));
+    await api.post<Member>("/members", payload);
+    await get().syncData();
   },
 
   updateMember: async (id, patch) => {
-    const updated = await api.patch<Member>(`/members/${id}`, patch);
-    set((s) => ({
-      members: s.members.map((m) => (m.id === id ? updated : m)),
-    }));
+    await api.patch<Member>(`/members/${id}`, patch);
+    await get().syncData();
   },
 
   deleteMember: async (id) => {
     await api.delete(`/members/${id}`);
-    set((s) => ({ members: s.members.filter((m) => m.id !== id) }));
+    await get().syncData();
   },
 
   requestCredit: async (memberId, amount, date) => {
-    const req = await api.post<CreditRequest>("/credit-requests", { memberId, amount, date });
-    const currentUser = get().currentUser;
-    if (currentUser && currentUser.role === "admin") {
-      const members = await api.get<Member[]>("/members");
-      const txs = await api.get<Transaction[]>("/transactions");
-      set((s) => ({
-        creditRequests: [...s.creditRequests, req],
-        members,
-        transactions: txs,
-      }));
-    } else {
-      set((s) => ({ creditRequests: [...s.creditRequests, req] }));
-    }
+    await api.post<CreditRequest>("/credit-requests", { memberId, amount, date });
+    await get().syncData();
   },
 
   approveCredit: async (id) => {
-    const res = await api.post<{ request: CreditRequest; memberCredit: number }>(
+    await api.post<{ request: CreditRequest; memberCredit: number }>(
       `/credit-requests/${id}/approve`
     );
-    // Refresh ledger/members
-    const members = await api.get<Member[]>("/members");
-    const txs = await api.get<Transaction[]>("/transactions");
-    set((s) => ({
-      creditRequests: s.creditRequests.map((c) => (c.id === id ? res.request : c)),
-      members,
-      transactions: txs,
-    }));
+    await get().syncData();
   },
 
   approveAllCredits: async () => {
-    const res = await api.post<{ requests: CreditRequest[] }>("/credit-requests/approve-all");
-    // Refresh ledger/members
-    const members = await api.get<Member[]>("/members");
-    const txs = await api.get<Transaction[]>("/transactions");
-    set((s) => {
-      const updatedMap = new Map(res.requests.map((r) => [r.id, r]));
-      return {
-        creditRequests: s.creditRequests.map((c) => updatedMap.get(c.id) || c),
-        members,
-        transactions: txs,
-      };
-    });
+    await api.post<{ requests: CreditRequest[] }>("/credit-requests/approve-all");
+    await get().syncData();
   },
 
   rejectCredit: async (id) => {
-    const res = await api.post<{ request: CreditRequest }>(`/credit-requests/${id}/reject`);
-    set((s) => ({
-      creditRequests: s.creditRequests.map((c) => (c.id === id ? res.request : c)),
-    }));
+    await api.post<{ request: CreditRequest }>(`/credit-requests/${id}/reject`);
+    await get().syncData();
   },
 
   createSchedule: async (sc) => {
-    const sch = await api.post<PlaySchedule>("/schedules", sc);
-    set((s) => ({ schedules: [...s.schedules, sch] }));
+    await api.post<PlaySchedule>("/schedules", sc);
+    await get().syncData();
   },
 
   updateSchedule: async (id, patch) => {
-    const updated = await api.patch<PlaySchedule>(`/schedules/${id}`, patch);
-    set((s) => ({
-      schedules: s.schedules.map((x) => (x.id === id ? updated : x)),
-    }));
+    await api.patch<PlaySchedule>(`/schedules/${id}`, patch);
+    await get().syncData();
   },
 
   releaseSchedule: async (id) => {
@@ -502,70 +474,48 @@ export const useStore = create<State>((set, get) => ({
       message?: string;
       inviteCount?: number;
     }>(`/schedules/${id}/release`);
-    const invites = await api.get<PlayInvitation[]>("/play-invitations");
-    set((s) => ({
-      schedules: s.schedules.map((x) => (x.id === id ? res.schedule : x)),
-      playInvites: invites,
-    }));
+    await get().syncData();
     return { message: res.message, inviteCount: res.inviteCount };
   },
 
   closeSchedule: async (id) => {
-    const res = await api.post<{ schedule: PlaySchedule }>(`/schedules/${id}/close`);
-    set((s) => ({
-      schedules: s.schedules.map((x) => (x.id === id ? res.schedule : x)),
-    }));
+    await api.post<{ schedule: PlaySchedule }>(`/schedules/${id}/close`);
+    await get().syncData();
   },
 
   deleteSchedule: async (id) => {
     await api.delete(`/schedules/${id}`);
-    set((s) => ({ schedules: s.schedules.filter((x) => x.id !== id) }));
+    await get().syncData();
   },
 
   respondPlay: async (inviteId, status) => {
-    const updated = await api.post<PlayInvitation>(`/play-invitations/${inviteId}/respond`, {
+    await api.post<PlayInvitation>(`/play-invitations/${inviteId}/respond`, {
       status,
     });
-    set((s) => ({
-      playInvites: s.playInvites.map((i) => (i.id === inviteId ? updated : i)),
-    }));
+    await get().syncData();
   },
 
   generateRotation: async (scheduleId) => {
-    const res = await api.post<{ schedule: PlaySchedule; rotation: Rotation }>(
+    await api.post<{ schedule: PlaySchedule; rotation: Rotation }>(
       `/schedules/${scheduleId}/rotate`
     );
-    // Reload rotations, schedules, members, transactions
-    const [rotations, schedules, members, transactions] = await Promise.all([
-      api.get<Rotation[]>("/rotations"),
-      api.get<PlaySchedule[]>("/schedules"),
-      api.get<Member[]>("/members"),
-      api.get<Transaction[]>("/transactions"),
-    ]);
-    set({
-      rotations,
-      schedules,
-      members,
-      transactions,
-    });
+    await get().syncData();
   },
 
   createTraining: async (t) => {
     const tr = await api.post<Training>("/trainings", t);
-    const res = await api.post<{ training: Training }>(`/trainings/${tr.id}/release`, { memberIds: [] });
-    set((s) => ({ trainings: [...s.trainings, res.training] }));
+    await api.post<{ training: Training }>(`/trainings/${tr.id}/release`, { memberIds: [] });
+    await get().syncData();
   },
 
   updateTraining: async (id, patch) => {
-    const updated = await api.patch<Training>(`/trainings/${id}`, patch);
-    set((s) => ({
-      trainings: s.trainings.map((x) => (x.id === id ? updated : x)),
-    }));
+    await api.patch<Training>(`/trainings/${id}`, patch);
+    await get().syncData();
   },
 
   deleteTraining: async (id) => {
     await api.delete(`/trainings/${id}`);
-    set((s) => ({ trainings: s.trainings.filter((x) => x.id !== id) }));
+    await get().syncData();
   },
 
   releaseTraining: async (trainingId, memberIds) => {
@@ -575,75 +525,41 @@ export const useStore = create<State>((set, get) => ({
       dates: TrainingDate[];
       message?: string;
     }>(`/trainings/${trainingId}/release`, { memberIds: memberIds ?? [] });
-
-    const [invites, dates] = await Promise.all([
-      api.get<TrainingInvitation[]>("/training-invitations"),
-      api.get<TrainingDate[]>("/training-dates"),
-    ]);
-
-    set((s) => ({
-      trainings: s.trainings.map((x) => (x.id === trainingId ? res.training : x)),
-      trainingInvites: invites,
-      trainingDates: dates,
-    }));
+    await get().syncData();
     return { message: res.message };
   },
 
   enrollTraining: async (trainingId, memberIds) => {
     await api.post(`/trainings/${trainingId}/enroll`, { memberIds });
-
-    const [trainings, invites, dates] = await Promise.all([
-      api.get<Training[]>("/trainings"),
-      api.get<TrainingInvitation[]>("/training-invitations"),
-      api.get<TrainingDate[]>("/training-dates"),
-    ]);
-
-    set((s) => ({
-      trainings,
-      trainingInvites: invites,
-      trainingDates: dates,
-    }));
+    await get().syncData();
   },
 
   registerTrainingJunior: async (trainingId, memberId, status) => {
     await api.post(`/trainings/${trainingId}/register`, { memberId, status });
-
-    const [invites, dates, trainings] = await Promise.all([
-      api.get<TrainingInvitation[]>("/training-invitations"),
-      api.get<TrainingDate[]>("/training-dates"),
-      api.get<Training[]>("/trainings"),
-    ]);
-
-    set({
-      trainingInvites: invites,
-      trainingDates: dates,
-      trainings,
-    });
+    await get().syncData();
   },
 
   respondTraining: async (inviteId, status) => {
-    const updated = await api.post<TrainingInvitation>(
+    await api.post<TrainingInvitation>(
       `/training-invitations/${inviteId}/respond`,
       { status }
     );
-    set((s) => ({
-      trainingInvites: s.trainingInvites.map((i) => (i.id === inviteId ? updated : i)),
-    }));
+    await get().syncData();
   },
 
   markAttendance: async (dateId, attended) => {
-    const updated = await api.patch<TrainingDate>(`/training-dates/${dateId}/attendance`, {
+    await api.patch<TrainingDate>(`/training-dates/${dateId}/attendance`, {
       attended,
     });
-    set((s) => ({
-      trainingDates: s.trainingDates.map((d) => (d.id === dateId ? updated : d)),
-    }));
+    await get().syncData();
   },
 
   updateSettings: async (settings) => {
     const updated = await api.post<{
       locations: string[];
       grades: string[];
+      adultGrades?: string[];
+      juniorGrades?: string[];
       holidays: string[];
       playerPositions: string[];
       appName: string;
@@ -669,6 +585,8 @@ export const useStore = create<State>((set, get) => ({
     set({
       locations: updated.locations,
       grades: updated.grades,
+      adultGrades: updated.adultGrades || [],
+      juniorGrades: updated.juniorGrades || [],
       holidays: updated.holidays,
       playerPositions: updated.playerPositions || [],
       appName: updated.appName,
@@ -708,20 +626,18 @@ export const useStore = create<State>((set, get) => ({
   },
 
   createLeagueGroup: async (g) => {
-    const newGroup = await api.post<LeagueGroup>("/league-groups", g);
-    set((s) => ({ leagueGroups: [...s.leagueGroups, newGroup] }));
+    await api.post<LeagueGroup>("/league-groups", g);
+    await get().syncData();
   },
 
   updateLeagueGroup: async (id, patch) => {
-    const updated = await api.patch<LeagueGroup>(`/league-groups/${id}`, patch);
-    set((s) => ({
-      leagueGroups: s.leagueGroups.map((g) => (g.id === id ? updated : g)),
-    }));
+    await api.patch<LeagueGroup>(`/league-groups/${id}`, patch);
+    await get().syncData();
   },
 
   deleteLeagueGroup: async (id) => {
     await api.delete(`/league-groups/${id}`);
-    set((s) => ({ leagueGroups: s.leagueGroups.filter((g) => g.id !== id) }));
+    await get().syncData();
   },
 
   setActiveRole: (role: Role) => {
@@ -735,8 +651,7 @@ export const useStore = create<State>((set, get) => ({
     const formData = new FormData();
     formData.append("file", file);
     await api.post("/members/bulk-upload", formData);
-    const members = await api.get<Member[]>("/members");
-    set({ members });
+    await get().syncData();
   },
 }));
 

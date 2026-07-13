@@ -30,8 +30,8 @@ type ApproveOptions = {
   trainingEligible: boolean;
 };
 
-function defaultApproveOptions(): ApproveOptions {
-  return { memberType: "adult", grade: "Beginner", league: false, trainingEligible: false };
+function defaultApproveOptions(defaultGrade: string = "B"): ApproveOptions {
+  return { memberType: "adult", grade: defaultGrade, league: false, trainingEligible: false };
 }
 
 /** Inline spinner SVG for button loading states */
@@ -48,12 +48,13 @@ function Approvals() {
   const user = useCurrentUser()!;
   if (user.role !== "admin") return <Navigate to="/dashboard" />;
   const s = useStore();
-  const grades = useStore((st) => st.grades);
+  const adultGrades = useStore((st) => st.adultGrades);
+  const juniorGrades = useStore((st) => st.juniorGrades);
   const pendingU = s.users.filter((u) => u.status === "created");
   const pendingC = s.creditRequests.filter((c) => c.status === "created");
 
   const [approveTarget, setApproveTarget] = useState<User | null>(null);
-  const [opts, setOpts] = useState<ApproveOptions>(defaultApproveOptions);
+  const [opts, setOpts] = useState<ApproveOptions>(() => defaultApproveOptions());
   const [submitting, setSubmitting] = useState(false);
 
   // Per-row loading states
@@ -63,14 +64,18 @@ function Approvals() {
 
   const openApprove = (u: User) => {
     setApproveTarget(u);
-    setOpts(defaultApproveOptions());
+    const defaultGrade = adultGrades.length > 0 ? adultGrades[0] : "B";
+    setOpts(defaultApproveOptions(defaultGrade));
   };
 
   const setMemberType = (memberType: MemberType) => {
+    const relevantGrades = memberType === "junior" ? juniorGrades : adultGrades;
+    const nextGrade = relevantGrades.length > 0 ? relevantGrades[0] : "";
     setOpts((p) => ({
       ...p,
       memberType,
-      league: memberType === "junior" ? false : p.league,
+      league: memberType === "junior" ? false : true,
+      grade: nextGrade,
     }));
   };
 
@@ -316,23 +321,14 @@ function Approvals() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  {grades.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                  {(opts.memberType === "junior" ? juniorGrades : adultGrades).map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
-              <div>
-                <Label className="text-[11px] font-medium text-[#F1F0EE]">League participant</Label>
-                <p className="text-xs text-muted-foreground">Eligible for play schedule invitations</p>
-              </div>
-              <Switch
-                checked={opts.league}
-                onCheckedChange={(league) => setOpts((p) => ({ ...p, league }))}
-                disabled={opts.memberType === "junior"}
-                className="data-[state=checked]:bg-[#10B981]"
-              />
-            </div>
+
 
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>

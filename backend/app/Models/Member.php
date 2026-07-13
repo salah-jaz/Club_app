@@ -16,6 +16,7 @@ class Member extends Model
         'user_id',
         'first_name',
         'last_name',
+        'nickname',
         'dob',
         'email',
         'sex',
@@ -72,8 +73,7 @@ class Member extends Model
     {
         return $query->where('member_type', 'adult')
             ->where('status', 'active')
-            ->where('membership', true)
-            ->where('league', true);
+            ->where('membership', true);
     }
 
     public function scopeEligibleForTraining($query)

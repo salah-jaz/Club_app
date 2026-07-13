@@ -6,13 +6,17 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { Plus, LayoutGrid, List } from "lucide-react";
+import { Plus, LayoutGrid, List, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/trainings")({ component: TrainingsLayout });
 
@@ -33,6 +37,47 @@ function TrainingsList() {
   const [viewMode, setViewMode] = useState<"grid" | "list">(
     () => (localStorage.getItem("clubapp-view-mode-trainings") as "grid" | "list") || "grid"
   );
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setSortBy("newest");
+  };
+
+  const hasActiveFilters = searchTerm !== "" || statusFilter !== "all";
+
+  const filteredTrainings = useMemo(() => {
+    let result = [...s.trainings];
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(
+        (t) =>
+          t.name.toLowerCase().includes(term) ||
+          t.coach.toLowerCase().includes(term)
+      );
+    }
+    if (statusFilter !== "all") {
+      result = result.filter((t) => t.status === statusFilter);
+    }
+    return result.sort((a, b) => {
+      if (sortBy === "newest") {
+        return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+      }
+      if (sortBy === "oldest") {
+        return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+      }
+      if (sortBy === "fees_high") {
+        return b.fees - a.fees;
+      }
+      if (sortBy === "fees_low") {
+        return a.fees - b.fees;
+      }
+      return 0;
+    });
+  }, [s.trainings, searchTerm, statusFilter, sortBy]);
 
   return (
     <div>
@@ -43,35 +88,118 @@ function TrainingsList() {
       />
 
       {s.trainings.length > 0 && (
-        <div className="flex items-center justify-between mb-4 mt-6">
-          <span className="type-helper text-xs">{s.trainings.length} programs found</span>
-          <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg">
-            <button
-              onClick={() => {
-                setViewMode("grid");
-                localStorage.setItem("clubapp-view-mode-trainings", "grid");
-              }}
-              className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-              }`}
-              title="Grid view"
-            >
-              <LayoutGrid className="size-4" />
-            </button>
-            <button
-              onClick={() => {
-                setViewMode("list");
-                localStorage.setItem("clubapp-view-mode-trainings", "list");
-              }}
-              className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-              }`}
-              title="List view"
-            >
-              <List className="size-4" />
-            </button>
+        <>
+          {/* Filter Toolbar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-3.5 rounded-xl mt-6">
+            <div className="flex items-center gap-3 flex-1 flex-wrap">
+              {/* Search */}
+              <div className="relative w-full max-w-[320px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search program or coach..."
+                  className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Dropdown */}
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className={cn(
+                  "bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[150px] rounded-lg cursor-pointer text-xs",
+                  statusFilter !== "all" && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]"
+                )}>
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
+                  <SelectItem value="created" className="text-xs">Draft</SelectItem>
+                  <SelectItem value="open" className="text-xs">Enrollment Open</SelectItem>
+                  <SelectItem value="released" className="text-xs">Released</SelectItem>
+                  <SelectItem value="closed" className="text-xs">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Sort By */}
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[180px] rounded-lg cursor-pointer text-xs">
+                  <SelectValue placeholder="Sort By" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="newest" className="text-xs">Newest Start Date</SelectItem>
+                  <SelectItem value="oldest" className="text-xs">Oldest Start Date</SelectItem>
+                  <SelectItem value="fees_high" className="text-xs">Fees (High-Low)</SelectItem>
+                  <SelectItem value="fees_low" className="text-xs">Fees (Low-High)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-10">
+              <button
+                onClick={() => {
+                  setViewMode("grid");
+                  localStorage.setItem("clubapp-view-mode-trainings", "grid");
+                }}
+                className={`px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center ${
+                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
+                }`}
+                title="Grid view"
+              >
+                <LayoutGrid className="size-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode("list");
+                  localStorage.setItem("clubapp-view-mode-trainings", "list");
+                }}
+                className={`px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center ${
+                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
+                }`}
+                title="List view"
+              >
+                <List className="size-4" />
+              </button>
+            </div>
           </div>
-        </div>
+
+          {/* Active Chips Row */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-2 mb-6 bg-[#131916] p-3 border border-[rgba(255,255,255,0.06)] rounded-xl">
+              <span className="text-[11px] font-medium text-[#8A8A98]">Active Filters:</span>
+              {searchTerm && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
+                  <span>Search: {searchTerm}</span>
+                  <button onClick={() => setSearchTerm("")} className="hover:text-white transition-colors cursor-pointer">
+                    <X className="size-3 text-[#10B981]" />
+                  </button>
+                </span>
+              )}
+              {statusFilter !== "all" && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
+                  <span>Status: {statusFilter === "created" ? "Draft" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}</span>
+                  <button onClick={() => setStatusFilter("all")} className="hover:text-white transition-colors cursor-pointer">
+                    <X className="size-3 text-[#10B981]" />
+                  </button>
+                </span>
+              )}
+              <button
+                onClick={resetFilters}
+                className="text-[11px] font-medium text-[#8A8A98] hover:text-[#EEF2F0] underline underline-offset-4 ml-1 cursor-pointer transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {s.trainings.length === 0 ? (
@@ -82,6 +210,25 @@ function TrainingsList() {
           ctaLabel={user.role === "admin" ? "New training" : undefined}
           ctaTo={user.role === "admin" ? "/trainings/new" : undefined}
         />
+      ) : filteredTrainings.length === 0 ? (
+        <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916]">
+          <CardContent className="p-10 text-center text-[#8A8A98]">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <Plus className="size-12 text-[#4A4A5A] transform rotate-45" />
+              <h3 className="text-[14px] font-normal text-[#8A8A98]">No matching training programs found.</h3>
+              <p className="text-[12px] font-light text-[#4A4A5A] max-w-[280px]">
+                Try adjusting your search terms or status filters.
+              </p>
+              <Button
+                variant="outline"
+                onClick={resetFilters}
+                className="border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] hover:bg-white/5 text-[#F1F0EE] h-9 text-xs rounded-lg mt-2 px-4 cursor-pointer"
+              >
+                Reset Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ) : viewMode === "grid" ? (
         <motion.div
           variants={staggerContainer}
@@ -89,7 +236,7 @@ function TrainingsList() {
           animate="show"
           className="grid md:grid-cols-2 gap-5"
         >
-          {s.trainings.map((t) => (
+          {filteredTrainings.map((t) => (
             <motion.div
               key={t.id}
               variants={staggerItem}
@@ -174,7 +321,7 @@ function TrainingsList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {s.trainings.map((t) => (
+              {filteredTrainings.map((t) => (
                 <TableRow key={t.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
                   <TableCell className="px-5 py-3.5 font-bold text-[14.5px] text-[#EEF2F0]">{t.name}</TableCell>
                   <TableCell className="type-table-body">{t.coach}</TableCell>

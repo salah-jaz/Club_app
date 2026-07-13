@@ -28,7 +28,13 @@ class UserController extends Controller
     {
         $request->validate([
             'memberType' => 'sometimes|in:adult,junior',
-            'grade' => 'sometimes|string',
+            'grade' => [
+                'sometimes',
+                'string',
+                \Illuminate\Validation\Rule::exists('grades', 'name')->where(function ($query) use ($request) {
+                    $query->where('type', $request->input('memberType', 'adult'));
+                })
+            ],
             'league' => 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
         ]);
@@ -42,6 +48,8 @@ class UserController extends Controller
             ? $request->boolean('trainingEligible')
             : ($memberType === 'junior');
 
+        $defaultGrade = Grade::where('type', $memberType)->first()?->name ?? ($memberType === 'junior' ? 'Beginner' : 'B');
+
         $member = Member::create([
             'id' => 'm_' . Str::random(8),
             'user_id' => $user->id,
@@ -52,9 +60,10 @@ class UserController extends Controller
             'sex' => $user->sex,
             'member_type' => $memberType,
             'membership' => true,
-            'league' => $request->boolean('league'),
+            'league' => $request->has('league') ? $request->boolean('league') : ($memberType === 'adult'),
             'training_eligible' => $trainingEligible,
-            'grade' => $request->input('grade', 'Beginner'),
+            'grade' => $request->input('grade', $defaultGrade),
+            'nickname' => $user->nickname,
             'status' => 'active',
             'credit' => 0.00,
         ]);
@@ -109,10 +118,11 @@ class UserController extends Controller
     private function formatUser(User $u)
     {
         return [
-            'id' => $u->id,
-            'firstName' => $u->first_name,
-            'lastName' => $u->last_name,
-            'sex' => $u->sex,
+             'id' => $u->id,
+             'firstName' => $u->first_name,
+             'lastName' => $u->last_name,
+             'nickname' => $u->nickname,
+             'sex' => $u->sex,
             'dob' => $u->dob,
             'email' => $u->email,
             'mobile' => $u->mobile,
@@ -135,10 +145,11 @@ class UserController extends Controller
             'sex' => $m->sex,
             'memberType' => $m->member_type,
             'membership' => (bool) $m->membership,
-            'league' => (bool) $m->league,
+            'league' => (bool) $m->membership,
             'trainingEligible' => (bool) $m->training_eligible,
             'grade' => $m->grade,
             'biMemberId' => $m->bi_member_id ?? '',
+            'nickname' => $m->nickname ?? '',
             'status' => $m->status,
             'credit' => (float) $m->credit,
         ];
