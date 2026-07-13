@@ -31,7 +31,7 @@ class MemberController extends Controller
             'sex' => 'required|in:male,female',
             'memberType' => 'required|in:adult,junior',
             'membership' => 'required|boolean',
-            'league' => 'required|boolean',
+            'league' => 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
             'skipCreditConsumption' => 'sometimes|boolean',
             'grade' => [
@@ -79,7 +79,7 @@ class MemberController extends Controller
                     'sex' => $request->sex,
                     'member_type' => $request->memberType,
                     'membership' => $request->membership,
-                    'league' => $request->league,
+                    'league' => $request->memberType === 'junior' ? false : $request->boolean('membership'),
                     'training_eligible' => $this->resolveTrainingEligible($request),
                     'grade' => $request->grade,
                     'bi_member_id' => $request->biMemberId,
@@ -104,7 +104,7 @@ class MemberController extends Controller
                 'sex' => $request->sex,
                 'member_type' => $request->memberType,
                 'membership' => $request->membership,
-                'league' => $request->league,
+                'league' => $request->memberType === 'junior' ? false : $request->boolean('membership'),
                 'training_eligible' => $this->resolveTrainingEligible($request),
                 'grade' => $request->grade,
                 'bi_member_id' => $request->biMemberId,
@@ -129,7 +129,10 @@ class MemberController extends Controller
         if ($request->has('email')) $data['email'] = $request->email;
         if ($request->has('sex')) $data['sex'] = $request->sex;
         if ($request->has('memberType')) $data['member_type'] = $request->memberType;
-        if ($request->has('membership')) $data['membership'] = $request->membership;
+        if ($request->has('membership')) {
+            $data['membership'] = $request->membership;
+            $data['league'] = $request->membership;
+        }
         if ($request->has('league')) $data['league'] = $request->league;
         if ($request->has('trainingEligible')) $data['training_eligible'] = $request->trainingEligible;
         if ($request->has('grade')) $data['grade'] = $request->grade;
@@ -250,7 +253,7 @@ class MemberController extends Controller
             'sex' => $m->sex,
             'memberType' => $m->member_type,
             'membership' => (bool)$m->membership,
-            'league' => (bool)$m->league,
+            'league' => (bool)$m->membership,
             'trainingEligible' => (bool)$m->training_eligible,
             'grade' => $m->grade,
             'biMemberId' => $m->bi_member_id ?? "",
@@ -333,7 +336,7 @@ class MemberController extends Controller
                         'sex' => $row['sex'] ?? 'male',
                         'member_type' => $row['member_type'] ?? $row['membertype'] ?? 'adult',
                         'membership' => filter_var($row['membership'] ?? true, FILTER_VALIDATE_BOOLEAN),
-                        'league' => filter_var($row['league'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'league' => filter_var($row['league'] ?? $row['membership'] ?? false, FILTER_VALIDATE_BOOLEAN),
                         'training_eligible' => filter_var($row['training_eligible'] ?? $row['trainingeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
                         'grade' => $row['grade'] ?? 'Beginner',
                         'bi_member_id' => $row['bi_member_id'] ?? $row['bimemberid'] ?? null,

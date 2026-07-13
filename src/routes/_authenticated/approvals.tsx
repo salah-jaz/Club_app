@@ -74,7 +74,7 @@ function Approvals() {
     setOpts((p) => ({
       ...p,
       memberType,
-      league: memberType === "junior" ? false : p.league,
+      league: memberType === "junior" ? false : true,
       grade: nextGrade,
     }));
   };
@@ -328,18 +328,7 @@ function Approvals() {
               </Select>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
-              <div>
-                <Label className="text-[11px] font-medium text-[#F1F0EE]">League participant</Label>
-                <p className="text-xs text-muted-foreground">Eligible for play schedule invitations</p>
-              </div>
-              <Switch
-                checked={opts.league}
-                onCheckedChange={(league) => setOpts((p) => ({ ...p, league }))}
-                disabled={opts.memberType === "junior"}
-                className="data-[state=checked]:bg-[#10B981]"
-              />
-            </div>
+
 
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>

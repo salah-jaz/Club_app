@@ -57,7 +57,13 @@ export function MemberForm({
   const [v, setV] = useState(initial);
   const [submitting, setSubmitting] = useState(false);
   const set = <K extends keyof MemberFormValues>(k: K, val: MemberFormValues[K]) =>
-    setV((p) => ({ ...p, [k]: val }));
+    setV((p) => {
+      const next = { ...p, [k]: val };
+      if (k === "membership") {
+        next.league = val as boolean;
+      }
+      return next;
+    });
 
   const getParentEmail = () => {
     if (v.userId) {
@@ -78,6 +84,8 @@ export function MemberForm({
         finalV.email = getParentEmail();
         finalV.password = "";
       }
+      // Keep league in sync with membership
+      finalV.league = finalV.membership;
       const payload = familyMemberMode ? { ...finalV, memberType: "junior" as const, league: false } : finalV;
       await Promise.resolve(onSubmit(payload));
     } finally {
@@ -245,7 +253,7 @@ export function MemberForm({
                     setV((p) => ({
                       ...p,
                       memberType: type,
-                      league: type === "junior" ? false : p.league,
+                      league: type === "junior" ? false : p.membership,
                       grade: nextGrade,
                     }));
                   }}
@@ -288,21 +296,9 @@ export function MemberForm({
               <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                 <div>
                   <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Club membership</Label>
-                  <p className="type-helper mt-1">Paid yearly fee</p>
+                  <p className="type-helper mt-1">Paid yearly fee. Receives play schedule invitations.</p>
                 </div>
                 <Switch checked={v.membership} onCheckedChange={(x) => set("membership", x)} className="data-[state=checked]:bg-[#10B981]" />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-                <div>
-                  <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">League participant</Label>
-                  <p className="type-helper mt-1">Receives play schedule invitations</p>
-                </div>
-                <Switch
-                  checked={v.league}
-                  onCheckedChange={(x) => set("league", x)}
-                  disabled={v.memberType === "junior"}
-                  className="data-[state=checked]:bg-[#10B981]"
-                />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                 <div>

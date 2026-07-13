@@ -101,11 +101,6 @@ function MemberTags({ member }: { member: Member }) {
           {member.grade}
         </Badge>
       )}
-      {member.league && (
-        <Badge variant="outline" className="text-[10px] font-medium bg-[#818CF8]/10 text-[#A5B4FC] border-[#818CF8]/25 px-2 py-0">
-          League
-        </Badge>
-      )}
       {member.membership && (
         <Badge variant="outline" className="text-[10px] font-medium bg-[#2DD4BF]/10 text-[#5EEAD4] border-[#2DD4BF]/25 px-2 py-0">
           Member
