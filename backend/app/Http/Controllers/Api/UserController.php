@@ -139,6 +139,7 @@ class UserController extends Controller
             'trainingEligible' => (bool) $m->training_eligible,
             'grade' => $m->grade,
             'biMemberId' => $m->bi_member_id ?? '',
+            'nickname' => $m->nickname ?? '',
             'status' => $m->status,
             'credit' => (float) $m->credit,
         ];

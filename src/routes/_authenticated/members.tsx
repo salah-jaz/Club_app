@@ -16,7 +16,7 @@ import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar"
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Trash2, LogIn } from "lucide-react";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -131,6 +131,7 @@ function MemberActions({
   deleteMember: (id: string) => Promise<void>;
   compact?: boolean;
 }) {
+  const loginAs = useStore((s) => s.loginAs);
   const isJunior = member.memberType.toLowerCase() === "junior";
   const canEdit = activeRole === "admin" || (activeRole === "member" && isJunior);
   const canCredits = activeRole === "admin" || activeRole === "member";
@@ -138,6 +139,25 @@ function MemberActions({
 
   return (
     <div className={cn("flex gap-2", compact ? "justify-end flex-wrap" : "w-full")}>
+      {activeRole === "admin" && !isJunior && (
+        <Button
+          variant="outline"
+          className={cn("bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 hover:cursor-pointer", btnClass)}
+          onClick={async () => {
+            if (confirm(`Login as ${member.firstName} ${member.lastName}?`)) {
+              try {
+                await loginAs(member.id);
+                toast.success(`Logged in as ${member.firstName}`);
+                window.location.href = "/dashboard";
+              } catch (error: any) {
+                toast.error(error.message || "Failed to login as member.");
+              }
+            }
+          }}
+        >
+          <LogIn className="size-3.5 mr-1" /> Login
+        </Button>
+      )}
       {canEdit && (
         <Button asChild variant="outline" className={cn("btn-premium-outline hover:cursor-pointer", btnClass)}>
           <Link to="/members/$id/edit" params={{ id: member.id }}>

@@ -32,6 +32,7 @@ export interface Member {
   skipCreditConsumption: boolean;
   grade: string;
   biMemberId: string;
+  nickname?: string;
   status: "active" | "disabled";
   credit: number;
 }

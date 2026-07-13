@@ -108,6 +108,13 @@ export function MemberForm({
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
               />
             </FormField>
+            <FormField label="Nickname">
+              <Input
+                value={v.nickname ?? ""}
+                onChange={(e) => set("nickname", e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
+              />
+            </FormField>
             <FormField label="First name">
               <Input
                 required

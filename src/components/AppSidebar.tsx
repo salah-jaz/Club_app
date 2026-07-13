@@ -70,21 +70,6 @@ export function AppSidebar() {
             <span className="text-[11px] text-muted-foreground capitalize">{activeRole}</span>
           </div>
         </div>
-        {user.role === "admin" && (
-          <div className="px-4 py-2 border-t border-b border-white/[0.03] group-data-[collapsible=icon]:hidden flex items-center justify-between text-xs">
-            <span className="text-[#8A8A98]">Mode: <strong className="text-[#34D399] uppercase">{activeRole}</strong></span>
-            <button
-              onClick={() => {
-                const nextRole = activeRole === "admin" ? "member" : "admin";
-                setActiveRole(nextRole);
-                toast.success(`Switched view to ${nextRole}`);
-              }}
-              className="px-2 py-1 bg-white/5 rounded border border-white/10 text-[10px] uppercase font-semibold text-[#10B981] hover:bg-white/10 cursor-pointer shrink-0"
-            >
-              Switch
-            </button>
-          </div>
-        )}
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

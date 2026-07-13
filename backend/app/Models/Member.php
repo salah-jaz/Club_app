@@ -16,6 +16,7 @@ class Member extends Model
         'user_id',
         'first_name',
         'last_name',
+        'nickname',
         'dob',
         'email',
         'sex',

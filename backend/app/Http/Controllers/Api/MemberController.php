@@ -36,6 +36,7 @@ class MemberController extends Controller
             'skipCreditConsumption' => 'sometimes|boolean',
             'grade' => 'required|string',
             'biMemberId' => 'nullable|string',
+            'nickname' => 'nullable|string|max:255',
             'status' => 'required|in:active,disabled',
         ];
 
@@ -76,6 +77,7 @@ class MemberController extends Controller
                     'training_eligible' => $this->resolveTrainingEligible($request),
                     'grade' => $request->grade,
                     'bi_member_id' => $request->biMemberId,
+                    'nickname' => $request->nickname,
                     'status' => $request->status,
                     'credit' => 0.00,
                     'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
@@ -100,6 +102,7 @@ class MemberController extends Controller
                 'training_eligible' => $this->resolveTrainingEligible($request),
                 'grade' => $request->grade,
                 'bi_member_id' => $request->biMemberId,
+                'nickname' => $request->nickname,
                 'status' => $request->status,
                 'credit' => 0.00,
                 'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
@@ -125,6 +128,7 @@ class MemberController extends Controller
         if ($request->has('trainingEligible')) $data['training_eligible'] = $request->trainingEligible;
         if ($request->has('grade')) $data['grade'] = $request->grade;
         if ($request->has('biMemberId')) $data['bi_member_id'] = $request->biMemberId;
+        if ($request->has('nickname')) $data['nickname'] = $request->nickname;
         if ($request->has('status')) $data['status'] = $request->status;
         if ($request->has('credit')) $data['credit'] = $request->credit;
         if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->skipCreditConsumption;
@@ -166,6 +170,68 @@ class MemberController extends Controller
         return response()->json(['message' => 'Member deleted successfully.']);
     }
 
+    public function nextBiMemberId()
+    {
+        $members = Member::whereNotNull('bi_member_id')->get();
+        
+        $maxNum = 0;
+        $padding = 3;
+        
+        foreach ($members as $member) {
+            if (preg_match('/BI[-\s]?(\d+)/i', $member->bi_member_id, $matches)) {
+                $num = (int)$matches[1];
+                if ($num > $maxNum) {
+                    $maxNum = $num;
+                    $padding = max($padding, strlen($matches[1]));
+                }
+            }
+        }
+        
+        $nextNum = $maxNum + 1;
+        $nextId = 'BI' . str_pad($nextNum, $padding, '0', STR_PAD_LEFT);
+        
+        return response()->json(['nextBiMemberId' => $nextId]);
+    }
+
+    public function loginAs(Request $request, $id)
+    {
+        // Only admin role can impersonate
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $member = Member::findOrFail($id);
+        
+        if (!$member->user_id) {
+            return response()->json(['message' => 'This member does not have a user account.'], 422);
+        }
+
+        $user = User::findOrFail($member->user_id);
+
+        if ($user->status !== 'active') {
+            return response()->json(['message' => 'User account is not active.'], 422);
+        }
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'firstName' => $user->first_name,
+                'lastName' => $user->last_name,
+                'sex' => $user->sex,
+                'dob' => $user->dob,
+                'email' => $user->email,
+                'mobile' => $user->mobile,
+                'address' => $user->address,
+                'role' => $user->role,
+                'status' => $user->status,
+                'createdAt' => $user->created_at->toISOString(),
+            ]
+        ]);
+    }
+
     private function formatMember(Member $m)
     {
         return [
@@ -182,6 +248,7 @@ class MemberController extends Controller
             'trainingEligible' => (bool)$m->training_eligible,
             'grade' => $m->grade,
             'biMemberId' => $m->bi_member_id ?? "",
+            'nickname' => $m->nickname ?? "",
             'status' => $m->status,
             'credit' => (float)$m->credit,
             'skipCreditConsumption' => (bool)$m->skip_credit_consumption,
@@ -264,6 +331,7 @@ class MemberController extends Controller
                         'training_eligible' => filter_var($row['training_eligible'] ?? $row['trainingeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
                         'grade' => $row['grade'] ?? 'Beginner',
                         'bi_member_id' => $row['bi_member_id'] ?? $row['bimemberid'] ?? null,
+                        'nickname' => $row['nickname'] ?? $row['alias'] ?? null,
                         'status' => $row['status'] ?? 'active',
                         'credit' => 0.00,
                     ]);

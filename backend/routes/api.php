@@ -33,9 +33,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/users/{id}/role', [UserController::class, 'setRole']);
 
     // Members CRUD
+    Route::get('/members/next-bi-member-id', [MemberController::class, 'nextBiMemberId']);
     Route::get('/members', [MemberController::class, 'index']);
     Route::post('/members', [MemberController::class, 'store']);
     Route::post('/members/bulk-upload', [MemberController::class, 'bulkUpload']);
+    Route::post('/members/{id}/login-as', [MemberController::class, 'loginAs']);
     Route::patch('/members/{id}', [MemberController::class, 'update']);
     Route::delete('/members/{id}', [MemberController::class, 'destroy']);
 

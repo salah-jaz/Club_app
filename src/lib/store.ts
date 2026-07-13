@@ -62,6 +62,7 @@ interface State {
   verifyOtp: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
   login: (email: string, password: string) => Promise<User | null>;
+  loginAs: (memberId: string) => Promise<void>;
   logout: () => Promise<void>;
 
   // user admin
@@ -354,6 +355,16 @@ export const useStore = create<State>((set, get) => ({
     }
     set({ currentUserId: res.user.id, currentUser: res.user, activeRole: res.user.role });
     return res.user;
+  },
+
+  loginAs: async (memberId) => {
+    const res = await api.post<{ token: string; user: User }>(`/members/${memberId}/login-as`);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clubapp_token", res.token);
+      localStorage.setItem("clubapp_user_id", res.user.id);
+      localStorage.setItem("clubapp_active_role", res.user.role);
+    }
+    set({ currentUserId: res.user.id, currentUser: res.user, activeRole: res.user.role });
   },
 
   logout: async () => {
