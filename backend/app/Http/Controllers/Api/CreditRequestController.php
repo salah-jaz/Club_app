@@ -26,13 +26,39 @@ class CreditRequestController extends Controller
             'date' => 'required|date',
         ]);
 
+        $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
+
         $cr = CreditRequest::create([
             'id' => 'c_' . Str::random(8),
             'member_id' => $request->memberId,
             'amount' => $request->amount,
             'date' => $request->date,
-            'status' => 'created',
+            'status' => $isAdmin ? 'approved' : 'created',
         ]);
+
+        if ($isAdmin) {
+            // Credit the member directly
+            $member = Member::findOrFail($request->memberId);
+            $member->credit += $request->amount;
+            $member->save();
+
+            // Create transaction ledger entry
+            $transaction = Transaction::create([
+                'id' => 't_' . Str::random(8),
+                'member_id' => $request->memberId,
+                'type' => 'credit',
+                'amount' => $request->amount,
+                'description' => 'Credit top-up (Admin direct)',
+                'date' => $request->date,
+            ]);
+
+            try {
+                MailHelper::sendTransactionEmail($member, $transaction);
+            } catch (\Exception $e) {
+                logger()->error("Transaction credit email failed: " . $e->getMessage());
+            }
+        }
 
         return response()->json($this->formatRequest($cr), 201);
     }
