@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
@@ -12,9 +12,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { Wallet } from "lucide-react";
+import { Wallet, Search, X, SlidersHorizontal, Calendar } from "lucide-react";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
+import { cn } from "@/lib/utils";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 type CreditsSearch = {
   memberId?: string;
@@ -48,6 +50,68 @@ function CreditsPage() {
   );
 
   const pendingCount = myReqs.filter((r) => r.status === "created").length;
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
+  const [showFilters, setShowFilters] = useState(false);
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setFromDate("");
+    setToDate("");
+    setSortBy("newest");
+  };
+
+  const hasActiveFilters = searchTerm !== "" || statusFilter !== "all" || fromDate !== "" || toDate !== "" || sortBy !== "newest";
+
+  const filteredReqs = useMemo(() => {
+    return myReqs
+      .filter((r) => {
+        if (searchTerm.trim()) {
+          const m = s.members.find((x) => x.id === r.memberId);
+          if (!m) return false;
+          const fullName = `${m.firstName} ${m.lastName}`.toLowerCase();
+          if (!fullName.includes(searchTerm.toLowerCase())) return false;
+        }
+        if (statusFilter !== "all" && r.status !== statusFilter) {
+          return false;
+        }
+        if (fromDate) {
+          const reqDate = new Date(r.date);
+          const filterFrom = new Date(fromDate);
+          reqDate.setHours(0,0,0,0);
+          filterFrom.setHours(0,0,0,0);
+          if (reqDate < filterFrom) return false;
+        }
+        if (toDate) {
+          const reqDate = new Date(r.date);
+          const filterTo = new Date(toDate);
+          reqDate.setHours(0,0,0,0);
+          filterTo.setHours(0,0,0,0);
+          if (reqDate > filterTo) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "newest") {
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        }
+        if (sortBy === "oldest") {
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+        }
+        if (sortBy === "amount_high") {
+          return b.amount - a.amount;
+        }
+        if (sortBy === "amount_low") {
+          return a.amount - b.amount;
+        }
+        return 0;
+      });
+  }, [myReqs, s.members, searchTerm, statusFilter, fromDate, toDate, sortBy]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,6 +195,266 @@ function CreditsPage() {
             )}
           </CardTitle>
         </CardHeader>
+        <div className="px-6 py-4 border-b border-[rgba(255,255,255,0.06)] bg-[#131916]">
+          {/* Mobile Layout (sm and down) */}
+          <div className="flex items-center gap-2 md:hidden">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search member..."
+                className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn(
+                "flex items-center justify-center gap-2 border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] hover:bg-white/5 text-[#F1F0EE] h-10 rounded-lg text-xs px-4 cursor-pointer",
+                showFilters && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]"
+              )}
+            >
+              <SlidersHorizontal className="size-3.5" />
+              <span>Filters</span>
+              {hasActiveFilters && (
+                <span className="size-1.5 rounded-full bg-[#10B981]" />
+              )}
+            </Button>
+          </div>
+
+          {/* Collapsible Mobile Filters Area */}
+          {showFilters && (
+            <div className="flex flex-col gap-3 mt-3 md:hidden p-3 bg-[#0C0F0E]/50 rounded-lg border border-[rgba(255,255,255,0.06)]">
+              {/* Status */}
+              <div className="space-y-1">
+                <Label className="text-[10px] font-medium text-[#8A8A98]">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="created">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date Range Selection inside mobile panel */}
+              <div className="space-y-1">
+                <Label className="text-[10px] font-medium text-[#8A8A98]">Date Range</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs"
+                  />
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Sort By */}
+              <div className="space-y-1">
+                <Label className="text-[10px] font-medium text-[#8A8A98]">Sort By</Label>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                    <SelectItem value="newest">Newest First</SelectItem>
+                    <SelectItem value="oldest">Oldest First</SelectItem>
+                    <SelectItem value="amount_high">Amount High to Low</SelectItem>
+                    <SelectItem value="amount_low">Amount Low to High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* Desktop Toolbar (Hidden on mobile) */}
+          <div className="hidden md:flex md:items-center justify-between gap-3 w-full">
+            {/* Left side filters */}
+            <div className="flex items-center gap-3 flex-wrap flex-1">
+              {/* Search */}
+              <div className="relative w-full max-w-[280px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search member..."
+                  className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status */}
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className={cn(
+                  "bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[140px] rounded-lg cursor-pointer text-xs",
+                  statusFilter !== "all" && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]"
+                )}>
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
+                  <SelectItem value="created" className="text-xs">Pending</SelectItem>
+                  <SelectItem value="approved" className="text-xs">Approved</SelectItem>
+                  <SelectItem value="rejected" className="text-xs">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Date Range Popover */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "flex items-center gap-2 border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] hover:bg-white/5 text-[#F1F0EE] h-10 rounded-lg px-3.5 text-xs cursor-pointer",
+                      (fromDate || toDate) && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]"
+                    )}
+                  >
+                    <Calendar className="size-4 text-[#8A8A98]" />
+                    <span>
+                      {fromDate && toDate
+                        ? `${fmtDate(fromDate)} – ${fmtDate(toDate)}`
+                        : fromDate
+                        ? `From ${fmtDate(fromDate)}`
+                        : toDate
+                        ? `To ${fmtDate(toDate)}`
+                        : "Date Range"}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[300px] bg-[#131916] border-[rgba(255,255,255,0.1)] p-4 text-[#F1F0EE] rounded-lg shadow-xl">
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-xs text-[#8A8A98] tracking-wider uppercase">Filter by Date Range</h4>
+                    <div className="grid gap-2">
+                      <div className="grid gap-1">
+                        <Label htmlFor="from" className="text-[10px] text-[#8A8A98]">From Date</Label>
+                        <Input
+                          id="from"
+                          type="date"
+                          value={fromDate}
+                          onChange={(e) => setFromDate(e.target.value)}
+                          className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-9 rounded-md text-xs"
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <Label htmlFor="to" className="text-[10px] text-[#8A8A98]">To Date</Label>
+                        <Input
+                          id="to"
+                          type="date"
+                          value={toDate}
+                          onChange={(e) => setToDate(e.target.value)}
+                          className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-9 rounded-md text-xs"
+                        />
+                      </div>
+                    </div>
+                    {(fromDate || toDate) && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setFromDate("");
+                          setToDate("");
+                        }}
+                        className="w-full text-xs text-red-400 hover:text-red-300 hover:bg-red-400/5 h-8 cursor-pointer"
+                      >
+                        Clear Date Filter
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Right side Sort */}
+            <div className="flex items-center gap-2">
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[180px] rounded-lg cursor-pointer text-xs">
+                  <SelectValue placeholder="Sort By" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="newest" className="text-xs">Newest First</SelectItem>
+                  <SelectItem value="oldest" className="text-xs">Oldest First</SelectItem>
+                  <SelectItem value="amount_high" className="text-xs">Amount High to Low</SelectItem>
+                  <SelectItem value="amount_low" className="text-xs">Amount Low to High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Active Chips Row (below toolbar) */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2 px-6 pb-4 bg-[#131916]">
+            <span className="text-[11px] font-medium text-[#8A8A98]">Active Filters:</span>
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
+                <span>Search: {searchTerm}</span>
+                <button onClick={() => setSearchTerm("")} className="hover:text-white transition-colors cursor-pointer">
+                  <X className="size-3 text-[#10B981]" />
+                </button>
+              </span>
+            )}
+            {statusFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
+                <span>Status: {statusFilter === "created" ? "Pending" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}</span>
+                <button onClick={() => setStatusFilter("all")} className="hover:text-white transition-colors cursor-pointer">
+                  <X className="size-3 text-[#10B981]" />
+                </button>
+              </span>
+            )}
+            {(fromDate || toDate) && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
+                <span>
+                  Date: {fromDate && toDate
+                    ? `${fmtDate(fromDate)} – ${fmtDate(toDate)}`
+                    : fromDate
+                    ? `From ${fmtDate(fromDate)}`
+                    : `To ${fmtDate(toDate)}`}
+                </span>
+                <button
+                  onClick={() => {
+                    setFromDate("");
+                    setToDate("");
+                  }}
+                  className="hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="size-3 text-[#10B981]" />
+                </button>
+              </span>
+            )}
+            <button
+              onClick={resetFilters}
+              className="text-[11px] font-medium text-[#8A8A98] hover:text-[#EEF2F0] underline underline-offset-4 ml-1 cursor-pointer transition-colors"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-[#0C0F0E]/30">
@@ -145,18 +469,18 @@ function CreditsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {myReqs.length === 0 ? (
+              {filteredReqs.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={user.role === "admin" ? 5 : 4} className="p-0">
                     <EmptyIllustration
                       icon="wallet"
-                      title="No credit requests yet"
-                      description="Submit a top-up request and it will appear here for admin approval."
+                      title={hasActiveFilters ? "No credit requests found" : "No credit requests yet"}
+                      description={hasActiveFilters ? "Try adjusting your filters or search terms." : "Submit a top-up request and it will appear here for admin approval."}
                     />
                   </TableCell>
                 </TableRow>
               ) : (
-                myReqs.map((r, i) => {
+                filteredReqs.map((r, i) => {
                   const m = s.members.find((x) => x.id === r.memberId);
                   const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
                   const avatarBgClass = m?.memberType.toLowerCase() === "junior" ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
