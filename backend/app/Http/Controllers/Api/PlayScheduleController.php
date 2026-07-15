@@ -10,6 +10,7 @@ use App\Models\Rotation;
 use App\Models\Transaction;
 use App\Models\Setting;
 use App\Helpers\MailHelper;
+use App\Helpers\FeeHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -245,15 +246,16 @@ class PlayScheduleController extends Controller
 
             $member = Member::find($memberId);
             if ($member) {
-                if (!$member->skip_credit_consumption) {
-                    $member->credit -= $feeRounded;
+                $memberFee = FeeHelper::forMember($feeRounded, $member);
+                if (!$member->skip_credit_consumption && $memberFee > 0) {
+                    $member->credit -= $memberFee;
                     $member->save();
      
                     $transaction = Transaction::create([
                         'id' => 't_' . Str::random(8),
                         'member_id' => $memberId,
                         'type' => 'debit',
-                        'amount' => $feeRounded,
+                        'amount' => $memberFee,
                         'description' => "Play session: " . $schedule->name,
                         'date' => now(),
                     ]);
@@ -304,6 +306,27 @@ class PlayScheduleController extends Controller
         ]);
 
         $invite = PlayInvitation::findOrFail($id);
+
+        if ($request->status === 'accepted') {
+            $member = Member::find($invite->member_id);
+            if ($member && !$member->skip_credit_consumption) {
+                $sch = PlaySchedule::find($invite->schedule_id);
+                if ($sch) {
+                    $playerCount = max($sch->players, 1);
+                    $estimatedFee = FeeHelper::playSessionFee(
+                        (float)$sch->session_rate,
+                        (float)$sch->hall_rate,
+                        $playerCount,
+                        $member
+                    );
+                    if ($member->credit < $estimatedFee) {
+                        return response()->json([
+                            'message' => "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule."
+                        ], 422);
+                    }
+                }
+            }
+        }
         
         // If declining an already accepted invitation, check cancellation hours
         if ($request->status === 'declined' && $invite->status === 'accepted') {
@@ -338,6 +361,14 @@ class PlayScheduleController extends Controller
             'scheduleId' => $r->schedule_id,
             'rounds' => $r->rounds,
         ]));
+    }
+
+    public function destroy($id)
+    {
+        $sch = PlaySchedule::findOrFail($id);
+        $sch->delete();
+
+        return response()->json(['message' => 'Play schedule deleted successfully.']);
     }
 
     private function formatSchedule(PlaySchedule $s)

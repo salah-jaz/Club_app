@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { applyMemberFee, discountsFromStore } from "@/lib/fees";
 
 export const Route = createFileRoute("/_authenticated/trainings/$id/")({ component: TrainingPage });
 
@@ -40,7 +41,7 @@ function TrainingPage() {
     <div className="space-y-6">
       <PageHeader
         title={t.name}
-        description={`Coach ${t.coach} · ${t.location}`}
+        description={`Coach ${t.coach} · ${t.location} · Total Fee: $${t.fees.toFixed(2)} ($${(t.fees / Math.max(t.sessions, 1)).toFixed(2)}/session)`}
         backTo="/trainings"
         actions={<StatusBadge status={t.status} />}
       />
@@ -135,19 +136,25 @@ function TrainingPage() {
                   <TableHeader className="bg-[#0C0F0E]/60">
                     <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
                       <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 px-5">Junior Roster</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 px-5">Fee</TableHead>
                       <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 text-right px-5">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {invs.map((i) => (
-                      <TableRow key={i.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
-                        <TableCell className="font-semibold text-[#F1F0EE] text-[13px] px-5 py-4">{memberName(i.memberId)}</TableCell>
-                        <TableCell className="text-right px-5 py-4"><StatusBadge status={i.status} /></TableCell>
-                      </TableRow>
-                    ))}
+                    {invs.map((i) => {
+                      const m = s.members.find((x) => x.id === i.memberId);
+                      const fee = applyMemberFee(t.fees, m, discountsFromStore(s));
+                      return (
+                        <TableRow key={i.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
+                          <TableCell className="font-semibold text-[#F1F0EE] text-[13px] px-5 py-4">{memberName(i.memberId)}</TableCell>
+                          <TableCell className="font-mono text-xs text-[#34D399] px-5 py-4">${fee.toFixed(2)}</TableCell>
+                          <TableCell className="text-right px-5 py-4"><StatusBadge status={i.status} /></TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {invs.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={2} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
+                        <TableCell colSpan={3} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
                           {t.status === "released"
                             ? "No enrollments yet. Family heads can select children from My Invitations."
                             : "Not released yet."}

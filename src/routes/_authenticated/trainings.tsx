@@ -295,6 +295,35 @@ function TrainingsList() {
                           Open enrollment
                         </Button>
                       )}
+                      {user.role === "admin" && (
+                        <>
+                          <Button asChild size="sm" variant="outline" className="btn-premium-outline h-8 px-2.5 cursor-pointer text-xs">
+                            <Link to="/trainings/$id/edit" params={{ id: t.id }}>Edit</Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs"
+                            onClick={async () => {
+                              const hasRelated = s.trainingInvites?.some((i) => i.trainingId === t.id) ||
+                                                 s.trainingDates?.some((d) => d.trainingId === t.id);
+                              const confirmMsg = hasRelated
+                                ? "WARNING: This training program has active enrollments or scheduled sessions. Deleting it will permanently delete all related records. Are you sure you want to proceed?"
+                                : "Are you sure you want to delete this training program?";
+                              if (confirm(confirmMsg)) {
+                                try {
+                                    await s.deleteTraining(t.id);
+                                    toast.success("Training program deleted");
+                                } catch (error: any) {
+                                    toast.error(error.message || "Failed to delete training program.");
+                                }
+                              }
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      )}
                       <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
                         <Link to="/trainings/$id" params={{ id: t.id }}>Manage</Link>
                       </Button>
@@ -346,6 +375,35 @@ function TrainingsList() {
                       >
                         Open enrollment
                       </Button>
+                    )}
+                    {user.role === "admin" && (
+                      <>
+                        <Button asChild size="sm" variant="outline" className="btn-premium-outline h-8 px-2.5 cursor-pointer text-xs">
+                          <Link to="/trainings/$id/edit" params={{ id: t.id }}>Edit</Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs"
+                          onClick={async () => {
+                            const hasRelated = s.trainingInvites?.some((i) => i.trainingId === t.id) ||
+                                               s.trainingDates?.some((d) => d.trainingId === t.id);
+                            const confirmMsg = hasRelated
+                              ? "WARNING: This training program has active enrollments or scheduled sessions. Deleting it will permanently delete all related records. Are you sure you want to proceed?"
+                              : "Are you sure you want to delete this training program?";
+                            if (confirm(confirmMsg)) {
+                              try {
+                                await s.deleteTraining(t.id);
+                                toast.success("Training program deleted");
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to delete training program.");
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </>
                     )}
                     <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
                       <Link to="/trainings/$id" params={{ id: t.id }}>Manage</Link>

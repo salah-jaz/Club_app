@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDateTime } from "@/lib/format";
+import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { toast } from "sonner";
 import { Shuffle, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,12 +32,23 @@ function SchedulePage() {
     declined: invs.filter((i) => i.status === "declined"),
     waiting: invs.filter((i) => i.status === "open"),
   };
+  const acceptedCount = grouped.accepted.length;
+  const discounts = discountsFromStore(s);
+  
+  const getMemberFee = (mid: string) => {
+    if (typeof mid === "string" && mid.startsWith("guest_")) {
+      return 0;
+    }
+    const m = s.members.find((x) => x.id === mid);
+    const base = playSessionBaseFee(sch.sessionRate, sch.hallRate, Math.max(acceptedCount, 1));
+    return applyMemberFee(base, m, discounts);
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={sch.name}
-        description={`${fmtDateTime(sch.date)} · ${sch.location}`}
+        description={`${fmtDateTime(sch.date)} · ${sch.location} · Session Rate: $${sch.sessionRate.toFixed(2)} · Hall Rate: $${sch.hallRate.toFixed(2)}`}
         backTo="/schedules"
         actions={
           <div className="flex items-center gap-2">
@@ -96,8 +108,9 @@ function SchedulePage() {
                   <p className="text-[13px] font-light text-[#4A5E58] py-3 text-center">No members listed.</p>
                 ) : (
                   grouped[k].map((i) => (
-                    <div key={i.id} className="text-[13px] text-[#EEF2F0] py-2 border-b border-white/[0.03] last:border-0 font-semibold">
-                      {memberName(i.memberId)}
+                    <div key={i.id} className="text-[13px] text-[#EEF2F0] py-2 border-b border-white/[0.03] last:border-0 font-semibold flex justify-between items-center">
+                      <span>{memberName(i.memberId)}</span>
+                      <span className="font-mono text-xs text-[#34D399]">${getMemberFee(i.memberId).toFixed(2)}</span>
                     </div>
                   ))
                 )}

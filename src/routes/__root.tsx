@@ -130,7 +130,7 @@ function RootShell({ children }: { children: ReactNode }) {
                   } else {
                     document.documentElement.classList.remove('light');
                   }
-                  var colorTheme = localStorage.getItem('clubapp-color-theme') || 'emerald';
+                  var colorTheme = localStorage.getItem('clubapp-color-theme') || 'sapphire';
                   if (colorTheme === 'custom') {
                     document.documentElement.classList.add('theme-custom');
                     var hex = localStorage.getItem('clubapp-custom-hex') || '#10B981';
@@ -205,7 +205,7 @@ function RootShell({ children }: { children: ReactNode }) {
                     root.style.setProperty('--success-bg', 'rgba(' + r + ',' + g + ',' + b + ',' + (isLight ? 0.08 : 0.1) + ')');
                     root.style.setProperty('--success-border', 'rgba(' + r + ',' + g + ',' + b + ',' + (isLight ? 0.15 : 0.2) + ')');
                   } else {
-                    if (colorTheme !== 'emerald') {
+                    if (colorTheme !== 'sapphire') {
                       document.documentElement.classList.add('theme-' + colorTheme);
                     }
                   }

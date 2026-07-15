@@ -8,6 +8,7 @@ use App\Models\Member;
 use App\Models\Transaction;
 use App\Models\Setting;
 use App\Helpers\MailHelper;
+use App\Helpers\FeeHelper;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -43,15 +44,16 @@ Artisan::command('debit:cancellations', function () {
         foreach ($undebitedAcceptedInvs as $inv) {
             $member = Member::find($inv->member_id);
             if ($member) {
-                if (!$member->skip_credit_consumption) {
-                    $member->credit -= $feeRounded;
+                $memberFee = FeeHelper::forMember($feeRounded, $member);
+                if (!$member->skip_credit_consumption && $memberFee > 0) {
+                    $member->credit -= $memberFee;
                     $member->save();
 
                     $transaction = Transaction::create([
                         'id' => 't_' . Str::random(8),
                         'member_id' => $member->id,
                         'type' => 'debit',
-                        'amount' => $feeRounded,
+                        'amount' => $memberFee,
                         'description' => "Auto Debit - Play session: " . $schedule->name,
                         'date' => now(),
                     ]);

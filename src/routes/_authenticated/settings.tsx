@@ -113,6 +113,10 @@ function SettingsPage() {
   }, [store.skipCreditConsumption]);
   const [cancellationLockHours, setCancellationLockHours] = useState(store.cancellationLockHours);
   const [debitTimingHours, setDebitTimingHours] = useState(store.debitTimingHours);
+  const [adultDiscountPercent, setAdultDiscountPercent] = useState(store.adultDiscountPercent);
+  const [adultDiscountAmount, setAdultDiscountAmount] = useState(store.adultDiscountAmount);
+  const [juniorDiscountPercent, setJuniorDiscountPercent] = useState(store.juniorDiscountPercent);
+  const [juniorDiscountAmount, setJuniorDiscountAmount] = useState(store.juniorDiscountAmount);
 
   useEffect(() => {
     setCancellationLockHours(store.cancellationLockHours);
@@ -121,6 +125,18 @@ function SettingsPage() {
   useEffect(() => {
     setDebitTimingHours(store.debitTimingHours);
   }, [store.debitTimingHours]);
+
+  useEffect(() => {
+    setAdultDiscountPercent(store.adultDiscountPercent);
+    setAdultDiscountAmount(store.adultDiscountAmount);
+    setJuniorDiscountPercent(store.juniorDiscountPercent);
+    setJuniorDiscountAmount(store.juniorDiscountAmount);
+  }, [
+    store.adultDiscountPercent,
+    store.adultDiscountAmount,
+    store.juniorDiscountPercent,
+    store.juniorDiscountAmount,
+  ]);
   const [adultGrades, setAdultGrades] = useState<string[]>(store.adultGrades);
   const [juniorGrades, setJuniorGrades] = useState<string[]>(store.juniorGrades);
 
@@ -195,9 +211,9 @@ function SettingsPage() {
 
   const [localColorTheme, setLocalColorTheme] = useState<"emerald" | "sapphire" | "ruby" | "amber" | "amethyst" | "custom">(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("clubapp-color-theme") as any) || "emerald";
+      return (localStorage.getItem("clubapp-color-theme") as any) || "sapphire";
     }
-    return "emerald";
+    return "sapphire";
   });
 
   const [customHex, setCustomHex] = useState<string>(() => {
@@ -264,7 +280,7 @@ function SettingsPage() {
       root.style.removeProperty('--success-bg');
       root.style.removeProperty('--success-border');
       
-      if (color !== "emerald") {
+      if (color !== "sapphire") {
         document.documentElement.classList.add(`theme-${color}`);
       }
     }
@@ -275,7 +291,7 @@ function SettingsPage() {
 
   useEffect(() => {
     const syncColorTheme = () => {
-      const color = (localStorage.getItem("clubapp-color-theme") as any) || "emerald";
+      const color = (localStorage.getItem("clubapp-color-theme") as any) || "sapphire";
       setLocalColorTheme(color);
       const hex = localStorage.getItem("clubapp-custom-hex") || "#10B981";
       setCustomHex(hex);
@@ -455,6 +471,21 @@ function SettingsPage() {
       toast.success("Branding settings saved successfully");
     } catch (err: any) {
       toast.error(err.message || "Failed to save branding");
+    }
+  };
+
+  const handleSaveDiscounts = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateSettings({
+        adultDiscountPercent: Number(adultDiscountPercent) || 0,
+        adultDiscountAmount: Number(adultDiscountAmount) || 0,
+        juniorDiscountPercent: Number(juniorDiscountPercent) || 0,
+        juniorDiscountAmount: Number(juniorDiscountAmount) || 0,
+      });
+      toast.success("Discount settings saved successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save discounts");
     }
   };
 
@@ -734,6 +765,96 @@ function SettingsPage() {
           </Card>
         )}
 
+        {/* Member Discounts */}
+        {currentUser?.role === "admin" && (
+          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
+            <CardHeader className="pb-3 border-b border-white/[0.03]">
+              <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                Member Discounts
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <form onSubmit={handleSaveDiscounts} className="space-y-6">
+                <p className="text-xs text-muted-foreground font-light">
+                  Percentage is applied first, then the fixed amount is subtracted. Only members with
+                  &quot;Apply Discount&quot; enabled receive these rates on play and training fees.
+                </p>
+                <div className="grid sm:grid-cols-2 gap-6">
+                  <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
+                    <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#34D399] uppercase">Adult</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                          Discount %
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.01}
+                          value={adultDiscountPercent}
+                          onChange={(e) => setAdultDiscountPercent(Number(e.target.value))}
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                          Discount Amount
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={adultDiscountAmount}
+                          onChange={(e) => setAdultDiscountAmount(Number(e.target.value))}
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
+                    <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#818CF8] uppercase">Junior</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                          Discount %
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.01}
+                          value={juniorDiscountPercent}
+                          onChange={(e) => setJuniorDiscountPercent(Number(e.target.value))}
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                          Discount Amount
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={juniorDiscountAmount}
+                          onChange={(e) => setJuniorDiscountAmount(Number(e.target.value))}
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                    Save Discounts
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Credentials & Profile */}
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
@@ -903,8 +1024,8 @@ function SettingsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="emerald" className="cursor-pointer hover:bg-white/5 text-xs">Emerald Green (Default)</SelectItem>
-                    <SelectItem value="sapphire" className="cursor-pointer hover:bg-white/5 text-xs">Sapphire Blue</SelectItem>
+                    <SelectItem value="emerald" className="cursor-pointer hover:bg-white/5 text-xs">Emerald Green</SelectItem>
+                    <SelectItem value="sapphire" className="cursor-pointer hover:bg-white/5 text-xs">Sapphire Blue (Default)</SelectItem>
                     <SelectItem value="ruby" className="cursor-pointer hover:bg-white/5 text-xs">Ruby Crimson</SelectItem>
                     <SelectItem value="amber" className="cursor-pointer hover:bg-white/5 text-xs">Amber Gold</SelectItem>
                     <SelectItem value="amethyst" className="cursor-pointer hover:bg-white/5 text-xs">Amethyst Purple</SelectItem>

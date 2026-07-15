@@ -172,7 +172,14 @@ function MemberActions({
           variant="destructive"
           className={cn("btn-premium-danger hover:cursor-pointer", btnClass)}
           onClick={async () => {
-            if (confirm(`Remove ${member.firstName} ${member.lastName} from the club?`)) {
+            const hasRelated = useStore.getState().playInvites?.some((i) => i.memberId === member.id) ||
+                               useStore.getState().trainingInvites?.some((i) => i.memberId === member.id) ||
+                               useStore.getState().transactions?.some((t) => t.memberId === member.id) ||
+                               useStore.getState().creditRequests?.some((cr) => cr.memberId === member.id);
+            const confirmMsg = hasRelated
+              ? `WARNING: This member has active invitations, transactions, or credit records. Removing them will permanently delete all related records. Are you sure you want to remove ${member.firstName} ${member.lastName}?`
+              : `Remove ${member.firstName} ${member.lastName} from the club?`;
+            if (confirm(confirmMsg)) {
               try {
                 await deleteMember(member.id);
                 toast.success("Member removed successfully");

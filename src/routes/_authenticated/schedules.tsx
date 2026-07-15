@@ -334,7 +334,11 @@ function SchedulesList() {
                               className="btn-premium-danger h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer"
                               title="Delete Schedule"
                               onClick={async () => {
-                                if (confirm("Are you sure you want to delete this schedule?")) {
+                                const hasRelated = s.playInvites.some((i) => i.scheduleId === sch.id) || s.rotations.some((r) => r.scheduleId === sch.id);
+                                const confirmMsg = hasRelated
+                                  ? "WARNING: This play schedule has active invitations or rotations. Deleting it will permanently cascade delete all related records. Are you sure you want to proceed?"
+                                  : "Are you sure you want to delete this schedule?";
+                                if (confirm(confirmMsg)) {
                                   try {
                                     await s.deleteSchedule(sch.id);
                                     toast.success("Play schedule deleted");
@@ -464,7 +468,11 @@ function SchedulesList() {
                             className="btn-premium-danger h-8 w-8 p-0 cursor-pointer"
                             title="Delete Schedule"
                             onClick={async () => {
-                              if (confirm("Are you sure you want to delete this schedule?")) {
+                              const hasRelated = s.playInvites.some((i) => i.scheduleId === sch.id) || s.rotations.some((r) => r.scheduleId === sch.id);
+                              const confirmMsg = hasRelated
+                                ? "WARNING: This play schedule has active invitations or rotations. Deleting it will permanently cascade delete all related records. Are you sure you want to proceed?"
+                                : "Are you sure you want to delete this schedule?";
+                              if (confirm(confirmMsg)) {
                                 try {
                                   await s.deleteSchedule(sch.id);
                                   toast.success("Play schedule deleted");

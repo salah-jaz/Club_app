@@ -29,6 +29,7 @@ class Member extends Model
         'status',
         'credit',
         'skip_credit_consumption',
+        'apply_discount',
     ];
 
     protected $casts = [
@@ -36,6 +37,7 @@ class Member extends Model
         'league' => 'boolean',
         'training_eligible' => 'boolean',
         'skip_credit_consumption' => 'boolean',
+        'apply_discount' => 'boolean',
         'credit' => 'float',
     ];
 

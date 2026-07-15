@@ -37,7 +37,7 @@ function LoginPage() {
       footer={
         <>
           New here?{" "}
-          <Link to="/register" className="text-[#10B981] font-medium hover:underline transition-all">
+          <Link to="/register" className="text-[var(--primary)] font-medium hover:underline transition-all">
             Create an account
           </Link>
         </>
@@ -52,7 +52,7 @@ function LoginPage() {
             value={email} 
             onChange={(e) => setEmail(e.target.value)} 
             required 
-            className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] h-10 rounded-lg"
+            className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[#F1F0EE] h-10 rounded-lg"
           />
         </div>
         <div className="space-y-2">
@@ -63,7 +63,7 @@ function LoginPage() {
             value={password} 
             onChange={(e) => setPassword(e.target.value)} 
             required 
-            className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] h-10 rounded-lg"
+            className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[#F1F0EE] h-10 rounded-lg"
           />
         </div>
         <Button type="submit" className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">

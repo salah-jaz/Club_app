@@ -328,6 +328,21 @@ export function MemberForm({
                   className="data-[state=checked]:bg-[#10B981]"
                 />
               </div>
+              {currentUser?.role === "admin" && (
+                <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                  <div>
+                    <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Apply Discount</Label>
+                    <p className="type-helper mt-1">
+                      Use {v.memberType === "junior" ? "junior" : "adult"} discount settings on play and training fees.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={v.applyDiscount ?? false}
+                    onCheckedChange={(x) => set("applyDiscount", x)}
+                    className="data-[state=checked]:bg-[#10B981]"
+                  />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

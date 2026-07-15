@@ -23,15 +23,15 @@ export function AuthShell({
           className="absolute inset-0 bg-cover bg-center opacity-[0.15] mix-blend-luminosity pointer-events-none" 
           style={{ backgroundImage: "url('/shuttlecock_banner.png')" }} 
         />
-        {/* Subtle glowing dark-emerald orb in background */}
-        <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-[#10B981]/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#34D399]/5 rounded-full blur-[100px] pointer-events-none" />
+        {/* Subtle glowing brand orb in background */}
+        <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-[var(--violet-dim)] rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[var(--gold-dim)] rounded-full blur-[100px] pointer-events-none" />
 
-        <Link to="/" className="flex items-center gap-4 text-xl font-medium tracking-[0.12em] text-[#34D399] uppercase z-10">
+        <Link to="/" className="flex items-center gap-4 text-xl font-medium tracking-[0.12em] text-[var(--gold)] uppercase z-10">
           {appLogoBase64 || "/logo.png" ? (
             <img src={appLogoBase64 || "/logo.png"} alt={appName} className="size-24 rounded-xl object-contain bg-white/5 p-1" />
           ) : null}
-          <span>{appName}</span><span className="text-[#10B981] -ml-2.5">.</span>
+          <span>{appName}</span><span className="text-[var(--primary)] -ml-2.5">.</span>
         </Link>
         <div className="space-y-6 z-10 max-w-lg">
           <span className="text-[11px] font-medium tracking-[0.14em] text-[#8A8A98] uppercase block">

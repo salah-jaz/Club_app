@@ -162,6 +162,15 @@ class MailHelper
         $subject = "Play Schedule Notification: " . $schedule->name;
         $title = $actionType === 'release' ? 'New Schedule Released' : 'Schedule Updated';
         
+        $playerCount = max($schedule->players, 1);
+        $estimatedFee = FeeHelper::playSessionFee(
+            (float)$schedule->session_rate,
+            (float)$schedule->hall_rate,
+            $playerCount,
+            $member
+        );
+        $feeFormatted = '$' . number_format($estimatedFee, 2);
+
         $content = "
             <h2 style=\"color: #34D399; font-size: 18px; margin-top: 0;\">$title</h2>
             <p>Hello {$member->first_name},</p>
@@ -174,6 +183,10 @@ class MailHelper
                 <tr>
                     <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Location:</td>
                     <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">{$schedule->location}</td>
+                </tr>
+                <tr>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Session Fee:</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">{$feeFormatted}</td>
                 </tr>
                 <tr>
                     <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Status:</td>

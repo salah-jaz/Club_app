@@ -156,6 +156,9 @@ function NewSchedule() {
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Hall Rate (Total Cost)</Label>
               <Input required type="number" min={0} step={0.01} value={f.hallRate} onChange={(e) => set("hallRate", +e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono" />
             </div>
+            <div className="sm:col-span-2 pt-2 border-t border-white/[0.03] text-xs text-[#8A8A98]">
+              Estimated per-player cost: <span className="font-semibold text-[#34D399] font-mono">${(f.sessionRate + (f.hallRate / Math.max(f.players, 1))).toFixed(2)}</span> (calculated as Session Rate + Hall Rate / Max Players)
+            </div>
           </CardContent>
         </Card>
         <div className="flex justify-end">
