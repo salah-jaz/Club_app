@@ -211,9 +211,9 @@ function SettingsPage() {
 
   const [localColorTheme, setLocalColorTheme] = useState<"emerald" | "sapphire" | "ruby" | "amber" | "amethyst" | "custom">(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("clubapp-color-theme") as any) || "emerald";
+      return (localStorage.getItem("clubapp-color-theme") as any) || "sapphire";
     }
-    return "emerald";
+    return "sapphire";
   });
 
   const [customHex, setCustomHex] = useState<string>(() => {
@@ -291,7 +291,7 @@ function SettingsPage() {
 
   useEffect(() => {
     const syncColorTheme = () => {
-      const color = (localStorage.getItem("clubapp-color-theme") as any) || "emerald";
+      const color = (localStorage.getItem("clubapp-color-theme") as any) || "sapphire";
       setLocalColorTheme(color);
       const hex = localStorage.getItem("clubapp-custom-hex") || "#10B981";
       setCustomHex(hex);
@@ -1024,8 +1024,8 @@ function SettingsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="emerald" className="cursor-pointer hover:bg-white/5 text-xs">Emerald Green (Default)</SelectItem>
-                    <SelectItem value="sapphire" className="cursor-pointer hover:bg-white/5 text-xs">Sapphire Blue</SelectItem>
+                    <SelectItem value="emerald" className="cursor-pointer hover:bg-white/5 text-xs">Emerald Green</SelectItem>
+                    <SelectItem value="sapphire" className="cursor-pointer hover:bg-white/5 text-xs">Sapphire Blue (Default)</SelectItem>
                     <SelectItem value="ruby" className="cursor-pointer hover:bg-white/5 text-xs">Ruby Crimson</SelectItem>
                     <SelectItem value="amber" className="cursor-pointer hover:bg-white/5 text-xs">Amber Gold</SelectItem>
                     <SelectItem value="amethyst" className="cursor-pointer hover:bg-white/5 text-xs">Amethyst Purple</SelectItem>

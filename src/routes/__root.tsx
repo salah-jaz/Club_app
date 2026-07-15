@@ -130,7 +130,7 @@ function RootShell({ children }: { children: ReactNode }) {
                   } else {
                     document.documentElement.classList.remove('light');
                   }
-                  var colorTheme = localStorage.getItem('clubapp-color-theme') || 'emerald';
+                  var colorTheme = localStorage.getItem('clubapp-color-theme') || 'sapphire';
                   if (colorTheme === 'custom') {
                     document.documentElement.classList.add('theme-custom');
                     var hex = localStorage.getItem('clubapp-custom-hex') || '#10B981';

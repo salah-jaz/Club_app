@@ -20,15 +20,19 @@ function Layout() {
 
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
-  // Clock state
+  // Clock state — Ireland (Europe/Dublin) time with AM/PM
   const [timeStr, setTimeStr] = useState("");
   useEffect(() => {
     const updateTime = () => {
-      const now = new Date();
-      const hrs = String(now.getHours()).padStart(2, "0");
-      const mins = String(now.getMinutes()).padStart(2, "0");
-      const secs = String(now.getSeconds()).padStart(2, "0");
-      setTimeStr(`${hrs}:${mins}:${secs}`);
+      const formatted = new Date().toLocaleTimeString("en-IE", {
+        timeZone: "Europe/Dublin",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+      // Normalize locale "a.m." / "p.m." → "AM" / "PM"
+      setTimeStr(formatted.replace(/\s*a\.?m\.?/i, " AM").replace(/\s*p\.?m\.?/i, " PM").trim());
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
@@ -94,7 +98,7 @@ function Layout() {
   useEffect(() => {
     const isLight = document.documentElement.classList.contains("light");
     setTheme(isLight ? "light" : "dark");
-    const colorTheme = localStorage.getItem("clubapp-color-theme") || "emerald";
+    const colorTheme = localStorage.getItem("clubapp-color-theme") || "sapphire";
     updateActiveThemeClass(colorTheme, isLight);
   }, []);
 
@@ -102,7 +106,7 @@ function Layout() {
     const handleThemeChange = () => {
       const isLight = document.documentElement.classList.contains("light");
       setTheme(isLight ? "light" : "dark");
-      const colorTheme = localStorage.getItem("clubapp-color-theme") || "emerald";
+      const colorTheme = localStorage.getItem("clubapp-color-theme") || "sapphire";
       updateActiveThemeClass(colorTheme, isLight);
     };
     window.addEventListener("clubapp-theme-changed", handleThemeChange);
@@ -120,7 +124,7 @@ function Layout() {
       localStorage.setItem("clubapp-theme", "dark");
       setTheme("dark");
     }
-    const colorTheme = localStorage.getItem("clubapp-color-theme") || "emerald";
+    const colorTheme = localStorage.getItem("clubapp-color-theme") || "sapphire";
     updateActiveThemeClass(colorTheme, nextLight);
   };
 
