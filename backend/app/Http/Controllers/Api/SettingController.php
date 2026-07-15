@@ -33,6 +33,10 @@ class SettingController extends Controller
         'emailFooterText' => 'email_footer_text',
         'cancellationLockHours' => 'cancellation_lock_hours',
         'debitTimingHours' => 'debit_timing_hours',
+        'adultDiscountPercent' => 'adult_discount_percent',
+        'adultDiscountAmount' => 'adult_discount_amount',
+        'juniorDiscountPercent' => 'junior_discount_percent',
+        'juniorDiscountAmount' => 'junior_discount_amount',
     ];
 
     public function index()
@@ -54,6 +58,8 @@ class SettingController extends Controller
                 $data[$camel] = $val === 'true';
             } else if ($camel === 'cancellationLockHours' || $camel === 'debitTimingHours') {
                 $data[$camel] = $val !== null ? (int)$val : null;
+            } else if (in_array($camel, ['adultDiscountPercent', 'adultDiscountAmount', 'juniorDiscountPercent', 'juniorDiscountAmount'], true)) {
+                $data[$camel] = $val !== null && $val !== '' ? (float)$val : 0;
             } else {
                 $data[$camel] = $val;
             }
@@ -66,6 +72,9 @@ class SettingController extends Controller
         if (empty($data['currency'])) $data['currency'] = '$';
         if ($data['cancellationLockHours'] === null) $data['cancellationLockHours'] = 24;
         if ($data['debitTimingHours'] === null) $data['debitTimingHours'] = 24;
+        foreach (['adultDiscountPercent', 'adultDiscountAmount', 'juniorDiscountPercent', 'juniorDiscountAmount'] as $discountKey) {
+            if (!isset($data[$discountKey])) $data[$discountKey] = 0;
+        }
 
         return response()->json($data);
     }

@@ -34,6 +34,7 @@ class MemberController extends Controller
             'league' => 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
             'skipCreditConsumption' => 'sometimes|boolean',
+            'applyDiscount' => 'sometimes|boolean',
             'grade' => [
                 'required',
                 'string',
@@ -87,6 +88,7 @@ class MemberController extends Controller
                     'status' => $request->status,
                     'credit' => 0.00,
                     'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
+                    'apply_discount' => $request->boolean('applyDiscount'),
                 ]);
             });
         } else {
@@ -112,6 +114,7 @@ class MemberController extends Controller
                 'status' => $request->status,
                 'credit' => 0.00,
                 'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
+                'apply_discount' => $request->boolean('applyDiscount'),
             ]);
         }
 
@@ -141,6 +144,7 @@ class MemberController extends Controller
         if ($request->has('status')) $data['status'] = $request->status;
         if ($request->has('credit')) $data['credit'] = $request->credit;
         if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->skipCreditConsumption;
+        if ($request->has('applyDiscount')) $data['apply_discount'] = $request->applyDiscount;
 
         $member->update($data);
 
@@ -260,7 +264,8 @@ class MemberController extends Controller
             'nickname' => $m->nickname ?? "",
             'status' => $m->status,
             'credit' => (float)$m->credit,
-            'skipCreditConsumption' => (bool)$m->skip_credit_consumption,
+            'skipCreditConsumption' => (bool)($m->skip_credit_consumption ?? false),
+            'applyDiscount' => (bool)($m->apply_discount ?? false),
         ];
     }
 

@@ -113,6 +113,10 @@ function SettingsPage() {
   }, [store.skipCreditConsumption]);
   const [cancellationLockHours, setCancellationLockHours] = useState(store.cancellationLockHours);
   const [debitTimingHours, setDebitTimingHours] = useState(store.debitTimingHours);
+  const [adultDiscountPercent, setAdultDiscountPercent] = useState(store.adultDiscountPercent);
+  const [adultDiscountAmount, setAdultDiscountAmount] = useState(store.adultDiscountAmount);
+  const [juniorDiscountPercent, setJuniorDiscountPercent] = useState(store.juniorDiscountPercent);
+  const [juniorDiscountAmount, setJuniorDiscountAmount] = useState(store.juniorDiscountAmount);
 
   useEffect(() => {
     setCancellationLockHours(store.cancellationLockHours);
@@ -121,6 +125,18 @@ function SettingsPage() {
   useEffect(() => {
     setDebitTimingHours(store.debitTimingHours);
   }, [store.debitTimingHours]);
+
+  useEffect(() => {
+    setAdultDiscountPercent(store.adultDiscountPercent);
+    setAdultDiscountAmount(store.adultDiscountAmount);
+    setJuniorDiscountPercent(store.juniorDiscountPercent);
+    setJuniorDiscountAmount(store.juniorDiscountAmount);
+  }, [
+    store.adultDiscountPercent,
+    store.adultDiscountAmount,
+    store.juniorDiscountPercent,
+    store.juniorDiscountAmount,
+  ]);
   const [adultGrades, setAdultGrades] = useState<string[]>(store.adultGrades);
   const [juniorGrades, setJuniorGrades] = useState<string[]>(store.juniorGrades);
 
@@ -458,6 +474,21 @@ function SettingsPage() {
     }
   };
 
+  const handleSaveDiscounts = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateSettings({
+        adultDiscountPercent: Number(adultDiscountPercent) || 0,
+        adultDiscountAmount: Number(adultDiscountAmount) || 0,
+        juniorDiscountPercent: Number(juniorDiscountPercent) || 0,
+        juniorDiscountAmount: Number(juniorDiscountAmount) || 0,
+      });
+      toast.success("Discount settings saved successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save discounts");
+    }
+  };
+
   const handleAddLocation = () => {
     const trimmed = newLocation.trim();
     if (!trimmed) return;
@@ -727,6 +758,96 @@ function SettingsPage() {
                 <div className="flex justify-end pt-2">
                   <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
                     Save Branding
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Member Discounts */}
+        {currentUser?.role === "admin" && (
+          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
+            <CardHeader className="pb-3 border-b border-white/[0.03]">
+              <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                Member Discounts
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <form onSubmit={handleSaveDiscounts} className="space-y-6">
+                <p className="text-xs text-muted-foreground font-light">
+                  Percentage is applied first, then the fixed amount is subtracted. Only members with
+                  &quot;Apply Discount&quot; enabled receive these rates on play and training fees.
+                </p>
+                <div className="grid sm:grid-cols-2 gap-6">
+                  <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
+                    <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#34D399] uppercase">Adult</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                          Discount %
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.01}
+                          value={adultDiscountPercent}
+                          onChange={(e) => setAdultDiscountPercent(Number(e.target.value))}
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                          Discount Amount
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={adultDiscountAmount}
+                          onChange={(e) => setAdultDiscountAmount(Number(e.target.value))}
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
+                    <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#818CF8] uppercase">Junior</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                          Discount %
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.01}
+                          value={juniorDiscountPercent}
+                          onChange={(e) => setJuniorDiscountPercent(Number(e.target.value))}
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                          Discount Amount
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={juniorDiscountAmount}
+                          onChange={(e) => setJuniorDiscountAmount(Number(e.target.value))}
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                    Save Discounts
                   </Button>
                 </div>
               </form>

@@ -31,6 +31,7 @@ export interface Member {
   league: boolean;
   trainingEligible: boolean;
   skipCreditConsumption: boolean;
+  applyDiscount: boolean;
   grade: string;
   biMemberId: string;
   nickname?: string;

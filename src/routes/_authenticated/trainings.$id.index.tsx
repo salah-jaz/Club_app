@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { applyMemberFee, discountsFromStore } from "@/lib/fees";
 
 export const Route = createFileRoute("/_authenticated/trainings/$id/")({ component: TrainingPage });
 
@@ -142,7 +143,7 @@ function TrainingPage() {
                   <TableBody>
                     {invs.map((i) => {
                       const m = s.members.find((x) => x.id === i.memberId);
-                      const fee = m?.skipCreditConsumption ? 0 : t.fees;
+                      const fee = applyMemberFee(t.fees, m, discountsFromStore(s));
                       return (
                         <TableRow key={i.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
                           <TableCell className="font-semibold text-[#F1F0EE] text-[13px] px-5 py-4">{memberName(i.memberId)}</TableCell>

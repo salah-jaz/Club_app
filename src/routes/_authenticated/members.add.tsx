@@ -71,6 +71,7 @@ function AddMember() {
           league: false,
           trainingEligible: !isAdmin,
           skipCreditConsumption: false,
+          applyDiscount: false,
           grade: "B",
           biMemberId: initialBiMemberId,
           nickname: "",

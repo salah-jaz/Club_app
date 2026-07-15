@@ -10,6 +10,7 @@ use App\Models\Rotation;
 use App\Models\Transaction;
 use App\Models\Setting;
 use App\Helpers\MailHelper;
+use App\Helpers\FeeHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -245,15 +246,16 @@ class PlayScheduleController extends Controller
 
             $member = Member::find($memberId);
             if ($member) {
-                if (!$member->skip_credit_consumption) {
-                    $member->credit -= $feeRounded;
+                $memberFee = FeeHelper::forMember($feeRounded, $member);
+                if (!$member->skip_credit_consumption && $memberFee > 0) {
+                    $member->credit -= $memberFee;
                     $member->save();
      
                     $transaction = Transaction::create([
                         'id' => 't_' . Str::random(8),
                         'member_id' => $memberId,
                         'type' => 'debit',
-                        'amount' => $feeRounded,
+                        'amount' => $memberFee,
                         'description' => "Play session: " . $schedule->name,
                         'date' => now(),
                     ]);
@@ -311,8 +313,12 @@ class PlayScheduleController extends Controller
                 $sch = PlaySchedule::find($invite->schedule_id);
                 if ($sch) {
                     $playerCount = max($sch->players, 1);
-                    $estimatedFee = $sch->session_rate + ($sch->hall_rate / $playerCount);
-                    $estimatedFee = round($estimatedFee, 2);
+                    $estimatedFee = FeeHelper::playSessionFee(
+                        (float)$sch->session_rate,
+                        (float)$sch->hall_rate,
+                        $playerCount,
+                        $member
+                    );
                     if ($member->credit < $estimatedFee) {
                         return response()->json([
                             'message' => "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule."

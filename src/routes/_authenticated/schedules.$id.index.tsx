@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDateTime } from "@/lib/format";
+import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { toast } from "sonner";
 import { Shuffle, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,14 +33,15 @@ function SchedulePage() {
     waiting: invs.filter((i) => i.status === "open"),
   };
   const acceptedCount = grouped.accepted.length;
+  const discounts = discountsFromStore(s);
   
   const getMemberFee = (mid: string) => {
     if (typeof mid === "string" && mid.startsWith("guest_")) {
       return 0;
     }
     const m = s.members.find((x) => x.id === mid);
-    if (m?.skipCreditConsumption) return 0;
-    return sch.sessionRate + (sch.hallRate / Math.max(acceptedCount, 1));
+    const base = playSessionBaseFee(sch.sessionRate, sch.hallRate, Math.max(acceptedCount, 1));
+    return applyMemberFee(base, m, discounts);
   };
 
   return (

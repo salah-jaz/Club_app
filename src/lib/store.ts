@@ -54,6 +54,10 @@ interface State {
   skipCreditConsumption: boolean;
   cancellationLockHours: number;
   debitTimingHours: number;
+  adultDiscountPercent: number;
+  adultDiscountAmount: number;
+  juniorDiscountPercent: number;
+  juniorDiscountAmount: number;
 
   // sync
   syncData: () => Promise<void>;
@@ -134,6 +138,10 @@ interface State {
     skipCreditConsumption?: boolean;
     cancellationLockHours?: number;
     debitTimingHours?: number;
+    adultDiscountPercent?: number;
+    adultDiscountAmount?: number;
+    juniorDiscountPercent?: number;
+    juniorDiscountAmount?: number;
   }) => Promise<void>;
   updateProfile: (profile: {
     firstName: string;
@@ -216,6 +224,10 @@ export const useStore = create<State>((set, get) => ({
   skipCreditConsumption: false,
   cancellationLockHours: 24,
   debitTimingHours: 24,
+  adultDiscountPercent: 0,
+  adultDiscountAmount: 0,
+  juniorDiscountPercent: 0,
+  juniorDiscountAmount: 0,
 
   syncCurrentUser: async () => {
     try {
@@ -287,6 +299,10 @@ export const useStore = create<State>((set, get) => ({
           skipCreditConsumption?: boolean;
           cancellationLockHours?: number;
           debitTimingHours?: number;
+          adultDiscountPercent?: number;
+          adultDiscountAmount?: number;
+          juniorDiscountPercent?: number;
+          juniorDiscountAmount?: number;
         }>("/settings"),
         api.get<CreditRequest[]>("/credit-requests"),
         api.get<LeagueGroup[]>("/league-groups"),
@@ -334,6 +350,10 @@ export const useStore = create<State>((set, get) => ({
         skipCreditConsumption: settings.skipCreditConsumption ?? false,
         cancellationLockHours: settings.cancellationLockHours ?? 24,
         debitTimingHours: settings.debitTimingHours ?? 24,
+        adultDiscountPercent: settings.adultDiscountPercent ?? 0,
+        adultDiscountAmount: settings.adultDiscountAmount ?? 0,
+        juniorDiscountPercent: settings.juniorDiscountPercent ?? 0,
+        juniorDiscountAmount: settings.juniorDiscountAmount ?? 0,
         users,
         creditRequests,
         leagueGroups,
@@ -581,6 +601,10 @@ export const useStore = create<State>((set, get) => ({
       skipCreditConsumption: boolean;
       cancellationLockHours: number;
       debitTimingHours: number;
+      adultDiscountPercent: number;
+      adultDiscountAmount: number;
+      juniorDiscountPercent: number;
+      juniorDiscountAmount: number;
     }>("/settings", settings);
     set({
       locations: updated.locations,
@@ -608,6 +632,10 @@ export const useStore = create<State>((set, get) => ({
       skipCreditConsumption: updated.skipCreditConsumption,
       cancellationLockHours: updated.cancellationLockHours,
       debitTimingHours: updated.debitTimingHours,
+      adultDiscountPercent: updated.adultDiscountPercent ?? 0,
+      adultDiscountAmount: updated.adultDiscountAmount ?? 0,
+      juniorDiscountPercent: updated.juniorDiscountPercent ?? 0,
+      juniorDiscountAmount: updated.juniorDiscountAmount ?? 0,
     });
   },
 

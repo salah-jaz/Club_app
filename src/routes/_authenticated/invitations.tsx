@@ -10,6 +10,7 @@ import { fmtDate, fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { CalendarDays, GraduationCap, Plus } from "lucide-react";
 import type { Training } from "@/lib/types";
+import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 
 export const Route = createFileRoute("/_authenticated/invitations")({ component: Invitations });
 
@@ -88,7 +89,11 @@ function Invitations() {
               if (!sch) return null;
 
               const member = s.members.find((x) => x.id === i.memberId);
-              const estimatedFee = sch.sessionRate + (sch.hallRate / (sch.players || 1));
+              const estimatedFee = applyMemberFee(
+                playSessionBaseFee(sch.sessionRate, sch.hallRate, sch.players || 1),
+                member,
+                discountsFromStore(s),
+              );
               const hasInsufficientCredits = member && !member.skipCreditConsumption && member.credit < estimatedFee;
 
               return (
@@ -237,7 +242,9 @@ function Invitations() {
                         Select children to invite
                       </p>
                       <div className="grid gap-2">
-                        {children.map((child) => (
+                        {children.map((child) => {
+                          const childFee = applyMemberFee(t.fees, child, discountsFromStore(s));
+                          return (
                           <label
                             key={child.id}
                             className="flex items-center gap-3 p-2.5 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(16,185,129,0.3)] rounded-lg cursor-pointer transition-all"
@@ -247,14 +254,18 @@ function Invitations() {
                               onCheckedChange={(c) => toggleEnrollChild(t.id, child.id, !!c)}
                               className="border-[rgba(255,255,255,0.2)] data-[state=checked]:bg-[#10B981] data-[state=checked]:border-[#10B981]"
                             />
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
                                 {child.firstName} {child.lastName}
                               </div>
-                              <div className="text-[11px] text-muted-foreground">Grade {child.grade}</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                Grade {child.grade} · Fee{" "}
+                                <span className="font-mono text-[#34D399]">${childFee.toFixed(2)}</span>
+                              </div>
                             </div>
                           </label>
-                        ))}
+                          );
+                        })}
                       </div>
                       <Button
                         size="sm"
