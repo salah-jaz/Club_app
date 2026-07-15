@@ -37,7 +37,7 @@ function RegisterPage() {
     <AuthShell
       title="Create account"
       subtitle="Submit your details — an admin will approve you shortly."
-      footer={<>Already have an account? <Link to="/login" className="text-[#10B981] font-medium hover:underline transition-all">Sign in</Link></>}
+      footer={<>Already have an account? <Link to="/login" className="text-[var(--primary)] font-medium hover:underline transition-all">Sign in</Link></>}
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">

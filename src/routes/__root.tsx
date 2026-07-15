@@ -205,7 +205,7 @@ function RootShell({ children }: { children: ReactNode }) {
                     root.style.setProperty('--success-bg', 'rgba(' + r + ',' + g + ',' + b + ',' + (isLight ? 0.08 : 0.1) + ')');
                     root.style.setProperty('--success-border', 'rgba(' + r + ',' + g + ',' + b + ',' + (isLight ? 0.15 : 0.2) + ')');
                   } else {
-                    if (colorTheme !== 'emerald') {
+                    if (colorTheme !== 'sapphire') {
                       document.documentElement.classList.add('theme-' + colorTheme);
                     }
                   }

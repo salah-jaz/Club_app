@@ -280,7 +280,7 @@ function SettingsPage() {
       root.style.removeProperty('--success-bg');
       root.style.removeProperty('--success-border');
       
-      if (color !== "emerald") {
+      if (color !== "sapphire") {
         document.documentElement.classList.add(`theme-${color}`);
       }
     }

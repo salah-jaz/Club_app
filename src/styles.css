@@ -69,40 +69,40 @@
   --card-foreground: #E8F0EE;
   --popover: #1A2120;
   --popover-foreground: #E8F0EE;
-  --primary: #10B981;
+  --primary: #3B82F6;
   --primary-foreground: #0C0F0E;
   --secondary: #1A2120;
   --secondary-foreground: #8A9E98;
   --muted: #1A2120;
   --muted-foreground: #8A9E98;
   --accent: #1A2120;
-  --accent-foreground: #10B981;
+  --accent-foreground: #3B82F6;
   --destructive: #EF4444;
   --destructive-foreground: #E8F0EE;
   --border: rgba(255,255,255,0.06);
   --input: rgba(255,255,255,0.06);
-  --ring: #10B981;
+  --ring: #3B82F6;
   --sidebar: #0D1210;
   --sidebar-foreground: #8A9E98;
-  --sidebar-primary: #10B981;
+  --sidebar-primary: #3B82F6;
   --sidebar-primary-foreground: #0C0F0E;
   --sidebar-accent: rgba(255,255,255,0.03);
   --sidebar-accent-foreground: #E8F0EE;
   --sidebar-border: rgba(255,255,255,0.06);
-  --sidebar-ring: #10B981;
+  --sidebar-ring: #3B82F6;
 
   /* Custom Luxury Tokens */
   --bg-base:        #0C0F0E;
   --bg-surface:     #131916;
   --bg-elevated:    #1A2120;
-  --bg-glass:       rgba(16,255,139,0.03);
+  --bg-glass:       rgba(59,130,246,0.03);
   --border-subtle:  rgba(255,255,255,0.06);
   --border-medium:  rgba(255,255,255,0.10);
-  --border-accent:  rgba(16,185,129,0.35);
-  --gold:           #34D399;
-  --gold-dim:       rgba(16,185,129,0.12);
-  --violet:         #10B981;
-  --violet-dim:     rgba(16,185,129,0.12);
+  --border-accent:  rgba(59,130,246,0.35);
+  --gold:           #60A5FA;
+  --gold-dim:       rgba(59,130,246,0.12);
+  --violet:         #3B82F6;
+  --violet-dim:     rgba(59,130,246,0.12);
   --teal:           #2DD4BF;
   --teal-dim:       rgba(45,212,191,0.10);
   --red-dim:        rgba(239,68,68,0.12);
@@ -121,7 +121,7 @@
   /* Input field tokens */
   --input-bg:       #0A0D0C;   /* clearly darker than card — visible input well */
   --input-border:   rgba(255,255,255,0.13); /* visible but not harsh */
-  --input-border-focus: #10B981;
+  --input-border-focus: #3B82F6;
   --input-text:     #EEF2F0;
   --input-placeholder: #6B8580;
   --input-height:   42px;
@@ -134,27 +134,27 @@
   --card-foreground: #E8F0EE;
   --popover: #1A2120;
   --popover-foreground: #E8F0EE;
-  --primary: #10B981;
+  --primary: #3B82F6;
   --primary-foreground: #0C0F0E;
   --secondary: #1A2120;
   --secondary-foreground: #8A9E98;
   --muted: #1A2120;
   --muted-foreground: #8A9E98;
   --accent: #1A2120;
-  --accent-foreground: #10B981;
+  --accent-foreground: #3B82F6;
   --destructive: #EF4444;
   --destructive-foreground: #E8F0EE;
   --border: rgba(255,255,255,0.06);
   --input: rgba(255,255,255,0.06);
-  --ring: #10B981;
+  --ring: #3B82F6;
   --sidebar: #0D1210;
   --sidebar-foreground: #8A9E98;
-  --sidebar-primary: #10B981;
+  --sidebar-primary: #3B82F6;
   --sidebar-primary-foreground: #0C0F0E;
   --sidebar-accent: rgba(255,255,255,0.03);
   --sidebar-accent-foreground: #E8F0EE;
   --sidebar-border: rgba(255,255,255,0.06);
-  --sidebar-ring: #10B981;
+  --sidebar-ring: #3B82F6;
 }
 
 .light {
@@ -164,40 +164,40 @@
   --card-foreground: #0C0F0E;
   --popover: #FFFFFF;
   --popover-foreground: #0C0F0E;
-  --primary: #10B981;
+  --primary: #2563EB;
   --primary-foreground: #FFFFFF;
   --secondary: #EBEFEF;
   --secondary-foreground: #4E615B;
   --muted: #EBEFEF;
   --muted-foreground: #4E615B;
   --accent: #EBEFEF;
-  --accent-foreground: #10B981;
+  --accent-foreground: #2563EB;
   --destructive: #DC2626;
   --destructive-foreground: #FFFFFF;
   --border: rgba(12,15,14,0.06);
   --input: rgba(12,15,14,0.06);
-  --ring: #10B981;
+  --ring: #2563EB;
   --sidebar: #FFFFFF;
   --sidebar-foreground: #4E615B;
-  --sidebar-primary: #10B981;
+  --sidebar-primary: #2563EB;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: rgba(16,185,129,0.02);
+  --sidebar-accent: rgba(37,99,235,0.02);
   --sidebar-accent-foreground: #0C0F0E;
   --sidebar-border: rgba(12,15,14,0.06);
-  --sidebar-ring: #10B981;
+  --sidebar-ring: #2563EB;
 
   /* Custom Luxury Tokens for White Theme */
   --bg-base:        #F4F7F6;
   --bg-surface:     #FFFFFF;
   --bg-elevated:    #EBEFEF;
-  --bg-glass:       rgba(16,185,129,0.02);
+  --bg-glass:       rgba(37,99,235,0.02);
   --border-subtle:  rgba(12,15,14,0.06);
   --border-medium:  rgba(12,15,14,0.12);
-  --border-accent:  rgba(16,185,129,0.25);
-  --gold:           #059669;
-  --gold-dim:       rgba(16,185,129,0.08);
-  --violet:         #10B981;
-  --violet-dim:     rgba(16,185,129,0.08);
+  --border-accent:  rgba(37,99,235,0.25);
+  --gold:           #3B82F6;
+  --gold-dim:       rgba(37,99,235,0.08);
+  --violet:         #2563EB;
+  --violet-dim:     rgba(37,99,235,0.08);
   --teal:           #0D9488;
   --teal-dim:       rgba(13,148,136,0.08);
   --red:            #DC2626;
@@ -212,7 +212,7 @@
   --text-muted:     #7D928C;   /* decorative only */
   --input-bg:       #F9FBFA;
   --input-border:   rgba(12,15,14,0.18);
-  --input-border-focus: #10B981;
+  --input-border-focus: #2563EB;
   --input-text:     #0F1A16;
   --input-placeholder: #7D928C;
   --input-height:   42px;
@@ -282,7 +282,7 @@
 .light .bg-\[\#F59E0B\]\/10 { background-color: rgba(245, 158, 11, 0.12) !important; color: #D97706 !important; }
 .light .bg-\[\#10B981\]\/10 { background-color: var(--violet-dim) !important; color: var(--violet) !important; }
 .light .border-\[\#2DD4BF\]\/20 { border-color: rgba(13, 148, 136, 0.20) !important; }
-.light .border-\[\#10B981\]\/20 { border-color: rgba(16, 185, 129, 0.20) !important; }
+.light .border-\[\#10B981\]\/20 { border-color: var(--border-accent) !important; }
 .light .border-\[\#F59E0B\]\/20 { border-color: rgba(217, 119, 6, 0.20) !important; }
 .light .border-\[\#EF4444\]\/20 { border-color: rgba(220, 38, 38, 0.20) !important; }
 .light .border-white\/10 { border-color: rgba(12, 15, 14, 0.10) !important; }
@@ -559,7 +559,7 @@ input[type="color"]::-moz-color-swatch {
 
 input[type="color"]:focus {
   border-color: var(--input-border-focus) !important;
-  box-shadow: 0 0 0 3px rgba(16,185,129,0.12) !important;
+  box-shadow: 0 0 0 3px var(--violet-dim) !important;
   outline: none !important;
 }
 
@@ -577,12 +577,12 @@ textarea::placeholder {
   opacity: 1 !important;
 }
 
-/* Focus state — mint glow */
+/* Focus state — brand glow */
 input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
 textarea:focus,
 select:focus {
   border-color: var(--input-border-focus) !important;
-  box-shadow: 0 0 0 3px rgba(16,185,129,0.12) !important;
+  box-shadow: 0 0 0 3px var(--violet-dim) !important;
   outline: none !important;
 }
 
@@ -661,7 +661,7 @@ aside[data-sidebar="sidebar"] {
   background-color: var(--violet-dim) !important;
   border: 1px solid var(--border-accent) !important;
   border-top: 1px solid !important;
-  border-image: linear-gradient(90deg, #10B981, transparent) 1 !important;
+  border-image: linear-gradient(90deg, var(--primary), transparent) 1 !important;
 }
 
 [data-sidebar="menu-button"][data-active="true"] svg {
@@ -684,7 +684,7 @@ aside[data-sidebar="sidebar"] {
 
 .btn-premium-solid:hover {
   background-color: var(--gold) !important;
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.25) !important;
+  box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 25%, transparent) !important;
 }
 
 .btn-premium-outline {
@@ -829,7 +829,7 @@ aside[data-sidebar="sidebar"] {
 .progress-bar-indeterminate {
   position: absolute;
   height: 100%;
-  background: linear-gradient(90deg, #10B981, #34D399);
+  background: linear-gradient(90deg, var(--primary), var(--gold));
   animation: progress-bar-indeterminate 1.4s ease-in-out infinite;
   border-radius: 99px;
 }
@@ -911,7 +911,89 @@ label:has(~ div select[required])::after {
 
 /* ============================================================
    MULTI-COLOR THEMES SYSTEM (Emerald, Sapphire, Ruby, Amber, Amethyst)
+   Default brand is Sapphire Blue (:root). Other themes opt-in via class.
    ============================================================ */
+
+/* Legacy emerald utility classes → active theme tokens (works for default sapphire too) */
+[class*="bg-[#10B981]"],
+[class*="hover:bg-[#10B981]"]:hover,
+[class*="data-[state=checked]:bg-[#10B981]"] {
+  background-color: var(--primary) !important;
+}
+[class*="text-[#10B981]"],
+[class*="hover:text-[#10B981]"]:hover {
+  color: var(--primary) !important;
+}
+[class*="border-[#10B981]"],
+[class*="focus:border-[#10B981]"]:focus,
+[class*="focus-visible:border-[#10B981]"]:focus-visible,
+[class*="hover:border-[#10B981]"]:hover {
+  border-color: var(--primary) !important;
+}
+[class*="ring-[#10B981]"],
+[class*="focus:ring-[#10B981]"]:focus,
+[class*="focus-visible:ring-[#10B981]"]:focus-visible,
+[class*="focus-within:ring-[#10B981]"]:focus-within {
+  --tw-ring-color: var(--primary) !important;
+}
+[class*="bg-[#059669]"],
+[class*="hover:bg-[#059669]"]:hover {
+  background-color: color-mix(in srgb, var(--primary) 85%, #000) !important;
+}
+[class*="text-[#34D399]"],
+[class*="hover:text-[#34D399]"]:hover {
+  color: var(--gold) !important;
+}
+[class*="bg-[#10B981]/10"],
+[class*="bg-[#10B981]/20"],
+[class*="bg-[rgba(16,185,129"] {
+  background-color: var(--violet-dim) !important;
+}
+[class*="border-[#10B981]/20"],
+[class*="border-[rgba(16,185,129"] {
+  border-color: var(--border-accent) !important;
+}
+[class*="ring-[rgba(16,185,129"] {
+  --tw-ring-color: var(--border-accent) !important;
+}
+
+/* --- Emerald Theme (legacy green) --- */
+.theme-emerald {
+  --primary: #10B981 !important;
+  --accent-foreground: #10B981 !important;
+  --ring: #10B981 !important;
+  --sidebar-primary: #10B981 !important;
+  --sidebar-ring: #10B981 !important;
+  --gold: #34D399 !important;
+  --violet: #10B981 !important;
+  --border-accent: rgba(16,185,129,0.35) !important;
+  --gold-dim: rgba(16,185,129,0.12) !important;
+  --violet-dim: rgba(16,185,129,0.12) !important;
+  --bg-glass: rgba(16,185,129,0.03) !important;
+  --input-border-focus: #10B981 !important;
+  --success-bg: rgba(16, 185, 129, 0.1) !important;
+  --success-border: rgba(16, 185, 129, 0.2) !important;
+  --success-text: #10B981 !important;
+  --success-color: #10B981 !important;
+}
+.light.theme-emerald {
+  --primary: #10B981 !important;
+  --accent-foreground: #10B981 !important;
+  --ring: #10B981 !important;
+  --sidebar-primary: #10B981 !important;
+  --sidebar-ring: #10B981 !important;
+  --gold: #059669 !important;
+  --violet: #10B981 !important;
+  --border-accent: rgba(16,185,129,0.25) !important;
+  --gold-dim: rgba(16,185,129,0.08) !important;
+  --violet-dim: rgba(16,185,129,0.08) !important;
+  --bg-glass: rgba(16,185,129,0.02) !important;
+  --input-border-focus: #10B981 !important;
+  --success-bg: rgba(16, 185, 129, 0.08) !important;
+  --success-border: rgba(16, 185, 129, 0.15) !important;
+  --success-text: #10B981 !important;
+  --success-color: #10B981 !important;
+}
 
 /* --- Sapphire Theme (Royal Blue) --- */
 .theme-sapphire {

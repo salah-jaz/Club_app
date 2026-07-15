@@ -89,7 +89,7 @@ function Layout() {
       root.style.removeProperty('--success-bg');
       root.style.removeProperty('--success-border');
       
-      if (colorTheme !== "emerald") {
+      if (colorTheme !== "sapphire") {
         document.documentElement.classList.add(`theme-${colorTheme}`);
       }
     }
