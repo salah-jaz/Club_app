@@ -54,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/schedules', [PlayScheduleController::class, 'index']);
     Route::post('/schedules', [PlayScheduleController::class, 'store']);
     Route::patch('/schedules/{id}', [PlayScheduleController::class, 'update']);
+    Route::delete('/schedules/{id}', [PlayScheduleController::class, 'destroy']);
     Route::post('/schedules/{id}/release', [PlayScheduleController::class, 'release']);
     Route::post('/schedules/{id}/close', [PlayScheduleController::class, 'close']);
     Route::post('/schedules/{id}/rotate', [PlayScheduleController::class, 'rotate']);
@@ -67,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/trainings', [TrainingController::class, 'index']);
     Route::post('/trainings', [TrainingController::class, 'store']);
     Route::patch('/trainings/{id}', [TrainingController::class, 'update']);
+    Route::delete('/trainings/{id}', [TrainingController::class, 'destroy']);
     Route::post('/trainings/{id}/release', [TrainingController::class, 'release']);
     Route::post('/trainings/{id}/enroll', [TrainingController::class, 'enroll']);
     

@@ -139,7 +139,11 @@ function LeagueGroupsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this league group?")) {
+    const hasRelated = store.schedules?.some((sch) => sch.leagueGroupIds?.includes(id));
+    const confirmMsg = hasRelated
+      ? "WARNING: This league group is currently linked to active play schedules. Deleting it may affect group rotations. Are you sure you want to delete it?"
+      : "Are you sure you want to delete this league group?";
+    if (confirm(confirmMsg)) {
       try {
         await store.deleteLeagueGroup(id);
         toast.success("League group deleted");

@@ -357,6 +357,14 @@ class PlayScheduleController extends Controller
         ]));
     }
 
+    public function destroy($id)
+    {
+        $sch = PlaySchedule::findOrFail($id);
+        $sch->delete();
+
+        return response()->json(['message' => 'Play schedule deleted successfully.']);
+    }
+
     private function formatSchedule(PlaySchedule $s)
     {
         return [

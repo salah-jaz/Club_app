@@ -322,6 +322,14 @@ class TrainingController extends Controller
         return $result;
     }
 
+    public function destroy($id)
+    {
+        $t = Training::findOrFail($id);
+        $t->delete();
+
+        return response()->json(['message' => 'Training program deleted successfully.']);
+    }
+
     private function formatTraining(Training $t)
     {
         return [
