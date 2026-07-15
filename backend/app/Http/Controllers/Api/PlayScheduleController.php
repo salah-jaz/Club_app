@@ -304,6 +304,23 @@ class PlayScheduleController extends Controller
         ]);
 
         $invite = PlayInvitation::findOrFail($id);
+
+        if ($request->status === 'accepted') {
+            $member = Member::find($invite->member_id);
+            if ($member && !$member->skip_credit_consumption) {
+                $sch = PlaySchedule::find($invite->schedule_id);
+                if ($sch) {
+                    $playerCount = max($sch->players, 1);
+                    $estimatedFee = $sch->session_rate + ($sch->hall_rate / $playerCount);
+                    $estimatedFee = round($estimatedFee, 2);
+                    if ($member->credit < $estimatedFee) {
+                        return response()->json([
+                            'message' => "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule."
+                        ], 422);
+                    }
+                }
+            }
+        }
         
         // If declining an already accepted invitation, check cancellation hours
         if ($request->status === 'declined' && $invite->status === 'accepted') {

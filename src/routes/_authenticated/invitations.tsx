@@ -86,6 +86,11 @@ function Invitations() {
             {playInvs.map((i) => {
               const sch = s.schedules.find((x) => x.id === i.scheduleId);
               if (!sch) return null;
+
+              const member = s.members.find((x) => x.id === i.memberId);
+              const estimatedFee = sch.sessionRate + (sch.hallRate / (sch.players || 1));
+              const hasInsufficientCredits = member && !member.skipCreditConsumption && member.credit < estimatedFee;
+
               return (
                 <div key={i.id} className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 hover:bg-[#1A2120]/60 rounded-lg p-4 transition-all">
                   <div className="flex justify-between items-start mb-3">
@@ -93,12 +98,26 @@ function Invitations() {
                       <div className="font-semibold text-[#F1F0EE] text-[14px]">{sch.name}</div>
                       <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">{fmtDateTime(sch.date)}</div>
                       <div className="text-[11px] text-[#34D399] mt-0.5 font-medium">Invited: {name(i.memberId)}</div>
+                      <div className="text-[11px] text-[#8A8A98] mt-0.5 font-light">
+                        Session Fee: <span className="font-semibold font-mono text-[#34D399]">${estimatedFee.toFixed(2)}</span>
+                      </div>
                     </div>
                     <StatusBadge status={i.status} />
                   </div>
+                  {i.status === "open" && hasInsufficientCredits && (
+                    <div className="mb-3 text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 font-light">
+                      <span className="font-semibold">Alert:</span> Insufficient credits (${member.credit.toFixed(2)} / ${estimatedFee.toFixed(2)})
+                    </div>
+                  )}
                   {i.status === "open" && (
                     <div className="flex gap-2 mt-3">
                       <Button size="sm" className="flex-1 btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer" onClick={async () => {
+                        if (hasInsufficientCredits) {
+                          toast.error(
+                            `Insufficient credits! This session requires $${estimatedFee.toFixed(2)} but you only have $${member.credit.toFixed(2)}.`
+                          );
+                          return;
+                        }
                         try {
                           await s.respondPlay(i.id, "accepted");
                           toast.success("Accepted invitation");
