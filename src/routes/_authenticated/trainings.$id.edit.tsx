@@ -181,6 +181,9 @@ function EditTraining() {
                 <div className="h-10 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] rounded-lg animate-pulse" />
               )}
             </div>
+            <div className="sm:col-span-2 pt-2 border-t border-white/[0.03] text-xs text-[#8A8A98]">
+              Estimated per-session cost: <span className="font-semibold text-[#34D399] font-mono">${(f.fees / Math.max(f.sessions, 1)).toFixed(2)}</span> (calculated as Program Fees / Weekly Sessions)
+            </div>
           </CardContent>
         </Card>
         <div className="flex justify-end">

@@ -31,12 +31,14 @@ function SchedulePage() {
     declined: invs.filter((i) => i.status === "declined"),
     waiting: invs.filter((i) => i.status === "open"),
   };
+  const acceptedCount = grouped.accepted.length;
+  const exactAmount = sch.sessionRate + (sch.hallRate / Math.max(acceptedCount, 1));
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={sch.name}
-        description={`${fmtDateTime(sch.date)} · ${sch.location}`}
+        description={`${fmtDateTime(sch.date)} · ${sch.location} · Fee: $${exactAmount.toFixed(2)}/player (Session: $${sch.sessionRate.toFixed(2)} + Hall split: $${(sch.hallRate / Math.max(acceptedCount, 1)).toFixed(2)})`}
         backTo="/schedules"
         actions={
           <div className="flex items-center gap-2">

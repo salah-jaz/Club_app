@@ -40,7 +40,7 @@ function TrainingPage() {
     <div className="space-y-6">
       <PageHeader
         title={t.name}
-        description={`Coach ${t.coach} · ${t.location}`}
+        description={`Coach ${t.coach} · ${t.location} · Total Fee: $${t.fees.toFixed(2)} ($${(t.fees / Math.max(t.sessions, 1)).toFixed(2)}/session)`}
         backTo="/trainings"
         actions={<StatusBadge status={t.status} />}
       />
