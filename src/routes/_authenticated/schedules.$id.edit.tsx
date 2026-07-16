@@ -70,6 +70,11 @@ function EditSchedule() {
 
   if (!sch) return <Navigate to="/schedules" />;
 
+  // Lock editing once rotation has been generated (or session closed)
+  if (sch.status === "rotated" || sch.status === "closed") {
+    return <Navigate to="/schedules/$id" params={{ id: sch.id }} />;
+  }
+
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
 
   return (
@@ -281,7 +286,7 @@ function EditSchedule() {
               />
             </div>
             <div className="sm:col-span-2 pt-2 border-t border-white/[0.03] text-xs text-[#8A8A98]">
-              Estimated per-player cost: <span className="font-semibold text-[#34D399] font-mono">${(f.sessionRate + (f.hallRate / Math.max(f.players, 1))).toFixed(2)}</span> (calculated as Session Rate + Hall Rate / Max Players)
+              Estimated per-player cost: <span className="font-semibold text-[#34D399] font-mono">${Number(f.sessionRate).toFixed(2)}</span> (session rate)
             </div>
           </CardContent>
         </Card>

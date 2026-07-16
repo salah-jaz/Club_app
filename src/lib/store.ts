@@ -87,6 +87,7 @@ interface State {
   ) => Promise<void>;
   updateMember: (id: string, patch: Partial<Member>) => Promise<void>;
   deleteMember: (id: string) => Promise<void>;
+  bulkDeleteMembers: (ids: string[]) => Promise<number>;
 
   // credits
   requestCredit: (memberId: string, amount: number, date: string) => Promise<void>;
@@ -100,7 +101,8 @@ interface State {
   releaseSchedule: (id: string) => Promise<{ message?: string; inviteCount?: number }>;
   closeSchedule: (id: string) => Promise<void>;
   deleteSchedule: (id: string) => Promise<void>;
-  respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
+  respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<PlayInvitation>;
+  enrollPlay: (scheduleId: string, memberIds: string[]) => Promise<void>;
   generateRotation: (scheduleId: string) => Promise<void>;
 
   // trainings
@@ -167,7 +169,7 @@ interface State {
   updateLeagueGroup: (id: string, patch: { name?: string; description?: string; memberIds?: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
   deleteLeagueGroup: (id: string) => Promise<void>;
   setActiveRole: (role: Role) => void;
-  bulkUploadMembers: (file: File) => Promise<void>;
+  bulkUploadMembers: (file: File, options?: { allowExamples?: boolean }) => Promise<number>;
 }
 
 const getInitialUserId = () => {
@@ -455,6 +457,14 @@ export const useStore = create<State>((set, get) => ({
     await get().syncData();
   },
 
+  bulkDeleteMembers: async (ids) => {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return 0;
+    const res = await api.post<{ deletedCount?: number }>("/members/bulk-delete", { ids: unique });
+    await get().syncData();
+    return res.deletedCount ?? unique.length;
+  },
+
   requestCredit: async (memberId, amount, date) => {
     await api.post<CreditRequest>("/credit-requests", { memberId, amount, date });
     await get().syncData();
@@ -509,10 +519,44 @@ export const useStore = create<State>((set, get) => ({
   },
 
   respondPlay: async (inviteId, status) => {
-    await api.post<PlayInvitation>(`/play-invitations/${inviteId}/respond`, {
-      status,
+    const res = await api.post<PlayInvitation & { promoted?: PlayInvitation }>(
+      `/play-invitations/${inviteId}/respond`,
+      { status },
+    );
+    const { promoted, ...updated } = res;
+
+    // Apply response immediately so the UI flips Accept → Decline without waiting
+    set((state) => ({
+      playInvites: state.playInvites.map((i) => {
+        if (i.id === inviteId) return { ...i, ...updated };
+        if (promoted && i.id === promoted.id) return { ...i, ...promoted };
+        return i;
+      }),
+    }));
+
+    // Refresh invitations so accepted counts / waiting list stay accurate
+    const playInvites = await api.get<PlayInvitation[]>("/play-invitations");
+    set({ playInvites });
+
+    return playInvites.find((i) => i.id === inviteId) ?? updated;
+  },
+
+  enrollPlay: async (scheduleId, memberIds) => {
+    const res = await api.post<{
+      invitations?: PlayInvitation[];
+    }>(`/schedules/${scheduleId}/enroll`, { memberIds });
+    const created = res.invitations ?? [];
+    if (created.length === 0) {
+      // Fallback: light refresh of invites only
+      const playInvites = await api.get<PlayInvitation[]>("/play-invitations");
+      set({ playInvites });
+      return;
+    }
+    set((state) => {
+      const byId = new Map(state.playInvites.map((i) => [i.id, i]));
+      for (const inv of created) byId.set(inv.id, { ...byId.get(inv.id), ...inv });
+      return { playInvites: Array.from(byId.values()) };
     });
-    await get().syncData();
   },
 
   generateRotation: async (scheduleId) => {
@@ -675,11 +719,15 @@ export const useStore = create<State>((set, get) => ({
     set({ activeRole: role });
   },
 
-  bulkUploadMembers: async (file: File) => {
+  bulkUploadMembers: async (file: File, options?: { allowExamples?: boolean }) => {
     const formData = new FormData();
     formData.append("file", file);
-    await api.post("/members/bulk-upload", formData);
+    if (options?.allowExamples) {
+      formData.append("allow_examples", "1");
+    }
+    const res = await api.post<{ createdCount?: number }>("/members/bulk-upload", formData);
     await get().syncData();
+    return res.createdCount ?? 0;
   },
 }));
 

@@ -17,6 +17,7 @@ import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { MemberCombobox } from "@/components/MemberCombobox";
 
 type CreditsSearch = {
   memberId?: string;
@@ -49,7 +50,9 @@ function CreditsPage() {
     user.role === "admin" ? true : myMembers.some((m) => m.id === r.memberId),
   );
 
-  const pendingCount = myReqs.filter((r) => r.status === "created").length;
+  const selectedMember = myMembers.find((m) => m.id === memberId);
+  const memberReqs = memberId ? myReqs.filter((r) => r.memberId === memberId) : myReqs;
+  const pendingCount = memberReqs.filter((r) => r.status === "created").length;
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -69,7 +72,7 @@ function CreditsPage() {
   const hasActiveFilters = searchTerm !== "" || statusFilter !== "all" || fromDate !== "" || toDate !== "" || sortBy !== "newest";
 
   const filteredReqs = useMemo(() => {
-    return myReqs
+    return memberReqs
       .filter((r) => {
         if (searchTerm.trim()) {
           const m = s.members.find((x) => x.id === r.memberId);
@@ -111,7 +114,7 @@ function CreditsPage() {
         }
         return 0;
       });
-  }, [myReqs, s.members, searchTerm, statusFilter, fromDate, toDate, sortBy]);
+  }, [memberReqs, s.members, searchTerm, statusFilter, fromDate, toDate, sortBy]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,19 +145,18 @@ function CreditsPage() {
         <CardContent>
           <form onSubmit={submit} className="grid sm:grid-cols-4 gap-4 items-end">
             <div className="space-y-2 sm:col-span-2">
-              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Member</Label>
-              <Select value={memberId} onValueChange={setMemberId}>
-                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px] cursor-pointer">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  {myMembers.map((m) => (
-                    <SelectItem key={m.id} value={m.id} className="cursor-pointer hover:bg-white/5">
-                      {m.firstName} {m.lastName} — bal {fmtMoney(m.credit)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label
+                htmlFor="credits-member-combobox"
+                className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]"
+              >
+                Member
+              </Label>
+              <MemberCombobox
+                id="credits-member-combobox"
+                members={myMembers}
+                value={memberId}
+                onValueChange={setMemberId}
+              />
             </div>
             <div className="space-y-2">
               <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Amount</Label>
@@ -187,7 +189,11 @@ function CreditsPage() {
       <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] overflow-hidden">
         <CardHeader className="border-b border-[rgba(255,255,255,0.06)] py-4.5 px-6 flex flex-row items-center justify-between">
           <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
-            <span>Credit Requests</span>
+            <span>
+              {selectedMember
+                ? `${selectedMember.firstName} ${selectedMember.lastName} — Credit History`
+                : "Credit Requests"}
+            </span>
             {pendingCount > 0 && (
               <span className="text-[11px] font-semibold bg-[#F59E0B]/10 text-[#F59E0B] px-2 py-0.5 rounded-full">
                 {pendingCount} pending
@@ -474,8 +480,20 @@ function CreditsPage() {
                   <TableCell colSpan={user.role === "admin" ? 5 : 4} className="p-0">
                     <EmptyIllustration
                       icon="wallet"
-                      title={hasActiveFilters ? "No credit requests found" : "No credit requests yet"}
-                      description={hasActiveFilters ? "Try adjusting your filters or search terms." : "Submit a top-up request and it will appear here for admin approval."}
+                      title={
+                        hasActiveFilters
+                          ? "No credit requests found"
+                          : selectedMember
+                          ? "No credit history for this member"
+                          : "No credit requests yet"
+                      }
+                      description={
+                        hasActiveFilters
+                          ? "Try adjusting your filters or search terms."
+                          : selectedMember
+                          ? "Add a top-up above and it will show up in this member's history."
+                          : "Submit a top-up request and it will appear here for admin approval."
+                      }
                     />
                   </TableCell>
                 </TableRow>

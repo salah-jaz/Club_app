@@ -17,6 +17,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import {
+  ConfirmDeleteDialog,
+  type ConfirmDeleteRequest,
+} from "@/components/ConfirmDeleteDialog";
+import type { Training } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/trainings")({ component: TrainingsLayout });
 
@@ -38,6 +43,35 @@ function TrainingsList() {
     () => (localStorage.getItem("clubapp-view-mode-trainings") as "grid" | "list") || "grid"
   );
   const [searchTerm, setSearchTerm] = useState("");
+  const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
+
+  const requestDeleteTraining = (t: Training) => {
+    const memberCount = new Set(
+      (s.trainingInvites ?? []).filter((i) => i.trainingId === t.id).map((i) => i.memberId),
+    ).size;
+    const sessionCount = (s.trainingDates ?? []).filter((d) => d.trainingId === t.id).length;
+    setDeleteRequest({
+      title: "Delete training",
+      entityName: t.name,
+      related: [
+        { label: memberCount === 1 ? "member" : "members", count: memberCount },
+        { label: sessionCount === 1 ? "session date" : "session dates", count: sessionCount },
+      ],
+      warning:
+        memberCount > 0 || sessionCount > 0
+          ? "Enrollments and training dates linked to this program will be deleted (cascade)."
+          : undefined,
+      onConfirm: async () => {
+        try {
+          await s.deleteTraining(t.id);
+          toast.success("Training program deleted");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to delete training program.");
+          throw error;
+        }
+      },
+    });
+  };
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
 
@@ -81,6 +115,10 @@ function TrainingsList() {
 
   return (
     <div>
+      <ConfirmDeleteDialog
+        request={deleteRequest}
+        onOpenChange={(open) => !open && setDeleteRequest(null)}
+      />
       <PageHeader
         title="Training programs"
         description="Coach-led programs for junior members."
@@ -304,21 +342,7 @@ function TrainingsList() {
                             size="sm"
                             variant="destructive"
                             className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs"
-                            onClick={async () => {
-                              const hasRelated = s.trainingInvites?.some((i) => i.trainingId === t.id) ||
-                                                 s.trainingDates?.some((d) => d.trainingId === t.id);
-                              const confirmMsg = hasRelated
-                                ? "WARNING: This training program has active enrollments or scheduled sessions. Deleting it will permanently delete all related records. Are you sure you want to proceed?"
-                                : "Are you sure you want to delete this training program?";
-                              if (confirm(confirmMsg)) {
-                                try {
-                                    await s.deleteTraining(t.id);
-                                    toast.success("Training program deleted");
-                                } catch (error: any) {
-                                    toast.error(error.message || "Failed to delete training program.");
-                                }
-                              }
-                            }}
+                            onClick={() => requestDeleteTraining(t)}
                           >
                             Delete
                           </Button>
@@ -385,21 +409,7 @@ function TrainingsList() {
                           size="sm"
                           variant="destructive"
                           className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs"
-                          onClick={async () => {
-                            const hasRelated = s.trainingInvites?.some((i) => i.trainingId === t.id) ||
-                                               s.trainingDates?.some((d) => d.trainingId === t.id);
-                            const confirmMsg = hasRelated
-                              ? "WARNING: This training program has active enrollments or scheduled sessions. Deleting it will permanently delete all related records. Are you sure you want to proceed?"
-                              : "Are you sure you want to delete this training program?";
-                            if (confirm(confirmMsg)) {
-                              try {
-                                await s.deleteTraining(t.id);
-                                toast.success("Training program deleted");
-                              } catch (error: any) {
-                                toast.error(error.message || "Failed to delete training program.");
-                              }
-                            }
-                          }}
+                          onClick={() => requestDeleteTraining(t)}
                         >
                           Delete
                         </Button>

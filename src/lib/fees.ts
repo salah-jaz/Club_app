@@ -34,8 +34,8 @@ export function applyMemberFee(
   return roundFee(Math.max(0, fee));
 }
 
-export function playSessionBaseFee(sessionRate: number, hallRate: number, playerCount: number): number {
-  return sessionRate + hallRate / Math.max(playerCount, 1);
+export function playSessionBaseFee(sessionRate: number, _hallRate = 0, _playerCount = 1): number {
+  return sessionRate;
 }
 
 export function discountsFromStore(store: DiscountSettings): DiscountSettings {

@@ -37,8 +37,7 @@ Artisan::command('debit:cancellations', function () {
             continue;
         }
 
-        $playerCount = max($acceptedInvs->count(), 1);
-        $fee = $schedule->session_rate + ($schedule->hall_rate / $playerCount);
+        $fee = $schedule->session_rate;
         $feeRounded = round($fee, 2);
 
         foreach ($undebitedAcceptedInvs as $inv) {

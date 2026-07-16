@@ -41,10 +41,10 @@ class FeeHelper
         return round(max(0, $fee), 2);
     }
 
-    public static function playSessionFee(float $sessionRate, float $hallRate, int $playerCount, ?Member $member): float
+    public static function playSessionFee(float $sessionRate, float $hallRate = 0, int $playerCount = 1, ?Member $member = null): float
     {
-        $base = $sessionRate + ($hallRate / max($playerCount, 1));
-        return self::forMember($base, $member);
+        // Billing uses session rate only (hall rate is informational).
+        return self::forMember($sessionRate, $member);
     }
 
     private static function settingValue(string $key): ?string

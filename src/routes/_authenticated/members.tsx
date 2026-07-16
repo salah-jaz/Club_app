@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Plus, Pencil, Wallet, LayoutGrid, List, Users, UserRound, Trophy,
-  Upload, Download, Mail, IdCard,
+  Upload, Download, Mail, IdCard, CheckSquare, Square, ChevronDown,
 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
@@ -22,6 +22,137 @@ import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Member } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+  ConfirmDeleteDialog,
+  type ConfirmDeleteRequest,
+} from "@/components/ConfirmDeleteDialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+const MEMBER_TEMPLATE_HEADERS = [
+  "first_name",
+  "last_name",
+  "email",
+  "sex",
+  "dob",
+  "mobile",
+  "address",
+  "member_type",
+  "membership",
+  "league",
+  "training_eligible",
+  "grade",
+  "bi_member_id",
+  "status",
+] as const;
+
+function csvEscapeCell(value: string) {
+  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
+function buildMemberBulkTemplate(adultGradesIn: string[], juniorGradesIn: string[]) {
+  const adultGrades = adultGradesIn.length ? adultGradesIn : ["A", "B", "C", "D"];
+  const juniorGrades = juniorGradesIn.length
+    ? juniorGradesIn
+    : ["Beginner", "Intermediate", "Advanced"];
+  const types = ["adult", "junior"] as const;
+  const headers = [...MEMBER_TEMPLATE_HEADERS];
+
+  const exampleRows: string[][] = [];
+  const EXAMPLE_COUNT = 20;
+  const adultCount = Math.ceil(EXAMPLE_COUNT / 2);
+
+  for (let i = 0; i < EXAMPLE_COUNT; i++) {
+    const n = String(i + 1).padStart(2, "0");
+    const isAdult = i < adultCount;
+    const grade = isAdult
+      ? adultGrades[i % adultGrades.length]
+      : juniorGrades[(i - adultCount) % juniorGrades.length];
+    const sex = i % 2 === 0 ? "female" : "male";
+
+    exampleRows.push([
+      "Member",
+      n,
+      `member${n}@example.com`,
+      sex,
+      isAdult ? "1990-01-15" : "2012-06-20",
+      `+1 555 ${isAdult ? "01" : "02"}${n}`,
+      isAdult ? "123 Main Street" : "45 Park Avenue",
+      isAdult ? "adult" : "junior",
+      "true",
+      isAdult ? "true" : "false",
+      isAdult ? "false" : "true",
+      grade,
+      `BI-${n}`,
+      "active",
+    ]);
+  }
+
+  const blank = Array(headers.length).fill("");
+  const refRows: { label: string; value: string }[] = [
+    { label: "AVAILABLE_TYPES", value: types.join(" | ") },
+    { label: "AVAILABLE_ADULT_GRADES", value: adultGrades.join(" | ") },
+    { label: "AVAILABLE_JUNIOR_GRADES", value: juniorGrades.join(" | ") },
+    {
+      label: "NOTES",
+      value:
+        "Replace @example.com emails with real ones before upload. member_type must be adult or junior; grade must match that type; membership/league/training_eligible are true/false; status is active or disabled. Delete the REFERENCE section before uploading.",
+    },
+  ];
+
+  const lines = [
+    headers.map(csvEscapeCell).join(","),
+    ...exampleRows.map((row) => row.map(csvEscapeCell).join(",")),
+    blank.join(","),
+    ["REFERENCE_DO_NOT_IMPORT", "Delete this section before uploading", ...Array(headers.length - 2).fill("")]
+      .map(csvEscapeCell)
+      .join(","),
+    ...refRows.map((r) =>
+      [r.label, r.value, ...Array(headers.length - 2).fill("")].map(csvEscapeCell).join(","),
+    ),
+  ];
+
+  return {
+    headers,
+    exampleRows,
+    types: [...types],
+    adultGrades,
+    juniorGrades,
+    refRows,
+    csvText: lines.join("\n"),
+    examplesCsvText: [
+      headers.map(csvEscapeCell).join(","),
+      ...exampleRows.map((row) => row.map(csvEscapeCell).join(",")),
+    ].join("\n"),
+  };
+}
+
+function downloadCsvFile(csvText: string, filename: string) {
+  const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 export const Route = createFileRoute("/_authenticated/members")({ component: MembersLayout });
 
@@ -118,12 +249,12 @@ function MemberTags({ member }: { member: Member }) {
 function MemberActions({
   member,
   activeRole,
-  deleteMember,
+  onRequestDelete,
   compact = false,
 }: {
   member: Member;
   activeRole: string;
-  deleteMember: (id: string) => Promise<void>;
+  onRequestDelete: (member: Member) => void;
   compact?: boolean;
 }) {
   const loginAs = useStore((s) => s.loginAs);
@@ -171,23 +302,7 @@ function MemberActions({
         <Button
           variant="destructive"
           className={cn("btn-premium-danger hover:cursor-pointer", btnClass)}
-          onClick={async () => {
-            const hasRelated = useStore.getState().playInvites?.some((i) => i.memberId === member.id) ||
-                               useStore.getState().trainingInvites?.some((i) => i.memberId === member.id) ||
-                               useStore.getState().transactions?.some((t) => t.memberId === member.id) ||
-                               useStore.getState().creditRequests?.some((cr) => cr.memberId === member.id);
-            const confirmMsg = hasRelated
-              ? `WARNING: This member has active invitations, transactions, or credit records. Removing them will permanently delete all related records. Are you sure you want to remove ${member.firstName} ${member.lastName}?`
-              : `Remove ${member.firstName} ${member.lastName} from the club?`;
-            if (confirm(confirmMsg)) {
-              try {
-                await deleteMember(member.id);
-                toast.success("Member removed successfully");
-              } catch (e: any) {
-                toast.error(e.message || "Failed to remove member");
-              }
-            }
-          }}
+          onClick={() => onRequestDelete(member)}
         >
           <Trash2 className="size-3.5 mr-1" /> Remove
         </Button>
@@ -206,6 +321,67 @@ function MembersList() {
   const [viewMode, setViewMode] = useState<"grid" | "list">(
     () => (localStorage.getItem("clubapp-view-mode-members") as "grid" | "list") || "list",
   );
+  const [templateImporting, setTemplateImporting] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const bulkDeleteMembers = useStore((s) => s.bulkDeleteMembers);
+
+  const requestDeleteMember = (member: Member) => {
+    const state = useStore.getState();
+    const playInvites = (state.playInvites ?? []).filter((i) => i.memberId === member.id);
+    const trainingInvites = (state.trainingInvites ?? []).filter((i) => i.memberId === member.id);
+    const trainingDateLinks = (state.trainingDates ?? []).filter((d) => d.memberId === member.id);
+    const txCount = (state.transactions ?? []).filter((t) => t.memberId === member.id).length;
+    const creditCount = (state.creditRequests ?? []).filter((cr) => cr.memberId === member.id).length;
+    const leagueCount = (state.leagueGroups ?? []).filter((g) => g.memberIds?.includes(member.id)).length;
+
+    const scheduleIds = [...new Set(playInvites.map((i) => i.scheduleId))];
+    const trainingIds = [
+      ...new Set([
+        ...trainingInvites.map((i) => i.trainingId),
+        ...trainingDateLinks.map((d) => d.trainingId),
+      ]),
+    ];
+    const scheduleNames = scheduleIds
+      .map((id) => state.schedules.find((s) => s.id === id)?.name)
+      .filter((n): n is string => !!n);
+    const trainingNames = trainingIds
+      .map((id) => state.trainings.find((t) => t.id === id)?.name)
+      .filter((n): n is string => !!n);
+
+    const inPlayOrTraining = scheduleNames.length > 0 || trainingNames.length > 0;
+
+    setDeleteRequest({
+      title: inPlayOrTraining ? "Member is in a schedule or training" : "Remove member",
+      entityName: `${member.firstName} ${member.lastName}`,
+      related: [
+        { label: "play invitations", count: playInvites.length },
+        { label: "training enrollments", count: trainingInvites.length },
+        { label: "training session dates", count: trainingDateLinks.length },
+        { label: "transactions", count: txCount },
+        { label: "credit requests", count: creditCount },
+        { label: "league groups", count: leagueCount },
+      ],
+      scheduleNames,
+      trainingNames,
+      warning: inPlayOrTraining
+        ? "Please confirm you still want to delete this member. Linked play and training records will be removed (cascade)."
+        : txCount + creditCount > 0
+          ? "Linked transactions and credit records will also be deleted (cascade)."
+          : undefined,
+      confirmLabel: inPlayOrTraining ? "Yes, delete member" : "Remove",
+      onConfirm: async () => {
+        try {
+          await deleteMember(member.id);
+          toast.success("Member removed successfully");
+        } catch (e: unknown) {
+          toast.error(e instanceof Error ? e.message : "Failed to remove member");
+          throw e;
+        }
+      },
+    });
+  };
 
   const {
     search,
@@ -320,6 +496,91 @@ function MembersList() {
   const hasActiveFilters =
     !!search || Object.values(filters).some((f) => f !== "all");
 
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const allVisibleSelected =
+    processed.length > 0 && processed.every((m) => selectedSet.has(m.id));
+  const someVisibleSelected = processed.some((m) => selectedSet.has(m.id));
+
+  const toggleSelect = (id: string, checked: boolean) => {
+    setSelectedIds((prev) =>
+      checked ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id),
+    );
+  };
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    const visibleIds = processed.map((m) => m.id);
+    setSelectedIds((prev) => {
+      if (checked) {
+        return [...new Set([...prev, ...visibleIds])];
+      }
+      const drop = new Set(visibleIds);
+      return prev.filter((id) => !drop.has(id));
+    });
+  };
+
+  const requestBulkDelete = (ids: string[], label: string) => {
+    if (ids.length === 0) {
+      toast.error("Select at least one member to delete.");
+      return;
+    }
+    const state = useStore.getState();
+    const idSet = new Set(ids);
+    const playInvites = (state.playInvites ?? []).filter((i) => idSet.has(i.memberId));
+    const trainingInvites = (state.trainingInvites ?? []).filter((i) => idSet.has(i.memberId));
+    const trainingDateLinks = (state.trainingDates ?? []).filter((d) => idSet.has(d.memberId));
+
+    const scheduleIds = [...new Set(playInvites.map((i) => i.scheduleId))];
+    const trainingIds = [
+      ...new Set([
+        ...trainingInvites.map((i) => i.trainingId),
+        ...trainingDateLinks.map((d) => d.trainingId),
+      ]),
+    ];
+    const scheduleNames = scheduleIds
+      .map((id) => state.schedules.find((s) => s.id === id)?.name)
+      .filter((n): n is string => !!n);
+    const trainingNames = trainingIds
+      .map((id) => state.trainings.find((t) => t.id === id)?.name)
+      .filter((n): n is string => !!n);
+
+    const membersInPlay = new Set(playInvites.map((i) => i.memberId)).size;
+    const membersInTraining = new Set([
+      ...trainingInvites.map((i) => i.memberId),
+      ...trainingDateLinks.map((d) => d.memberId),
+    ]).size;
+    const inPlayOrTraining = scheduleNames.length > 0 || trainingNames.length > 0;
+
+    setDeleteRequest({
+      title: inPlayOrTraining
+        ? "Members are in schedules or trainings"
+        : "Delete members",
+      entityName: label,
+      related: [
+        { label: ids.length === 1 ? "member" : "members", count: ids.length },
+        { label: "in play schedules", count: membersInPlay },
+        { label: "in trainings", count: membersInTraining },
+        { label: "play invitations", count: playInvites.length },
+        { label: "training enrollments", count: trainingInvites.length },
+      ],
+      scheduleNames,
+      trainingNames,
+      warning: inPlayOrTraining
+        ? "Some selected members are linked to play schedules or trainings. Confirm to delete them and cascade their invitations/enrollments."
+        : "This permanently removes the selected members and cascaded invitations, transactions, and credit records.",
+      confirmLabel: inPlayOrTraining ? "Yes, delete members" : "Delete all",
+      onConfirm: async () => {
+        try {
+          const count = await bulkDeleteMembers(ids);
+          setSelectedIds([]);
+          toast.success(`Deleted ${count} member${count === 1 ? "" : "s"}`);
+        } catch (e: unknown) {
+          toast.error(e instanceof Error ? e.message : "Failed to delete members");
+          throw e;
+        }
+      },
+    });
+  };
+
   const quickFilters = [
     { id: "all", label: "All", apply: () => { clearFilters(); } },
     { id: "adult", label: "Adults", apply: () => setFilter("category", "adult") },
@@ -337,14 +598,55 @@ function MembersList() {
     return false;
   };
 
+  const memberTemplate = useMemo(
+    () => buildMemberBulkTemplate(store.adultGrades ?? [], store.juniorGrades ?? []),
+    [store.adultGrades, store.juniorGrades],
+  );
+
+  const handleDownloadTemplate = () => {
+    downloadCsvFile(memberTemplate.csvText, "member_bulk_upload_template.csv");
+    toast.success("Template downloaded");
+  };
+
+  const handleImportExamples = async () => {
+    setTemplateImporting(true);
+    const loadingToast = toast.loading("Importing example members...");
+    try {
+      const file = new File(
+        [memberTemplate.examplesCsvText],
+        "member_template_examples.csv",
+        { type: "text/csv" },
+      );
+      const created = await store.bulkUploadMembers(file, { allowExamples: true });
+      toast.dismiss(loadingToast);
+      if (created > 0) {
+        toast.success(`Imported ${created} example member${created === 1 ? "" : "s"}`);
+        setTemplateOpen(false);
+      } else {
+        toast.message("No new members imported", {
+          description: "These example emails may already exist.",
+        });
+      }
+    } catch (err: unknown) {
+      toast.dismiss(loadingToast);
+      toast.error(err instanceof Error ? err.message : "Failed to import examples.");
+    } finally {
+      setTemplateImporting(false);
+    }
+  };
+
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const loadingToast = toast.loading("Uploading CSV and creating members...");
     try {
-      await store.bulkUploadMembers(file);
+      const created = await store.bulkUploadMembers(file);
       toast.dismiss(loadingToast);
-      toast.success("Members uploaded successfully!");
+      toast.success(
+        created > 0
+          ? `Members uploaded successfully (${created} created)`
+          : "Upload finished — no new members created",
+      );
     } catch (err: any) {
       toast.dismiss(loadingToast);
       toast.error(err.message || "Failed to upload members.");
@@ -352,25 +654,150 @@ function MembersList() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const downloadTemplate = () => {
-    const headers = [
-      "first_name", "last_name", "email", "sex", "dob", "mobile", "address",
-      "member_type", "membership", "league", "training_eligible", "grade", "bi_member_id", "status",
-    ];
-    const exampleRow = [
-      "Jane", "Doe", "jane.doe@example.com", "female", "1992-04-15", "+1 555 0199",
-      "123 Main Street", "adult", "true", "true", "false", "Intermediate", "BI-9999", "active",
-    ];
-    const link = document.createElement("a");
-    link.href = encodeURI("data:text/csv;charset=utf-8," + [headers.join(","), exampleRow.join(",")].join("\n"));
-    link.download = "member_bulk_upload_template.csv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <div className="space-y-6 pb-8">
+      <ConfirmDeleteDialog
+        request={deleteRequest}
+        onOpenChange={(open) => !open && setDeleteRequest(null)}
+      />
+      <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-4xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-white/[0.06] shrink-0">
+            <DialogTitle className="text-[#F1F0EE]">Bulk upload template</DialogTitle>
+            <DialogDescription className="text-[#8A8A98] text-left">
+              Preview example rows for every type and grade. Download the CSV to edit,
+              or import these examples directly into Members.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <span className="px-2.5 py-1 rounded-full bg-[rgba(16,185,129,0.08)] border border-[rgba(16,185,129,0.25)] text-[#34D399]">
+                Types: {memberTemplate.types.join(" · ")}
+              </span>
+              <span className="px-2.5 py-1 rounded-full bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.25)] text-[#FBBF24]">
+                Adult grades: {memberTemplate.adultGrades.join(" · ")}
+              </span>
+              <span className="px-2.5 py-1 rounded-full bg-[rgba(129,140,248,0.10)] border border-[rgba(129,140,248,0.25)] text-[#A5B4FC]">
+                Junior grades: {memberTemplate.juniorGrades.join(" · ")}
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-[rgba(255,255,255,0.08)] overflow-hidden">
+              <div className="overflow-x-auto max-h-[280px]">
+                <Table>
+                  <TableHeader className="bg-[#0C0F0E] sticky top-0 z-10">
+                    <TableRow className="border-b border-white/10 hover:bg-transparent">
+                      {memberTemplate.headers.map((h) => (
+                        <TableHead
+                          key={h}
+                          className="type-table-head h-9 px-3 text-[10px] whitespace-nowrap"
+                        >
+                          {h}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {memberTemplate.exampleRows.map((row, idx) => (
+                      <TableRow
+                        key={idx}
+                        className="border-b border-white/[0.04] hover:bg-white/[0.02]"
+                      >
+                        {row.map((cell, cIdx) => (
+                          <TableCell
+                            key={cIdx}
+                            className={cn(
+                              "px-3 py-2 text-[11px] whitespace-nowrap",
+                              (cIdx === 7 || cIdx === 11) && "text-[#34D399] font-medium",
+                              String(cell).includes("@example.com") && "text-[#FBBF24]",
+                            )}
+                          >
+                            {cell}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[rgba(16,185,129,0.22)] bg-[rgba(16,185,129,0.06)] p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold tracking-[0.12em] uppercase text-[#34D399]">
+                  Reference (end of CSV — do not import)
+                </p>
+                <span className="text-[10px] text-[#8A8A98]">From Settings</span>
+              </div>
+              <div className="space-y-2.5">
+                {memberTemplate.refRows.map((r) => (
+                  <div
+                    key={r.label}
+                    className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] px-3 py-2.5"
+                  >
+                    <p className="font-mono text-[10px] tracking-wide text-[#34D399] mb-1.5">
+                      {r.label}
+                    </p>
+                    {r.label === "NOTES" ? (
+                      <p className="text-[12px] leading-relaxed text-[#C4D4CF]">{r.value}</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {r.value.split(" | ").map((item) => (
+                          <span
+                            key={item}
+                            className={cn(
+                              "px-2 py-0.5 rounded-md text-[11px] font-medium border",
+                              r.label.includes("ADULT")
+                                ? "bg-[rgba(251,191,36,0.12)] border-[rgba(251,191,36,0.30)] text-[#FBBF24]"
+                                : r.label.includes("JUNIOR")
+                                  ? "bg-[rgba(129,140,248,0.12)] border-[rgba(129,140,248,0.30)] text-[#A5B4FC]"
+                                  : "bg-[rgba(16,185,129,0.12)] border-[rgba(16,185,129,0.30)] text-[#34D399]",
+                            )}
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="px-6 py-4 border-t border-white/[0.06] gap-2 sm:gap-2 shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              className="btn-premium-outline cursor-pointer"
+              onClick={() => setTemplateOpen(false)}
+              disabled={templateImporting}
+            >
+              Close
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="btn-premium-outline cursor-pointer"
+              onClick={handleDownloadTemplate}
+              disabled={templateImporting}
+            >
+              <Download className="size-4 mr-1.5" />
+              Download CSV
+            </Button>
+            <Button
+              type="button"
+              className="btn-premium-solid cursor-pointer"
+              onClick={handleImportExamples}
+              disabled={templateImporting}
+            >
+              <Upload className="size-4 mr-1.5" />
+              {templateImporting ? "Importing…" : "Import examples"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <PageHeader
         title={activeRole === "admin" ? "Members" : "Family roster"}
         description={
@@ -393,7 +820,7 @@ function MembersList() {
                 <Button
                   variant="ghost"
                   className="text-xs text-[#8FA89F] hover:text-[#EEF2F0] h-[38px] px-3 border border-dashed border-[rgba(255,255,255,0.08)] rounded-lg hover:cursor-pointer"
-                  onClick={downloadTemplate}
+                  onClick={() => setTemplateOpen(true)}
                 >
                   <Download className="size-4 mr-1.5" /> Template
                 </Button>
@@ -462,30 +889,105 @@ function MembersList() {
             <> of <span className="text-[#EEF2F0] font-semibold">{baseMembers.length}</span></>
           )}{" "}
           members
+          {selectedIds.length > 0 && (
+            <>
+              {" · "}
+              <span className="text-[#FBBF24] font-semibold">{selectedIds.length}</span> selected
+            </>
+          )}
         </div>
-        <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg self-start">
-          <button
-            type="button"
-            onClick={() => { setViewMode("list"); localStorage.setItem("clubapp-view-mode-members", "list"); }}
-            className={cn(
-              "p-1.5 rounded-md transition-all cursor-pointer",
-              viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
-            )}
-            title="Table view"
-          >
-            <List className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => { setViewMode("grid"); localStorage.setItem("clubapp-view-mode-members", "grid"); }}
-            className={cn(
-              "p-1.5 rounded-md transition-all cursor-pointer",
-              viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
-            )}
-            title="Card view"
-          >
-            <LayoutGrid className="size-4" />
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {activeRole === "admin" && processed.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer",
+                    selectedIds.length > 0
+                      ? "bg-[rgba(251,191,36,0.10)] border-[rgba(251,191,36,0.35)] text-[#FBBF24]"
+                      : "bg-[rgba(16,185,129,0.08)] border-[rgba(16,185,129,0.25)] text-[#34D399] hover:bg-[rgba(16,185,129,0.14)]",
+                  )}
+                >
+                  Bulk actions
+                  {selectedIds.length > 0 && (
+                    <span className="font-mono text-[10px] opacity-90">({selectedIds.length})</span>
+                  )}
+                  <ChevronDown className="size-3 opacity-80" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] min-w-[200px]"
+              >
+                <DropdownMenuItem
+                  className="cursor-pointer text-xs focus:bg-white/5"
+                  onClick={() => toggleSelectAllVisible(!allVisibleSelected)}
+                >
+                  {allVisibleSelected ? (
+                    <CheckSquare className="size-3.5 mr-2" />
+                  ) : (
+                    <Square className="size-3.5 mr-2" />
+                  )}
+                  {allVisibleSelected ? "Clear selection" : "Select all visible"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem
+                  className="cursor-pointer text-xs focus:bg-white/5 text-[#F87171] focus:text-[#F87171]"
+                  disabled={selectedIds.length === 0}
+                  onClick={() =>
+                    requestBulkDelete(
+                      selectedIds,
+                      `${selectedIds.length} selected member${selectedIds.length === 1 ? "" : "s"}`,
+                    )
+                  }
+                >
+                  <Trash2 className="size-3.5 mr-2" />
+                  Delete selected
+                  {selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer text-xs focus:bg-white/5 text-[#F87171] focus:text-[#F87171]"
+                  onClick={() =>
+                    requestBulkDelete(
+                      processed.map((m) => m.id),
+                      hasActiveFilters
+                        ? `${processed.length} filtered member${processed.length === 1 ? "" : "s"}`
+                        : `all ${processed.length} member${processed.length === 1 ? "" : "s"}`,
+                    )
+                  }
+                >
+                  <Trash2 className="size-3.5 mr-2" />
+                  Delete all{hasActiveFilters ? " filtered" : ""}
+                  {` (${processed.length})`}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg">
+            <button
+              type="button"
+              onClick={() => { setViewMode("list"); localStorage.setItem("clubapp-view-mode-members", "list"); }}
+              className={cn(
+                "p-1.5 rounded-md transition-all cursor-pointer",
+                viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+              )}
+              title="Table view"
+            >
+              <List className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => { setViewMode("grid"); localStorage.setItem("clubapp-view-mode-members", "grid"); }}
+              className={cn(
+                "p-1.5 rounded-md transition-all cursor-pointer",
+                viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+              )}
+              title="Card view"
+            >
+              <LayoutGrid className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -514,10 +1016,23 @@ function MembersList() {
             const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
             return (
               <motion.div key={m.id} variants={staggerItem} whileHover={{ y: -3 }} transition={{ duration: 0.18 }}>
-                <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] h-full signature-card-top">
+                <Card
+                  className={cn(
+                    "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] h-full signature-card-top",
+                    selectedSet.has(m.id) && "border-[rgba(251,191,36,0.45)]",
+                  )}
+                >
                   <CardContent className="p-5 flex flex-col gap-4 h-full">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
+                        {activeRole === "admin" && (
+                          <Checkbox
+                            checked={selectedSet.has(m.id)}
+                            onCheckedChange={(v) => toggleSelect(m.id, v === true)}
+                            className="shrink-0 border-white/30 data-[state=checked]:bg-[#FBBF24] data-[state=checked]:border-[#FBBF24] data-[state=checked]:text-[#111]"
+                            aria-label={`Select ${m.firstName} ${m.lastName}`}
+                          />
+                        )}
                         <Avatar className="size-11 border border-white/10 shrink-0">
                           <AvatarFallback className={cn(avatarBg, "font-semibold text-sm")}>
                             {m.firstName[0]}{m.lastName[0]}
@@ -554,7 +1069,7 @@ function MembersList() {
                     </div>
 
                     <div className="mt-auto pt-1">
-                      <MemberActions member={m} activeRole={activeRole} deleteMember={deleteMember} />
+                      <MemberActions member={m} activeRole={activeRole} onRequestDelete={requestDeleteMember} />
                     </div>
                   </CardContent>
                 </Card>
@@ -568,6 +1083,16 @@ function MembersList() {
             <Table>
               <TableHeader className="bg-muted/70 border-b border-border">
                 <TableRow className="border-b border-border hover:bg-transparent">
+                  {activeRole === "admin" && (
+                    <TableHead className="type-table-head h-11 px-4 w-10">
+                      <Checkbox
+                        checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                        onCheckedChange={(v) => toggleSelectAllVisible(v === true)}
+                        className="border-white/30 data-[state=checked]:bg-[#FBBF24] data-[state=checked]:border-[#FBBF24] data-[state=checked]:text-[#111]"
+                        aria-label="Select all visible members"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="type-table-head h-11 px-4 min-w-[200px]">Member</TableHead>
                   <TableHead className="type-table-head h-11">Type</TableHead>
                   <TableHead className="type-table-head h-11">Grade</TableHead>
@@ -584,8 +1109,21 @@ function MembersList() {
                   return (
                     <TableRow
                       key={m.id}
-                      className="border-b border-border hover:bg-muted/40 transition-colors"
+                      className={cn(
+                        "border-b border-border hover:bg-muted/40 transition-colors",
+                        selectedSet.has(m.id) && "bg-[#FBBF24]/5",
+                      )}
                     >
+                      {activeRole === "admin" && (
+                        <TableCell className="px-4 py-3.5">
+                          <Checkbox
+                            checked={selectedSet.has(m.id)}
+                            onCheckedChange={(v) => toggleSelect(m.id, v === true)}
+                            className="border-white/30 data-[state=checked]:bg-[#FBBF24] data-[state=checked]:border-[#FBBF24] data-[state=checked]:text-[#111]"
+                            aria-label={`Select ${m.firstName} ${m.lastName}`}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell className="px-4 py-3.5">
                         <div className="flex items-center gap-3 min-w-0">
                           <Avatar className="size-9 border border-white/10 shrink-0">
@@ -624,7 +1162,7 @@ function MembersList() {
                       </TableCell>
                       <TableCell><StatusBadge status={m.status} /></TableCell>
                       <TableCell className="text-right px-4">
-                        <MemberActions member={m} activeRole={activeRole} deleteMember={deleteMember} compact />
+                        <MemberActions member={m} activeRole={activeRole} onRequestDelete={requestDeleteMember} compact />
                       </TableCell>
                     </TableRow>
                   );

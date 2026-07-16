@@ -17,7 +17,14 @@ const map: Record<string, string> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const displayText = status === "created" ? "pending" : status;
+  const displayText =
+    status === "created"
+      ? "pending"
+      : status === "open"
+        ? "Yet to accept"
+        : status === "waiting"
+          ? "Waiting list"
+          : status;
   return (
     <Badge variant="outline" className={cn("capitalize font-medium", map[status] ?? "")}>
       {displayText}

@@ -37,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/members', [MemberController::class, 'index']);
     Route::post('/members', [MemberController::class, 'store']);
     Route::post('/members/bulk-upload', [MemberController::class, 'bulkUpload']);
+    Route::post('/members/bulk-delete', [MemberController::class, 'bulkDelete']);
     Route::post('/members/{id}/login-as', [MemberController::class, 'loginAs']);
     Route::patch('/members/{id}', [MemberController::class, 'update']);
     Route::delete('/members/{id}', [MemberController::class, 'destroy']);
@@ -58,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/schedules/{id}/release', [PlayScheduleController::class, 'release']);
     Route::post('/schedules/{id}/close', [PlayScheduleController::class, 'close']);
     Route::post('/schedules/{id}/rotate', [PlayScheduleController::class, 'rotate']);
+    Route::post('/schedules/{id}/enroll', [PlayScheduleController::class, 'enroll']);
     
     // Play Invitations
     Route::get('/play-invitations', [PlayScheduleController::class, 'listInvitations']);

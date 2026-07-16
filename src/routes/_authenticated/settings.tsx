@@ -11,6 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Trash2, Plus, HelpCircle, Pencil, Check, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import {
+  ConfirmDeleteDialog,
+  type ConfirmDeleteRequest,
+} from "@/components/ConfirmDeleteDialog";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -107,6 +111,7 @@ function SettingsPage() {
   const [currency, setCurrency] = useState(store.currency);
   const [skipCreditConsumption, setSkipCreditConsumption] = useState(store.skipCreditConsumption);
   const [locations, setLocations] = useState<string[]>(store.locations);
+  const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
 
   useEffect(() => {
     setSkipCreditConsumption(store.skipCreditConsumption);
@@ -503,9 +508,29 @@ function SettingsPage() {
   };
 
   const handleDeleteLocation = (loc: string) => {
-    const updated = locations.filter((l) => l !== loc);
-    setLocations(updated);
-    saveUpdatedList({ locations: updated }, "Location removed");
+    const scheduleCount = store.schedules.filter((sch) => sch.location === loc).length;
+    const trainingCount = store.trainings.filter((t) => t.location === loc).length;
+    setDeleteRequest({
+      title: "Delete location",
+      entityName: loc,
+      related: [
+        { label: scheduleCount === 1 ? "schedule" : "schedules", count: scheduleCount },
+        { label: trainingCount === 1 ? "training" : "trainings", count: trainingCount },
+      ],
+      warning:
+        scheduleCount > 0 || trainingCount > 0
+          ? "This location is protected by a foreign key (restrict). Reassign or delete related schedules/trainings first, or deletion may fail."
+          : undefined,
+      onConfirm: async () => {
+        if (scheduleCount > 0 || trainingCount > 0) {
+          toast.error("Cannot delete location while schedules or trainings still use it.");
+          throw new Error("Location in use");
+        }
+        const updated = locations.filter((l) => l !== loc);
+        setLocations(updated);
+        saveUpdatedList({ locations: updated }, "Location removed");
+      },
+    });
   };
 
   const handleAddAdultGrade = () => {
@@ -522,9 +547,27 @@ function SettingsPage() {
   };
 
   const handleDeleteAdultGrade = (g: string) => {
-    const updated = adultGrades.filter((x) => x !== g);
-    setAdultGrades(updated);
-    saveUpdatedList({ adultGrades: updated }, "Adult grade removed");
+    const memberCount = store.members.filter(
+      (m) => m.grade === g && m.memberType.toLowerCase() === "adult",
+    ).length;
+    setDeleteRequest({
+      title: "Delete adult grade",
+      entityName: g,
+      related: [{ label: memberCount === 1 ? "member" : "members", count: memberCount }],
+      warning:
+        memberCount > 0
+          ? "Grades are protected by a foreign key (restrict). Reassign members first, or deletion may fail."
+          : undefined,
+      onConfirm: async () => {
+        if (memberCount > 0) {
+          toast.error("Cannot delete grade while members still use it.");
+          throw new Error("Grade in use");
+        }
+        const updated = adultGrades.filter((x) => x !== g);
+        setAdultGrades(updated);
+        saveUpdatedList({ adultGrades: updated }, "Adult grade removed");
+      },
+    });
   };
 
   const handleAddJuniorGrade = () => {
@@ -541,9 +584,27 @@ function SettingsPage() {
   };
 
   const handleDeleteJuniorGrade = (g: string) => {
-    const updated = juniorGrades.filter((x) => x !== g);
-    setJuniorGrades(updated);
-    saveUpdatedList({ juniorGrades: updated }, "Junior grade removed");
+    const memberCount = store.members.filter(
+      (m) => m.grade === g && m.memberType.toLowerCase() === "junior",
+    ).length;
+    setDeleteRequest({
+      title: "Delete junior grade",
+      entityName: g,
+      related: [{ label: memberCount === 1 ? "member" : "members", count: memberCount }],
+      warning:
+        memberCount > 0
+          ? "Grades are protected by a foreign key (restrict). Reassign members first, or deletion may fail."
+          : undefined,
+      onConfirm: async () => {
+        if (memberCount > 0) {
+          toast.error("Cannot delete grade while members still use it.");
+          throw new Error("Grade in use");
+        }
+        const updated = juniorGrades.filter((x) => x !== g);
+        setJuniorGrades(updated);
+        saveUpdatedList({ juniorGrades: updated }, "Junior grade removed");
+      },
+    });
   };
 
   const handleAddHoliday = () => {
@@ -578,9 +639,27 @@ function SettingsPage() {
   };
 
   const handleDeletePlayerPosition = (pos: string) => {
-    const updated = playerPositions.filter((x) => x !== pos);
-    setPlayerPositions(updated);
-    saveUpdatedList({ playerPositions: updated }, "Player position removed");
+    const usageCount = (store.leagueGroups ?? []).filter((g) =>
+      Object.values(g.memberPositions ?? {}).includes(pos),
+    ).length;
+    setDeleteRequest({
+      title: "Delete player position",
+      entityName: pos,
+      related: [{ label: usageCount === 1 ? "league group" : "league groups", count: usageCount }],
+      warning:
+        usageCount > 0
+          ? "Positions are protected by a foreign key (restrict). Clear this position from league members first."
+          : undefined,
+      onConfirm: async () => {
+        if (usageCount > 0) {
+          toast.error("Cannot delete position while league groups still use it.");
+          throw new Error("Position in use");
+        }
+        const updated = playerPositions.filter((x) => x !== pos);
+        setPlayerPositions(updated);
+        saveUpdatedList({ playerPositions: updated }, "Player position removed");
+      },
+    });
   };
 
   const saveUpdatedList = async (
@@ -609,6 +688,10 @@ function SettingsPage() {
 
   return (
     <div className="space-y-6 pb-10">
+      <ConfirmDeleteDialog
+        request={deleteRequest}
+        onOpenChange={(open) => !open && setDeleteRequest(null)}
+      />
       <PageHeader
         title="Settings"
         description={

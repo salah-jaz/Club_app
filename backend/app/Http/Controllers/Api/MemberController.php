@@ -12,9 +12,32 @@ use Illuminate\Support\Str;
 
 class MemberController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $members = Member::orderBy('first_name')->get();
+        $query = Member::query();
+
+        if ($search = trim((string) $request->query('search', ''))) {
+            $like = '%' . $search . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('first_name', 'like', $like)
+                    ->orWhere('last_name', 'like', $like)
+                    ->orWhereRaw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')) LIKE ?", [$like])
+                    ->orWhere('bi_member_id', 'like', $like)
+                    ->orWhere('nickname', 'like', $like);
+            });
+        }
+
+        // Non-zero balances first, then name (numeric-aware via natural DB order on first/last)
+        $query->orderByRaw('CASE WHEN credit != 0 THEN 0 ELSE 1 END')
+            ->orderBy('first_name')
+            ->orderBy('last_name');
+
+        if ($request->filled('limit')) {
+            $query->limit(max(1, min((int) $request->query('limit'), 100)));
+        }
+
+        $members = $query->get();
+
         return response()->json($members->map(fn($m) => $this->formatMember($m)));
     }
 
@@ -183,6 +206,34 @@ class MemberController extends Controller
         return response()->json(['message' => 'Member deleted successfully.']);
     }
 
+    public function bulkDelete(Request $request)
+    {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $data = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|string',
+        ]);
+
+        $ids = array_values(array_unique($data['ids']));
+        $deleted = 0;
+
+        DB::transaction(function () use ($ids, &$deleted) {
+            $members = Member::whereIn('id', $ids)->get();
+            foreach ($members as $member) {
+                $member->delete();
+                $deleted++;
+            }
+        });
+
+        return response()->json([
+            'message' => "Successfully deleted {$deleted} member(s).",
+            'deletedCount' => $deleted,
+        ]);
+    }
+
     public function nextBiMemberId()
     {
         $members = Member::whereNotNull('bi_member_id')->get();
@@ -301,14 +352,23 @@ class MemberController extends Controller
         }
 
         $createdCount = 0;
+        $allowExamples = filter_var($request->input('allow_examples', false), FILTER_VALIDATE_BOOLEAN);
 
-        DB::transaction(function () use ($rows, &$createdCount) {
+        DB::transaction(function () use ($rows, &$createdCount, $allowExamples) {
             foreach ($rows as $row) {
-                $firstName = $row['first_name'] ?? $row['firstname'] ?? null;
-                $lastName = $row['last_name'] ?? $row['lastname'] ?? '';
-                $email = $row['email'] ?? null;
+                $firstName = trim((string) ($row['first_name'] ?? $row['firstname'] ?? ''));
+                $lastName = trim((string) ($row['last_name'] ?? $row['lastname'] ?? ''));
+                $email = trim((string) ($row['email'] ?? ''));
 
-                if (empty($firstName) || empty($email)) {
+                // Skip blank rows and the template reference footer
+                if ($firstName === '' || $email === '') {
+                    continue;
+                }
+                if (preg_match('/^(REFERENCE_DO_NOT_IMPORT|AVAILABLE_|NOTES)/i', $firstName)) {
+                    continue;
+                }
+                // Skip unchanged template example placeholders unless explicitly importing examples
+                if (!$allowExamples && str_ends_with(strtolower($email), '@example.com')) {
                     continue;
                 }
 

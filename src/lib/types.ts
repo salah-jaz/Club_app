@@ -88,6 +88,8 @@ export interface PlayInvitation {
   memberId: string;
   status: InviteStatus;
   debited?: boolean;
+  updatedAt?: string;
+  createdAt?: string;
 }
 
 export interface RotationRound {
