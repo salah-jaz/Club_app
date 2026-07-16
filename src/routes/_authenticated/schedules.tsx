@@ -15,6 +15,10 @@ import type { PlaySchedule } from "@/lib/types";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
+import {
+  ConfirmDeleteDialog,
+  type ConfirmDeleteRequest,
+} from "@/components/ConfirmDeleteDialog";
 
 export const Route = createFileRoute("/_authenticated/schedules")({ component: SchedulesLayout });
 
@@ -81,6 +85,35 @@ function SchedulesList() {
   const [viewMode, setViewMode] = useState<"grid" | "list">(
     () => (localStorage.getItem("clubapp-view-mode-schedules") as "grid" | "list") || "list"
   );
+  const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
+
+  const requestDeleteSchedule = (sch: PlaySchedule) => {
+    const memberCount = new Set(
+      s.playInvites.filter((i) => i.scheduleId === sch.id).map((i) => i.memberId),
+    ).size;
+    const rotationCount = s.rotations.filter((r) => r.scheduleId === sch.id).length;
+    setDeleteRequest({
+      title: "Delete schedule",
+      entityName: sch.name,
+      related: [
+        { label: memberCount === 1 ? "member" : "members", count: memberCount },
+        { label: rotationCount === 1 ? "rotation" : "rotations", count: rotationCount },
+      ],
+      warning:
+        memberCount > 0 || rotationCount > 0
+          ? "Invitations and court rotations linked to this schedule will be deleted (cascade)."
+          : undefined,
+      onConfirm: async () => {
+        try {
+          await s.deleteSchedule(sch.id);
+          toast.success("Play schedule deleted");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to delete schedule.");
+          throw error;
+        }
+      },
+    });
+  };
 
   const {
     search,
@@ -184,6 +217,10 @@ function SchedulesList() {
 
   return (
     <div className="space-y-6">
+      <ConfirmDeleteDialog
+        request={deleteRequest}
+        onOpenChange={(open) => !open && setDeleteRequest(null)}
+      />
       <PageHeader
         title="Play schedules"
         description="Create sessions, release invitations and generate rotations."
@@ -323,30 +360,19 @@ function SchedulesList() {
                                 <Eye className="size-4" />
                               </Link>
                             </Button>
-                            <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title="Edit Schedule">
-                              <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
-                                <Pencil className="size-4" />
-                              </Link>
-                            </Button>
+                            {sch.status !== "rotated" && sch.status !== "closed" && (
+                              <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title="Edit Schedule">
+                                <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
+                                  <Pencil className="size-4" />
+                                </Link>
+                              </Button>
+                            )}
                             <Button
                               size="icon"
                               variant="destructive"
                               className="btn-premium-danger h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer"
                               title="Delete Schedule"
-                              onClick={async () => {
-                                const hasRelated = s.playInvites.some((i) => i.scheduleId === sch.id) || s.rotations.some((r) => r.scheduleId === sch.id);
-                                const confirmMsg = hasRelated
-                                  ? "WARNING: This play schedule has active invitations or rotations. Deleting it will permanently cascade delete all related records. Are you sure you want to proceed?"
-                                  : "Are you sure you want to delete this schedule?";
-                                if (confirm(confirmMsg)) {
-                                  try {
-                                    await s.deleteSchedule(sch.id);
-                                    toast.success("Play schedule deleted");
-                                  } catch (error: unknown) {
-                                    toast.error(error instanceof Error ? error.message : "Failed to delete schedule.");
-                                  }
-                                }
-                              }}
+                              onClick={() => requestDeleteSchedule(sch)}
                             >
                               <Trash2 className="size-4" />
                             </Button>
@@ -457,30 +483,19 @@ function SchedulesList() {
                               <Eye className="size-4" />
                             </Link>
                           </Button>
-                          <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title="Edit Schedule">
-                            <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
-                              <Pencil className="size-4" />
-                            </Link>
-                          </Button>
+                          {sch.status !== "rotated" && sch.status !== "closed" && (
+                            <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title="Edit Schedule">
+                              <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
+                                <Pencil className="size-4" />
+                              </Link>
+                            </Button>
+                          )}
                           <Button
                             size="icon"
                             variant="destructive"
                             className="btn-premium-danger h-8 w-8 p-0 cursor-pointer"
                             title="Delete Schedule"
-                            onClick={async () => {
-                              const hasRelated = s.playInvites.some((i) => i.scheduleId === sch.id) || s.rotations.some((r) => r.scheduleId === sch.id);
-                              const confirmMsg = hasRelated
-                                ? "WARNING: This play schedule has active invitations or rotations. Deleting it will permanently cascade delete all related records. Are you sure you want to proceed?"
-                                : "Are you sure you want to delete this schedule?";
-                              if (confirm(confirmMsg)) {
-                                try {
-                                  await s.deleteSchedule(sch.id);
-                                  toast.success("Play schedule deleted");
-                                } catch (error: unknown) {
-                                  toast.error(error instanceof Error ? error.message : "Failed to delete schedule.");
-                                }
-                              }
-                            }}
+                            onClick={() => requestDeleteSchedule(sch)}
                           >
                             <Trash2 className="size-4" />
                           </Button>

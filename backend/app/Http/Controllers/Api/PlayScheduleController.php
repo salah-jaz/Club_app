@@ -8,7 +8,6 @@ use App\Models\PlayInvitation;
 use App\Models\Member;
 use App\Models\Rotation;
 use App\Models\Transaction;
-use App\Models\Setting;
 use App\Helpers\MailHelper;
 use App\Helpers\FeeHelper;
 use Illuminate\Http\Request;
@@ -61,6 +60,12 @@ class PlayScheduleController extends Controller
     public function update(Request $request, $id)
     {
         $sch = PlaySchedule::findOrFail($id);
+
+        if (in_array($sch->status, ['rotated', 'closed'], true)) {
+            return response()->json([
+                'message' => 'This schedule can no longer be edited after rotation has been generated.',
+            ], 422);
+        }
 
         $data = [];
         if ($request->has('name')) $data['name'] = $request->name;
@@ -145,6 +150,89 @@ class PlayScheduleController extends Controller
         ]);
     }
 
+    public function enroll(Request $request, $id)
+    {
+        $request->validate([
+            'memberIds' => 'required|array|min:1',
+            'memberIds.*' => 'required|string',
+        ]);
+
+        $sch = PlaySchedule::findOrFail($id);
+
+        if ($sch->status !== 'released') {
+            return response()->json([
+                'message' => 'This play session is not open for enrollment.',
+            ], 422);
+        }
+
+        $memberIds = $request->memberIds;
+        $userId = $request->user()->id;
+
+        $familyAdultIds = Member::eligibleForPlay()
+            ->where('user_id', $userId)
+            ->whereIn('id', $memberIds)
+            ->pluck('id')
+            ->all();
+
+        if (count($familyAdultIds) !== count($memberIds)) {
+            return response()->json([
+                'message' => 'You can only enroll your own active adult members with club membership.',
+            ], 422);
+        }
+
+        if ($sch->is_league_match && !empty($sch->league_group_ids)) {
+            $groupMemberIds = \DB::table('league_group_member')
+                ->whereIn('league_group_id', $sch->league_group_ids)
+                ->pluck('member_id')
+                ->all();
+            $notInGroup = array_values(array_diff($memberIds, $groupMemberIds));
+            if (count($notInGroup) > 0) {
+                return response()->json([
+                    'message' => 'One or more selected members are not in the league groups for this session.',
+                ], 422);
+            }
+        }
+
+        $alreadyInvited = PlayInvitation::where('schedule_id', $id)
+            ->whereIn('member_id', $memberIds)
+            ->pluck('member_id')
+            ->all();
+
+        $newMemberIds = array_values(array_diff($memberIds, $alreadyInvited));
+
+        if (count($newMemberIds) === 0) {
+            return response()->json([
+                'message' => 'Selected members are already invited to this session.',
+            ], 422);
+        }
+
+        $invites = [];
+        foreach ($newMemberIds as $memberId) {
+            $member = Member::find($memberId);
+            $inv = PlayInvitation::create([
+                'id' => 'pi_' . Str::random(8),
+                'schedule_id' => $id,
+                'member_id' => $memberId,
+                'status' => 'open',
+            ]);
+            $invites[] = $this->formatInvitation($inv);
+
+            if ($member) {
+                try {
+                    MailHelper::sendScheduleNotification($member, $sch, 'open', 'release');
+                } catch (\Exception $e) {
+                    logger()->error("Schedule enroll email failed for member {$memberId}: " . $e->getMessage());
+                }
+            }
+        }
+
+        return response()->json([
+            'message' => 'Members enrolled. Review and accept the invitations below.',
+            'schedule' => $this->formatSchedule($sch),
+            'invitations' => $invites,
+        ]);
+    }
+
     public function close($id)
     {
         $sch = PlaySchedule::findOrFail($id);
@@ -167,75 +255,17 @@ class PlayScheduleController extends Controller
             return response()->json(['message' => 'No players accepted the invitation yet.'], 400);
         }
 
-        $courtsCount = $schedule->courts;
-        $roundsCount = 5;
-        $playersPerCourt = 4;
-        $slots = $courtsCount * $playersPerCourt;
-
-        // Total capacity target is defined by the schedule master target players count
-        $targetCount = $schedule->players;
-        $totalNeeded = max($targetCount, $slots);
-
-        $guests = [];
-        $activeCount = count($playerIds);
-        if ($activeCount < $totalNeeded) {
-            $guestNeeded = $totalNeeded - $activeCount;
-            for ($i = 1; $i <= $guestNeeded; $i++) {
-                $guests[] = 'guest_' . $i;
-            }
-        }
-
-        $rotationPlayers = array_merge($playerIds, $guests);
-
-        $playCount = [];
-        foreach ($rotationPlayers as $p) {
-            $playCount[$p] = 0;
-        }
-
-        $rounds = [];
-        for ($r = 1; $r <= $roundsCount; $r++) {
-            $sorted = $rotationPlayers;
-            usort($sorted, function ($a, $b) use ($playCount) {
-                $diff = $playCount[$a] - $playCount[$b];
-                if ($diff !== 0) {
-                    return $diff;
-                }
-                return strcmp($a, $b);
-            });
-
-            $playing = array_slice($sorted, 0, $slots);
-            $resting = array_slice($sorted, $slots);
-
-            shuffle($playing);
-
-            $courtsArr = [];
-            for ($c = 0; $c < $courtsCount; $c++) {
-                $slice = array_slice($playing, $c * $playersPerCourt, $playersPerCourt);
-                $courtsArr[] = [
-                    'courtNo' => $c + 1,
-                    'players' => $slice,
-                ];
-                foreach ($slice as $p) {
-                    $playCount[$p] += 1;
-                }
-            }
-
-            $rounds[] = [
-                'round' => $r,
-                'courts' => $courtsArr,
-                'resting' => $resting,
-            ];
-        }
+        $rounds = $this->buildRotationRounds($schedule, $playerIds);
 
         // Save or update rotation in DB
         Rotation::where('schedule_id', $id)->delete();
-        $rotation = Rotation::create([
+        Rotation::create([
             'id' => 'r_' . Str::random(8),
             'schedule_id' => $id,
             'rounds' => $rounds,
         ]);
 
-        $fee = $schedule->session_rate + ($schedule->hall_rate / max(count($playerIds), 1));
+        $fee = $schedule->session_rate;
         $feeRounded = round($fee, 2);
 
         foreach ($playerIds as $memberId) {
@@ -287,80 +317,172 @@ class PlayScheduleController extends Controller
         ]);
     }
 
+    /**
+     * Build round/court assignments. Guests pad the pool up to
+     * max(schedule capacity, courts × 4) so doubles courts stay full.
+     */
+    private function buildRotationRounds(PlaySchedule $schedule, array $playerIds): array
+    {
+        $courtsCount = max((int) $schedule->courts, 1);
+        $roundsCount = 5;
+        $playersPerCourt = 4;
+        $slots = $courtsCount * $playersPerCourt;
+        $capacity = max((int) $schedule->players, 1);
+        $totalNeeded = max($capacity, $slots);
+        $activeCount = count($playerIds);
+
+        $guests = [];
+        if ($activeCount < $totalNeeded) {
+            $guestNeeded = $totalNeeded - $activeCount;
+            for ($i = 1; $i <= $guestNeeded; $i++) {
+                $guests[] = 'guest_' . $i;
+            }
+        }
+
+        $rotationPlayers = array_merge($playerIds, $guests);
+
+        $playCount = [];
+        foreach ($rotationPlayers as $p) {
+            $playCount[$p] = 0;
+        }
+
+        $rounds = [];
+        for ($r = 1; $r <= $roundsCount; $r++) {
+            $sorted = $rotationPlayers;
+            usort($sorted, function ($a, $b) use ($playCount) {
+                $diff = $playCount[$a] - $playCount[$b];
+                if ($diff !== 0) {
+                    return $diff;
+                }
+                return strcmp((string) $a, (string) $b);
+            });
+
+            $playing = array_slice($sorted, 0, $slots);
+            $resting = array_slice($sorted, $slots);
+
+            shuffle($playing);
+
+            $courtsArr = [];
+            for ($c = 0; $c < $courtsCount; $c++) {
+                $slice = array_slice($playing, $c * $playersPerCourt, $playersPerCourt);
+                $courtsArr[] = [
+                    'courtNo' => $c + 1,
+                    'players' => $slice,
+                ];
+                foreach ($slice as $p) {
+                    $playCount[$p] += 1;
+                }
+            }
+
+            $rounds[] = [
+                'round' => $r,
+                'courts' => $courtsArr,
+                'resting' => $resting,
+            ];
+        }
+
+        return $rounds;
+    }
+
     public function listInvitations()
     {
-        $invites = PlayInvitation::all();
-        return response()->json($invites->map(fn($i) => [
-            'id' => $i->id,
-            'scheduleId' => $i->schedule_id,
-            'memberId' => $i->member_id,
-            'status' => $i->status,
-            'debited' => (bool)$i->debited,
-        ]));
+        $invites = PlayInvitation::orderBy('updated_at')->get();
+        return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
     }
 
     public function respondInvitation(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:accepted,declined,waiting,open',
+            'status' => 'required|in:accepted,declined',
         ]);
 
         $invite = PlayInvitation::findOrFail($id);
+        $sch = PlaySchedule::findOrFail($invite->schedule_id);
+        $desired = $request->status;
+        $promoted = null;
 
-        if ($request->status === 'accepted') {
+        if ($desired === 'accepted') {
+            if (!in_array($invite->status, ['open', 'declined'], true)) {
+                return response()->json([
+                    'message' => 'This invitation is already accepted or on the waiting list.',
+                ], 422);
+            }
+
             $member = Member::find($invite->member_id);
             if ($member && !$member->skip_credit_consumption) {
-                $sch = PlaySchedule::find($invite->schedule_id);
-                if ($sch) {
-                    $playerCount = max($sch->players, 1);
-                    $estimatedFee = FeeHelper::playSessionFee(
-                        (float)$sch->session_rate,
-                        (float)$sch->hall_rate,
-                        $playerCount,
-                        $member
-                    );
-                    if ($member->credit < $estimatedFee) {
-                        return response()->json([
-                            'message' => "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule."
-                        ], 422);
+                $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
+                if ($member->credit < $estimatedFee) {
+                    return response()->json([
+                        'message' => "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule."
+                    ], 422);
+                }
+            }
+
+            $acceptedCount = PlayInvitation::where('schedule_id', $sch->id)
+                ->where('status', 'accepted')
+                ->count();
+            $capacity = max((int) $sch->players, 1);
+
+            $invite->status = $acceptedCount < $capacity ? 'accepted' : 'waiting';
+            $invite->save();
+        } else {
+            // Decline / cancel → return to Yet to Accept (open)
+            $previous = $invite->status;
+            $wasAccepted = $previous === 'accepted';
+
+            $invite->status = 'open';
+            $invite->save();
+
+            // Free seat in Accepted → promote earliest waiting member (first come) to end of Accepted
+            if ($wasAccepted) {
+                $next = PlayInvitation::where('schedule_id', $sch->id)
+                    ->where('status', 'waiting')
+                    ->orderBy('updated_at', 'asc')
+                    ->orderBy('id', 'asc')
+                    ->first();
+
+                if ($next) {
+                    $nextMember = Member::find($next->member_id);
+                    if ($nextMember && !$nextMember->skip_credit_consumption) {
+                        $estimatedFee = FeeHelper::playSessionFee(
+                            (float) $sch->session_rate,
+                            0,
+                            1,
+                            $nextMember
+                        );
+                        if ($nextMember->credit < $estimatedFee) {
+                            // Keep them waiting; do not promote without credits
+                            $next = null;
+                        }
+                    }
+
+                    if ($next) {
+                        $next->status = 'accepted';
+                        $next->save();
+                        $promoted = $this->formatInvitation($next);
                     }
                 }
             }
         }
-        
-        // If declining an already accepted invitation, check cancellation hours
-        if ($request->status === 'declined' && $invite->status === 'accepted') {
-            $lockHoursSetting = Setting::where('key', 'cancellation_lock_hours')->first();
-            $lockHours = $lockHoursSetting ? (int)$lockHoursSetting->value : 24;
-            
-            $sch = PlaySchedule::find($invite->schedule_id);
-            if ($sch) {
-                $matchTime = Carbon::parse($sch->date);
-                if (Carbon::now()->addHours($lockHours)->greaterThan($matchTime)) {
-                    return response()->json(['message' => 'Cancellation is locked ' . $lockHours . ' hours before the match starts.'], 422);
-                }
-            }
+
+        $payload = $this->formatInvitation($invite->fresh());
+        if ($promoted) {
+            $payload['promoted'] = $promoted;
         }
 
-        $invite->status = $request->status;
-        $invite->save();
-
-        return response()->json([
-            'id' => $invite->id,
-            'scheduleId' => $invite->schedule_id,
-            'memberId' => $invite->member_id,
-            'status' => $invite->status,
-            'debited' => (bool)$invite->debited,
-        ]);
+        return response()->json($payload);
     }
 
     public function listRotations()
     {
         $rotations = Rotation::all();
-        return response()->json($rotations->map(fn($r) => [
-            'scheduleId' => $r->schedule_id,
-            'rounds' => $r->rounds,
-        ]));
+        return response()->json($rotations->map(function ($r) {
+            $rounds = $this->ensureRotationGuests($r);
+            return [
+                'scheduleId' => $r->schedule_id,
+                'rounds' => $rounds,
+            ];
+        }));
     }
 
     public function destroy($id)
@@ -369,6 +491,71 @@ class PlayScheduleController extends Controller
         $sch->delete();
 
         return response()->json(['message' => 'Play schedule deleted successfully.']);
+    }
+
+    /**
+     * Rebuild rotation rounds when guest fillers were stripped and courts are short.
+     * Guests pad up to max(capacity, courts × 4) so doubles courts stay complete.
+     */
+    private function ensureRotationGuests(Rotation $rotation): array
+    {
+        $rounds = $rotation->rounds ?? [];
+        $schedule = PlaySchedule::find($rotation->schedule_id);
+        if (!$schedule) {
+            return $rounds;
+        }
+
+        $playerIds = PlayInvitation::where('schedule_id', $schedule->id)
+            ->where('status', 'accepted')
+            ->pluck('member_id')
+            ->toArray();
+
+        if (empty($playerIds)) {
+            return $rounds;
+        }
+
+        $slots = max((int) $schedule->courts, 1) * 4;
+        $capacity = max((int) $schedule->players, 1);
+        $expectedGuests = max(0, max($capacity, $slots) - count($playerIds));
+
+        $actualGuests = [];
+        foreach ($rounds as $round) {
+            foreach ($round['courts'] ?? [] as $court) {
+                foreach ($court['players'] ?? [] as $p) {
+                    if (is_string($p) && str_starts_with($p, 'guest_')) {
+                        $actualGuests[$p] = true;
+                    }
+                }
+            }
+            foreach ($round['resting'] ?? [] as $p) {
+                if (is_string($p) && str_starts_with($p, 'guest_')) {
+                    $actualGuests[$p] = true;
+                }
+            }
+        }
+
+        if (count($actualGuests) >= $expectedGuests) {
+            return $rounds;
+        }
+
+        $rounds = $this->buildRotationRounds($schedule, $playerIds);
+        $rotation->rounds = $rounds;
+        $rotation->save();
+
+        return $rounds;
+    }
+
+    private function formatInvitation(PlayInvitation $i): array
+    {
+        return [
+            'id' => $i->id,
+            'scheduleId' => $i->schedule_id,
+            'memberId' => $i->member_id,
+            'status' => $i->status,
+            'debited' => (bool) $i->debited,
+            'updatedAt' => optional($i->updated_at)?->toISOString(),
+            'createdAt' => optional($i->created_at)?->toISOString(),
+        ];
     }
 
     private function formatSchedule(PlaySchedule $s)

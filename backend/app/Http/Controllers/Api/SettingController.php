@@ -35,8 +35,11 @@ class SettingController extends Controller
         'debitTimingHours' => 'debit_timing_hours',
         'adultDiscountPercent' => 'adult_discount_percent',
         'adultDiscountAmount' => 'adult_discount_amount',
+        'adultDiscountMode' => 'adult_discount_mode',
         'juniorDiscountPercent' => 'junior_discount_percent',
         'juniorDiscountAmount' => 'junior_discount_amount',
+        'juniorDiscountMode' => 'junior_discount_mode',
+        'timezone' => 'timezone',
     ];
 
     public function index()
@@ -70,10 +73,18 @@ class SettingController extends Controller
         if (empty($data['appLogoText'])) $data['appLogoText'] = 'C';
         if (empty($data['appLogoBase64'])) $data['appLogoBase64'] = '/logo.png';
         if (empty($data['currency'])) $data['currency'] = '$';
+        if (empty($data['timezone'])) $data['timezone'] = 'Asia/Kolkata';
         if ($data['cancellationLockHours'] === null) $data['cancellationLockHours'] = 24;
         if ($data['debitTimingHours'] === null) $data['debitTimingHours'] = 24;
         foreach (['adultDiscountPercent', 'adultDiscountAmount', 'juniorDiscountPercent', 'juniorDiscountAmount'] as $discountKey) {
             if (!isset($data[$discountKey])) $data[$discountKey] = 0;
+        }
+        foreach (['adultDiscountMode', 'juniorDiscountMode'] as $modeKey) {
+            if (($data[$modeKey] ?? null) !== 'percent' && ($data[$modeKey] ?? null) !== 'amount') {
+                $amountKey = str_replace('Mode', 'Amount', $modeKey);
+                $percentKey = str_replace('Mode', 'Percent', $modeKey);
+                $data[$modeKey] = (($data[$amountKey] ?? 0) > 0 && ($data[$percentKey] ?? 0) <= 0) ? 'amount' : 'percent';
+            }
         }
 
         return response()->json($data);
@@ -87,6 +98,9 @@ class SettingController extends Controller
                 $val = $request->input($camel);
                 if ($camel === 'skipCreditConsumption') {
                     $val = $val ? 'true' : 'false';
+                }
+                if (in_array($camel, ['adultDiscountMode', 'juniorDiscountMode'], true)) {
+                    $val = $val === 'amount' ? 'amount' : 'percent';
                 }
                 Setting::updateOrCreate(['key' => $snake], ['value' => $val]);
             }

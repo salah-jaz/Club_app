@@ -12,6 +12,10 @@ import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck, LayoutGrid, List, Se
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  ConfirmDeleteDialog,
+  type ConfirmDeleteRequest,
+} from "@/components/ConfirmDeleteDialog";
 
 export const Route = createFileRoute("/_authenticated/league-groups")({
   component: LeagueGroupsPage,
@@ -25,6 +29,7 @@ function LeagueGroupsPage() {
   const playerPositions = useStore((s) => s.playerPositions) || [];
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("name_asc");
+  const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
 
   const filteredGroups = useMemo(() => {
     let result = [...leagueGroups];
@@ -138,19 +143,34 @@ function LeagueGroupsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    const hasRelated = store.schedules?.some((sch) => sch.leagueGroupIds?.includes(id));
-    const confirmMsg = hasRelated
-      ? "WARNING: This league group is currently linked to active play schedules. Deleting it may affect group rotations. Are you sure you want to delete it?"
-      : "Are you sure you want to delete this league group?";
-    if (confirm(confirmMsg)) {
-      try {
-        await store.deleteLeagueGroup(id);
-        toast.success("League group deleted");
-      } catch (error: any) {
-        toast.error(error.message || "Failed to delete group");
-      }
-    }
+  const handleDelete = (id: string) => {
+    const group = leagueGroups.find((g) => g.id === id);
+    if (!group) return;
+    const memberCount = group.memberIds?.length ?? 0;
+    const scheduleCount = (store.schedules ?? []).filter((sch) =>
+      sch.leagueGroupIds?.includes(id),
+    ).length;
+    setDeleteRequest({
+      title: "Delete league group",
+      entityName: group.name,
+      related: [
+        { label: memberCount === 1 ? "member" : "members", count: memberCount },
+        { label: scheduleCount === 1 ? "linked schedule" : "linked schedules", count: scheduleCount },
+      ],
+      warning:
+        memberCount > 0 || scheduleCount > 0
+          ? "Group membership links will be removed. Schedules that reference this group will keep their other settings."
+          : undefined,
+      onConfirm: async () => {
+        try {
+          await store.deleteLeagueGroup(id);
+          toast.success("League group deleted");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to delete group");
+          throw error;
+        }
+      },
+    });
   };
 
   const toggleMember = (memberId: string) => {
@@ -174,6 +194,10 @@ function LeagueGroupsPage() {
 
   return (
     <div className="space-y-6">
+      <ConfirmDeleteDialog
+        request={deleteRequest}
+        onOpenChange={(open) => !open && setDeleteRequest(null)}
+      />
       <PageHeader
         title="League Groups"
         description="Organize league participants into groups to filter play invitations."

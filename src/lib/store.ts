@@ -39,6 +39,7 @@ interface State {
   appLogoText: string;
   appLogoBase64: string | null;
   currency: string;
+  timezone: string;
   mailHost: string;
   mailPort: string;
   mailUsername: string;
@@ -56,8 +57,10 @@ interface State {
   debitTimingHours: number;
   adultDiscountPercent: number;
   adultDiscountAmount: number;
+  adultDiscountMode: "percent" | "amount";
   juniorDiscountPercent: number;
   juniorDiscountAmount: number;
+  juniorDiscountMode: "percent" | "amount";
 
   // sync
   syncData: () => Promise<void>;
@@ -87,6 +90,7 @@ interface State {
   ) => Promise<void>;
   updateMember: (id: string, patch: Partial<Member>) => Promise<void>;
   deleteMember: (id: string) => Promise<void>;
+  bulkDeleteMembers: (ids: string[]) => Promise<number>;
 
   // credits
   requestCredit: (memberId: string, amount: number, date: string) => Promise<void>;
@@ -100,7 +104,8 @@ interface State {
   releaseSchedule: (id: string) => Promise<{ message?: string; inviteCount?: number }>;
   closeSchedule: (id: string) => Promise<void>;
   deleteSchedule: (id: string) => Promise<void>;
-  respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
+  respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<PlayInvitation>;
+  enrollPlay: (scheduleId: string, memberIds: string[]) => Promise<void>;
   generateRotation: (scheduleId: string) => Promise<void>;
 
   // trainings
@@ -117,6 +122,7 @@ interface State {
     appLogoText?: string;
     appLogoBase64?: string | null;
     currency?: string;
+    timezone?: string;
     locations?: string[];
     grades?: string[];
     adultGrades?: string[];
@@ -140,8 +146,10 @@ interface State {
     debitTimingHours?: number;
     adultDiscountPercent?: number;
     adultDiscountAmount?: number;
+    adultDiscountMode?: "percent" | "amount";
     juniorDiscountPercent?: number;
     juniorDiscountAmount?: number;
+    juniorDiscountMode?: "percent" | "amount";
   }) => Promise<void>;
   updateProfile: (profile: {
     firstName: string;
@@ -167,7 +175,7 @@ interface State {
   updateLeagueGroup: (id: string, patch: { name?: string; description?: string; memberIds?: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
   deleteLeagueGroup: (id: string) => Promise<void>;
   setActiveRole: (role: Role) => void;
-  bulkUploadMembers: (file: File) => Promise<void>;
+  bulkUploadMembers: (file: File, options?: { allowExamples?: boolean }) => Promise<number>;
 }
 
 const getInitialUserId = () => {
@@ -209,6 +217,7 @@ export const useStore = create<State>((set, get) => ({
   appLogoText: "C",
   appLogoBase64: "/logo.png",
   currency: "$",
+  timezone: "Asia/Kolkata",
   mailHost: "",
   mailPort: "",
   mailUsername: "",
@@ -226,8 +235,10 @@ export const useStore = create<State>((set, get) => ({
   debitTimingHours: 24,
   adultDiscountPercent: 0,
   adultDiscountAmount: 0,
+  adultDiscountMode: "percent",
   juniorDiscountPercent: 0,
   juniorDiscountAmount: 0,
+  juniorDiscountMode: "percent",
 
   syncCurrentUser: async () => {
     try {
@@ -284,6 +295,7 @@ export const useStore = create<State>((set, get) => ({
           appLogoText: string;
           appLogoBase64?: string | null;
           currency?: string;
+          timezone?: string;
           mailHost?: string;
           mailPort?: string;
           mailUsername?: string;
@@ -301,8 +313,10 @@ export const useStore = create<State>((set, get) => ({
           debitTimingHours?: number;
           adultDiscountPercent?: number;
           adultDiscountAmount?: number;
+          adultDiscountMode?: "percent" | "amount";
           juniorDiscountPercent?: number;
           juniorDiscountAmount?: number;
+          juniorDiscountMode?: "percent" | "amount";
         }>("/settings"),
         api.get<CreditRequest[]>("/credit-requests"),
         api.get<LeagueGroup[]>("/league-groups"),
@@ -335,6 +349,7 @@ export const useStore = create<State>((set, get) => ({
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || "/logo.png",
         currency: settings.currency || "$",
+        timezone: settings.timezone || "Asia/Kolkata",
         mailHost: settings.mailHost || "",
         mailPort: settings.mailPort || "",
         mailUsername: settings.mailUsername || "",
@@ -352,8 +367,20 @@ export const useStore = create<State>((set, get) => ({
         debitTimingHours: settings.debitTimingHours ?? 24,
         adultDiscountPercent: settings.adultDiscountPercent ?? 0,
         adultDiscountAmount: settings.adultDiscountAmount ?? 0,
+        adultDiscountMode:
+          settings.adultDiscountMode === "amount" || settings.adultDiscountMode === "percent"
+            ? settings.adultDiscountMode
+            : (settings.adultDiscountAmount ?? 0) > 0 && (settings.adultDiscountPercent ?? 0) <= 0
+              ? "amount"
+              : "percent",
         juniorDiscountPercent: settings.juniorDiscountPercent ?? 0,
         juniorDiscountAmount: settings.juniorDiscountAmount ?? 0,
+        juniorDiscountMode:
+          settings.juniorDiscountMode === "amount" || settings.juniorDiscountMode === "percent"
+            ? settings.juniorDiscountMode
+            : (settings.juniorDiscountAmount ?? 0) > 0 && (settings.juniorDiscountPercent ?? 0) <= 0
+              ? "amount"
+              : "percent",
         users,
         creditRequests,
         leagueGroups,
@@ -455,6 +482,14 @@ export const useStore = create<State>((set, get) => ({
     await get().syncData();
   },
 
+  bulkDeleteMembers: async (ids) => {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return 0;
+    const res = await api.post<{ deletedCount?: number }>("/members/bulk-delete", { ids: unique });
+    await get().syncData();
+    return res.deletedCount ?? unique.length;
+  },
+
   requestCredit: async (memberId, amount, date) => {
     await api.post<CreditRequest>("/credit-requests", { memberId, amount, date });
     await get().syncData();
@@ -509,10 +544,44 @@ export const useStore = create<State>((set, get) => ({
   },
 
   respondPlay: async (inviteId, status) => {
-    await api.post<PlayInvitation>(`/play-invitations/${inviteId}/respond`, {
-      status,
+    const res = await api.post<PlayInvitation & { promoted?: PlayInvitation }>(
+      `/play-invitations/${inviteId}/respond`,
+      { status },
+    );
+    const { promoted, ...updated } = res;
+
+    // Apply response immediately so the UI flips Accept → Decline without waiting
+    set((state) => ({
+      playInvites: state.playInvites.map((i) => {
+        if (i.id === inviteId) return { ...i, ...updated };
+        if (promoted && i.id === promoted.id) return { ...i, ...promoted };
+        return i;
+      }),
+    }));
+
+    // Refresh invitations so accepted counts / waiting list stay accurate
+    const playInvites = await api.get<PlayInvitation[]>("/play-invitations");
+    set({ playInvites });
+
+    return playInvites.find((i) => i.id === inviteId) ?? updated;
+  },
+
+  enrollPlay: async (scheduleId, memberIds) => {
+    const res = await api.post<{
+      invitations?: PlayInvitation[];
+    }>(`/schedules/${scheduleId}/enroll`, { memberIds });
+    const created = res.invitations ?? [];
+    if (created.length === 0) {
+      // Fallback: light refresh of invites only
+      const playInvites = await api.get<PlayInvitation[]>("/play-invitations");
+      set({ playInvites });
+      return;
+    }
+    set((state) => {
+      const byId = new Map(state.playInvites.map((i) => [i.id, i]));
+      for (const inv of created) byId.set(inv.id, { ...byId.get(inv.id), ...inv });
+      return { playInvites: Array.from(byId.values()) };
     });
-    await get().syncData();
   },
 
   generateRotation: async (scheduleId) => {
@@ -586,6 +655,7 @@ export const useStore = create<State>((set, get) => ({
       appLogoText: string;
       appLogoBase64: string | null;
       currency: string;
+      timezone: string;
       mailHost: string;
       mailPort: string;
       mailUsername: string;
@@ -603,8 +673,10 @@ export const useStore = create<State>((set, get) => ({
       debitTimingHours: number;
       adultDiscountPercent: number;
       adultDiscountAmount: number;
+      adultDiscountMode: "percent" | "amount";
       juniorDiscountPercent: number;
       juniorDiscountAmount: number;
+      juniorDiscountMode: "percent" | "amount";
     }>("/settings", settings);
     set({
       locations: updated.locations,
@@ -617,6 +689,7 @@ export const useStore = create<State>((set, get) => ({
       appLogoText: updated.appLogoText,
       appLogoBase64: updated.appLogoBase64,
       currency: updated.currency,
+      timezone: updated.timezone || "Asia/Kolkata",
       mailHost: updated.mailHost,
       mailPort: updated.mailPort,
       mailUsername: updated.mailUsername,
@@ -634,8 +707,16 @@ export const useStore = create<State>((set, get) => ({
       debitTimingHours: updated.debitTimingHours,
       adultDiscountPercent: updated.adultDiscountPercent ?? 0,
       adultDiscountAmount: updated.adultDiscountAmount ?? 0,
+      adultDiscountMode:
+        updated.adultDiscountMode === "amount" || updated.adultDiscountMode === "percent"
+          ? updated.adultDiscountMode
+          : "percent",
       juniorDiscountPercent: updated.juniorDiscountPercent ?? 0,
       juniorDiscountAmount: updated.juniorDiscountAmount ?? 0,
+      juniorDiscountMode:
+        updated.juniorDiscountMode === "amount" || updated.juniorDiscountMode === "percent"
+          ? updated.juniorDiscountMode
+          : "percent",
     });
   },
 
@@ -675,11 +756,15 @@ export const useStore = create<State>((set, get) => ({
     set({ activeRole: role });
   },
 
-  bulkUploadMembers: async (file: File) => {
+  bulkUploadMembers: async (file: File, options?: { allowExamples?: boolean }) => {
     const formData = new FormData();
     formData.append("file", file);
-    await api.post("/members/bulk-upload", formData);
+    if (options?.allowExamples) {
+      formData.append("allow_examples", "1");
+    }
+    const res = await api.post<{ createdCount?: number }>("/members/bulk-upload", formData);
     await get().syncData();
+    return res.createdCount ?? 0;
   },
 }));
 

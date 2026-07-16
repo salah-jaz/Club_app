@@ -162,11 +162,10 @@ class MailHelper
         $subject = "Play Schedule Notification: " . $schedule->name;
         $title = $actionType === 'release' ? 'New Schedule Released' : 'Schedule Updated';
         
-        $playerCount = max($schedule->players, 1);
         $estimatedFee = FeeHelper::playSessionFee(
             (float)$schedule->session_rate,
-            (float)$schedule->hall_rate,
-            $playerCount,
+            0,
+            1,
             $member
         );
         $feeFormatted = '$' . number_format($estimatedFee, 2);

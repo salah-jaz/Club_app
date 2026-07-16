@@ -298,7 +298,7 @@ export function MemberForm({
                   <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Club membership</Label>
                   <p className="type-helper mt-1">Paid yearly fee. Receives play schedule invitations.</p>
                 </div>
-                <Switch checked={v.membership} onCheckedChange={(x) => set("membership", x)} className="data-[state=checked]:bg-[#10B981]" />
+                <Switch checked={v.membership} onCheckedChange={(x) => set("membership", x)} />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                 <div>
@@ -314,7 +314,6 @@ export function MemberForm({
                 <Switch
                   checked={v.trainingEligible ?? false}
                   onCheckedChange={(x) => set("trainingEligible", x)}
-                  className="data-[state=checked]:bg-[#10B981]"
                 />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
@@ -325,7 +324,6 @@ export function MemberForm({
                 <Switch
                   checked={v.skipCreditConsumption ?? false}
                   onCheckedChange={(x) => set("skipCreditConsumption", x)}
-                  className="data-[state=checked]:bg-[#10B981]"
                 />
               </div>
               {currentUser?.role === "admin" && (
@@ -339,7 +337,6 @@ export function MemberForm({
                   <Switch
                     checked={v.applyDiscount ?? false}
                     onCheckedChange={(x) => set("applyDiscount", x)}
-                    className="data-[state=checked]:bg-[#10B981]"
                   />
                 </div>
               )}

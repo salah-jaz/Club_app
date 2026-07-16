@@ -278,7 +278,7 @@ export function SearchFilterBar({
           {activeChips.map((chip) => (
             <div
               key={chip.key}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-[rgba(16,185,129,0.08)] border border-[rgba(16,185,129,0.25)] rounded-full text-xs text-[#34D399]"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-[rgba(16,185,129,0.08)] border border-[rgba(16,185,129,0.25)] rounded-full text-xs text-[#10B981]"
             >
               <span>
                 {chip.filterLabel}: {chip.optionLabel}
@@ -286,7 +286,8 @@ export function SearchFilterBar({
               <button
                 type="button"
                 onClick={() => onFilterChange(chip.key, "all")}
-                className="hover:text-white transition-colors cursor-pointer text-[#34D399]/75"
+                className="hover:opacity-70 transition-opacity cursor-pointer text-current"
+                aria-label={`Clear ${chip.filterLabel} filter`}
               >
                 <X className="size-3" />
               </button>
