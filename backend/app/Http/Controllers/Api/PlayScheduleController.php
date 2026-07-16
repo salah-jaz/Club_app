@@ -249,13 +249,15 @@ class PlayScheduleController extends Controller
     {
         $schedule = PlaySchedule::findOrFail($id);
         $invites = PlayInvitation::where('schedule_id', $id)->where('status', 'accepted')->get();
-        $playerIds = $invites->pluck('member_id')->toArray();
+        $playerIds = $invites->pluck('member_id')->values()->all();
 
         if (empty($playerIds)) {
             return response()->json(['message' => 'No players accepted the invitation yet.'], 400);
         }
 
-        $rounds = $this->buildRotationRounds($schedule, $playerIds);
+        // Guests already belong in Accepted (capacity fillers) — do not invent extras here.
+        $rotationPlayers = array_merge($playerIds, $this->guestIdsForAccepted($schedule, count($playerIds)));
+        $rounds = $this->buildRotationRounds($schedule, $rotationPlayers);
 
         // Save or update rotation in DB
         Rotation::where('schedule_id', $id)->delete();
@@ -269,6 +271,10 @@ class PlayScheduleController extends Controller
         $feeRounded = round($fee, 2);
 
         foreach ($playerIds as $memberId) {
+            if ($this->isGuestMemberId($memberId)) {
+                continue;
+            }
+
             $invite = PlayInvitation::where('schedule_id', $id)->where('member_id', $memberId)->first();
             if ($invite && $invite->debited) {
                 continue;
@@ -318,8 +324,8 @@ class PlayScheduleController extends Controller
     }
 
     /**
-     * Build round/court assignments. Guests pad the pool up to
-     * max(schedule capacity, courts × 4) so doubles courts stay full.
+     * Build round/court assignments from the given accepted pool only
+     * (real members + any guest fillers already included). No extra guests.
      */
     private function buildRotationRounds(PlaySchedule $schedule, array $playerIds): array
     {
@@ -327,19 +333,11 @@ class PlayScheduleController extends Controller
         $roundsCount = 5;
         $playersPerCourt = 4;
         $slots = $courtsCount * $playersPerCourt;
-        $capacity = max((int) $schedule->players, 1);
-        $totalNeeded = max($capacity, $slots);
-        $activeCount = count($playerIds);
+        $rotationPlayers = array_values($playerIds);
 
-        $guests = [];
-        if ($activeCount < $totalNeeded) {
-            $guestNeeded = $totalNeeded - $activeCount;
-            for ($i = 1; $i <= $guestNeeded; $i++) {
-                $guests[] = 'guest_' . $i;
-            }
+        if (empty($rotationPlayers)) {
+            return [];
         }
-
-        $rotationPlayers = array_merge($playerIds, $guests);
 
         $playCount = [];
         foreach ($rotationPlayers as $p) {
@@ -387,7 +385,36 @@ class PlayScheduleController extends Controller
     public function listInvitations()
     {
         $invites = PlayInvitation::orderBy('updated_at')->get();
-        return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
+        $payload = $invites->map(fn($i) => $this->formatInvitation($i))->values()->all();
+
+        // Guests appear in Accepted only after rotation has been generated.
+        $schedules = PlaySchedule::all()->keyBy('id');
+        $acceptedBySchedule = $invites
+            ->where('status', 'accepted')
+            ->groupBy('schedule_id')
+            ->map(fn($rows) => $rows->count());
+
+        foreach ($schedules as $scheduleId => $schedule) {
+            if (!in_array($schedule->status, ['rotated', 'closed'], true)) {
+                continue;
+            }
+            $realAccepted = (int) ($acceptedBySchedule[$scheduleId] ?? 0);
+            foreach ($this->guestIdsForAccepted($schedule, $realAccepted) as $guestId) {
+                $n = (int) explode('_', $guestId)[1];
+                $payload[] = [
+                    'id' => 'pi_guest_' . $scheduleId . '_' . $n,
+                    'scheduleId' => $scheduleId,
+                    'memberId' => $guestId,
+                    'status' => 'accepted',
+                    'debited' => true,
+                    'updatedAt' => optional($schedule->updated_at)?->toISOString(),
+                    'createdAt' => optional($schedule->created_at)?->toISOString(),
+                    'isGuest' => true,
+                ];
+            }
+        }
+
+        return response()->json($payload);
     }
 
     public function respondInvitation(Request $request, $id)
@@ -477,10 +504,9 @@ class PlayScheduleController extends Controller
     {
         $rotations = Rotation::all();
         return response()->json($rotations->map(function ($r) {
-            $rounds = $this->ensureRotationGuests($r);
             return [
                 'scheduleId' => $r->schedule_id,
-                'rounds' => $rounds,
+                'rounds' => $r->rounds ?? [],
             ];
         }));
     }
@@ -494,55 +520,23 @@ class PlayScheduleController extends Controller
     }
 
     /**
-     * Rebuild rotation rounds when guest fillers were stripped and courts are short.
-     * Guests pad up to max(capacity, courts × 4) so doubles courts stay complete.
+     * Guest fillers for seats still open under Max Players.
+     * Only missing accepted seats — never courts×4 padding.
      */
-    private function ensureRotationGuests(Rotation $rotation): array
+    private function guestIdsForAccepted(PlaySchedule $schedule, int $realAcceptedCount): array
     {
-        $rounds = $rotation->rounds ?? [];
-        $schedule = PlaySchedule::find($rotation->schedule_id);
-        if (!$schedule) {
-            return $rounds;
-        }
-
-        $playerIds = PlayInvitation::where('schedule_id', $schedule->id)
-            ->where('status', 'accepted')
-            ->pluck('member_id')
-            ->toArray();
-
-        if (empty($playerIds)) {
-            return $rounds;
-        }
-
-        $slots = max((int) $schedule->courts, 1) * 4;
         $capacity = max((int) $schedule->players, 1);
-        $expectedGuests = max(0, max($capacity, $slots) - count($playerIds));
-
-        $actualGuests = [];
-        foreach ($rounds as $round) {
-            foreach ($round['courts'] ?? [] as $court) {
-                foreach ($court['players'] ?? [] as $p) {
-                    if (is_string($p) && str_starts_with($p, 'guest_')) {
-                        $actualGuests[$p] = true;
-                    }
-                }
-            }
-            foreach ($round['resting'] ?? [] as $p) {
-                if (is_string($p) && str_starts_with($p, 'guest_')) {
-                    $actualGuests[$p] = true;
-                }
-            }
+        $guestNeeded = max(0, $capacity - $realAcceptedCount);
+        $guests = [];
+        for ($i = 1; $i <= $guestNeeded; $i++) {
+            $guests[] = 'guest_' . $i;
         }
+        return $guests;
+    }
 
-        if (count($actualGuests) >= $expectedGuests) {
-            return $rounds;
-        }
-
-        $rounds = $this->buildRotationRounds($schedule, $playerIds);
-        $rotation->rounds = $rounds;
-        $rotation->save();
-
-        return $rounds;
+    private function isGuestMemberId($memberId): bool
+    {
+        return is_string($memberId) && str_starts_with($memberId, 'guest_');
     }
 
     private function formatInvitation(PlayInvitation $i): array
@@ -555,6 +549,7 @@ class PlayScheduleController extends Controller
             'debited' => (bool) $i->debited,
             'updatedAt' => optional($i->updated_at)?->toISOString(),
             'createdAt' => optional($i->created_at)?->toISOString(),
+            'isGuest' => $this->isGuestMemberId($i->member_id),
         ];
     }
 

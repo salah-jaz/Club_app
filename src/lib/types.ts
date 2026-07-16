@@ -90,6 +90,7 @@ export interface PlayInvitation {
   debited?: boolean;
   updatedAt?: string;
   createdAt?: string;
+  isGuest?: boolean;
 }
 
 export interface RotationRound {

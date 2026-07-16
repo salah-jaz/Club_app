@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useStore } from "@/lib/store";
+import { parseScheduleDateTime } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ function EditSchedule() {
     isLeagueMatch: false,
     leagueGroupIds: [] as string[],
   });
+  const [nameTouched, setNameTouched] = useState(true);
 
   useEffect(() => {
     if (sch) {
@@ -65,8 +67,11 @@ function EditSchedule() {
         isLeagueMatch: sch.isLeagueMatch ?? false,
         leagueGroupIds: sch.leagueGroupIds ?? [],
       });
+      setNameTouched(true);
     }
   }, [sch]);
+
+  const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
   if (!sch) return <Navigate to="/schedules" />;
 
@@ -76,6 +81,15 @@ function EditSchedule() {
   }
 
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  const onDateChange = (value: string) => {
+    const parsed = parseScheduleDateTime(value);
+    setF((p) => ({
+      ...p,
+      date: value,
+      name: !nameTouched && parsed ? parsed.label : p.name,
+    }));
+  };
 
   return (
     <div className="space-y-6">
@@ -105,26 +119,45 @@ function EditSchedule() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Name</Label>
-              <Input
-                required
-                value={f.name}
-                onChange={(e) => set("name", e.target.value)}
-                placeholder="Friday Night Play"
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
-              />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date & Time</Label>
               <Input
                 required
                 type="datetime-local"
                 value={f.date}
-                onChange={(e) => set("date", e.target.value)}
+                onChange={(e) => onDateChange(e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
+              {scheduleWhen && (
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Day</p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.day}</p>
+                  </div>
+                  <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date</p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.date}</p>
+                  </div>
+                  <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Time</p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.time}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Name</Label>
+              <Input
+                required
+                value={f.name}
+                onChange={(e) => {
+                  setNameTouched(true);
+                  set("name", e.target.value);
+                }}
+                placeholder="Friday · 18 Jul 2026 · 7:00 PM"
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Club Location</Label>
               {locations.length > 0 && f.location ? (
                 <Select value={f.location} onValueChange={(v) => set("location", v)}>

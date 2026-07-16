@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
+import { parseScheduleDateTime } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,19 @@ function NewSchedule() {
     sessionRate: 8, hallRate: 40, location: locations[0],
     isLeagueMatch: false, leagueGroupIds: [] as string[],
   });
+  const [nameTouched, setNameTouched] = useState(false);
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
+
+  const onDateChange = (value: string) => {
+    const parsed = parseScheduleDateTime(value);
+    setF((p) => ({
+      ...p,
+      date: value,
+      name: !nameTouched && parsed ? parsed.label : p.name,
+    }));
+  };
 
   return (
     <div className="space-y-6">
@@ -47,14 +60,48 @@ function NewSchedule() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Name</Label>
-              <Input required value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Friday Night Play" className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date & Time</Label>
-              <Input required type="datetime-local" value={f.date} onChange={(e) => set("date", e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+              <Input
+                required
+                type="datetime-local"
+                value={f.date}
+                onChange={(e) => onDateChange(e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
+              {scheduleWhen && (
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Day</p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.day}</p>
+                  </div>
+                  <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date</p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.date}</p>
+                  </div>
+                  <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Time</p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.time}</p>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Name</Label>
+              <Input
+                required
+                value={f.name}
+                onChange={(e) => {
+                  setNameTouched(true);
+                  set("name", e.target.value);
+                }}
+                placeholder="Friday · 18 Jul 2026 · 7:00 PM"
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
+              {!nameTouched && scheduleWhen && (
+                <p className="text-[11px] text-[#8A8A98]">Auto-filled from the selected date &amp; time. Edit anytime.</p>
+              )}
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Club Location</Label>
               <Select value={f.location} onValueChange={(v) => set("location", v)}>
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg"><SelectValue /></SelectTrigger>

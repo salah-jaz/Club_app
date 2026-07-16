@@ -1,4 +1,5 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/schedules/$id/")({ component: SchedulePage });
 
@@ -363,9 +374,13 @@ function SchedulePage() {
   const { id } = Route.useParams();
   const s = useStore();
   const sch = s.schedules.find((x) => x.id === id);
-  if (!sch) return <Navigate to="/schedules" />;
   const invs = s.playInvites.filter((i) => i.scheduleId === id);
   const rot = s.rotations.find((r) => r.scheduleId === id);
+  const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false);
+  const [rotating, setRotating] = useState(false);
+
+  if (!sch) return <Navigate to="/schedules" />;
+
   const memberName = (mid: string) => {
     if (typeof mid === "string" && mid.startsWith("guest_")) {
       return `Guest Player ${mid.split("_")[1]}`;
@@ -381,6 +396,12 @@ function SchedulePage() {
       .sort(byFirstCome),
     waiting: invs.filter((i) => i.status === "waiting").sort(byFirstCome),
   };
+
+  const realAccepted = grouped.accepted.filter(
+    (i) => !(typeof i.memberId === "string" && i.memberId.startsWith("guest_")),
+  );
+  const guestNeeded = Math.max(0, sch.players - realAccepted.length);
+  const underCapacity = realAccepted.length > 0 && realAccepted.length < sch.players;
 
   const columns = [
     { key: "accepted" as const, label: "Accepted", color: "text-[#2DD4BF]" },
@@ -400,8 +421,71 @@ function SchedulePage() {
     return applyMemberFee(base, m, discounts);
   };
 
+  const runGenerateRotation = async () => {
+    setRotating(true);
+    try {
+      await s.generateRotation(sch.id);
+      toast.success(
+        guestNeeded > 0
+          ? `Rotation generated with ${guestNeeded} guest player${guestNeeded === 1 ? "" : "s"}`
+          : "Rotation generated & fees deducted",
+      );
+      setRotateConfirmOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to generate rotation.");
+    } finally {
+      setRotating(false);
+    }
+  };
+
+  const onGenerateClick = () => {
+    if (underCapacity) {
+      setRotateConfirmOpen(true);
+      return;
+    }
+    void runGenerateRotation();
+  };
+
   return (
     <div className="space-y-6">
+      <AlertDialog open={rotateConfirmOpen} onOpenChange={setRotateConfirmOpen}>
+        <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#F1F0EE]">
+              Accepted players are less than Max Players
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[#C4D4CF] space-y-2">
+              <span className="block">
+                Only <strong className="text-[#F1F0EE]">{realAccepted.length}</strong> of{" "}
+                <strong className="text-[#F1F0EE]">{sch.players}</strong> max players have accepted.
+              </span>
+              <span className="block">
+                <strong className="text-[#F59E0B]">{guestNeeded} guest player{guestNeeded === 1 ? "" : "s"}</strong>{" "}
+                will be added to fill the remaining seats, then the rotation will be generated.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel
+              className="btn-premium-outline cursor-pointer"
+              disabled={rotating}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="btn-premium-solid cursor-pointer"
+              disabled={rotating}
+              onClick={(e) => {
+                e.preventDefault();
+                void runGenerateRotation();
+              }}
+            >
+              {rotating ? "Generating…" : "Add guests & generate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <PageHeader
         title={sch.name}
         description={`${fmtDateTime(sch.date)} · ${sch.location} · Session Rate: $${sch.sessionRate.toFixed(2)} · Capacity: ${sch.players} players`}
@@ -409,17 +493,11 @@ function SchedulePage() {
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge status={sch.status} />
-            {sch.status === "released" && grouped.accepted.length > 0 && (
+            {sch.status === "released" && realAccepted.length > 0 && (
               <Button
                 className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer"
-                onClick={async () => {
-                  try {
-                    await s.generateRotation(sch.id);
-                    toast.success("Rotation generated & fees deducted");
-                  } catch (error: any) {
-                    toast.error(error.message || "Failed to generate rotation.");
-                  }
-                }}
+                onClick={onGenerateClick}
+                disabled={rotating}
               >
                 <Shuffle className="size-3.5 mr-1" /> Generate rotation
               </Button>
@@ -467,10 +545,27 @@ function SchedulePage() {
                   >
                     <span className="truncate">
                       <span className="font-mono text-[10px] text-[#8A8A98] mr-2">{idx + 1}.</span>
-                      {memberName(i.memberId)}
+                      <span
+                        className={
+                          typeof i.memberId === "string" && i.memberId.startsWith("guest_")
+                            ? "text-[#D97706]"
+                            : undefined
+                        }
+                      >
+                        {memberName(i.memberId)}
+                      </span>
                     </span>
-                    <span className="font-mono text-xs text-[#34D399] shrink-0">
-                      ${getMemberFee(i.memberId).toFixed(2)}
+                    <span
+                      className={cn(
+                        "font-mono text-xs shrink-0",
+                        typeof i.memberId === "string" && i.memberId.startsWith("guest_")
+                          ? "text-[#8A8A98]"
+                          : "text-[#34D399]",
+                      )}
+                    >
+                      {typeof i.memberId === "string" && i.memberId.startsWith("guest_")
+                        ? "Guest"
+                        : `$${getMemberFee(i.memberId).toFixed(2)}`}
                     </span>
                   </div>
                 ))
