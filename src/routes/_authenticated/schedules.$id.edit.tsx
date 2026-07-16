@@ -158,7 +158,7 @@ function EditSchedule() {
                 <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable League Match</Label>
                 <p className="text-xs text-muted-foreground">Limit invitations to specific league groups</p>
               </div>
-              <Switch checked={f.isLeagueMatch} onCheckedChange={(v) => set("isLeagueMatch", v)} className="data-[state=checked]:bg-[#10B981]" />
+              <Switch checked={f.isLeagueMatch} onCheckedChange={(v) => set("isLeagueMatch", v)} />
             </div>
 
             {f.isLeagueMatch && (

@@ -39,6 +39,7 @@ interface State {
   appLogoText: string;
   appLogoBase64: string | null;
   currency: string;
+  timezone: string;
   mailHost: string;
   mailPort: string;
   mailUsername: string;
@@ -56,8 +57,10 @@ interface State {
   debitTimingHours: number;
   adultDiscountPercent: number;
   adultDiscountAmount: number;
+  adultDiscountMode: "percent" | "amount";
   juniorDiscountPercent: number;
   juniorDiscountAmount: number;
+  juniorDiscountMode: "percent" | "amount";
 
   // sync
   syncData: () => Promise<void>;
@@ -119,6 +122,7 @@ interface State {
     appLogoText?: string;
     appLogoBase64?: string | null;
     currency?: string;
+    timezone?: string;
     locations?: string[];
     grades?: string[];
     adultGrades?: string[];
@@ -142,8 +146,10 @@ interface State {
     debitTimingHours?: number;
     adultDiscountPercent?: number;
     adultDiscountAmount?: number;
+    adultDiscountMode?: "percent" | "amount";
     juniorDiscountPercent?: number;
     juniorDiscountAmount?: number;
+    juniorDiscountMode?: "percent" | "amount";
   }) => Promise<void>;
   updateProfile: (profile: {
     firstName: string;
@@ -211,6 +217,7 @@ export const useStore = create<State>((set, get) => ({
   appLogoText: "C",
   appLogoBase64: "/logo.png",
   currency: "$",
+  timezone: "Asia/Kolkata",
   mailHost: "",
   mailPort: "",
   mailUsername: "",
@@ -228,8 +235,10 @@ export const useStore = create<State>((set, get) => ({
   debitTimingHours: 24,
   adultDiscountPercent: 0,
   adultDiscountAmount: 0,
+  adultDiscountMode: "percent",
   juniorDiscountPercent: 0,
   juniorDiscountAmount: 0,
+  juniorDiscountMode: "percent",
 
   syncCurrentUser: async () => {
     try {
@@ -286,6 +295,7 @@ export const useStore = create<State>((set, get) => ({
           appLogoText: string;
           appLogoBase64?: string | null;
           currency?: string;
+          timezone?: string;
           mailHost?: string;
           mailPort?: string;
           mailUsername?: string;
@@ -303,8 +313,10 @@ export const useStore = create<State>((set, get) => ({
           debitTimingHours?: number;
           adultDiscountPercent?: number;
           adultDiscountAmount?: number;
+          adultDiscountMode?: "percent" | "amount";
           juniorDiscountPercent?: number;
           juniorDiscountAmount?: number;
+          juniorDiscountMode?: "percent" | "amount";
         }>("/settings"),
         api.get<CreditRequest[]>("/credit-requests"),
         api.get<LeagueGroup[]>("/league-groups"),
@@ -337,6 +349,7 @@ export const useStore = create<State>((set, get) => ({
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || "/logo.png",
         currency: settings.currency || "$",
+        timezone: settings.timezone || "Asia/Kolkata",
         mailHost: settings.mailHost || "",
         mailPort: settings.mailPort || "",
         mailUsername: settings.mailUsername || "",
@@ -354,8 +367,20 @@ export const useStore = create<State>((set, get) => ({
         debitTimingHours: settings.debitTimingHours ?? 24,
         adultDiscountPercent: settings.adultDiscountPercent ?? 0,
         adultDiscountAmount: settings.adultDiscountAmount ?? 0,
+        adultDiscountMode:
+          settings.adultDiscountMode === "amount" || settings.adultDiscountMode === "percent"
+            ? settings.adultDiscountMode
+            : (settings.adultDiscountAmount ?? 0) > 0 && (settings.adultDiscountPercent ?? 0) <= 0
+              ? "amount"
+              : "percent",
         juniorDiscountPercent: settings.juniorDiscountPercent ?? 0,
         juniorDiscountAmount: settings.juniorDiscountAmount ?? 0,
+        juniorDiscountMode:
+          settings.juniorDiscountMode === "amount" || settings.juniorDiscountMode === "percent"
+            ? settings.juniorDiscountMode
+            : (settings.juniorDiscountAmount ?? 0) > 0 && (settings.juniorDiscountPercent ?? 0) <= 0
+              ? "amount"
+              : "percent",
         users,
         creditRequests,
         leagueGroups,
@@ -630,6 +655,7 @@ export const useStore = create<State>((set, get) => ({
       appLogoText: string;
       appLogoBase64: string | null;
       currency: string;
+      timezone: string;
       mailHost: string;
       mailPort: string;
       mailUsername: string;
@@ -647,8 +673,10 @@ export const useStore = create<State>((set, get) => ({
       debitTimingHours: number;
       adultDiscountPercent: number;
       adultDiscountAmount: number;
+      adultDiscountMode: "percent" | "amount";
       juniorDiscountPercent: number;
       juniorDiscountAmount: number;
+      juniorDiscountMode: "percent" | "amount";
     }>("/settings", settings);
     set({
       locations: updated.locations,
@@ -661,6 +689,7 @@ export const useStore = create<State>((set, get) => ({
       appLogoText: updated.appLogoText,
       appLogoBase64: updated.appLogoBase64,
       currency: updated.currency,
+      timezone: updated.timezone || "Asia/Kolkata",
       mailHost: updated.mailHost,
       mailPort: updated.mailPort,
       mailUsername: updated.mailUsername,
@@ -678,8 +707,16 @@ export const useStore = create<State>((set, get) => ({
       debitTimingHours: updated.debitTimingHours,
       adultDiscountPercent: updated.adultDiscountPercent ?? 0,
       adultDiscountAmount: updated.adultDiscountAmount ?? 0,
+      adultDiscountMode:
+        updated.adultDiscountMode === "amount" || updated.adultDiscountMode === "percent"
+          ? updated.adultDiscountMode
+          : "percent",
       juniorDiscountPercent: updated.juniorDiscountPercent ?? 0,
       juniorDiscountAmount: updated.juniorDiscountAmount ?? 0,
+      juniorDiscountMode:
+        updated.juniorDiscountMode === "amount" || updated.juniorDiscountMode === "percent"
+          ? updated.juniorDiscountMode
+          : "percent",
     });
   },
 

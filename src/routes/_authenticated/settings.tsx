@@ -15,6 +15,7 @@ import {
   ConfirmDeleteDialog,
   type ConfirmDeleteRequest,
 } from "@/components/ConfirmDeleteDialog";
+import { TIMEZONE_OPTIONS, resolveTimezone } from "@/lib/timezones";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -109,6 +110,7 @@ function SettingsPage() {
   const [appLogoText, setAppLogoText] = useState(store.appLogoText);
   const [appLogoBase64, setAppLogoBase64] = useState<string | null>(store.appLogoBase64);
   const [currency, setCurrency] = useState(store.currency);
+  const [timezone, setTimezone] = useState(resolveTimezone(store.timezone));
   const [skipCreditConsumption, setSkipCreditConsumption] = useState(store.skipCreditConsumption);
   const [locations, setLocations] = useState<string[]>(store.locations);
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
@@ -116,12 +118,26 @@ function SettingsPage() {
   useEffect(() => {
     setSkipCreditConsumption(store.skipCreditConsumption);
   }, [store.skipCreditConsumption]);
+
+  useEffect(() => {
+    setTimezone(resolveTimezone(store.timezone));
+  }, [store.timezone]);
+
+  useEffect(() => {
+    setCurrency(store.currency);
+  }, [store.currency]);
   const [cancellationLockHours, setCancellationLockHours] = useState(store.cancellationLockHours);
   const [debitTimingHours, setDebitTimingHours] = useState(store.debitTimingHours);
   const [adultDiscountPercent, setAdultDiscountPercent] = useState(store.adultDiscountPercent);
   const [adultDiscountAmount, setAdultDiscountAmount] = useState(store.adultDiscountAmount);
+  const [adultDiscountMode, setAdultDiscountMode] = useState<"percent" | "amount">(
+    store.adultDiscountMode === "amount" ? "amount" : "percent",
+  );
   const [juniorDiscountPercent, setJuniorDiscountPercent] = useState(store.juniorDiscountPercent);
   const [juniorDiscountAmount, setJuniorDiscountAmount] = useState(store.juniorDiscountAmount);
+  const [juniorDiscountMode, setJuniorDiscountMode] = useState<"percent" | "amount">(
+    store.juniorDiscountMode === "amount" ? "amount" : "percent",
+  );
 
   useEffect(() => {
     setCancellationLockHours(store.cancellationLockHours);
@@ -134,13 +150,17 @@ function SettingsPage() {
   useEffect(() => {
     setAdultDiscountPercent(store.adultDiscountPercent);
     setAdultDiscountAmount(store.adultDiscountAmount);
+    setAdultDiscountMode(store.adultDiscountMode === "amount" ? "amount" : "percent");
     setJuniorDiscountPercent(store.juniorDiscountPercent);
     setJuniorDiscountAmount(store.juniorDiscountAmount);
+    setJuniorDiscountMode(store.juniorDiscountMode === "amount" ? "amount" : "percent");
   }, [
     store.adultDiscountPercent,
     store.adultDiscountAmount,
+    store.adultDiscountMode,
     store.juniorDiscountPercent,
     store.juniorDiscountAmount,
+    store.juniorDiscountMode,
   ]);
   const [adultGrades, setAdultGrades] = useState<string[]>(store.adultGrades);
   const [juniorGrades, setJuniorGrades] = useState<string[]>(store.juniorGrades);
@@ -469,6 +489,7 @@ function SettingsPage() {
         appLogoText,
         appLogoBase64,
         currency,
+        timezone,
         skipCreditConsumption,
         cancellationLockHours,
         debitTimingHours,
@@ -483,10 +504,12 @@ function SettingsPage() {
     e.preventDefault();
     try {
       await updateSettings({
-        adultDiscountPercent: Number(adultDiscountPercent) || 0,
-        adultDiscountAmount: Number(adultDiscountAmount) || 0,
-        juniorDiscountPercent: Number(juniorDiscountPercent) || 0,
-        juniorDiscountAmount: Number(juniorDiscountAmount) || 0,
+        adultDiscountMode,
+        adultDiscountPercent: adultDiscountMode === "percent" ? Number(adultDiscountPercent) || 0 : 0,
+        adultDiscountAmount: adultDiscountMode === "amount" ? Number(adultDiscountAmount) || 0 : 0,
+        juniorDiscountMode,
+        juniorDiscountPercent: juniorDiscountMode === "percent" ? Number(juniorDiscountPercent) || 0 : 0,
+        juniorDiscountAmount: juniorDiscountMode === "amount" ? Number(juniorDiscountAmount) || 0 : 0,
       });
       toast.success("Discount settings saved successfully");
     } catch (err: any) {
@@ -762,6 +785,31 @@ function SettingsPage() {
                   </div>
                 </div>
 
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Clock Timezone
+                  </Label>
+                  <Select value={timezone} onValueChange={setTimezone}>
+                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer">
+                      <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-h-72">
+                      {TIMEZONE_OPTIONS.map((tz) => (
+                        <SelectItem
+                          key={tz.value}
+                          value={tz.value}
+                          className="cursor-pointer hover:bg-white/5"
+                        >
+                          {tz.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-[#8A8A98]">
+                    Controls the live clock in the top-right corner.
+                  </p>
+                </div>
+
                 <div className="grid sm:grid-cols-2 gap-4 items-center border-t border-white/[0.03] pt-4 mt-4">
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
@@ -859,13 +907,27 @@ function SettingsPage() {
             <CardContent className="pt-6">
               <form onSubmit={handleSaveDiscounts} className="space-y-6">
                 <p className="text-xs text-muted-foreground font-light">
-                  Percentage is applied first, then the fixed amount is subtracted. Only members with
-                  &quot;Apply Discount&quot; enabled receive these rates on play and training fees.
+                  Choose percentage or fixed amount for each member type — only one applies.
+                  Only members with &quot;Apply Discount&quot; enabled receive these rates on play and
+                  training fees.
                 </p>
                 <div className="grid sm:grid-cols-2 gap-6">
                   <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
-                    <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#34D399] uppercase">Adult</h3>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#34D399] uppercase">Adult</h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">%</span>
+                        <Switch
+                          checked={adultDiscountMode === "amount"}
+                          onCheckedChange={(checked) =>
+                            setAdultDiscountMode(checked ? "amount" : "percent")
+                          }
+                          aria-label="Adult discount type"
+                        />
+                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">Amount</span>
+                      </div>
+                    </div>
+                    {adultDiscountMode === "percent" ? (
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                           Discount %
@@ -880,6 +942,7 @@ function SettingsPage() {
                           className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
                         />
                       </div>
+                    ) : (
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                           Discount Amount
@@ -893,11 +956,24 @@ function SettingsPage() {
                           className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
                         />
                       </div>
-                    </div>
+                    )}
                   </div>
                   <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
-                    <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#818CF8] uppercase">Junior</h3>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#818CF8] uppercase">Junior</h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">%</span>
+                        <Switch
+                          checked={juniorDiscountMode === "amount"}
+                          onCheckedChange={(checked) =>
+                            setJuniorDiscountMode(checked ? "amount" : "percent")
+                          }
+                          aria-label="Junior discount type"
+                        />
+                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">Amount</span>
+                      </div>
+                    </div>
+                    {juniorDiscountMode === "percent" ? (
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                           Discount %
@@ -912,6 +988,7 @@ function SettingsPage() {
                           className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono"
                         />
                       </div>
+                    ) : (
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                           Discount Amount
@@ -925,7 +1002,7 @@ function SettingsPage() {
                           className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono"
                         />
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">

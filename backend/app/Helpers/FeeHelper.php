@@ -9,7 +9,7 @@ class FeeHelper
 {
     /**
      * Apply member discount settings to a base fee.
-     * Percentage is applied first, then a fixed amount is subtracted.
+     * Uses either percentage or fixed amount based on discount mode — never both.
      * Returns 0 when the member bypasses credit consumption.
      */
     public static function forMember(float $baseFee, ?Member $member): float
@@ -29,12 +29,15 @@ class FeeHelper
         $type = strtolower((string) $member->member_type);
         $percent = (float) (self::settingValue("{$type}_discount_percent") ?? 0);
         $amount = (float) (self::settingValue("{$type}_discount_amount") ?? 0);
+        $mode = self::settingValue("{$type}_discount_mode");
+        if ($mode !== 'percent' && $mode !== 'amount') {
+            $mode = ($amount > 0 && $percent <= 0) ? 'amount' : 'percent';
+        }
 
         $fee = $baseFee;
-        if ($percent > 0) {
+        if ($mode === 'percent' && $percent > 0) {
             $fee = $fee * (1 - min($percent, 100) / 100);
-        }
-        if ($amount > 0) {
+        } elseif ($mode === 'amount' && $amount > 0) {
             $fee = $fee - $amount;
         }
 

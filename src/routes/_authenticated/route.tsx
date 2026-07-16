@@ -8,36 +8,27 @@ import { useState, useEffect } from "react";
 import { Bell, Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MotionWrapper } from "@/components/MotionWrapper";
+import { formatClockTime } from "@/lib/timezones";
 
 export const Route = createFileRoute("/_authenticated")({ component: Layout });
 
 function Layout() {
   const userId = useStore((s) => s.currentUserId);
   const user = useCurrentUser();
+  const timezone = useStore((s) => s.timezone);
   const pendingUsers = useStore((s) => s.users.filter((u) => u.status === "created").length);
   const pendingCredits = useStore((s) => s.creditRequests.filter((cr) => cr.status === "created").length);
   const notifCount = pendingUsers + pendingCredits;
 
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
-  // Clock state — Ireland (Europe/Dublin) time with AM/PM
   const [timeStr, setTimeStr] = useState("");
   useEffect(() => {
-    const updateTime = () => {
-      const formatted = new Date().toLocaleTimeString("en-IE", {
-        timeZone: "Europe/Dublin",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      });
-      // Normalize locale "a.m." / "p.m." → "AM" / "PM"
-      setTimeStr(formatted.replace(/\s*a\.?m\.?/i, " AM").replace(/\s*p\.?m\.?/i, " PM").trim());
-    };
+    const updateTime = () => setTimeStr(formatClockTime(new Date(), timezone));
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [timezone]);
 
   const syncCurrentUser = useStore((s) => s.syncCurrentUser);
   const syncData = useStore((s) => s.syncData);

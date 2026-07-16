@@ -915,9 +915,9 @@ label:has(~ div select[required])::after {
    ============================================================ */
 
 /* Legacy emerald utility classes → active theme tokens (works for default sapphire too) */
-[class*="bg-[#10B981]"],
-[class*="hover:bg-[#10B981]"]:hover,
-[class*="data-[state=checked]:bg-[#10B981]"] {
+[class~="bg-[#10B981]"],
+[class~="hover:bg-[#10B981]"]:hover,
+[data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"] {
   background-color: var(--primary) !important;
 }
 [class*="text-[#10B981]"],
@@ -1034,9 +1034,9 @@ label:has(~ div select[required])::after {
   --success-text: #2563EB !important;
   --success-color: #2563EB !important;
 }
-.theme-sapphire [class*="bg-[#10B981]"],
-.theme-sapphire [class*="hover:bg-[#10B981]"]:hover,
-.theme-sapphire [class*="data-[state=checked]:bg-[#10B981]"],
+.theme-sapphire [class~="bg-[#10B981]"],
+.theme-sapphire [class~="hover:bg-[#10B981]"]:hover,
+.theme-sapphire [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-sapphire [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
 }
@@ -1161,9 +1161,9 @@ label:has(~ div select[required])::after {
   --success-text: #BE123C !important;
   --success-color: #BE123C !important;
 }
-.theme-ruby [class*="bg-[#10B981]"],
-.theme-ruby [class*="hover:bg-[#10B981]"]:hover,
-.theme-ruby [class*="data-[state=checked]:bg-[#10B981]"],
+.theme-ruby [class~="bg-[#10B981]"],
+.theme-ruby [class~="hover:bg-[#10B981]"]:hover,
+.theme-ruby [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-ruby [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
 }
@@ -1288,9 +1288,9 @@ label:has(~ div select[required])::after {
   --success-text: #D97706 !important;
   --success-color: #D97706 !important;
 }
-.theme-amber [class*="bg-[#10B981]"],
-.theme-amber [class*="hover:bg-[#10B981]"]:hover,
-.theme-amber [class*="data-[state=checked]:bg-[#10B981]"],
+.theme-amber [class~="bg-[#10B981]"],
+.theme-amber [class~="hover:bg-[#10B981]"]:hover,
+.theme-amber [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-amber [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
 }
@@ -1415,9 +1415,9 @@ label:has(~ div select[required])::after {
   --success-text: #7C3AED !important;
   --success-color: #7C3AED !important;
 }
-.theme-amethyst [class*="bg-[#10B981]"],
-.theme-amethyst [class*="hover:bg-[#10B981]"]:hover,
-.theme-amethyst [class*="data-[state=checked]:bg-[#10B981]"],
+.theme-amethyst [class~="bg-[#10B981]"],
+.theme-amethyst [class~="hover:bg-[#10B981]"]:hover,
+.theme-amethyst [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-amethyst [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
 }
@@ -1504,9 +1504,9 @@ label:has(~ div select[required])::after {
 }
 
 /* --- Custom Color Theme Overrides --- */
-.theme-custom [class*="bg-[#10B981]"],
-.theme-custom [class*="hover:bg-[#10B981]"]:hover,
-.theme-custom [class*="data-[state=checked]:bg-[#10B981]"],
+.theme-custom [class~="bg-[#10B981]"],
+.theme-custom [class~="hover:bg-[#10B981]"]:hover,
+.theme-custom [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-custom [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
 }
@@ -1590,4 +1590,54 @@ label:has(~ div select[required])::after {
 }
 .theme-custom [class*="hover:border-[#2DD4BF]"]:hover {
   border-color: var(--border-accent) !important;
+}
+
+/* ============================================================
+   FIX: Soft #10B981 fills (/5 /10 /15 /20) must not become solid
+   primary. Attribute selectors like [class*='bg-[#10B981]'] also
+   match opacity utilities and wipe filter chip / select text.
+   ============================================================ */
+[class*='bg-[#10B981]/'],
+[class*='hover:bg-[#10B981]/']:hover {
+  background-color: color-mix(in srgb, var(--primary) 12%, transparent) !important;
+}
+[class*='border-[#10B981]/'],
+[class*='hover:border-[#10B981]/']:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent) !important;
+}
+.light [class*='bg-[#10B981]/'],
+.light [class*='hover:bg-[#10B981]/']:hover {
+  background-color: color-mix(in srgb, var(--primary) 10%, transparent) !important;
+}
+.light [class*='border-[#10B981]/'],
+.light [class*='hover:border-[#10B981]/']:hover {
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent) !important;
+}
+
+/* Keep filter/select label text readable on soft fills */
+.light [class*='bg-[#10B981]/'][class*='text-[#10B981]'],
+[class*='bg-[#10B981]/'][class*='text-[#10B981]'] {
+  color: var(--primary) !important;
+}
+
+
+
+/* Switch on/off must look different (theme remaps must not force primary when unchecked) */
+button[role="switch"][data-state="unchecked"] {
+  background-color: rgba(120, 130, 140, 0.45) !important;
+}
+button[role="switch"][data-state="checked"] {
+  background-color: var(--primary) !important;
+}
+.light button[role="switch"][data-state="unchecked"] {
+  background-color: #CBD5E1 !important;
+}
+.light button[role="switch"][data-state="checked"] {
+  background-color: var(--primary) !important;
+}
+.light button[role="switch"][data-state="checked"] > span {
+  background-color: #ffffff !important;
+}
+.light button[role="switch"][data-state="unchecked"] > span {
+  background-color: #ffffff !important;
 }

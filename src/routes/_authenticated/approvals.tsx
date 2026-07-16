@@ -342,7 +342,6 @@ function Approvals() {
               <Switch
                 checked={opts.trainingEligible}
                 onCheckedChange={(trainingEligible) => setOpts((p) => ({ ...p, trainingEligible }))}
-                className="data-[state=checked]:bg-[#10B981]"
               />
             </div>
           </div>
