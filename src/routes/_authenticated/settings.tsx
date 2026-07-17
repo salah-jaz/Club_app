@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2, Plus, HelpCircle, Pencil, Check, X } from "lucide-react";
+import { Trash2, Plus, HelpCircle, Pencil, Check, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
   ConfirmDeleteDialog,
@@ -32,6 +32,11 @@ function EditableConfigRow({
   onSave,
   onCancel,
   onDelete,
+  rankLabel,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
 }: {
   value: string;
   isEditing: boolean;
@@ -41,6 +46,12 @@ function EditableConfigRow({
   onSave: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  /** Optional strength rank badge (1 = strongest) */
+  rankLabel?: string;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }) {
   if (isEditing) {
     return (
@@ -76,9 +87,36 @@ function EditableConfigRow({
   }
 
   return (
-    <div className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs">
-      <span className="text-[#F1F0EE] font-medium">{value}</span>
-      <div className="flex items-center gap-1">
+    <div className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        {rankLabel && (
+          <span className="shrink-0 font-mono text-[10px] text-[#8FA89F] w-5 text-center">{rankLabel}</span>
+        )}
+        <span className="text-[#F1F0EE] font-medium truncate">{value}</span>
+      </div>
+      <div className="flex items-center gap-0.5 shrink-0">
+        {(onMoveUp || onMoveDown) && (
+          <>
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!canMoveUp}
+              className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 disabled:opacity-30 disabled:pointer-events-none"
+              title="Stronger (move up)"
+            >
+              <ChevronUp className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!canMoveDown}
+              className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 disabled:opacity-30 disabled:pointer-events-none"
+              title="Weaker (move down)"
+            >
+              <ChevronDown className="size-3.5" />
+            </button>
+          </>
+        )}
         <button
           type="button"
           onClick={onStartEdit}
@@ -604,6 +642,24 @@ function SettingsPage() {
     setJuniorGrades(updated);
     setNewJuniorGrade("");
     saveUpdatedList({ juniorGrades: updated }, "Junior grade added");
+  };
+
+  const moveGrade = (
+    list: "adultGrades" | "juniorGrades",
+    items: string[],
+    setItems: (items: string[]) => void,
+    index: number,
+    direction: -1 | 1,
+  ) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= items.length) return;
+    const updated = [...items];
+    const tmp = updated[index];
+    updated[index] = updated[nextIndex];
+    updated[nextIndex] = tmp;
+    setItems(updated);
+    const payload = list === "adultGrades" ? { adultGrades: updated } : { juniorGrades: updated };
+    void saveUpdatedList(payload, "Grade strength order updated");
   };
 
   const handleDeleteJuniorGrade = (g: string) => {
@@ -1410,6 +1466,9 @@ function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
+                <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
+                  Order from strongest (top, rank 1) to weakest. Court rotation groups similar grades together.
+                </p>
                 <div className="flex gap-2 mb-4">
                   <Input
                     value={newAdultGrade}
@@ -1430,10 +1489,11 @@ function SettingsPage() {
                   {adultGrades.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">No adult grades configured.</div>
                   ) : (
-                    adultGrades.map((g) => (
+                    adultGrades.map((g, index) => (
                       <EditableConfigRow
                         key={g}
                         value={g}
+                        rankLabel={`${index + 1}`}
                         isEditing={editingList === "adultGrades" && editingOriginal === g}
                         editValue={editingValue}
                         onEditValueChange={setEditingValue}
@@ -1441,6 +1501,10 @@ function SettingsPage() {
                         onSave={() => renameListItem("adultGrades", adultGrades, setAdultGrades, "Adult Grade")}
                         onCancel={cancelEditing}
                         onDelete={() => handleDeleteAdultGrade(g)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < adultGrades.length - 1}
+                        onMoveUp={() => moveGrade("adultGrades", adultGrades, setAdultGrades, index, -1)}
+                        onMoveDown={() => moveGrade("adultGrades", adultGrades, setAdultGrades, index, 1)}
                       />
                     ))
                   )}
@@ -1457,6 +1521,9 @@ function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
+                <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
+                  Order from strongest (top, rank 1) to weakest. Used when you need grade strength for juniors.
+                </p>
                 <div className="flex gap-2 mb-4">
                   <Input
                     value={newJuniorGrade}
@@ -1477,10 +1544,11 @@ function SettingsPage() {
                   {juniorGrades.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">No junior grades configured.</div>
                   ) : (
-                    juniorGrades.map((g) => (
+                    juniorGrades.map((g, index) => (
                       <EditableConfigRow
                         key={g}
                         value={g}
+                        rankLabel={`${index + 1}`}
                         isEditing={editingList === "juniorGrades" && editingOriginal === g}
                         editValue={editingValue}
                         onEditValueChange={setEditingValue}
@@ -1488,6 +1556,10 @@ function SettingsPage() {
                         onSave={() => renameListItem("juniorGrades", juniorGrades, setJuniorGrades, "Junior Grade")}
                         onCancel={cancelEditing}
                         onDelete={() => handleDeleteJuniorGrade(g)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < juniorGrades.length - 1}
+                        onMoveUp={() => moveGrade("juniorGrades", juniorGrades, setJuniorGrades, index, -1)}
+                        onMoveDown={() => moveGrade("juniorGrades", juniorGrades, setJuniorGrades, index, 1)}
                       />
                     ))
                   )}

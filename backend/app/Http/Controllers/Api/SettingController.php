@@ -49,9 +49,9 @@ class SettingController extends Controller
 
         $data = [
             'locations'       => Location::pluck('name')->toArray(),
-            'grades'          => Grade::pluck('name')->toArray(),
-            'adultGrades'     => Grade::where('type', 'adult')->pluck('name')->toArray(),
-            'juniorGrades'    => Grade::where('type', 'junior')->pluck('name')->toArray(),
+            'grades'          => Grade::orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
+            'adultGrades'     => Grade::where('type', 'adult')->orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
+            'juniorGrades'    => Grade::where('type', 'junior')->orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
             'holidays'        => Holiday::pluck('date')->toArray(),
             'playerPositions' => PlayerPosition::pluck('name')->toArray(),
         ];
@@ -120,26 +120,36 @@ class SettingController extends Controller
         }
 
         if ($request->has('adultGrades')) {
-            $newAdultGrades = $request->adultGrades ?? [];
+            $newAdultGrades = array_values(array_filter($request->adultGrades ?? [], fn($g) => is_string($g) && $g !== ''));
             Grade::where('type', 'adult')->whereNotIn('name', $newAdultGrades)->delete();
             $now = now();
-            foreach ($newAdultGrades as $g) {
-                Grade::firstOrCreate(
-                    ['name' => $g],
-                    ['type' => 'adult', 'created_at' => $now, 'updated_at' => $now]
-                );
+            foreach ($newAdultGrades as $index => $g) {
+                $rank = $index + 1;
+                $grade = Grade::firstOrNew(['name' => $g]);
+                $grade->type = 'adult';
+                $grade->rank = $rank;
+                if (!$grade->exists) {
+                    $grade->created_at = $now;
+                }
+                $grade->updated_at = $now;
+                $grade->save();
             }
         }
 
         if ($request->has('juniorGrades')) {
-            $newJuniorGrades = $request->juniorGrades ?? [];
+            $newJuniorGrades = array_values(array_filter($request->juniorGrades ?? [], fn($g) => is_string($g) && $g !== ''));
             Grade::where('type', 'junior')->whereNotIn('name', $newJuniorGrades)->delete();
             $now = now();
-            foreach ($newJuniorGrades as $g) {
-                Grade::firstOrCreate(
-                    ['name' => $g],
-                    ['type' => 'junior', 'created_at' => $now, 'updated_at' => $now]
-                );
+            foreach ($newJuniorGrades as $index => $g) {
+                $rank = $index + 1;
+                $grade = Grade::firstOrNew(['name' => $g]);
+                $grade->type = 'junior';
+                $grade->rank = $rank;
+                if (!$grade->exists) {
+                    $grade->created_at = $now;
+                }
+                $grade->updated_at = $now;
+                $grade->save();
             }
         }
 

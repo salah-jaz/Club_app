@@ -501,13 +501,18 @@ function SchedulePage() {
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={sch.status} />
             {sch.status === "released" && realAccepted.length > 0 && (
-              <Button
-                className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer w-full sm:w-auto"
-                onClick={onGenerateClick}
-                disabled={rotating}
-              >
-                <Shuffle className="size-3.5 mr-1" /> Generate rotation
-              </Button>
+              <div className="flex flex-col items-stretch sm:items-end gap-1 w-full sm:w-auto">
+                <Button
+                  className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer w-full sm:w-auto"
+                  onClick={onGenerateClick}
+                  disabled={rotating}
+                >
+                  <Shuffle className="size-3.5 mr-1" /> Generate rotation
+                </Button>
+                <p className="text-[10px] text-muted-foreground text-right max-w-[220px]">
+                  Courts are grouped by similar grade strength.
+                </p>
+              </div>
             )}
             {sch.status === "rotated" && rot && (
               <Button

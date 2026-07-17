@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PlaySchedule;
 use App\Models\PlayInvitation;
 use App\Models\Member;
+use App\Models\Grade;
 use App\Models\Rotation;
 use App\Models\Transaction;
 use App\Helpers\MailHelper;
@@ -478,6 +479,29 @@ class PlayScheduleController extends Controller
             return [];
         }
 
+        // Adult grade ranks: lower number = stronger. Guests / unknown = weakest.
+        $gradeRanks = Grade::where('type', 'adult')->pluck('rank', 'name')->all();
+        $maxRank = empty($gradeRanks) ? 0 : (int) max($gradeRanks);
+        $guestRank = $maxRank + 1;
+
+        $realIds = array_values(array_filter(
+            $rotationPlayers,
+            fn($id) => !$this->isGuestMemberId($id)
+        ));
+        $membersById = Member::whereIn('id', $realIds)->get(['id', 'grade'])->keyBy('id');
+
+        $playerRank = [];
+        foreach ($rotationPlayers as $p) {
+            if ($this->isGuestMemberId($p)) {
+                $playerRank[$p] = $guestRank;
+                continue;
+            }
+            $gradeName = $membersById->get($p)?->grade;
+            $playerRank[$p] = isset($gradeRanks[$gradeName])
+                ? (int) $gradeRanks[$gradeName]
+                : $guestRank;
+        }
+
         $playCount = [];
         foreach ($rotationPlayers as $p) {
             $playCount[$p] = 0;
@@ -485,11 +509,16 @@ class PlayScheduleController extends Controller
 
         $rounds = [];
         for ($r = 1; $r <= $roundsCount; $r++) {
+            // Fairness first: who has played fewer rounds gets court slots.
             $sorted = $rotationPlayers;
-            usort($sorted, function ($a, $b) use ($playCount) {
+            usort($sorted, function ($a, $b) use ($playCount, $playerRank, $guestRank) {
                 $diff = $playCount[$a] - $playCount[$b];
                 if ($diff !== 0) {
                     return $diff;
+                }
+                $rankDiff = ($playerRank[$a] ?? $guestRank) - ($playerRank[$b] ?? $guestRank);
+                if ($rankDiff !== 0) {
+                    return $rankDiff;
                 }
                 return strcmp((string) $a, (string) $b);
             });
@@ -497,7 +526,18 @@ class PlayScheduleController extends Controller
             $playing = array_slice($sorted, 0, $slots);
             $resting = array_slice($sorted, $slots);
 
-            shuffle($playing);
+            // Group similar ranks on the same court (no shuffle).
+            usort($playing, function ($a, $b) use ($playerRank, $playCount, $guestRank) {
+                $rankDiff = ($playerRank[$a] ?? $guestRank) - ($playerRank[$b] ?? $guestRank);
+                if ($rankDiff !== 0) {
+                    return $rankDiff;
+                }
+                $diff = $playCount[$a] - $playCount[$b];
+                if ($diff !== 0) {
+                    return $diff;
+                }
+                return strcmp((string) $a, (string) $b);
+            });
 
             $courtsArr = [];
             for ($c = 0; $c < $courtsCount; $c++) {
