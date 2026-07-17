@@ -4,7 +4,7 @@ import { applyCustomTheme } from "@/lib/utils";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { Separator } from "@/components/ui/separator";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bell, Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MotionWrapper } from "@/components/MotionWrapper";
@@ -21,6 +21,7 @@ function Layout() {
   const notifCount = pendingUsers + pendingCredits;
 
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const moduleKey = pathname.split("/").filter(Boolean)[0] || "dashboard";
 
   const [timeStr, setTimeStr] = useState("");
   useEffect(() => {
@@ -33,6 +34,7 @@ function Layout() {
   const syncCurrentUser = useStore((s) => s.syncCurrentUser);
   const syncData = useStore((s) => s.syncData);
   const [loading, setLoading] = useState(true);
+  const skipNextModuleSync = useRef(true);
 
   useEffect(() => {
     async function init() {
@@ -46,6 +48,16 @@ function Layout() {
     }
     init();
   }, [userId, syncCurrentUser, syncData]);
+
+  // Soft-refresh shared data when switching modules (Members → Schedules, etc.)
+  useEffect(() => {
+    if (loading || !userId) return;
+    if (skipNextModuleSync.current) {
+      skipNextModuleSync.current = false;
+      return;
+    }
+    void syncData();
+  }, [moduleKey, loading, userId, syncData]);
 
   // Theme state
   const [theme, setTheme] = useState<"dark" | "light">("dark");

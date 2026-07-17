@@ -21,6 +21,7 @@ export function AppSidebar() {
   const activeRole = useStore((s) => s.activeRole) || user?.role;
   const setActiveRole = useStore((s) => s.setActiveRole);
   const navigate = useNavigate();
+  const syncData = useStore((s) => s.syncData);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { setOpenMobile, isMobile } = useSidebar();
 
@@ -35,10 +36,15 @@ export function AppSidebar() {
     }
   };
 
-  /** Full page reload so module state/data resets when switching via sidebar */
+  /** Soft navigate; sync when staying in the same module (e.g. /members/add → /members).
+   *  Cross-module switches are synced by the authenticated layout. */
   const goToModule = (to: string) => {
     closeSidebarMobile();
-    window.location.assign(to);
+    const sameModule = pathname === to || pathname.startsWith(`${to}/`);
+    void (async () => {
+      await navigate({ to });
+      if (sameModule) await syncData();
+    })();
   };
 
   const main = [
