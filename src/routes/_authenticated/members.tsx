@@ -312,6 +312,9 @@ function MemberActions({
 }
 
 function MembersList() {
+  // Temporarily hide row selection + Bulk actions UI (set true to restore)
+  const SHOW_MEMBER_BULK_UI = false;
+
   const user = useCurrentUser()!;
   const all = useStore((s) => s.members);
   const deleteMember = useStore((s) => s.deleteMember);
@@ -889,7 +892,7 @@ function MembersList() {
             <> of <span className="text-[#EEF2F0] font-semibold">{baseMembers.length}</span></>
           )}{" "}
           members
-          {selectedIds.length > 0 && (
+          {SHOW_MEMBER_BULK_UI && selectedIds.length > 0 && (
             <>
               {" · "}
               <span className="text-[#FBBF24] font-semibold">{selectedIds.length}</span> selected
@@ -897,7 +900,7 @@ function MembersList() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {activeRole === "admin" && processed.length > 0 && (
+          {SHOW_MEMBER_BULK_UI && activeRole === "admin" && processed.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -1025,7 +1028,7 @@ function MembersList() {
                   <CardContent className="p-5 flex flex-col gap-4 h-full">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        {activeRole === "admin" && (
+                        {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
                           <Checkbox
                             checked={selectedSet.has(m.id)}
                             onCheckedChange={(v) => toggleSelect(m.id, v === true)}
@@ -1083,7 +1086,7 @@ function MembersList() {
             <Table>
               <TableHeader className="bg-muted/70 border-b border-border">
                 <TableRow className="border-b border-border hover:bg-transparent">
-                  {activeRole === "admin" && (
+                  {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
                     <TableHead className="type-table-head h-11 px-4 w-10">
                       <Checkbox
                         checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
@@ -1114,7 +1117,7 @@ function MembersList() {
                         selectedSet.has(m.id) && "bg-[#FBBF24]/5",
                       )}
                     >
-                      {activeRole === "admin" && (
+                      {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
                         <TableCell className="px-4 py-3.5">
                           <Checkbox
                             checked={selectedSet.has(m.id)}
