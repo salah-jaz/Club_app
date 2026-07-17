@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Plus, Pencil, Wallet, LayoutGrid, List, Users, UserRound, Trophy,
-  Upload, Download, Mail, IdCard, CheckSquare, Square, ChevronDown,
+  Upload, Download, Mail, IdCard, CheckSquare, Square, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
@@ -28,6 +28,10 @@ import { cn } from "@/lib/utils";
 type MemberDisplayRow = {
   member: Member;
   depth: 0 | 1;
+  /** Adult id this junior is nested under (depth 1 only) */
+  parentId?: string;
+  /** Nested junior count (depth 0 parents only) */
+  childCount?: number;
 };
 
 function sortMembers(list: Member[], sortBy: string): Member[] {
@@ -52,20 +56,16 @@ function sortMembers(list: Member[], sortBy: string): Member[] {
 function buildMemberDisplayRows(list: Member[], nestFamilies: boolean, sortBy: string): MemberDisplayRow[] {
   const sorted = sortMembers(list, sortBy);
   if (!nestFamilies) {
-    return sorted.map((member) => ({ member, depth: 0 as const }));
+    return sorted.map((member) => ({ member, depth: 0 as const, childCount: 0 }));
   }
 
   const byId = new Map(sorted.map((m) => [m.id, m]));
   const juniorsByParent = new Map<string, Member[]>();
-  const topLevel: Member[] = [];
   const nestedJuniorIds = new Set<string>();
 
   for (const m of sorted) {
     const isJunior = m.memberType.toLowerCase() === "junior";
-    if (!isJunior) {
-      topLevel.push(m);
-      continue;
-    }
+    if (!isJunior) continue;
 
     // Prefer explicit parent link
     let parentId = m.parentMemberId || null;
@@ -88,8 +88,6 @@ function buildMemberDisplayRows(list: Member[], nestFamilies: boolean, sortBy: s
       if (!juniorsByParent.has(parentId)) juniorsByParent.set(parentId, []);
       juniorsByParent.get(parentId)!.push(m);
       nestedJuniorIds.add(m.id);
-    } else {
-      topLevel.push(m);
     }
   }
 
@@ -100,14 +98,12 @@ function buildMemberDisplayRows(list: Member[], nestFamilies: boolean, sortBy: s
     if (nestedJuniorIds.has(m.id)) continue;
     if (emitted.has(m.id)) continue;
     emitted.add(m.id);
-    rows.push({ member: m, depth: 0 });
-    const kids = juniorsByParent.get(m.id);
-    if (kids) {
-      for (const j of kids) {
-        if (emitted.has(j.id)) continue;
-        emitted.add(j.id);
-        rows.push({ member: j, depth: 1 });
-      }
+    const kids = juniorsByParent.get(m.id) ?? [];
+    rows.push({ member: m, depth: 0, childCount: kids.length });
+    for (const j of kids) {
+      if (emitted.has(j.id)) continue;
+      emitted.add(j.id);
+      rows.push({ member: j, depth: 1, parentId: m.id, childCount: 0 });
     }
   }
 
@@ -431,6 +427,8 @@ function MembersList() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  /** Adult member ids with juniors expanded */
+  const [expandedFamilyIds, setExpandedFamilyIds] = useState<Set<string>>(() => new Set());
   const bulkDeleteMembers = useStore((s) => s.bulkDeleteMembers);
 
   const requestDeleteMember = (member: Member) => {
@@ -604,13 +602,29 @@ function MembersList() {
     [processed, nestFamilies, sortBy],
   );
 
+  const visibleRows = useMemo(() => {
+    if (!nestFamilies) return displayRows;
+    return displayRows.filter(
+      (r) => r.depth === 0 || (r.parentId != null && expandedFamilyIds.has(r.parentId)),
+    );
+  }, [displayRows, nestFamilies, expandedFamilyIds]);
+
+  const toggleFamilyExpand = (parentId: string) => {
+    setExpandedFamilyIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentId)) next.delete(parentId);
+      else next.add(parentId);
+      return next;
+    });
+  };
+
   const hasActiveFilters =
     !!search || Object.values(filters).some((f) => f !== "all");
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected =
-    displayRows.length > 0 && displayRows.every((r) => selectedSet.has(r.member.id));
-  const someVisibleSelected = displayRows.some((r) => selectedSet.has(r.member.id));
+    visibleRows.length > 0 && visibleRows.every((r) => selectedSet.has(r.member.id));
+  const someVisibleSelected = visibleRows.some((r) => selectedSet.has(r.member.id));
 
   const toggleSelect = (id: string, checked: boolean) => {
     setSelectedIds((prev) =>
@@ -619,7 +633,7 @@ function MembersList() {
   };
 
   const toggleSelectAllVisible = (checked: boolean) => {
-    const visibleIds = displayRows.map((r) => r.member.id);
+    const visibleIds = visibleRows.map((r) => r.member.id);
     setSelectedIds((prev) => {
       if (checked) {
         return [...new Set([...prev, ...visibleIds])];
@@ -1020,8 +1034,8 @@ function MembersList() {
       {/* Results toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 -mt-2">
         <div className="text-sm text-[#8FA89F]">
-          Showing <span className="text-[#EEF2F0] font-semibold">{displayRows.length}</span>
-          {displayRows.length !== baseMembers.length && (
+          Showing <span className="text-[#EEF2F0] font-semibold">{visibleRows.length}</span>
+          {visibleRows.length !== baseMembers.length && (
             <> of <span className="text-[#EEF2F0] font-semibold">{baseMembers.length}</span></>
           )}{" "}
           members
@@ -1132,7 +1146,7 @@ function MembersList() {
         </div>
       </div>
 
-      {displayRows.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <EmptyIllustration
           icon="users"
           title="No members found"
@@ -1152,9 +1166,10 @@ function MembersList() {
           animate="show"
           className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"
         >
-          {displayRows.map(({ member: m, depth }) => {
+          {visibleRows.map(({ member: m, depth, childCount = 0 }) => {
             const isJunior = m.memberType.toLowerCase() === "junior";
             const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
+            const isExpanded = expandedFamilyIds.has(m.id);
             return (
               <motion.div
                 key={m.id}
@@ -1173,6 +1188,23 @@ function MembersList() {
                   <CardContent className="p-5 flex flex-col gap-4 h-full">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
+                        {depth === 0 && childCount > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleFamilyExpand(m.id)}
+                            className="size-7 shrink-0 rounded-md grid place-items-center text-[#8FA89F] hover:text-[#EEF2F0] hover:bg-white/[0.06] transition-colors"
+                            aria-expanded={isExpanded}
+                            aria-label={isExpanded ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}` : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+                        ) : (
+                          <span className="size-7 shrink-0" aria-hidden />
+                        )}
                         {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
                           <Checkbox
                             checked={selectedSet.has(m.id)}
@@ -1194,6 +1226,11 @@ function MembersList() {
                             {depth === 1 && (
                               <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24]">
                                 Sub-member
+                              </Badge>
+                            )}
+                            {depth === 0 && childCount > 0 && (
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]">
+                                {childCount} junior{childCount === 1 ? "" : "s"}
                               </Badge>
                             )}
                           </div>
@@ -1258,9 +1295,10 @@ function MembersList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayRows.map(({ member: m, depth }) => {
+                {visibleRows.map(({ member: m, depth, childCount = 0 }) => {
                   const isJunior = m.memberType.toLowerCase() === "junior";
                   const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
+                  const isExpanded = expandedFamilyIds.has(m.id);
                   return (
                     <TableRow
                       key={m.id}
@@ -1283,10 +1321,27 @@ function MembersList() {
                       <TableCell className="px-4 py-3.5">
                         <div
                           className={cn(
-                            "flex items-center gap-3 min-w-0",
+                            "flex items-center gap-2.5 min-w-0",
                             depth === 1 && "pl-6 border-l-2 border-[#F59E0B]/40 ml-2",
                           )}
                         >
+                          {depth === 0 && childCount > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleFamilyExpand(m.id)}
+                              className="size-7 shrink-0 rounded-md grid place-items-center text-[#8FA89F] hover:text-[#EEF2F0] hover:bg-white/[0.06] transition-colors"
+                              aria-expanded={isExpanded}
+                              aria-label={isExpanded ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}` : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="size-4" />
+                              ) : (
+                                <ChevronRight className="size-4" />
+                              )}
+                            </button>
+                          ) : depth === 0 ? (
+                            <span className="size-7 shrink-0" aria-hidden />
+                          ) : null}
                           <Avatar className={cn("border border-white/10 shrink-0", depth === 1 ? "size-8" : "size-9")}>
                             <AvatarFallback className={cn(avatarBg, "font-semibold text-xs")}>
                               {m.firstName[0]}{m.lastName[0]}
@@ -1300,6 +1355,11 @@ function MembersList() {
                               {depth === 1 && (
                                 <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24]">
                                   Sub-member
+                                </Badge>
+                              )}
+                              {depth === 0 && childCount > 0 && (
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]">
+                                  {childCount} junior{childCount === 1 ? "" : "s"}
                                 </Badge>
                               )}
                             </div>
@@ -1338,7 +1398,7 @@ function MembersList() {
           <div className="px-4 py-2.5 border-t border-border text-[10px] text-muted-foreground bg-muted/30">
             Flags: <span className="text-[#5EEAD4]">M</span> = Membership · <span className="text-[#8FA89F]">T</span> = Training eligible
             {nestFamilies && (
-              <> · <span className="text-[#FBBF24]">Sub-member</span> = junior under the same family account</>
+              <> · Click <span className="text-[#EEF2F0]">›</span> to show juniors · <span className="text-[#FBBF24]">Sub-member</span> = junior under that adult</>
             )}
           </div>
         </div>
