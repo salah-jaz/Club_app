@@ -77,7 +77,7 @@ interface State {
   // user admin
   approveUser: (
     id: string,
-    opts?: { memberType?: Member["memberType"]; grade?: string; league?: boolean; trainingEligible?: boolean },
+    opts?: { memberType?: Member["memberType"]; grade?: string; trainingEligible?: boolean },
   ) => Promise<void>;
   approveAllUsers: () => Promise<void>;
   rejectUser: (id: string) => Promise<void>;

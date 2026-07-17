@@ -26,7 +26,9 @@ export const Route = createFileRoute("/_authenticated/league-groups")({
 function LeagueGroupsPage() {
   const store = useStore();
   const allMembers = useStore((s) => s.members);
-  const members = allMembers.filter((m) => m.league && m.status === "active");
+  const members = allMembers.filter(
+    (m) => m.membership && m.status === "active" && m.memberType.toLowerCase() === "adult",
+  );
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const playerPositions = useStore((s) => s.playerPositions) || [];
   const [searchTerm, setSearchTerm] = useState("");

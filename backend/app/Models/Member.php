@@ -23,7 +23,6 @@ class Member extends Model
         'sex',
         'member_type',
         'membership',
-        'league',
         'training_eligible',
         'grade',
         'bi_member_id',
@@ -35,7 +34,6 @@ class Member extends Model
 
     protected $casts = [
         'membership' => 'boolean',
-        'league' => 'boolean',
         'training_eligible' => 'boolean',
         'skip_credit_consumption' => 'boolean',
         'apply_discount' => 'boolean',

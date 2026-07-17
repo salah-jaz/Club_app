@@ -63,9 +63,6 @@ export function MemberForm({
   const set = <K extends keyof MemberFormValues>(k: K, val: MemberFormValues[K]) =>
     setV((p) => {
       const next = { ...p, [k]: val };
-      if (k === "membership") {
-        next.league = val as boolean;
-      }
       if (k === "memberType" && val === "adult") {
         next.parentMemberId = null;
       }
@@ -95,13 +92,10 @@ export function MemberForm({
         finalV.email = getParentEmail();
         finalV.password = "";
       }
-      // Keep league in sync with membership
-      finalV.league = finalV.membership;
       const payload = familyMemberMode
         ? {
             ...finalV,
             memberType: "junior" as const,
-            league: false,
             // Nest under the adult profile on this login when present
             parentMemberId:
               finalV.parentMemberId ||
@@ -279,7 +273,6 @@ export function MemberForm({
                     setV((p) => ({
                       ...p,
                       memberType: type,
-                      league: type === "junior" ? false : p.membership,
                       grade: nextGrade,
                     }));
                   }}

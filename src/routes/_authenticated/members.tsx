@@ -146,7 +146,6 @@ const MEMBER_TEMPLATE_HEADERS = [
   "parent_bi_member_id",
   "bi_member_id",
   "membership",
-  "league",
   "training_eligible",
   "grade",
   "status",
@@ -190,7 +189,6 @@ function buildMemberBulkTemplate(adultGradesIn: string[], juniorGradesIn: string
       isAdult ? "" : `BI-${String(((i - adultCount) % adultCount) + 1).padStart(2, "0")}`,
       `BI-${n}`,
       "true",
-      isAdult ? "true" : "false",
       isAdult ? "false" : "true",
       grade,
       "active",
@@ -210,7 +208,7 @@ function buildMemberBulkTemplate(adultGradesIn: string[], juniorGradesIn: string
     {
       label: "NOTES",
       value:
-        "member_type must be adult or junior; grade must match that type; membership/league/training_eligible are true/false; status is active or disabled. Delete the REFERENCE section before uploading.",
+        "member_type must be adult or junior; grade must match that type; membership/training_eligible are true/false; status is active or disabled. Assign league players in League Groups. Delete the REFERENCE section before uploading.",
     },
   ];
 
@@ -423,6 +421,7 @@ function MembersList() {
 
   const user = useCurrentUser()!;
   const all = useStore((s) => s.members);
+  const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const deleteMember = useStore((s) => s.deleteMember);
   const activeRole = useStore((s) => s.activeRole) || user.role;
   const store = useStore();
@@ -536,8 +535,8 @@ function MembersList() {
       label: "League",
       options: [
         { value: "all", label: "Everyone" },
-        { value: "league", label: "League Players" },
-        { value: "non-league", label: "Non-League" },
+        { value: "league", label: "In League Groups" },
+        { value: "non-league", label: "Not in League Groups" },
       ],
     },
   ];
@@ -554,13 +553,21 @@ function MembersList() {
     [activeRole, all, user.id],
   );
 
+  const leagueMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const g of leagueGroups) {
+      for (const id of g.memberIds ?? []) ids.add(id);
+    }
+    return ids;
+  }, [leagueGroups]);
+
   const stats = useMemo(() => ({
     total: baseMembers.length,
     adults: baseMembers.filter((m) => m.memberType.toLowerCase() === "adult").length,
     juniors: baseMembers.filter((m) => m.memberType.toLowerCase() === "junior").length,
-    league: baseMembers.filter((m) => m.league).length,
+    league: baseMembers.filter((m) => leagueMemberIds.has(m.id)).length,
     active: baseMembers.filter((m) => m.status === "active").length,
-  }), [baseMembers]);
+  }), [baseMembers, leagueMemberIds]);
 
   const processed = useMemo(() => {
     let list = baseMembers.filter((m) => {
@@ -582,13 +589,13 @@ function MembersList() {
       list = list.filter((m) => m.credit < 0);
     }
     if (filters.league === "league") {
-      list = list.filter((m) => m.league);
+      list = list.filter((m) => leagueMemberIds.has(m.id));
     } else if (filters.league === "non-league") {
-      list = list.filter((m) => !m.league);
+      list = list.filter((m) => !leagueMemberIds.has(m.id));
     }
 
     return sortMembers(list, sortBy);
-  }, [baseMembers, search, filters, sortBy]);
+  }, [baseMembers, search, filters, sortBy, leagueMemberIds]);
 
   /** Nest juniors under adults only in All (no type filter). Adult/Junior filters stay flat. */
   const nestFamilies = filters.category === "all";
@@ -973,7 +980,7 @@ function MembersList() {
       >
         <MemberStatCard label="Total" value={stats.total} hint="Registered members" icon={Users} index={0} />
         <MemberStatCard label="Adults" value={stats.adults} hint={`${stats.juniors} juniors`} icon={UserRound} index={1} />
-        <MemberStatCard label="League" value={stats.league} hint="League-eligible" icon={Trophy} index={2} />
+        <MemberStatCard label="League" value={stats.league} hint="In a league group" icon={Trophy} index={2} />
         <MemberStatCard label="Active" value={stats.active} hint="Currently active" icon={Users} index={3} />
       </motion.div>
 
@@ -1329,7 +1336,7 @@ function MembersList() {
             </Table>
           </div>
           <div className="px-4 py-2.5 border-t border-border text-[10px] text-muted-foreground bg-muted/30">
-            Flags: <span className="text-[#A5B4FC]">L</span> = League · <span className="text-[#5EEAD4]">M</span> = Membership · <span className="text-[#8FA89F]">T</span> = Training eligible
+            Flags: <span className="text-[#5EEAD4]">M</span> = Membership · <span className="text-[#8FA89F]">T</span> = Training eligible
             {nestFamilies && (
               <> · <span className="text-[#FBBF24]">Sub-member</span> = junior under the same family account</>
             )}

@@ -70,7 +70,6 @@ function AddMember() {
           sex: "male",
           memberType: isAdmin ? "adult" : "junior",
           membership: false,
-          league: false,
           trainingEligible: !isAdmin,
           skipCreditConsumption: false,
           applyDiscount: false,

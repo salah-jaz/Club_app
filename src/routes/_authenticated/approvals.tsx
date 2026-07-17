@@ -27,12 +27,11 @@ export const Route = createFileRoute("/_authenticated/approvals")({ component: A
 type ApproveOptions = {
   memberType: MemberType;
   grade: string;
-  league: boolean;
   trainingEligible: boolean;
 };
 
 function defaultApproveOptions(defaultGrade: string = "B"): ApproveOptions {
-  return { memberType: "adult", grade: defaultGrade, league: false, trainingEligible: false };
+  return { memberType: "adult", grade: defaultGrade, trainingEligible: false };
 }
 
 /** Inline spinner SVG for button loading states */
@@ -75,7 +74,6 @@ function Approvals() {
     setOpts((p) => ({
       ...p,
       memberType,
-      league: memberType === "junior" ? false : true,
       grade: nextGrade,
     }));
   };

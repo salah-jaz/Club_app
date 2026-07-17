@@ -30,7 +30,6 @@ export interface Member {
   sex: "male" | "female";
   memberType: MemberType;
   membership: boolean;
-  league: boolean;
   trainingEligible: boolean;
   skipCreditConsumption: boolean;
   applyDiscount: boolean;

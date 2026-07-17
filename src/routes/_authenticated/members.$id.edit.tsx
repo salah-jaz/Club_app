@@ -46,7 +46,6 @@ function EditMember() {
           sex: member.sex,
           memberType: member.memberType,
           membership: member.membership,
-          league: member.league,
           trainingEligible: member.trainingEligible,
           skipCreditConsumption: member.skipCreditConsumption,
           applyDiscount: member.applyDiscount,
