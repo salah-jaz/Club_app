@@ -337,13 +337,19 @@ h2, h3 {
 
 /* ── Type scale utility classes ───────────────────────── */
 
-/* Page-level title */
+/* Page-level title — slightly smaller on narrow phones; 26px from md up (desktop unchanged) */
 .type-page-title {
-  font-size: 26px !important;
+  font-size: clamp(22px, 4vw, 26px) !important;
   font-weight: 600 !important;
   line-height: 1.2 !important;
   letter-spacing: -0.02em !important;
   color: var(--text-primary) !important;
+}
+
+@media (min-width: 768px) {
+  .type-page-title {
+    font-size: 26px !important;
+  }
 }
 
 /* Dashboard stat number — the visual anchor of a card */
@@ -596,10 +602,23 @@ select:disabled {
   border-color: var(--border-subtle) !important;
 }
 
-/* Date input calendar icon color */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.6) !important;
+/* Date / datetime picker icon — visible on dark inputs */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator {
   cursor: pointer !important;
+  opacity: 1 !important;
+  filter: invert(0.35) !important;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator,
+.dark input[type="month"]::-webkit-calendar-picker-indicator,
+.dark input[type="week"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.9) !important;
 }
 
 /* Sidebar Custom Overrides for Premium Aesthetic */

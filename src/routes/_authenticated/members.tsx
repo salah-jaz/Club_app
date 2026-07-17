@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { useMemo, useRef, useState } from "react";
+import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Plus, Pencil, Wallet, LayoutGrid, List, Users, UserRound, Trophy,
-  Upload, Download, Mail, IdCard, CheckSquare, Square, ChevronDown,
+  Upload, Download, Mail, IdCard, CheckSquare, Square, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
@@ -22,6 +23,92 @@ import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Member } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/** Flat or nested row for the members list (juniors nest under same-user adults when viewing All). */
+type MemberDisplayRow = {
+  member: Member;
+  depth: 0 | 1;
+  /** Adult id this junior is nested under (depth 1 only) */
+  parentId?: string;
+  /** Nested junior count (depth 0 parents only) */
+  childCount?: number;
+};
+
+function sortMembers(list: Member[], sortBy: string): Member[] {
+  return [...list].sort((a, b) => {
+    if (sortBy === "name-asc") {
+      return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+    }
+    if (sortBy === "name-desc") {
+      return `${b.firstName} ${b.lastName}`.localeCompare(`${a.firstName} ${a.lastName}`);
+    }
+    if (sortBy === "balance-desc") return b.credit - a.credit;
+    if (sortBy === "balance-asc") return a.credit - b.credit;
+    return 0;
+  });
+}
+
+/**
+ * When category is "all", nest juniors under their parent adult
+ * (parentMemberId, or same userId family account).
+ * Adult / Junior filters stay flat (only that type).
+ */
+function buildMemberDisplayRows(list: Member[], nestFamilies: boolean, sortBy: string): MemberDisplayRow[] {
+  const sorted = sortMembers(list, sortBy);
+  if (!nestFamilies) {
+    return sorted.map((member) => ({ member, depth: 0 as const, childCount: 0 }));
+  }
+
+  const byId = new Map(sorted.map((m) => [m.id, m]));
+  const juniorsByParent = new Map<string, Member[]>();
+  const nestedJuniorIds = new Set<string>();
+
+  for (const m of sorted) {
+    const isJunior = m.memberType.toLowerCase() === "junior";
+    if (!isJunior) continue;
+
+    // Prefer explicit parent link
+    let parentId = m.parentMemberId || null;
+    if (parentId && !byId.has(parentId)) {
+      parentId = null; // parent filtered out — show junior top-level
+    }
+
+    // Fallback: same login account as an adult in the list
+    if (!parentId && m.userId) {
+      const adultSibling = sorted.find(
+        (a) =>
+          a.id !== m.id &&
+          a.userId === m.userId &&
+          a.memberType.toLowerCase() === "adult",
+      );
+      if (adultSibling) parentId = adultSibling.id;
+    }
+
+    if (parentId) {
+      if (!juniorsByParent.has(parentId)) juniorsByParent.set(parentId, []);
+      juniorsByParent.get(parentId)!.push(m);
+      nestedJuniorIds.add(m.id);
+    }
+  }
+
+  const rows: MemberDisplayRow[] = [];
+  const emitted = new Set<string>();
+
+  for (const m of sorted) {
+    if (nestedJuniorIds.has(m.id)) continue;
+    if (emitted.has(m.id)) continue;
+    emitted.add(m.id);
+    const kids = juniorsByParent.get(m.id) ?? [];
+    rows.push({ member: m, depth: 0, childCount: kids.length });
+    for (const j of kids) {
+      if (emitted.has(j.id)) continue;
+      emitted.add(j.id);
+      rows.push({ member: j, depth: 1, parentId: m.id, childCount: 0 });
+    }
+  }
+
+  return rows;
+}
 import {
   ConfirmDeleteDialog,
   type ConfirmDeleteRequest,
@@ -52,11 +139,11 @@ const MEMBER_TEMPLATE_HEADERS = [
   "mobile",
   "address",
   "member_type",
+  "parent_bi_member_id",
+  "bi_member_id",
   "membership",
-  "league",
   "training_eligible",
   "grade",
-  "bi_member_id",
   "status",
 ] as const;
 
@@ -94,11 +181,12 @@ function buildMemberBulkTemplate(adultGradesIn: string[], juniorGradesIn: string
       `+1 555 ${isAdult ? "01" : "02"}${n}`,
       isAdult ? "123 Main Street" : "45 Park Avenue",
       isAdult ? "adult" : "junior",
+      // Juniors must point at an adult BI so they nest as sub-members
+      isAdult ? "" : `BI-${String(((i - adultCount) % adultCount) + 1).padStart(2, "0")}`,
+      `BI-${n}`,
       "true",
-      isAdult ? "true" : "false",
       isAdult ? "false" : "true",
       grade,
-      `BI-${n}`,
       "active",
     ]);
   }
@@ -109,9 +197,14 @@ function buildMemberBulkTemplate(adultGradesIn: string[], juniorGradesIn: string
     { label: "AVAILABLE_ADULT_GRADES", value: adultGrades.join(" | ") },
     { label: "AVAILABLE_JUNIOR_GRADES", value: juniorGrades.join(" | ") },
     {
+      label: "PARENT_LINKING",
+      value:
+        "For junior rows, set parent_bi_member_id to the adult's bi_member_id (e.g. BI-01). Leave blank for adults. This nests the junior under that adult in All members.",
+    },
+    {
       label: "NOTES",
       value:
-        "Replace @example.com emails with real ones before upload. member_type must be adult or junior; grade must match that type; membership/league/training_eligible are true/false; status is active or disabled. Delete the REFERENCE section before uploading.",
+        "member_type must be adult or junior; grade must match that type; membership/training_eligible are true/false; status is active or disabled. Assign league players in League Groups. Delete the REFERENCE section before uploading.",
     },
   ];
 
@@ -261,14 +354,16 @@ function MemberActions({
   const isJunior = member.memberType.toLowerCase() === "junior";
   const canEdit = activeRole === "admin" || (activeRole === "member" && isJunior);
   const canCredits = activeRole === "admin" || activeRole === "member";
-  const btnClass = compact ? "h-8 text-xs" : "h-9 text-xs flex-1";
+  const btnClass = compact
+    ? "h-8 text-xs px-2"
+    : "h-9 text-xs flex-1 basis-[calc(50%-0.25rem)] sm:basis-0 min-w-0";
 
   return (
-    <div className={cn("flex gap-2", compact ? "justify-end flex-wrap" : "w-full")}>
+    <div className={cn("flex flex-wrap gap-2 min-w-0", compact ? "justify-end" : "w-full")}>
       {activeRole === "admin" && !isJunior && (
         <Button
           variant="outline"
-          className={cn("bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 hover:cursor-pointer", btnClass)}
+          className={cn("bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 hover:cursor-pointer min-w-0", btnClass)}
           onClick={async () => {
             if (confirm(`Login as ${member.firstName} ${member.lastName}?`)) {
               try {
@@ -281,30 +376,35 @@ function MemberActions({
             }
           }}
         >
-          <LogIn className="size-3.5 mr-1" /> Login
+          <LogIn className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Login</span>
         </Button>
       )}
       {canEdit && (
-        <Button asChild variant="outline" className={cn("btn-premium-outline hover:cursor-pointer", btnClass)}>
+        <Button asChild variant="outline" className={cn("btn-premium-outline hover:cursor-pointer min-w-0", btnClass)}>
           <Link to="/members/$id/edit" params={{ id: member.id }}>
-            <Pencil className="size-3.5 mr-1" /> Edit
+            <Pencil className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Edit</span>
           </Link>
         </Button>
       )}
       {canCredits && (
-        <Button asChild variant="outline" className={cn("btn-premium-violet-outline hover:cursor-pointer", btnClass)}>
+        <Button asChild variant="outline" className={cn("btn-premium-violet-outline hover:cursor-pointer min-w-0", btnClass)}>
           <Link to={`/credits?memberId=${member.id}` as any}>
-            <Wallet className="size-3.5 mr-1" /> Credits
+            <Wallet className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Credits</span>
           </Link>
         </Button>
       )}
       {canEdit && (
         <Button
           variant="destructive"
-          className={cn("btn-premium-danger hover:cursor-pointer", btnClass)}
+          className={cn(
+            "btn-premium-danger hover:cursor-pointer shrink-0",
+            compact ? "h-8 w-8 p-0" : "h-9 w-9 p-0",
+          )}
           onClick={() => onRequestDelete(member)}
+          aria-label={`Remove ${member.firstName} ${member.lastName}`}
+          title="Remove"
         >
-          <Trash2 className="size-3.5 mr-1" /> Remove
+          <Trash2 className="size-3.5" />
         </Button>
       )}
     </div>
@@ -312,19 +412,23 @@ function MemberActions({
 }
 
 function MembersList() {
+  // Temporarily hide row selection + Bulk actions UI (set true to restore)
+  const SHOW_MEMBER_BULK_UI = false;
+
   const user = useCurrentUser()!;
   const all = useStore((s) => s.members);
+  const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const deleteMember = useStore((s) => s.deleteMember);
   const activeRole = useStore((s) => s.activeRole) || user.role;
   const store = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">(
-    () => (localStorage.getItem("clubapp-view-mode-members") as "grid" | "list") || "list",
-  );
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-members", "list");
   const [templateImporting, setTemplateImporting] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  /** Adult member ids with juniors expanded */
+  const [expandedFamilyIds, setExpandedFamilyIds] = useState<Set<string>>(() => new Set());
   const bulkDeleteMembers = useStore((s) => s.bulkDeleteMembers);
 
   const requestDeleteMember = (member: Member) => {
@@ -429,8 +533,8 @@ function MembersList() {
       label: "League",
       options: [
         { value: "all", label: "Everyone" },
-        { value: "league", label: "League Players" },
-        { value: "non-league", label: "Non-League" },
+        { value: "league", label: "In League Groups" },
+        { value: "non-league", label: "Not in League Groups" },
       ],
     },
   ];
@@ -447,13 +551,21 @@ function MembersList() {
     [activeRole, all, user.id],
   );
 
+  const leagueMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const g of leagueGroups) {
+      for (const id of g.memberIds ?? []) ids.add(id);
+    }
+    return ids;
+  }, [leagueGroups]);
+
   const stats = useMemo(() => ({
     total: baseMembers.length,
     adults: baseMembers.filter((m) => m.memberType.toLowerCase() === "adult").length,
     juniors: baseMembers.filter((m) => m.memberType.toLowerCase() === "junior").length,
-    league: baseMembers.filter((m) => m.league).length,
+    league: baseMembers.filter((m) => leagueMemberIds.has(m.id)).length,
     active: baseMembers.filter((m) => m.status === "active").length,
-  }), [baseMembers]);
+  }), [baseMembers, leagueMemberIds]);
 
   const processed = useMemo(() => {
     let list = baseMembers.filter((m) => {
@@ -475,31 +587,44 @@ function MembersList() {
       list = list.filter((m) => m.credit < 0);
     }
     if (filters.league === "league") {
-      list = list.filter((m) => m.league);
+      list = list.filter((m) => leagueMemberIds.has(m.id));
     } else if (filters.league === "non-league") {
-      list = list.filter((m) => !m.league);
+      list = list.filter((m) => !leagueMemberIds.has(m.id));
     }
 
-    return [...list].sort((a, b) => {
-      if (sortBy === "name-asc") {
-        return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
-      }
-      if (sortBy === "name-desc") {
-        return `${b.firstName} ${b.lastName}`.localeCompare(`${a.firstName} ${a.lastName}`);
-      }
-      if (sortBy === "balance-desc") return b.credit - a.credit;
-      if (sortBy === "balance-asc") return a.credit - b.credit;
-      return 0;
+    return sortMembers(list, sortBy);
+  }, [baseMembers, search, filters, sortBy, leagueMemberIds]);
+
+  /** Nest juniors under adults only in All (no type filter). Adult/Junior filters stay flat. */
+  const nestFamilies = filters.category === "all";
+  const displayRows = useMemo(
+    () => buildMemberDisplayRows(processed, nestFamilies, sortBy),
+    [processed, nestFamilies, sortBy],
+  );
+
+  const visibleRows = useMemo(() => {
+    if (!nestFamilies) return displayRows;
+    return displayRows.filter(
+      (r) => r.depth === 0 || (r.parentId != null && expandedFamilyIds.has(r.parentId)),
+    );
+  }, [displayRows, nestFamilies, expandedFamilyIds]);
+
+  const toggleFamilyExpand = (parentId: string) => {
+    setExpandedFamilyIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentId)) next.delete(parentId);
+      else next.add(parentId);
+      return next;
     });
-  }, [baseMembers, search, filters, sortBy]);
+  };
 
   const hasActiveFilters =
     !!search || Object.values(filters).some((f) => f !== "all");
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected =
-    processed.length > 0 && processed.every((m) => selectedSet.has(m.id));
-  const someVisibleSelected = processed.some((m) => selectedSet.has(m.id));
+    visibleRows.length > 0 && visibleRows.every((r) => selectedSet.has(r.member.id));
+  const someVisibleSelected = visibleRows.some((r) => selectedSet.has(r.member.id));
 
   const toggleSelect = (id: string, checked: boolean) => {
     setSelectedIds((prev) =>
@@ -508,7 +633,7 @@ function MembersList() {
   };
 
   const toggleSelectAllVisible = (checked: boolean) => {
-    const visibleIds = processed.map((m) => m.id);
+    const visibleIds = visibleRows.map((r) => r.member.id);
     setSelectedIds((prev) => {
       if (checked) {
         return [...new Set([...prev, ...visibleIds])];
@@ -661,12 +786,12 @@ function MembersList() {
         onOpenChange={(open) => !open && setDeleteRequest(null)}
       />
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
-        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-4xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] w-[calc(100%-1.5rem)] max-w-4xl max-h-[85dvh] flex flex-col gap-0 p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-white/[0.06] shrink-0">
             <DialogTitle className="text-[#F1F0EE]">Bulk upload template</DialogTitle>
             <DialogDescription className="text-[#8A8A98] text-left">
-              Preview example rows for every type and grade. Download the CSV to edit,
-              or import these examples directly into Members.
+              Includes <span className="text-[#FBBF24] font-medium">parent_bi_member_id</span> so
+              juniors nest under adults. Download the CSV to edit, or import these examples directly.
             </DialogDescription>
           </DialogHeader>
 
@@ -681,6 +806,17 @@ function MembersList() {
               <span className="px-2.5 py-1 rounded-full bg-[rgba(129,140,248,0.10)] border border-[rgba(129,140,248,0.25)] text-[#A5B4FC]">
                 Junior grades: {memberTemplate.juniorGrades.join(" · ")}
               </span>
+              <span className="px-2.5 py-1 rounded-full bg-[rgba(245,158,11,0.12)] border border-[rgba(245,158,11,0.35)] text-[#FBBF24]">
+                Junior → parent_bi_member_id (e.g. BI-01)
+              </span>
+            </div>
+
+            <div className="rounded-lg border border-[rgba(245,158,11,0.30)] bg-[rgba(245,158,11,0.08)] px-3 py-2.5 text-[12px] text-[#F1F0EE]">
+              <span className="font-semibold text-[#FBBF24]">Parent linking:</span>{" "}
+              For each <span className="font-mono text-[#34D399]">junior</span> row, set{" "}
+              <span className="font-mono text-[#FBBF24]">parent_bi_member_id</span> to the adult&apos;s{" "}
+              <span className="font-mono">bi_member_id</span>. Leave it empty for adults.
+              Example juniors in this template already point at BI-01 … BI-10.
             </div>
 
             <div className="rounded-xl border border-[rgba(255,255,255,0.08)] overflow-hidden">
@@ -691,7 +827,11 @@ function MembersList() {
                       {memberTemplate.headers.map((h) => (
                         <TableHead
                           key={h}
-                          className="type-table-head h-9 px-3 text-[10px] whitespace-nowrap"
+                          className={cn(
+                            "type-table-head h-9 px-3 text-[10px] whitespace-nowrap",
+                            h === "parent_bi_member_id" && "text-[#FBBF24]",
+                            h === "member_type" && "text-[#34D399]",
+                          )}
                         >
                           {h}
                         </TableHead>
@@ -704,18 +844,23 @@ function MembersList() {
                         key={idx}
                         className="border-b border-white/[0.04] hover:bg-white/[0.02]"
                       >
-                        {row.map((cell, cIdx) => (
-                          <TableCell
-                            key={cIdx}
-                            className={cn(
-                              "px-3 py-2 text-[11px] whitespace-nowrap",
-                              (cIdx === 7 || cIdx === 11) && "text-[#34D399] font-medium",
-                              String(cell).includes("@example.com") && "text-[#FBBF24]",
-                            )}
-                          >
-                            {cell}
-                          </TableCell>
-                        ))}
+                        {row.map((cell, cIdx) => {
+                          const header = memberTemplate.headers[cIdx];
+                          return (
+                            <TableCell
+                              key={cIdx}
+                              className={cn(
+                                "px-3 py-2 text-[11px] whitespace-nowrap",
+                                header === "member_type" && "text-[#34D399] font-medium",
+                                header === "parent_bi_member_id" && cell && "text-[#FBBF24] font-medium",
+                                header === "grade" && "text-[#34D399] font-medium",
+                                String(cell).includes("@example.com") && "text-[#FBBF24]",
+                              )}
+                            >
+                              {cell || (header === "parent_bi_member_id" ? "—" : cell)}
+                            </TableCell>
+                          );
+                        })}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -806,29 +951,34 @@ function MembersList() {
             : "View and manage your family's club profiles."
         }
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 w-full min-w-0 justify-start md:justify-end">
             <input type="file" ref={fileInputRef} onChange={handleBulkUpload} accept=".csv" className="hidden" />
             {activeRole === "admin" && (
               <>
                 <Button
                   variant="outline"
-                  className="btn-premium-outline h-[38px] px-3 hover:cursor-pointer"
+                  className="btn-premium-outline h-[38px] px-3 hover:cursor-pointer shrink-0"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="size-4 mr-1.5" /> Bulk upload
+                  <Upload className="size-4 mr-1.5 shrink-0" />
+                  <span className="whitespace-nowrap">Bulk upload</span>
                 </Button>
                 <Button
                   variant="ghost"
-                  className="text-xs text-[#8FA89F] hover:text-[#EEF2F0] h-[38px] px-3 border border-dashed border-[rgba(255,255,255,0.08)] rounded-lg hover:cursor-pointer"
+                  className="text-xs text-[#8FA89F] hover:text-[#EEF2F0] h-[38px] px-3 border border-dashed border-[rgba(255,255,255,0.08)] rounded-lg hover:cursor-pointer shrink-0"
                   onClick={() => setTemplateOpen(true)}
                 >
-                  <Download className="size-4 mr-1.5" /> Template
+                  <Download className="size-4 mr-1.5 shrink-0" />
+                  <span className="whitespace-nowrap">Template</span>
                 </Button>
               </>
             )}
             {(activeRole === "admin" || activeRole === "member") && (
-              <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
-                <Link to="/members/add"><Plus className="size-4 mr-1.5" /> Add member</Link>
+              <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer shrink-0">
+                <Link to="/members/add">
+                  <Plus className="size-4 mr-1.5 shrink-0" />
+                  <span className="whitespace-nowrap">Add member</span>
+                </Link>
               </Button>
             )}
           </div>
@@ -844,7 +994,7 @@ function MembersList() {
       >
         <MemberStatCard label="Total" value={stats.total} hint="Registered members" icon={Users} index={0} />
         <MemberStatCard label="Adults" value={stats.adults} hint={`${stats.juniors} juniors`} icon={UserRound} index={1} />
-        <MemberStatCard label="League" value={stats.league} hint="League-eligible" icon={Trophy} index={2} />
+        <MemberStatCard label="League" value={stats.league} hint="In a league group" icon={Trophy} index={2} />
         <MemberStatCard label="Active" value={stats.active} hint="Currently active" icon={Users} index={3} />
       </motion.div>
 
@@ -884,12 +1034,15 @@ function MembersList() {
       {/* Results toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 -mt-2">
         <div className="text-sm text-[#8FA89F]">
-          Showing <span className="text-[#EEF2F0] font-semibold">{processed.length}</span>
-          {processed.length !== baseMembers.length && (
+          Showing <span className="text-[#EEF2F0] font-semibold">{visibleRows.length}</span>
+          {visibleRows.length !== baseMembers.length && (
             <> of <span className="text-[#EEF2F0] font-semibold">{baseMembers.length}</span></>
           )}{" "}
           members
-          {selectedIds.length > 0 && (
+          {nestFamilies && (
+            <span className="text-[#6B7F78]"> · juniors nested under adults</span>
+          )}
+          {SHOW_MEMBER_BULK_UI && selectedIds.length > 0 && (
             <>
               {" · "}
               <span className="text-[#FBBF24] font-semibold">{selectedIds.length}</span> selected
@@ -897,7 +1050,7 @@ function MembersList() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {activeRole === "admin" && processed.length > 0 && (
+          {SHOW_MEMBER_BULK_UI && activeRole === "admin" && processed.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -967,18 +1120,20 @@ function MembersList() {
           <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg">
             <button
               type="button"
-              onClick={() => { setViewMode("list"); localStorage.setItem("clubapp-view-mode-members", "list"); }}
+              onClick={() => setViewMode("list")}
+              disabled={isMobile}
               className={cn(
-                "p-1.5 rounded-md transition-all cursor-pointer",
+                "p-1.5 rounded-md transition-all",
                 viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
               )}
-              title="Table view"
+              title={isMobile ? "Table view available on larger screens" : "Table view"}
             >
               <List className="size-4" />
             </button>
             <button
               type="button"
-              onClick={() => { setViewMode("grid"); localStorage.setItem("clubapp-view-mode-members", "grid"); }}
+              onClick={() => setViewMode("grid")}
               className={cn(
                 "p-1.5 rounded-md transition-all cursor-pointer",
                 viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
@@ -991,7 +1146,7 @@ function MembersList() {
         </div>
       </div>
 
-      {processed.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <EmptyIllustration
           icon="users"
           title="No members found"
@@ -1011,21 +1166,46 @@ function MembersList() {
           animate="show"
           className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"
         >
-          {processed.map((m) => {
+          {visibleRows.map(({ member: m, depth, childCount = 0 }) => {
             const isJunior = m.memberType.toLowerCase() === "junior";
             const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
+            const isExpanded = expandedFamilyIds.has(m.id);
             return (
-              <motion.div key={m.id} variants={staggerItem} whileHover={{ y: -3 }} transition={{ duration: 0.18 }}>
+              <motion.div
+                key={m.id}
+                variants={staggerItem}
+                whileHover={{ y: -3 }}
+                transition={{ duration: 0.18 }}
+                className={cn(depth === 1 && "sm:col-span-2 xl:col-span-1 xl:ml-4")}
+              >
                 <Card
                   className={cn(
                     "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] h-full signature-card-top",
                     selectedSet.has(m.id) && "border-[rgba(251,191,36,0.45)]",
+                    depth === 1 && "border-l-2 border-l-[#F59E0B]/50 bg-[#131916]/90",
                   )}
                 >
                   <CardContent className="p-5 flex flex-col gap-4 h-full">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        {activeRole === "admin" && (
+                        {depth === 0 && childCount > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleFamilyExpand(m.id)}
+                            className="size-7 shrink-0 rounded-md grid place-items-center text-[#8FA89F] hover:text-[#EEF2F0] hover:bg-white/[0.06] transition-colors"
+                            aria-expanded={isExpanded}
+                            aria-label={isExpanded ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}` : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+                        ) : (
+                          <span className="size-7 shrink-0" aria-hidden />
+                        )}
+                        {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
                           <Checkbox
                             checked={selectedSet.has(m.id)}
                             onCheckedChange={(v) => toggleSelect(m.id, v === true)}
@@ -1033,15 +1213,27 @@ function MembersList() {
                             aria-label={`Select ${m.firstName} ${m.lastName}`}
                           />
                         )}
-                        <Avatar className="size-11 border border-white/10 shrink-0">
+                        <Avatar className={cn("border border-white/10 shrink-0", depth === 1 ? "size-9" : "size-11")}>
                           <AvatarFallback className={cn(avatarBg, "font-semibold text-sm")}>
                             {m.firstName[0]}{m.lastName[0]}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <h3 className="font-semibold text-[15px] text-[#EEF2F0] truncate">
-                            {m.firstName} {m.lastName}
-                          </h3>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold text-[15px] text-[#EEF2F0] truncate">
+                              {m.firstName} {m.lastName}
+                            </h3>
+                            {depth === 1 && (
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24]">
+                                Sub-member
+                              </Badge>
+                            )}
+                            {depth === 0 && childCount > 0 && (
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]">
+                                {childCount} junior{childCount === 1 ? "" : "s"}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-[12px] text-[#8FA89F] truncate flex items-center gap-1 mt-0.5">
                             <Mail className="size-3 shrink-0" /> {m.email}
                           </p>
@@ -1083,7 +1275,7 @@ function MembersList() {
             <Table>
               <TableHeader className="bg-muted/70 border-b border-border">
                 <TableRow className="border-b border-border hover:bg-transparent">
-                  {activeRole === "admin" && (
+                  {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
                     <TableHead className="type-table-head h-11 px-4 w-10">
                       <Checkbox
                         checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
@@ -1103,18 +1295,20 @@ function MembersList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {processed.map((m) => {
+                {visibleRows.map(({ member: m, depth, childCount = 0 }) => {
                   const isJunior = m.memberType.toLowerCase() === "junior";
                   const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
+                  const isExpanded = expandedFamilyIds.has(m.id);
                   return (
                     <TableRow
                       key={m.id}
                       className={cn(
                         "border-b border-border hover:bg-muted/40 transition-colors",
                         selectedSet.has(m.id) && "bg-[#FBBF24]/5",
+                        depth === 1 && "bg-[rgba(245,158,11,0.03)]",
                       )}
                     >
-                      {activeRole === "admin" && (
+                      {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
                         <TableCell className="px-4 py-3.5">
                           <Checkbox
                             checked={selectedSet.has(m.id)}
@@ -1125,16 +1319,50 @@ function MembersList() {
                         </TableCell>
                       )}
                       <TableCell className="px-4 py-3.5">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Avatar className="size-9 border border-white/10 shrink-0">
+                        <div
+                          className={cn(
+                            "flex items-center gap-2.5 min-w-0",
+                            depth === 1 && "pl-6 border-l-2 border-[#F59E0B]/40 ml-2",
+                          )}
+                        >
+                          {depth === 0 && childCount > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleFamilyExpand(m.id)}
+                              className="size-7 shrink-0 rounded-md grid place-items-center text-[#8FA89F] hover:text-[#EEF2F0] hover:bg-white/[0.06] transition-colors"
+                              aria-expanded={isExpanded}
+                              aria-label={isExpanded ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}` : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="size-4" />
+                              ) : (
+                                <ChevronRight className="size-4" />
+                              )}
+                            </button>
+                          ) : depth === 0 ? (
+                            <span className="size-7 shrink-0" aria-hidden />
+                          ) : null}
+                          <Avatar className={cn("border border-white/10 shrink-0", depth === 1 ? "size-8" : "size-9")}>
                             <AvatarFallback className={cn(avatarBg, "font-semibold text-xs")}>
                               {m.firstName[0]}{m.lastName[0]}
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
-                            <p className="font-semibold text-[14px] text-[#EEF2F0] truncate">
-                              {m.firstName} {m.lastName}
-                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-semibold text-[14px] text-[#EEF2F0] truncate">
+                                {m.firstName} {m.lastName}
+                              </p>
+                              {depth === 1 && (
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24]">
+                                  Sub-member
+                                </Badge>
+                              )}
+                              {depth === 0 && childCount > 0 && (
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]">
+                                  {childCount} junior{childCount === 1 ? "" : "s"}
+                                </Badge>
+                              )}
+                            </div>
                             <p className="text-[11px] text-[#6B7F78] truncate">{m.email}</p>
                           </div>
                         </div>
@@ -1143,16 +1371,13 @@ function MembersList() {
                       <TableCell className="type-table-body">{m.grade || "—"}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1 max-w-[140px]">
-                          {m.league && (
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#818CF8]/30 text-[#A5B4FC]">L</Badge>
-                          )}
                           {m.membership && (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#2DD4BF]/30 text-[#5EEAD4]">M</Badge>
                           )}
                           {m.trainingEligible && (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]">T</Badge>
                           )}
-                          {!m.league && !m.membership && !m.trainingEligible && (
+                          {!m.membership && !m.trainingEligible && (
                             <span className="text-[#6B7F78] text-xs">—</span>
                           )}
                         </div>
@@ -1171,7 +1396,10 @@ function MembersList() {
             </Table>
           </div>
           <div className="px-4 py-2.5 border-t border-border text-[10px] text-muted-foreground bg-muted/30">
-            Flags: <span className="text-[#A5B4FC]">L</span> = League · <span className="text-[#5EEAD4]">M</span> = Membership · <span className="text-[#8FA89F]">T</span> = Training eligible
+            Flags: <span className="text-[#5EEAD4]">M</span> = Membership · <span className="text-[#8FA89F]">T</span> = Training eligible
+            {nestFamilies && (
+              <> · Click <span className="text-[#EEF2F0]">›</span> to show juniors · <span className="text-[#FBBF24]">Sub-member</span> = junior under that adult</>
+            )}
           </div>
         </div>
       )}

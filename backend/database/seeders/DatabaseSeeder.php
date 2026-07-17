@@ -26,19 +26,21 @@ class DatabaseSeeder extends Seeder
             ])->all()
         );
 
-        // 2. Seed Grades
+        // 2. Seed Grades (rank 1 = strongest within type)
         $adultGrades = ["A", "B", "C", "D"];
         $juniorGrades = ["Beginner", "Intermediate", "Advanced"];
         Grade::insertOrIgnore(
-            collect($adultGrades)->map(fn ($name) => [
+            collect($adultGrades)->map(fn ($name, $index) => [
                 'name' => $name,
                 'type' => 'adult',
+                'rank' => $index + 1,
                 'created_at' => $now,
                 'updated_at' => $now,
             ])->merge(
-                collect($juniorGrades)->map(fn ($name) => [
+                collect($juniorGrades)->map(fn ($name, $index) => [
                     'name' => $name,
                     'type' => 'junior',
+                    'rank' => $index + 1,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ])

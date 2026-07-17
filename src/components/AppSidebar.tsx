@@ -21,6 +21,7 @@ export function AppSidebar() {
   const activeRole = useStore((s) => s.activeRole) || user?.role;
   const setActiveRole = useStore((s) => s.setActiveRole);
   const navigate = useNavigate();
+  const syncData = useStore((s) => s.syncData);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { setOpenMobile, isMobile } = useSidebar();
 
@@ -35,13 +36,24 @@ export function AppSidebar() {
     }
   };
 
+  /** Soft navigate; sync when staying in the same module (e.g. /members/add → /members).
+   *  Cross-module switches are synced by the authenticated layout. */
+  const goToModule = (to: string) => {
+    closeSidebarMobile();
+    const sameModule = pathname === to || pathname.startsWith(`${to}/`);
+    void (async () => {
+      await navigate({ to });
+      if (sameModule) await syncData();
+    })();
+  };
+
   const main = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { to: "/members", label: "Members", icon: Users, show: isMember || isAdmin },
     { to: "/credits", label: "Credits", icon: Wallet, show: isMember || isAdmin },
     { to: "/invitations", label: "My Invitations", icon: Inbox, show: isMember },
     { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin },
-    { to: "/league-groups", label: "League Groups", icon: Users, show: isAdmin },
+    { to: "/league-groups", label: "League Groups", icon: Users, show: isAdmin || isMember },
     { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isAdmin || isVol },
     { to: "/transactions", label: "Transactions", icon: Receipt, show: true },
   ];
@@ -85,7 +97,7 @@ export function AppSidebar() {
                       {isActive && (
                         <motion.div
                           layoutId="sidebar-main-pill"
-                          className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)]"
+                          className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)] pointer-events-none"
                           style={{ margin: "2px 10px" }}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
@@ -95,7 +107,13 @@ export function AppSidebar() {
                       )}
                     </AnimatePresence>
                     <SidebarMenuButton asChild isActive={isActive}>
-                      <Link to={i.to} onClick={closeSidebarMobile}>
+                      <Link
+                        to={i.to}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          goToModule(i.to);
+                        }}
+                      >
                         <motion.span
                           whileHover={{ scale: 1.15, rotate: 5 }}
                           whileTap={{ scale: 0.9 }}
@@ -126,7 +144,7 @@ export function AppSidebar() {
                         {isActive && (
                           <motion.div
                             layoutId="sidebar-admin-pill"
-                            className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)]"
+                            className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)] pointer-events-none"
                             style={{ margin: "2px 10px" }}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -136,7 +154,13 @@ export function AppSidebar() {
                         )}
                       </AnimatePresence>
                       <SidebarMenuButton asChild isActive={isActive}>
-                        <Link to={i.to} onClick={closeSidebarMobile}>
+                        <Link
+                          to={i.to}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            goToModule(i.to);
+                          }}
+                        >
                           <motion.span
                             whileHover={{ scale: 1.15, rotate: 5 }}
                             whileTap={{ scale: 0.9 }}

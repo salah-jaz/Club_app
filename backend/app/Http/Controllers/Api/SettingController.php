@@ -33,6 +33,7 @@ class SettingController extends Controller
         'emailFooterText' => 'email_footer_text',
         'cancellationLockHours' => 'cancellation_lock_hours',
         'debitTimingHours' => 'debit_timing_hours',
+        'showGradeInCourtRotation' => 'show_grade_in_court_rotation',
         'adultDiscountPercent' => 'adult_discount_percent',
         'adultDiscountAmount' => 'adult_discount_amount',
         'adultDiscountMode' => 'adult_discount_mode',
@@ -48,16 +49,22 @@ class SettingController extends Controller
 
         $data = [
             'locations'       => Location::pluck('name')->toArray(),
-            'grades'          => Grade::pluck('name')->toArray(),
-            'adultGrades'     => Grade::where('type', 'adult')->pluck('name')->toArray(),
-            'juniorGrades'    => Grade::where('type', 'junior')->pluck('name')->toArray(),
+            'grades'          => Grade::orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
+            'adultGrades'     => Grade::where('type', 'adult')->orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
+            'juniorGrades'    => Grade::where('type', 'junior')->orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
             'holidays'        => Holiday::pluck('date')->toArray(),
-            'playerPositions' => PlayerPosition::pluck('name')->toArray(),
+            'playerPositions' => PlayerPosition::orderBy('name')->pluck('name')->toArray(),
+            'playerPositionItems' => PlayerPosition::orderBy('name')->get()->map(fn ($p) => [
+                'name' => $p->name,
+                'skipLeagueFee' => (bool) $p->skip_league_fee,
+            ])->values()->all(),
         ];
 
         foreach ($this->settingKeys as $camel => $snake) {
             $val = $dbSettings->get($snake);
             if ($camel === 'skipCreditConsumption') {
+                $data[$camel] = $val === 'true';
+            } else if ($camel === 'showGradeInCourtRotation') {
                 $data[$camel] = $val === 'true';
             } else if ($camel === 'cancellationLockHours' || $camel === 'debitTimingHours') {
                 $data[$camel] = $val !== null ? (int)$val : null;
@@ -96,8 +103,8 @@ class SettingController extends Controller
         foreach ($this->settingKeys as $camel => $snake) {
             if ($request->has($camel)) {
                 $val = $request->input($camel);
-                if ($camel === 'skipCreditConsumption') {
-                    $val = $val ? 'true' : 'false';
+                if ($camel === 'skipCreditConsumption' || $camel === 'showGradeInCourtRotation') {
+                    $val = filter_var($val, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
                 }
                 if (in_array($camel, ['adultDiscountMode', 'juniorDiscountMode'], true)) {
                     $val = $val === 'amount' ? 'amount' : 'percent';
@@ -117,26 +124,36 @@ class SettingController extends Controller
         }
 
         if ($request->has('adultGrades')) {
-            $newAdultGrades = $request->adultGrades ?? [];
+            $newAdultGrades = array_values(array_filter($request->adultGrades ?? [], fn($g) => is_string($g) && $g !== ''));
             Grade::where('type', 'adult')->whereNotIn('name', $newAdultGrades)->delete();
             $now = now();
-            foreach ($newAdultGrades as $g) {
-                Grade::firstOrCreate(
-                    ['name' => $g],
-                    ['type' => 'adult', 'created_at' => $now, 'updated_at' => $now]
-                );
+            foreach ($newAdultGrades as $index => $g) {
+                $rank = $index + 1;
+                $grade = Grade::firstOrNew(['name' => $g]);
+                $grade->type = 'adult';
+                $grade->rank = $rank;
+                if (!$grade->exists) {
+                    $grade->created_at = $now;
+                }
+                $grade->updated_at = $now;
+                $grade->save();
             }
         }
 
         if ($request->has('juniorGrades')) {
-            $newJuniorGrades = $request->juniorGrades ?? [];
+            $newJuniorGrades = array_values(array_filter($request->juniorGrades ?? [], fn($g) => is_string($g) && $g !== ''));
             Grade::where('type', 'junior')->whereNotIn('name', $newJuniorGrades)->delete();
             $now = now();
-            foreach ($newJuniorGrades as $g) {
-                Grade::firstOrCreate(
-                    ['name' => $g],
-                    ['type' => 'junior', 'created_at' => $now, 'updated_at' => $now]
-                );
+            foreach ($newJuniorGrades as $index => $g) {
+                $rank = $index + 1;
+                $grade = Grade::firstOrNew(['name' => $g]);
+                $grade->type = 'junior';
+                $grade->rank = $rank;
+                if (!$grade->exists) {
+                    $grade->created_at = $now;
+                }
+                $grade->updated_at = $now;
+                $grade->save();
             }
         }
 
@@ -148,12 +165,50 @@ class SettingController extends Controller
             }
         }
 
-        if ($request->has('playerPositions')) {
-            $newPositions = $request->playerPositions ?? [];
+        if ($request->has('playerPositionItems')) {
+            $items = $request->playerPositionItems ?? [];
+            $names = [];
+            $now = now();
+            foreach ($items as $item) {
+                if (is_string($item)) {
+                    $name = trim($item);
+                    $skip = false;
+                } elseif (is_array($item)) {
+                    $name = trim((string) ($item['name'] ?? ''));
+                    $skip = filter_var($item['skipLeagueFee'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                } else {
+                    continue;
+                }
+                if ($name === '') {
+                    continue;
+                }
+                $names[] = $name;
+                $pos = PlayerPosition::firstOrNew(['name' => $name]);
+                $pos->skip_league_fee = $skip;
+                if (!$pos->exists) {
+                    $pos->created_at = $now;
+                }
+                $pos->updated_at = $now;
+                $pos->save();
+            }
+            if (!empty($names)) {
+                PlayerPosition::whereNotIn('name', $names)->delete();
+            } else {
+                PlayerPosition::query()->delete();
+            }
+        } elseif ($request->has('playerPositions')) {
+            // Legacy: name list only — preserve skip_league_fee for existing names
+            $newPositions = array_values(array_filter(
+                $request->playerPositions ?? [],
+                fn($p) => is_string($p) && $p !== ''
+            ));
             PlayerPosition::whereNotIn('name', $newPositions)->delete();
             $now = now();
             foreach ($newPositions as $pos) {
-                PlayerPosition::firstOrCreate(['name' => $pos], ['created_at' => $now, 'updated_at' => $now]);
+                PlayerPosition::firstOrCreate(
+                    ['name' => $pos],
+                    ['skip_league_fee' => false, 'created_at' => $now, 'updated_at' => $now]
+                );
             }
         }
 

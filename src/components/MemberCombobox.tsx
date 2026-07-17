@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, ChevronDown, Search, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -8,17 +7,12 @@ import { api } from "@/lib/api";
 import type { Member } from "@/lib/types";
 
 const SERVER_SEARCH_THRESHOLD = 200;
-const SERVER_RESULT_LIMIT = 50;
-const ITEM_HEIGHT = 36;
-const LIST_MAX_HEIGHT = 240;
+const SERVER_RESULT_LIMIT = 80;
+const LIST_MAX_HEIGHT = 280;
 const DEBOUNCE_MS = 300;
 
 function memberLabel(m: Member) {
   return `${m.firstName} ${m.lastName}`;
-}
-
-function memberDisplay(m: Member) {
-  return `${memberLabel(m)} — bal ${fmtMoney(m.credit)}`;
 }
 
 function memberMatches(m: Member, query: string) {
@@ -70,6 +64,7 @@ export function MemberCombobox({
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const optionRefs = useRef<(HTMLDivElement | null)[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
   const useServerSearch = members.length >= SERVER_SEARCH_THRESHOLD;
@@ -121,15 +116,9 @@ export function MemberCombobox({
     return sortMembers(members.filter((m) => memberMatches(m, query)));
   }, [useServerSearch, serverResults, members, query]);
 
-  const virtualizer = useVirtualizer({
-    count: filtered.length,
-    getScrollElement: () => listRef.current,
-    estimateSize: () => ITEM_HEIGHT,
-    overscan: 8,
-  });
-
   useEffect(() => {
     setHighlightIndex(0);
+    optionRefs.current = [];
   }, [query, debouncedQuery, filtered.length, open]);
 
   useEffect(() => {
@@ -139,18 +128,23 @@ export function MemberCombobox({
   }, [open]);
 
   useEffect(() => {
-    if (!open || filtered.length === 0) return;
-    virtualizer.scrollToIndex(highlightIndex, { align: "auto" });
-  }, [highlightIndex, open, filtered.length, virtualizer]);
+    if (!open) return;
+    optionRefs.current[highlightIndex]?.scrollIntoView({ block: "nearest" });
+  }, [highlightIndex, open]);
 
   const selectMember = useCallback(
-    (id: string) => {
-      onValueChange(id);
+    (memberId: string) => {
+      onValueChange(memberId);
       setOpen(false);
       setQuery("");
     },
     [onValueChange],
   );
+
+  /** Dialog traps wheel events — keep scroll on this list. */
+  const keepScrollLocal = (e: React.WheelEvent | React.TouchEvent) => {
+    e.stopPropagation();
+  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!open) return;
@@ -198,46 +192,74 @@ export function MemberCombobox({
           aria-controls={listboxId}
           aria-haspopup="listbox"
           className={cn(
-            "flex h-[38px] w-full items-center justify-between whitespace-nowrap rounded-md border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E] px-3 py-2 text-sm text-[#F1F0EE] shadow-sm cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-[#10B981] disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+            "group flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] px-3 text-left text-sm text-[#F1F0EE] transition-colors cursor-pointer outline-none",
+            "hover:border-[rgba(255,255,255,0.14)]",
+            "focus-visible:border-[#10B981]/50 focus-visible:ring-2 focus-visible:ring-[#10B981]/20",
+            open && "border-[#10B981]/40 ring-2 ring-[#10B981]/15",
             className,
           )}
         >
-          <span className={cn(!selected && "text-[#8A8A98]")}>
-            {selected ? memberDisplay(selected) : placeholder}
-          </span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
+          {selected ? (
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-medium text-[#EEF2F0]">{memberLabel(selected)}</span>
+              <span className="text-[#6B7F78]"> · </span>
+              <span className="font-mono text-[12px] text-[#8FA89F]">{fmtMoney(selected.credit)}</span>
+            </span>
+          ) : (
+            <span className="text-[#8A8A98]">{placeholder}</span>
+          )}
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-[#8A8A98] transition-transform duration-200",
+              open && "rotate-180 text-[#34D399]",
+            )}
+            aria-hidden="true"
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-[var(--radix-popover-trigger-width)] p-0 bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] shadow-md overflow-hidden"
+        sideOffset={6}
+        // Allow wheel/touch scroll inside Dialog (react-remove-scroll)
+        data-scroll-lock-scrollable=""
+        className={cn(
+          "z-[80] w-[var(--radix-popover-trigger-width)] min-w-[min(100vw-2rem,320px)] p-0",
+          "rounded-xl border border-[rgba(255,255,255,0.10)] bg-[#131916] text-[#F1F0EE]",
+          "shadow-[0_16px_48px_rgba(0,0,0,0.55)] overflow-hidden",
+        )}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onKeyDown={onKeyDown}
+        onWheel={keepScrollLocal}
       >
-        <div className="flex items-center gap-2 border-b border-[rgba(255,255,255,0.08)] px-2.5 py-1.5">
-          <Search className="size-3.5 shrink-0 text-[#8A8A98]" aria-hidden="true" />
-          <input
-            ref={inputRef}
-            aria-controls={listboxId}
-            aria-autocomplete="list"
-            aria-activedescendant={activeOptionId}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Search name or member number…"
-            // Prevent Chrome/Edge wallet & loyalty autofill (triggered by nearby "credit" form fields).
-            // "off" is often ignored; a non-token value is more reliable in Chromium.
-            autoComplete="chrome-off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            name="member-combobox-search"
-            data-1p-ignore
-            data-lpignore="true"
-            data-form-type="other"
-            className="h-8 w-full min-w-0 bg-transparent text-xs text-[#F1F0EE] outline-none placeholder:text-[#8A8A98] border-0 shadow-none ring-0 focus:ring-0 focus-visible:ring-0 rounded-none p-0"
-          />
-          {loading && <Loader2 className="size-3.5 shrink-0 animate-spin text-[#8A8A98]" aria-hidden="true" />}
+        <div className="p-2.5 border-b border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/80">
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#1A2120] px-2.5",
+              "focus-within:border-[#10B981]/45 focus-within:ring-2 focus-within:ring-[#10B981]/15",
+            )}
+          >
+            <Search className="size-3.5 shrink-0 text-[#6B7F78]" aria-hidden="true" />
+            <input
+              ref={inputRef}
+              aria-controls={listboxId}
+              aria-autocomplete="list"
+              aria-activedescendant={activeOptionId}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Search name or BI ID…"
+              autoComplete="chrome-off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              name="member-combobox-search"
+              data-1p-ignore
+              data-lpignore="true"
+              data-form-type="other"
+              className="h-9 w-full min-w-0 bg-transparent text-[13px] text-[#F1F0EE] outline-none placeholder:text-[#6B7F78] border-0 shadow-none ring-0 focus:ring-0 focus-visible:ring-0 rounded-none p-0"
+            />
+            {loading && <Loader2 className="size-3.5 shrink-0 animate-spin text-[#8FA89F]" aria-hidden="true" />}
+          </div>
         </div>
 
         <div
@@ -245,59 +267,112 @@ export function MemberCombobox({
           id={listboxId}
           role="listbox"
           aria-label="Members"
-          className="overflow-y-auto overflow-x-hidden"
+          data-scroll-lock-scrollable=""
+          className={cn(
+            "overflow-y-scroll overflow-x-hidden overscroll-contain",
+            // Visible scrollbar so it’s clear more members exist
+            "[scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.22)_transparent]",
+            "[&::-webkit-scrollbar]:w-2",
+            "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20",
+            "[&::-webkit-scrollbar-track]:bg-transparent",
+          )}
           style={{ maxHeight: LIST_MAX_HEIGHT }}
+          onWheel={keepScrollLocal}
+          onTouchMove={keepScrollLocal}
         >
           {filtered.length === 0 ? (
-            <div className="py-6 text-center text-sm text-[#8A8A98]" role="status">
-              {loading ? "Searching…" : "No members found."}
+            <div className="px-4 py-8 text-center" role="status">
+              <p className="text-sm text-[#8FA89F]">{loading ? "Searching…" : "No members found."}</p>
+              {!loading && query.trim() && (
+                <p className="mt-1 text-[11px] text-[#6B7F78]">Try a different name or BI ID</p>
+              )}
             </div>
           ) : (
-            <div
-              style={{
-                height: virtualizer.getTotalSize(),
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {virtualizer.getVirtualItems().map((virtualRow) => {
-                const m = filtered[virtualRow.index];
-                const isSelected = m.id === value;
-                const isHighlighted = virtualRow.index === highlightIndex;
-                return (
+            filtered.map((m, index) => {
+              const isSelected = m.id === value;
+              const isHighlighted = index === highlightIndex;
+              const isJunior = m.memberType.toLowerCase() === "junior";
+              return (
+                <div
+                  key={m.id}
+                  ref={(el) => {
+                    optionRefs.current[index] = el;
+                  }}
+                  id={`${listboxId}-option-${m.id}`}
+                  role="option"
+                  aria-selected={isSelected}
+                  data-highlighted={isHighlighted || undefined}
+                  className={cn(
+                    "flex h-14 w-full cursor-pointer select-none items-center gap-2.5 px-2.5 outline-none",
+                    isHighlighted && "bg-[#10B981]/10",
+                    isSelected && !isHighlighted && "bg-white/[0.03]",
+                  )}
+                  onMouseEnter={() => setHighlightIndex(index)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectMember(m.id);
+                  }}
+                >
                   <div
-                    key={m.id}
-                    id={`${listboxId}-option-${m.id}`}
-                    role="option"
-                    aria-selected={isSelected}
-                    data-highlighted={isHighlighted || undefined}
                     className={cn(
-                      "absolute left-0 top-0 w-full flex cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none",
-                      isHighlighted && "bg-white/5",
-                      isSelected && "font-medium",
+                      "size-8 shrink-0 rounded-full grid place-items-center text-[11px] font-semibold border border-white/10",
+                      isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#34D399]",
                     )}
-                    style={{
-                      height: virtualRow.size,
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                    onMouseEnter={() => setHighlightIndex(virtualRow.index)}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      selectMember(m.id);
-                    }}
                   >
-                    <span className="truncate">{memberDisplay(m)}</span>
-                    {isSelected && (
-                      <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
-                        <Check className="h-4 w-4 text-[#10B981]" aria-hidden="true" />
-                      </span>
-                    )}
+                    {m.firstName[0]}
+                    {m.lastName[0]}
                   </div>
-                );
-              })}
-            </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate text-[13px] font-medium text-[#EEF2F0]">
+                        {memberLabel(m)}
+                      </span>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide",
+                          isJunior
+                            ? "bg-[#F59E0B]/12 text-[#FBBF24]"
+                            : "bg-[#10B981]/12 text-[#34D399]",
+                        )}
+                      >
+                        {isJunior ? "Junior" : "Adult"}
+                      </span>
+                    </div>
+                    <p className="truncate text-[11px] text-[#6B7F78] mt-0.5">
+                      {m.biMemberId ? m.biMemberId : "No BI ID"}
+                      {m.grade ? ` · ${m.grade}` : ""}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right pl-1">
+                    <p
+                      className={cn(
+                        "font-mono text-[12px] font-medium",
+                        m.credit < 0 ? "text-[#F87171]" : "text-[#8FA89F]",
+                      )}
+                    >
+                      {fmtMoney(m.credit)}
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <Check className="size-4 shrink-0 text-[#10B981]" aria-hidden="true" />
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
+
+        {filtered.length > 0 && (
+          <div className="flex items-center justify-between gap-2 border-t border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-1.5">
+            <p className="text-[10px] text-[#6B7F78]">
+              {query.trim()
+                ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}`
+                : `${filtered.length} member${filtered.length === 1 ? "" : "s"}`}
+              {filtered.length > 5 ? " · scroll for more" : ""}
+            </p>
+            <p className="text-[10px] text-[#6B7F78] hidden sm:block">↑↓ navigate · Enter select</p>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

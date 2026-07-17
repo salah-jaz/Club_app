@@ -14,6 +14,7 @@ class Member extends Model
     protected $fillable = [
         'id',
         'user_id',
+        'parent_member_id',
         'first_name',
         'last_name',
         'nickname',
@@ -22,7 +23,6 @@ class Member extends Model
         'sex',
         'member_type',
         'membership',
-        'league',
         'training_eligible',
         'grade',
         'bi_member_id',
@@ -34,7 +34,6 @@ class Member extends Model
 
     protected $casts = [
         'membership' => 'boolean',
-        'league' => 'boolean',
         'training_eligible' => 'boolean',
         'skip_credit_consumption' => 'boolean',
         'apply_discount' => 'boolean',
@@ -44,6 +43,16 @@ class Member extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function parentMember(): BelongsTo
+    {
+        return $this->belongsTo(Member::class, 'parent_member_id');
+    }
+
+    public function juniorMembers(): HasMany
+    {
+        return $this->hasMany(Member::class, 'parent_member_id');
     }
 
     public function creditRequests(): HasMany

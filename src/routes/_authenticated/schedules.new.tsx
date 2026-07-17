@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
+import { parseScheduleDateTime } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,20 +24,60 @@ function NewSchedule() {
     name: "", date: "", courts: 2, players: 16, slotHours: 2, slotDuration: "15 min",
     sessionRate: 8, hallRate: 40, location: locations[0],
     isLeagueMatch: false, leagueGroupIds: [] as string[],
+    repeatWeeks: 1,
   });
+  const [nameTouched, setNameTouched] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
+
+  const repeatPreview = useMemo(() => {
+    const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
+    if (!f.date || weeks <= 1) return null;
+    const start = new Date(f.date);
+    if (Number.isNaN(start.getTime())) return null;
+    const end = new Date(start);
+    end.setDate(end.getDate() + (weeks - 1) * 7);
+    const endLabel = parseScheduleDateTime(
+      `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}T${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`,
+    );
+    return {
+      weeks,
+      day: scheduleWhen?.day ?? "same day",
+      endDate: endLabel?.date ?? end.toLocaleDateString(),
+    };
+  }, [f.date, f.repeatWeeks, scheduleWhen?.day]);
+
+  const onDateChange = (value: string) => {
+    const parsed = parseScheduleDateTime(value);
+    setF((p) => ({
+      ...p,
+      date: value,
+      name: !nameTouched && parsed ? parsed.label : p.name,
+    }));
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader title="New play schedule" description="Define the court capacity, scheduling details, and membership pricing." backTo="/schedules" />
       <form onSubmit={async (e) => {
         e.preventDefault();
+        const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
+        setSubmitting(true);
         try {
-          await create(f);
-          toast.success("Schedule created");
+          const { repeatWeeks: _rw, ...schedule } = f;
+          await create({ ...schedule, repeatWeeks: weeks } as any);
+          toast.success(
+            weeks > 1
+              ? `${weeks} schedules created (same day each week)`
+              : "Schedule created",
+          );
           navigate({ to: "/schedules" });
         } catch (error: any) {
           toast.error(error.message || "Failed to create schedule.");
+        } finally {
+          setSubmitting(false);
         }
       }} className="space-y-6">
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
@@ -47,12 +88,65 @@ function NewSchedule() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date & Time</Label>
+              <Input
+                required
+                type="datetime-local"
+                value={f.date}
+                onChange={(e) => onDateChange(e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg w-full min-w-0"
+              />
+              {scheduleWhen && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Day</p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.day}</p>
+                  </div>
+                  <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date</p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.date}</p>
+                  </div>
+                  <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Time</p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.time}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Name</Label>
-              <Input required value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Friday Night Play" className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+              <Input
+                required
+                value={f.name}
+                onChange={(e) => {
+                  setNameTouched(true);
+                  set("name", e.target.value);
+                }}
+                placeholder="Friday · 18 Jul 2026 · 7:00 PM"
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
+              {!nameTouched && scheduleWhen && (
+                <p className="text-[11px] text-[#8A8A98]">Auto-filled from the selected date &amp; time. Edit anytime.</p>
+              )}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date & Time</Label>
-              <Input required type="datetime-local" value={f.date} onChange={(e) => set("date", e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Repeat for Weeks
+              </Label>
+              <Input
+                required
+                type="number"
+                min={1}
+                max={52}
+                value={f.repeatWeeks}
+                onChange={(e) => set("repeatWeeks", Math.max(1, Math.min(52, Number(e.target.value) || 1)))}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+              />
+              <p className="text-[11px] text-[#8A8A98]">
+                {repeatPreview
+                  ? `Creates ${repeatPreview.weeks} schedules every ${repeatPreview.day} through ${repeatPreview.endDate}.`
+                  : "Enter 1 for a single session, or more to repeat on the same weekday."}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Club Location</Label>
@@ -162,7 +256,13 @@ function NewSchedule() {
           </CardContent>
         </Card>
         <div className="flex justify-end">
-          <Button type="submit" className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer">Create schedule</Button>
+          <Button type="submit" disabled={submitting} className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer">
+            {submitting
+              ? "Creating…"
+              : Number(f.repeatWeeks) > 1
+                ? `Create ${Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1))} schedules`
+                : "Create schedule"}
+          </Button>
         </div>
       </form>
     </div>

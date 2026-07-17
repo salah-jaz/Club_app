@@ -21,6 +21,8 @@ export type MemberType = "adult" | "junior";
 export interface Member {
   id: string;
   userId: string;
+  /** Adult this junior belongs to (null for adults / unlinked juniors) */
+  parentMemberId?: string | null;
   firstName: string;
   lastName: string;
   dob: string;
@@ -28,7 +30,6 @@ export interface Member {
   sex: "male" | "female";
   memberType: MemberType;
   membership: boolean;
-  league: boolean;
   trainingEligible: boolean;
   skipCreditConsumption: boolean;
   applyDiscount: boolean;
@@ -57,12 +58,27 @@ export interface Transaction {
   date: string;
 }
 
+export interface PlayerPositionItem {
+  name: string;
+  skipLeagueFee: boolean;
+}
+
+export interface LeagueGroupMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  grade?: string | null;
+  position?: string | null;
+}
+
 export interface LeagueGroup {
   id: string;
   name: string;
   description: string;
   memberIds: string[];
   memberPositions?: Record<string, string | null>;
+  /** Populated by API for display (view-only member screens). */
+  members?: LeagueGroupMember[];
 }
 
 export interface PlaySchedule {
@@ -76,7 +92,7 @@ export interface PlaySchedule {
   sessionRate: number;
   hallRate: number;
   location: string;
-  status: "open" | "released" | "rotated" | "closed";
+  status: "open" | "released" | "rotated" | "published" | "closed";
   isLeagueMatch?: boolean;
   leagueGroupIds?: string[];
 }
@@ -88,8 +104,11 @@ export interface PlayInvitation {
   memberId: string;
   status: InviteStatus;
   debited?: boolean;
+  /** When the member accepted (ISO). Used for the 24h decline window. */
+  acceptedAt?: string | null;
   updatedAt?: string;
   createdAt?: string;
+  isGuest?: boolean;
 }
 
 export interface RotationRound {

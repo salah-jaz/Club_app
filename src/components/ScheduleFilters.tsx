@@ -243,6 +243,7 @@ export function ScheduleFilters({
     { value: "open", label: "Open" },
     { value: "released", label: "Released" },
     { value: "rotated", label: "Rotated" },
+    { value: "published", label: "Published" },
     { value: "closed", label: "Closed" },
   ];
 
@@ -263,6 +264,7 @@ export function ScheduleFilters({
         open: "Open",
         released: "Released",
         rotated: "Rotated",
+        published: "Published",
         closed: "Closed",
       },
       date: {

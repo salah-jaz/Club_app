@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/StatusBadge";
+import { CourtRotationView } from "@/components/CourtRotationView";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,10 +17,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
-import { CalendarDays, GraduationCap, Plus, Wallet } from "lucide-react";
-import type { Member, PlaySchedule, Training } from "@/lib/types";
+import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy } from "lucide-react";
+import type { Member, PlaySchedule, Rotation, Training } from "@/lib/types";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 
 export const Route = createFileRoute("/_authenticated/invitations")({ component: Invitations });
@@ -61,6 +69,10 @@ function Invitations() {
   const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId));
   const activePrograms = s.trainings.filter((t) => t.status === "released" || t.status === "open");
   const releasedSchedules = s.schedules.filter((sch) => sch.status === "released");
+  const [courtsPopup, setCourtsPopup] = useState<{
+    schedule: PlaySchedule;
+    rotation: Rotation;
+  } | null>(null);
 
   const [enrollSelections, setEnrollSelections] = useState<Record<string, string[]>>({});
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
@@ -133,8 +145,25 @@ function Invitations() {
   }, [user.id, syncData, enrollPlay]);
 
   const name = (mid: string) => {
+    if (typeof mid === "string" && mid.startsWith("guest_")) {
+      return `Guest Player ${mid.split("_")[1]}`;
+    }
     const m = s.members.find((x) => x.id === mid);
     return m ? `${m.firstName} ${m.lastName}` : "";
+  };
+
+  const gradeOf = (mid: string) => {
+    if (typeof mid === "string" && mid.startsWith("guest_")) return undefined;
+    return s.members.find((x) => x.id === mid)?.grade || undefined;
+  };
+
+  const openCourtsPopup = (sch: PlaySchedule) => {
+    const rotation = s.rotations.find((r) => r.scheduleId === sch.id);
+    if (!rotation) {
+      toast.error("Court rotation is not available yet.");
+      return;
+    }
+    setCourtsPopup({ schedule: sch, rotation });
   };
 
   const invitedMemberIds = (trainingId: string) =>
@@ -197,15 +226,58 @@ function Invitations() {
     },
   ) => {
     const member = s.members.find((x) => x.id === i.memberId);
-    const estimatedFee = applyMemberFee(
-      playSessionBaseFee(sch.sessionRate),
-      member,
-      discountsFromStore(s),
-    );
+    const skipsLeagueFee = (() => {
+      if (!sch.isLeagueMatch || !sch.leagueGroupIds?.length) return false;
+      const skipNames = new Set(
+        (s.playerPositionItems ?? [])
+          .filter((p) => p.skipLeagueFee)
+          .map((p) => p.name),
+      );
+      if (skipNames.size === 0) return false;
+      for (const gid of sch.leagueGroupIds) {
+        const group = s.leagueGroups.find((g) => g.id === gid);
+        const pos = group?.memberPositions?.[i.memberId];
+        if (pos && skipNames.has(pos)) return true;
+      }
+      return false;
+    })();
+    const estimatedFee = skipsLeagueFee
+      ? 0
+      : applyMemberFee(
+          playSessionBaseFee(sch.sessionRate),
+          member,
+          discountsFromStore(s),
+        );
+    // League matches allow accept with low credit (balance may go negative). Non-league blocks.
     const hasInsufficientCredits =
-      member && !member.skipCreditConsumption && member.credit < estimatedFee;
-    const canAccept = i.status === "open" || i.status === "declined";
-    const canDecline = i.status === "accepted" || i.status === "waiting";
+      !!member &&
+      !member.skipCreditConsumption &&
+      !skipsLeagueFee &&
+      !sch.isLeagueMatch &&
+      member.credit < estimatedFee;
+
+    const responsesLocked =
+      sch.status === "rotated" || sch.status === "published" || sch.status === "closed";
+    const courtsPublished =
+      (sch.status === "published" || sch.status === "closed") &&
+      s.rotations.some((r) => r.scheduleId === sch.id);
+
+    const acceptedAtMs = i.acceptedAt
+      ? Date.parse(i.acceptedAt)
+      : i.updatedAt
+        ? Date.parse(i.updatedAt)
+        : NaN;
+    const withinDeclineWindow =
+      Number.isFinite(acceptedAtMs) && Date.now() - acceptedAtMs <= 24 * 60 * 60 * 1000;
+
+    const canAccept =
+      !responsesLocked && (i.status === "open" || i.status === "declined");
+    const canDeclineWaiting = !responsesLocked && i.status === "waiting";
+    const canDeclineAccepted =
+      !responsesLocked && i.status === "accepted" && withinDeclineWindow;
+    const canDecline = canDeclineWaiting || canDeclineAccepted;
+    const declineLockedByTime =
+      !responsesLocked && i.status === "accepted" && !withinDeclineWindow;
 
     return (
       <div key={i.id} className="space-y-2 pt-2 border-t border-white/[0.03]">
@@ -220,7 +292,7 @@ function Invitations() {
             </div>
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
-            <StatusBadge status={i.status === "declined" ? "open" : i.status} />
+            <StatusBadge kind="invitation" status={i.status === "declined" ? "open" : i.status} />
             <div className="rounded-md border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] px-3 py-2 min-w-[72px] text-left">
               <div className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
                 Players
@@ -236,9 +308,27 @@ function Invitations() {
           </div>
         </div>
         {canAccept && hasInsufficientCredits && (
-          <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 font-light">
-            <span className="font-semibold">Alert:</span> Insufficient credits ($
-            {member!.credit.toFixed(2)} / ${estimatedFee.toFixed(2)})
+          <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5 font-light">
+            <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
+            <span>
+              <span className="font-semibold">Alert:</span> Insufficient credits ($
+              {member!.credit.toFixed(2)} / ${estimatedFee.toFixed(2)})
+            </span>
+          </div>
+        )}
+        {responsesLocked && (
+          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-lg px-2.5 py-1.5 flex items-start gap-1.5">
+            <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#8A8A98]" />
+            <span>Court rotation is locked — accept and decline are closed for all members.</span>
+          </div>
+        )}
+        {declineLockedByTime && (
+          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
+            <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
+            <span>
+              <span className="font-semibold">Cancellation closed:</span> You cannot cancel after 24 hours.
+              This rule applies to all members.
+            </span>
           </div>
         )}
         {canAccept && (
@@ -259,7 +349,7 @@ function Invitations() {
                 if (res.status === "waiting") {
                   toast.success("Session is full — you're on the waiting list");
                 } else {
-                  toast.success("Accepted invitation");
+                  toast.success("Accepted — session fee deducted from credits");
                 }
               } catch (error: any) {
                 const msg = error.message || "Failed to respond to invitation.";
@@ -289,7 +379,7 @@ function Invitations() {
                 toast.success(
                   i.status === "waiting"
                     ? "Left the waiting list"
-                    : "Cancelled participation",
+                    : "Cancelled — session fee refunded to credits",
                 );
               } catch (error: any) {
                 toast.error(error.message || "Failed to cancel invitation.");
@@ -299,12 +389,47 @@ function Invitations() {
             Decline
           </Button>
         )}
+        {courtsPublished && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full btn-premium-outline h-8 text-[11px] font-semibold cursor-pointer"
+            onClick={() => openCourtsPopup(sch)}
+          >
+            <LayoutGrid className="size-3.5 mr-1" />
+            View court details
+          </Button>
+        )}
       </div>
     );
   };
 
   return (
     <div className="space-y-6">
+      <Dialog open={!!courtsPopup} onOpenChange={(open) => !open && setCourtsPopup(null)}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE]">
+              {courtsPopup?.schedule.name ?? "Court details"}
+            </DialogTitle>
+            <DialogDescription className="text-[#8A8A98]">
+              {courtsPopup
+                ? `${fmtDateTime(courtsPopup.schedule.date)} · ${courtsPopup.schedule.location}`
+                : "Published court assignments"}
+            </DialogDescription>
+          </DialogHeader>
+          {courtsPopup && (
+            <CourtRotationView
+              schedule={courtsPopup.schedule}
+              rotation={courtsPopup.rotation}
+              memberName={name}
+              memberGrade={gradeOf}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!creditGap} onOpenChange={(open) => !open && setCreditGap(null)}>
         <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-md">
           <AlertDialogHeader>
@@ -350,10 +475,10 @@ function Invitations() {
 
       <PageHeader
         title="My invitations"
-        description="Enroll in released play sessions and training programs, and respond to invitations."
+        description="Enroll in released play sessions and training programs. Play cancellations close 24 hours after accepting."
       />
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-2">
@@ -361,6 +486,20 @@ function Invitations() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-[#F59E0B]/30 bg-[#F59E0B]/10 px-3 py-2.5 text-[12px] text-[#FBBF24]"
+            >
+              <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-[#FBBF24]">Cancellation policy (all members)</p>
+                <p className="mt-0.5 text-[#F59E0B]/90 font-light leading-relaxed">
+                  After you accept a play session, you can cancel only within{" "}
+                  <span className="font-semibold text-[#FBBF24]">24 hours</span>. After 24 hours,
+                  cancellation is not allowed.
+                </p>
+              </div>
+            </div>
             {uniquePlaySessions.length === 0 && (
               <div className="py-4 space-y-3">
                 <p className="text-[13px] font-light text-[#4A5E58] text-center">
@@ -397,13 +536,36 @@ function Invitations() {
                   className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 rounded-lg p-4 space-y-3"
                 >
                   <div className="flex justify-between items-start gap-3">
-                    <div>
-                      <div className="font-semibold text-[#F1F0EE] text-[14px]">{sch.name}</div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-semibold text-[#F1F0EE] text-[14px]">{sch.name}</div>
+                        {sch.isLeagueMatch && (
+                          <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
+                            <Trophy className="size-3" />
+                            League
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
                         {fmtDateTime(sch.date)} · {sch.location}
                       </div>
                     </div>
-                    <StatusBadge status={sch.status} />
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <StatusBadge status={sch.status} />
+                      {(sch.status === "published" || sch.status === "closed") &&
+                        s.rotations.some((r) => r.scheduleId === sch.id) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="btn-premium-outline h-8 text-[11px] cursor-pointer"
+                            onClick={() => openCourtsPopup(sch)}
+                          >
+                            <LayoutGrid className="size-3.5 mr-1" />
+                            View court details
+                          </Button>
+                        )}
+                    </div>
                   </div>
 
                   {canEnroll && adultPlayers.length === 0 && (
@@ -584,7 +746,7 @@ function Invitations() {
                         <div className="text-[11px] text-[#34D399] font-medium">
                           Child: {name(i.memberId)}
                         </div>
-                        <StatusBadge status={i.status} />
+                        <StatusBadge kind="invitation" status={i.status} />
                       </div>
                       {i.status === "open" && (
                         <div className="flex gap-2">

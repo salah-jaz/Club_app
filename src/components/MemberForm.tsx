@@ -16,6 +16,9 @@ export type MemberFormValues = Omit<Member, "id" | "credit"> & {
   mobile?: string;
   address?: string;
   password?: string;
+  parentMemberId?: string | null;
+  /** Present when editing an existing member */
+  id?: string;
 };
 
 /** Animated form field wrapper — adds focus glow ring and label animation */
@@ -52,6 +55,7 @@ export function MemberForm({
 }) {
   const adultGrades = useStore((s) => s.adultGrades);
   const juniorGrades = useStore((s) => s.juniorGrades);
+  const members = useStore((s) => s.members);
   const users = useStore((s) => s.users);
   const currentUser = useCurrentUser();
   const [v, setV] = useState(initial);
@@ -59,11 +63,15 @@ export function MemberForm({
   const set = <K extends keyof MemberFormValues>(k: K, val: MemberFormValues[K]) =>
     setV((p) => {
       const next = { ...p, [k]: val };
-      if (k === "membership") {
-        next.league = val as boolean;
+      if (k === "memberType" && val === "adult") {
+        next.parentMemberId = null;
       }
       return next;
     });
+
+  const adultOptions = members.filter(
+    (m) => m.memberType.toLowerCase() === "adult" && m.id !== v.id,
+  );
 
   const getParentEmail = () => {
     if (v.userId) {
@@ -84,9 +92,21 @@ export function MemberForm({
         finalV.email = getParentEmail();
         finalV.password = "";
       }
-      // Keep league in sync with membership
-      finalV.league = finalV.membership;
-      const payload = familyMemberMode ? { ...finalV, memberType: "junior" as const, league: false } : finalV;
+      const payload = familyMemberMode
+        ? {
+            ...finalV,
+            memberType: "junior" as const,
+            // Nest under the adult profile on this login when present
+            parentMemberId:
+              finalV.parentMemberId ||
+              members.find(
+                (m) =>
+                  m.userId === (finalV.userId || currentUser?.id) &&
+                  m.memberType.toLowerCase() === "adult",
+              )?.id ||
+              null,
+          }
+        : finalV;
       await Promise.resolve(onSubmit(payload));
     } finally {
       setSubmitting(false);
@@ -253,7 +273,6 @@ export function MemberForm({
                     setV((p) => ({
                       ...p,
                       memberType: type,
-                      league: type === "junior" ? false : p.membership,
                       grade: nextGrade,
                     }));
                   }}
@@ -269,7 +288,10 @@ export function MemberForm({
               )}
             </FormField>
             <FormField label="Grade">
-              <Select value={v.grade} onValueChange={(x) => set("grade", x)}>
+              <Select
+                value={v.grade || undefined}
+                onValueChange={(x) => set("grade", x)}
+              >
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue placeholder="Select grade" />
                 </SelectTrigger>
@@ -280,6 +302,32 @@ export function MemberForm({
                 </SelectContent>
               </Select>
             </FormField>
+
+            {/* Parent adult — same field on Add & Edit for admin / non-family juniors */}
+            {v.memberType === "junior" && !familyMemberMode && (
+              <FormField label="Parent adult" span2>
+                <Select
+                  value={v.parentMemberId || "__none__"}
+                  onValueChange={(x) => set("parentMemberId", x === "__none__" ? null : x)}
+                >
+                  <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
+                    <SelectValue placeholder="Select parent adult…" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                    <SelectItem value="__none__">No parent linked</SelectItem>
+                    {adultOptions.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.firstName} {a.lastName}
+                        {a.biMemberId ? ` (${a.biMemberId})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-[#8A8A98] mt-1.5">
+                  Links this junior as a sub-member under the adult in the All members list.
+                </p>
+              </FormField>
+            )}
 
             <FormField label="Status">
               <Select value={v.status} onValueChange={(x) => set("status", x as any)}>

@@ -172,7 +172,7 @@ function Dashboard() {
         )}
       </motion.div>
 
-      <div className="grid lg:grid-cols-2 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         {/* LEFT - Upcoming sessions */}
         <Card className="signature-card-top flex flex-col justify-between">
           <CardHeader className="p-6 pb-4">

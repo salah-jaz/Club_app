@@ -15,6 +15,13 @@ class PlayInvitation extends Model
         'schedule_id',
         'member_id',
         'status',
+        'accepted_at',
+        'debited',
+    ];
+
+    protected $casts = [
+        'debited' => 'boolean',
+        'accepted_at' => 'datetime',
     ];
 
     public function playSchedule(): BelongsTo

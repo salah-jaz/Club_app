@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Grade;
 use App\Models\Member;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -35,7 +36,6 @@ class UserController extends Controller
                     $query->where('type', $request->input('memberType', 'adult'));
                 })
             ],
-            'league' => 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
         ]);
 
@@ -60,7 +60,6 @@ class UserController extends Controller
             'sex' => $user->sex,
             'member_type' => $memberType,
             'membership' => true,
-            'league' => $request->has('league') ? $request->boolean('league') : ($memberType === 'adult'),
             'training_eligible' => $trainingEligible,
             'grade' => $request->input('grade', $defaultGrade),
             'nickname' => $user->nickname,
@@ -145,7 +144,6 @@ class UserController extends Controller
             'sex' => $m->sex,
             'memberType' => $m->member_type,
             'membership' => (bool) $m->membership,
-            'league' => (bool) $m->membership,
             'trainingEligible' => (bool) $m->training_eligible,
             'grade' => $m->grade,
             'biMemberId' => $m->bi_member_id ?? '',

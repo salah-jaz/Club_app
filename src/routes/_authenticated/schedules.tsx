@@ -8,10 +8,12 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useSearchFilters } from "@/components/SearchFilterBar";
 import { ScheduleFilters } from "@/components/ScheduleFilters";
 import { fmtDateTime } from "@/lib/format";
-import { Plus, MapPin, Calendar, Eye, Pencil, Trash2, Send, Shuffle, LayoutGrid, List } from "lucide-react";
+import { Plus, MapPin, Calendar, Eye, Pencil, Trash2, Send, Shuffle, LayoutGrid, List, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
+import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import type { PlaySchedule } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
@@ -82,9 +84,7 @@ function getFillRate(schedule: PlaySchedule, accepted: number) {
 function SchedulesList() {
   const s = useStore();
   const locations = useStore((st) => st.locations);
-  const [viewMode, setViewMode] = useState<"grid" | "list">(
-    () => (localStorage.getItem("clubapp-view-mode-schedules") as "grid" | "list") || "list"
-  );
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-schedules", "list");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
 
   const requestDeleteSchedule = (sch: PlaySchedule) => {
@@ -269,26 +269,26 @@ function SchedulesList() {
             <span className="type-helper text-xs">{processed.length} schedules found</span>
             <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg">
               <button
-                onClick={() => {
-                  setViewMode("grid");
-                  localStorage.setItem("clubapp-view-mode-schedules", "grid");
-                }}
-                className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                }`}
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={cn(
+                  "p-1.5 rounded-md transition-all cursor-pointer",
+                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                )}
                 title="Grid view"
               >
                 <LayoutGrid className="size-4" />
               </button>
               <button
-                onClick={() => {
-                  setViewMode("list");
-                  localStorage.setItem("clubapp-view-mode-schedules", "list");
-                }}
-                className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                }`}
-                title="List view"
+                type="button"
+                onClick={() => setViewMode("list")}
+                disabled={isMobile}
+                className={cn(
+                  "p-1.5 rounded-md transition-all",
+                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                  isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+                )}
+                title={isMobile ? "List view available on larger screens" : "List view"}
               >
                 <List className="size-4" />
               </button>
@@ -317,7 +317,15 @@ function SchedulesList() {
                     <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200">
                       <CardContent className="p-4 px-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex-[2] space-y-1.5 min-w-[200px]">
-                          <div className="font-bold text-[16px] text-[#EEF2F0]">{sch.name}</div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="font-bold text-[16px] text-[#EEF2F0]">{sch.name}</div>
+                            {sch.isLeagueMatch && (
+                              <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
+                                <Trophy className="size-3" />
+                                League
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1.5 type-helper">
                             <Calendar className="size-3.5 text-[#5A7068]" />
                             <span className="text-[#C4D4CF] font-medium">{fmtDateTime(sch.date)}</span>
@@ -355,12 +363,12 @@ function SchedulesList() {
                         <div className="flex-1 flex flex-col md:items-end gap-2">
                           <StatusBadge status={sch.status} />
                           <div className="flex items-center gap-1.5 mt-1 md:mt-0">
-                            <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "closed" ? "View Results" : "Manage"}>
+                            <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "published" || sch.status === "closed" ? "View Results" : "Manage"}>
                               <Link to="/schedules/$id" params={{ id: sch.id }}>
                                 <Eye className="size-4" />
                               </Link>
                             </Button>
-                            {sch.status !== "rotated" && sch.status !== "closed" && (
+                            {sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && (
                               <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title="Edit Schedule">
                                 <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
                                   <Pencil className="size-4" />
@@ -441,7 +449,15 @@ function SchedulesList() {
                       <CardContent className="p-5 flex flex-col justify-between h-full space-y-4">
                         <div>
                           <div className="flex items-start justify-between gap-3">
-                            <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">{sch.name}</div>
+                            <div className="min-w-0 space-y-1.5">
+                              <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">{sch.name}</div>
+                              {sch.isLeagueMatch && (
+                                <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
+                                  <Trophy className="size-3" />
+                                  League
+                                </span>
+                              )}
+                            </div>
                             <StatusBadge status={sch.status} />
                           </div>
                           
@@ -478,12 +494,12 @@ function SchedulesList() {
                         </div>
 
                         <div className="flex items-center gap-1.5 pt-2 w-full">
-                          <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "closed" ? "View Results" : "Manage"}>
+                          <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "published" || sch.status === "closed" ? "View Results" : "Manage"}>
                             <Link to="/schedules/$id" params={{ id: sch.id }}>
                               <Eye className="size-4" />
                             </Link>
                           </Button>
-                          {sch.status !== "rotated" && sch.status !== "closed" && (
+                          {sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && (
                             <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title="Edit Schedule">
                               <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
                                 <Pencil className="size-4" />

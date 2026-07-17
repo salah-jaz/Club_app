@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2, Plus, HelpCircle, Pencil, Check, X } from "lucide-react";
+import { Trash2, Plus, HelpCircle, Pencil, Check, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
   ConfirmDeleteDialog,
   type ConfirmDeleteRequest,
 } from "@/components/ConfirmDeleteDialog";
 import { TIMEZONE_OPTIONS, resolveTimezone } from "@/lib/timezones";
+import type { PlayerPositionItem } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -32,6 +33,11 @@ function EditableConfigRow({
   onSave,
   onCancel,
   onDelete,
+  rankLabel,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
 }: {
   value: string;
   isEditing: boolean;
@@ -41,6 +47,12 @@ function EditableConfigRow({
   onSave: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  /** Optional strength rank badge (1 = strongest) */
+  rankLabel?: string;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }) {
   if (isEditing) {
     return (
@@ -76,9 +88,36 @@ function EditableConfigRow({
   }
 
   return (
-    <div className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs">
-      <span className="text-[#F1F0EE] font-medium">{value}</span>
-      <div className="flex items-center gap-1">
+    <div className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        {rankLabel && (
+          <span className="shrink-0 font-mono text-[10px] text-[#8FA89F] w-5 text-center">{rankLabel}</span>
+        )}
+        <span className="text-[#F1F0EE] font-medium truncate">{value}</span>
+      </div>
+      <div className="flex items-center gap-0.5 shrink-0">
+        {(onMoveUp || onMoveDown) && (
+          <>
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!canMoveUp}
+              className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 disabled:opacity-30 disabled:pointer-events-none"
+              title="Stronger (move up)"
+            >
+              <ChevronUp className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!canMoveDown}
+              className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 disabled:opacity-30 disabled:pointer-events-none"
+              title="Weaker (move down)"
+            >
+              <ChevronDown className="size-3.5" />
+            </button>
+          </>
+        )}
         <button
           type="button"
           onClick={onStartEdit}
@@ -173,7 +212,15 @@ function SettingsPage() {
     setJuniorGrades(store.juniorGrades);
   }, [store.juniorGrades]);
   const [holidays, setHolidays] = useState<string[]>(store.holidays);
-  const [playerPositions, setPlayerPositions] = useState<string[]>(store.playerPositions);
+  const [playerPositionItems, setPlayerPositionItems] = useState<PlayerPositionItem[]>(
+    store.playerPositionItems,
+  );
+
+  useEffect(() => {
+    setPlayerPositionItems(store.playerPositionItems);
+  }, [store.playerPositionItems]);
+
+  const playerPositions = playerPositionItems.map((p) => p.name);
 
   // States for SMTP Settings
   const [mailHost, setMailHost] = useState(store.mailHost || "");
@@ -369,11 +416,12 @@ function SettingsPage() {
     successLabel: string,
   ) => {
     const trimmed = editingValue.trim();
+    const original = editingOriginal;
     if (!trimmed) {
       toast.error("Name cannot be empty");
       return;
     }
-    if (trimmed === editingOriginal) {
+    if (trimmed === original) {
       cancelEditing();
       return;
     }
@@ -381,17 +429,25 @@ function SettingsPage() {
       toast.error(`${successLabel} already exists`);
       return;
     }
-    const updated = items.map((item) => (item === editingOriginal ? trimmed : item));
-    setItems(updated);
     cancelEditing();
+
+    if (list === "playerPositions") {
+      const updatedItems = playerPositionItems.map((p) =>
+        p.name === original ? { ...p, name: trimmed } : p,
+      );
+      setPlayerPositionItems(updatedItems);
+      await saveUpdatedList({ playerPositionItems: updatedItems }, `${successLabel} updated`);
+      return;
+    }
+
+    const updated = items.map((item) => (item === original ? trimmed : item));
+    setItems(updated);
     const payload =
       list === "locations"
         ? { locations: updated }
         : list === "adultGrades"
           ? { adultGrades: updated }
-          : list === "juniorGrades"
-            ? { juniorGrades: updated }
-            : { playerPositions: updated };
+          : { juniorGrades: updated };
     await saveUpdatedList(payload, `${successLabel} updated`);
   };
 
@@ -606,6 +662,24 @@ function SettingsPage() {
     saveUpdatedList({ juniorGrades: updated }, "Junior grade added");
   };
 
+  const moveGrade = (
+    list: "adultGrades" | "juniorGrades",
+    items: string[],
+    setItems: (items: string[]) => void,
+    index: number,
+    direction: -1 | 1,
+  ) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= items.length) return;
+    const updated = [...items];
+    const tmp = updated[index];
+    updated[index] = updated[nextIndex];
+    updated[nextIndex] = tmp;
+    setItems(updated);
+    const payload = list === "adultGrades" ? { adultGrades: updated } : { juniorGrades: updated };
+    void saveUpdatedList(payload, "Grade strength order updated");
+  };
+
   const handleDeleteJuniorGrade = (g: string) => {
     const memberCount = store.members.filter(
       (m) => m.grade === g && m.memberType.toLowerCase() === "junior",
@@ -655,10 +729,18 @@ function SettingsPage() {
       toast.error("Position already exists");
       return;
     }
-    const updated = [...playerPositions, trimmed];
-    setPlayerPositions(updated);
+    const updated = [...playerPositionItems, { name: trimmed, skipLeagueFee: false }];
+    setPlayerPositionItems(updated);
     setNewPlayerPosition("");
-    saveUpdatedList({ playerPositions: updated }, "Player position added");
+    saveUpdatedList({ playerPositionItems: updated }, "Player position added");
+  };
+
+  const handleTogglePositionSkipLeagueFee = (posName: string, skipLeagueFee: boolean) => {
+    const updated = playerPositionItems.map((p) =>
+      p.name === posName ? { ...p, skipLeagueFee } : p,
+    );
+    setPlayerPositionItems(updated);
+    void saveUpdatedList({ playerPositionItems: updated }, "Position league fee setting updated");
   };
 
   const handleDeletePlayerPosition = (pos: string) => {
@@ -678,9 +760,9 @@ function SettingsPage() {
           toast.error("Cannot delete position while league groups still use it.");
           throw new Error("Position in use");
         }
-        const updated = playerPositions.filter((x) => x !== pos);
-        setPlayerPositions(updated);
-        saveUpdatedList({ playerPositions: updated }, "Player position removed");
+        const updated = playerPositionItems.filter((p) => p.name !== pos);
+        setPlayerPositionItems(updated);
+        saveUpdatedList({ playerPositionItems: updated }, "Player position removed");
       },
     });
   };
@@ -692,6 +774,7 @@ function SettingsPage() {
       juniorGrades?: string[];
       holidays?: string[];
       playerPositions?: string[];
+      playerPositionItems?: PlayerPositionItem[];
     },
     successMsg: string
   ) => {
@@ -705,7 +788,7 @@ function SettingsPage() {
       setAdultGrades(store.adultGrades);
       setJuniorGrades(store.juniorGrades);
       setHolidays(store.holidays);
-      setPlayerPositions(store.playerPositions);
+      setPlayerPositionItems(store.playerPositionItems);
     }
   };
 
@@ -1163,7 +1246,7 @@ function SettingsPage() {
                   <p className="text-xs text-muted-foreground mt-1 font-light">Select your preferred color layout theme for the portal.</p>
                 </div>
                 <Select value={localTheme} onValueChange={(v) => handleThemeChange(v as "dark" | "light")}>
-                  <SelectTrigger className="w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
+                  <SelectTrigger className="w-full sm:w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -1180,7 +1263,7 @@ function SettingsPage() {
                   <p className="text-xs text-muted-foreground mt-1 font-light">Select your preferred branding colors for accents, buttons, and badges.</p>
                 </div>
                 <Select value={localColorTheme} onValueChange={(v) => handleColorThemeChange(v as any)}>
-                  <SelectTrigger className="w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
+                  <SelectTrigger className="w-full sm:w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -1410,6 +1493,9 @@ function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
+                <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
+                  Order from strongest (top, rank 1) to weakest. Court rotation groups similar grades together.
+                </p>
                 <div className="flex gap-2 mb-4">
                   <Input
                     value={newAdultGrade}
@@ -1430,10 +1516,11 @@ function SettingsPage() {
                   {adultGrades.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">No adult grades configured.</div>
                   ) : (
-                    adultGrades.map((g) => (
+                    adultGrades.map((g, index) => (
                       <EditableConfigRow
                         key={g}
                         value={g}
+                        rankLabel={`${index + 1}`}
                         isEditing={editingList === "adultGrades" && editingOriginal === g}
                         editValue={editingValue}
                         onEditValueChange={setEditingValue}
@@ -1441,6 +1528,10 @@ function SettingsPage() {
                         onSave={() => renameListItem("adultGrades", adultGrades, setAdultGrades, "Adult Grade")}
                         onCancel={cancelEditing}
                         onDelete={() => handleDeleteAdultGrade(g)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < adultGrades.length - 1}
+                        onMoveUp={() => moveGrade("adultGrades", adultGrades, setAdultGrades, index, -1)}
+                        onMoveDown={() => moveGrade("adultGrades", adultGrades, setAdultGrades, index, 1)}
                       />
                     ))
                   )}
@@ -1457,6 +1548,9 @@ function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
+                <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
+                  Order from strongest (top, rank 1) to weakest. Used when you need grade strength for juniors.
+                </p>
                 <div className="flex gap-2 mb-4">
                   <Input
                     value={newJuniorGrade}
@@ -1477,10 +1571,11 @@ function SettingsPage() {
                   {juniorGrades.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">No junior grades configured.</div>
                   ) : (
-                    juniorGrades.map((g) => (
+                    juniorGrades.map((g, index) => (
                       <EditableConfigRow
                         key={g}
                         value={g}
+                        rankLabel={`${index + 1}`}
                         isEditing={editingList === "juniorGrades" && editingOriginal === g}
                         editValue={editingValue}
                         onEditValueChange={setEditingValue}
@@ -1488,6 +1583,10 @@ function SettingsPage() {
                         onSave={() => renameListItem("juniorGrades", juniorGrades, setJuniorGrades, "Junior Grade")}
                         onCancel={cancelEditing}
                         onDelete={() => handleDeleteJuniorGrade(g)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < juniorGrades.length - 1}
+                        onMoveUp={() => moveGrade("juniorGrades", juniorGrades, setJuniorGrades, index, -1)}
+                        onMoveDown={() => moveGrade("juniorGrades", juniorGrades, setJuniorGrades, index, 1)}
                       />
                     ))
                   )}
@@ -1555,6 +1654,10 @@ function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
+                <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
+                  Enable <span className="text-[#EEF2F0]">Skip league fee</span> so members with that
+                  position are not charged for league match schedules.
+                </p>
                 <div className="flex gap-2 mb-4">
                   <Input
                     value={newPlayerPosition}
@@ -1571,22 +1674,48 @@ function SettingsPage() {
                     <Plus className="size-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
-                  {playerPositions.length === 0 ? (
+                <div className="flex-1 overflow-y-auto max-h-[280px] pr-1 space-y-1">
+                  {playerPositionItems.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">No player positions configured.</div>
                   ) : (
-                    playerPositions.map((pos) => (
-                      <EditableConfigRow
-                        key={pos}
-                        value={pos}
-                        isEditing={editingList === "playerPositions" && editingOriginal === pos}
-                        editValue={editingValue}
-                        onEditValueChange={setEditingValue}
-                        onStartEdit={() => startEditing("playerPositions", pos)}
-                        onSave={() => renameListItem("playerPositions", playerPositions, setPlayerPositions, "Player position")}
-                        onCancel={cancelEditing}
-                        onDelete={() => handleDeletePlayerPosition(pos)}
-                      />
+                    playerPositionItems.map((pos) => (
+                      <div key={pos.name} className="space-y-0">
+                        <EditableConfigRow
+                          value={pos.name}
+                          isEditing={editingList === "playerPositions" && editingOriginal === pos.name}
+                          editValue={editingValue}
+                          onEditValueChange={setEditingValue}
+                          onStartEdit={() => startEditing("playerPositions", pos.name)}
+                          onSave={() =>
+                            renameListItem(
+                              "playerPositions",
+                              playerPositions,
+                              () => {},
+                              "Player position",
+                            )
+                          }
+                          onCancel={cancelEditing}
+                          onDelete={() => handleDeletePlayerPosition(pos.name)}
+                        />
+                        {!editingList || editingOriginal !== pos.name ? (
+                          <div className="flex items-center justify-between gap-2 px-3 pb-2 -mt-0.5">
+                            <Label
+                              htmlFor={`skip-league-${pos.name}`}
+                              className="text-[10px] text-[#8A8A98] font-normal cursor-pointer"
+                            >
+                              Skip league fee
+                            </Label>
+                            <Switch
+                              id={`skip-league-${pos.name}`}
+                              checked={pos.skipLeagueFee}
+                              onCheckedChange={(checked) =>
+                                handleTogglePositionSkipLeagueFee(pos.name, checked)
+                              }
+                              className="scale-90 origin-right"
+                            />
+                          </div>
+                        ) : null}
+                      </div>
                     ))
                   )}
                 </div>
