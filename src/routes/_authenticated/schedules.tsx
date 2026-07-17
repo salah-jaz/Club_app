@@ -355,12 +355,12 @@ function SchedulesList() {
                         <div className="flex-1 flex flex-col md:items-end gap-2">
                           <StatusBadge status={sch.status} />
                           <div className="flex items-center gap-1.5 mt-1 md:mt-0">
-                            <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "closed" ? "View Results" : "Manage"}>
+                            <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "published" || sch.status === "closed" ? "View Results" : "Manage"}>
                               <Link to="/schedules/$id" params={{ id: sch.id }}>
                                 <Eye className="size-4" />
                               </Link>
                             </Button>
-                            {sch.status !== "rotated" && sch.status !== "closed" && (
+                            {sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && (
                               <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title="Edit Schedule">
                                 <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
                                   <Pencil className="size-4" />
@@ -478,12 +478,12 @@ function SchedulesList() {
                         </div>
 
                         <div className="flex items-center gap-1.5 pt-2 w-full">
-                          <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "closed" ? "View Results" : "Manage"}>
+                          <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "published" || sch.status === "closed" ? "View Results" : "Manage"}>
                             <Link to="/schedules/$id" params={{ id: sch.id }}>
                               <Eye className="size-4" />
                             </Link>
                           </Button>
-                          {sch.status !== "rotated" && sch.status !== "closed" && (
+                          {sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && (
                             <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title="Edit Schedule">
                               <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
                                 <Pencil className="size-4" />

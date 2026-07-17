@@ -36,39 +36,90 @@ class PlayScheduleController extends Controller
             'isLeagueMatch' => 'sometimes|boolean',
             'leagueGroupIds' => 'sometimes|array',
             'leagueGroupIds.*' => 'string',
+            'repeatWeeks' => 'sometimes|integer|min:1|max:52',
         ]);
 
-        $sch = PlaySchedule::create([
-            'id' => 's_' . Str::random(8),
-            'name' => $request->name,
-            'date' => $request->date,
-            'courts' => $request->courts,
-            'players' => $request->players,
-            'slot_hours' => $request->slotHours,
-            'slot_duration' => $request->slotDuration,
-            'session_rate' => $request->sessionRate,
-            'hall_rate' => $request->hallRate,
-            'location' => $request->location,
-            'status' => 'open',
-            'is_league_match' => $request->boolean('isLeagueMatch'),
-            'league_group_ids' => $request->leagueGroupIds,
-        ]);
+        $weeks = max(1, min(52, (int) $request->input('repeatWeeks', 1)));
+        $baseDate = \Carbon\Carbon::parse($request->date);
+        $created = [];
 
-        return response()->json($this->formatSchedule($sch), 201);
+        for ($i = 0; $i < $weeks; $i++) {
+            $date = $baseDate->copy()->addWeeks($i);
+            $rawName = $i === 0 ? $request->name : $this->scheduleNameFromDate($date);
+            $name = $this->uniqueScheduleName($rawName);
+
+            $sch = PlaySchedule::create([
+                'id' => 's_' . Str::random(8),
+                'name' => $name,
+                'date' => $date,
+                'courts' => $request->courts,
+                'players' => $request->players,
+                'slot_hours' => $request->slotHours,
+                'slot_duration' => $request->slotDuration,
+                'session_rate' => $request->sessionRate,
+                'hall_rate' => $request->hallRate,
+                'location' => $request->location,
+                'status' => 'open',
+                'is_league_match' => $request->boolean('isLeagueMatch'),
+                'league_group_ids' => $request->leagueGroupIds,
+            ]);
+
+            $created[] = $this->formatSchedule($sch);
+        }
+
+        return response()->json([
+            'schedules' => $created,
+            'count' => count($created),
+            // Keep first schedule for older clients
+            ...$created[0],
+        ], 201);
+    }
+
+    private function scheduleNameFromDate(\Carbon\Carbon $date): string
+    {
+        return $date->format('l') . ' · ' . $date->format('j M Y') . ' · ' . $date->format('g:i A');
+    }
+
+    /**
+     * Keep names unique by appending (2), (3), … when the base name is already used.
+     */
+    private function uniqueScheduleName(string $desired, ?string $excludeId = null): string
+    {
+        $base = preg_replace('/ \(\d+\)$/', '', $desired) ?: $desired;
+
+        if (!$this->scheduleNameExists($base, $excludeId)) {
+            return $base;
+        }
+
+        $n = 2;
+        while ($this->scheduleNameExists("{$base} ({$n})", $excludeId)) {
+            $n++;
+        }
+
+        return "{$base} ({$n})";
+    }
+
+    private function scheduleNameExists(string $name, ?string $excludeId = null): bool
+    {
+        $query = PlaySchedule::query()->where('name', $name);
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+        return $query->exists();
     }
 
     public function update(Request $request, $id)
     {
         $sch = PlaySchedule::findOrFail($id);
 
-        if (in_array($sch->status, ['rotated', 'closed'], true)) {
+        if (in_array($sch->status, ['rotated', 'published', 'closed'], true)) {
             return response()->json([
                 'message' => 'This schedule can no longer be edited after rotation has been generated.',
             ], 422);
         }
 
         $data = [];
-        if ($request->has('name')) $data['name'] = $request->name;
+        if ($request->has('name')) $data['name'] = $this->uniqueScheduleName($request->name, $sch->id);
         if ($request->has('date')) $data['date'] = $request->date;
         if ($request->has('courts')) $data['courts'] = $request->courts;
         if ($request->has('players')) $data['players'] = $request->players;
@@ -245,6 +296,36 @@ class PlayScheduleController extends Controller
         ]);
     }
 
+    public function publish($id)
+    {
+        $schedule = PlaySchedule::findOrFail($id);
+
+        if ($schedule->status !== 'rotated') {
+            return response()->json([
+                'message' => 'Generate a court rotation before publishing to members.',
+            ], 422);
+        }
+
+        $rotation = Rotation::where('schedule_id', $id)->first();
+        if (!$rotation || empty($rotation->rounds)) {
+            return response()->json([
+                'message' => 'No rotation found to publish.',
+            ], 422);
+        }
+
+        $schedule->status = 'published';
+        $schedule->save();
+
+        return response()->json([
+            'message' => 'Court rotation published to members.',
+            'schedule' => $this->formatSchedule($schedule),
+            'rotation' => [
+                'scheduleId' => $id,
+                'rounds' => $rotation->rounds,
+            ],
+        ]);
+    }
+
     public function rotate($id)
     {
         $schedule = PlaySchedule::findOrFail($id);
@@ -395,7 +476,7 @@ class PlayScheduleController extends Controller
             ->map(fn($rows) => $rows->count());
 
         foreach ($schedules as $scheduleId => $schedule) {
-            if (!in_array($schedule->status, ['rotated', 'closed'], true)) {
+            if (!in_array($schedule->status, ['published', 'closed'], true)) {
                 continue;
             }
             $realAccepted = (int) ($acceptedBySchedule[$scheduleId] ?? 0);
@@ -500,15 +581,23 @@ class PlayScheduleController extends Controller
         return response()->json($payload);
     }
 
-    public function listRotations()
+    public function listRotations(Request $request)
     {
+        $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
+
         $rotations = Rotation::all();
-        return response()->json($rotations->map(function ($r) {
+        return response()->json($rotations->map(function ($r) use ($isAdmin) {
+            $schedule = PlaySchedule::find($r->schedule_id);
+            // Members only see rotations after publish; admins see drafts too.
+            if (!$isAdmin && (!$schedule || !in_array($schedule->status, ['published', 'closed'], true))) {
+                return null;
+            }
             return [
                 'scheduleId' => $r->schedule_id,
                 'rounds' => $r->rounds ?? [],
             ];
-        }));
+        })->filter()->values());
     }
 
     public function destroy($id)

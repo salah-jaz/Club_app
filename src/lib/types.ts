@@ -76,7 +76,7 @@ export interface PlaySchedule {
   sessionRate: number;
   hallRate: number;
   location: string;
-  status: "open" | "released" | "rotated" | "closed";
+  status: "open" | "released" | "rotated" | "published" | "closed";
   isLeagueMatch?: boolean;
   leagueGroupIds?: string[];
 }

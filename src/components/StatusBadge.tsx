@@ -6,6 +6,7 @@ const map: Record<string, string> = {
   approved: "bg-[#2DD4BF]/10 text-[#2DD4BF] border-[#2DD4BF]/20",
   accepted: "bg-[#2DD4BF]/10 text-[#2DD4BF] border-[#2DD4BF]/20",
   rotated: "bg-[#2DD4BF]/10 text-[#2DD4BF] border-[#2DD4BF]/20",
+  published: "bg-[#818CF8]/10 text-[#A5B4FC] border-[#818CF8]/20",
   released: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
   open: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
   created: "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20",
@@ -16,18 +17,27 @@ const map: Record<string, string> = {
   closed: "bg-white/5 text-[#8A8A9A] border-white/10",
 };
 
-export function StatusBadge({ status }: { status: string }) {
-  const displayText =
-    status === "created"
-      ? "pending"
-      : status === "open"
-        ? "Yet to accept"
-        : status === "waiting"
-          ? "Waiting list"
-          : status;
+type StatusKind = "default" | "invitation";
+
+function labelFor(status: string, kind: StatusKind): string {
+  if (status === "created") return "pending";
+  if (status === "waiting") return "Waiting list";
+  // Invitation "open" = member has not responded yet.
+  // Schedule/training "open" = created but not released.
+  if (status === "open") return kind === "invitation" ? "Yet to accept" : "Open";
+  return status;
+}
+
+export function StatusBadge({
+  status,
+  kind = "default",
+}: {
+  status: string;
+  kind?: StatusKind;
+}) {
   return (
     <Badge variant="outline" className={cn("capitalize font-medium", map[status] ?? "")}>
-      {displayText}
+      {labelFor(status, kind)}
     </Badge>
   );
 }

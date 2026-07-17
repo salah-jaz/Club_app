@@ -35,6 +35,12 @@ export function AppSidebar() {
     }
   };
 
+  /** Full page reload so module state/data resets when switching via sidebar */
+  const goToModule = (to: string) => {
+    closeSidebarMobile();
+    window.location.assign(to);
+  };
+
   const main = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { to: "/members", label: "Members", icon: Users, show: isMember || isAdmin },
@@ -85,7 +91,7 @@ export function AppSidebar() {
                       {isActive && (
                         <motion.div
                           layoutId="sidebar-main-pill"
-                          className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)]"
+                          className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)] pointer-events-none"
                           style={{ margin: "2px 10px" }}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
@@ -95,7 +101,13 @@ export function AppSidebar() {
                       )}
                     </AnimatePresence>
                     <SidebarMenuButton asChild isActive={isActive}>
-                      <Link to={i.to} onClick={closeSidebarMobile}>
+                      <Link
+                        to={i.to}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          goToModule(i.to);
+                        }}
+                      >
                         <motion.span
                           whileHover={{ scale: 1.15, rotate: 5 }}
                           whileTap={{ scale: 0.9 }}
@@ -126,7 +138,7 @@ export function AppSidebar() {
                         {isActive && (
                           <motion.div
                             layoutId="sidebar-admin-pill"
-                            className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)]"
+                            className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)] pointer-events-none"
                             style={{ margin: "2px 10px" }}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -136,7 +148,13 @@ export function AppSidebar() {
                         )}
                       </AnimatePresence>
                       <SidebarMenuButton asChild isActive={isActive}>
-                        <Link to={i.to} onClick={closeSidebarMobile}>
+                        <Link
+                          to={i.to}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            goToModule(i.to);
+                          }}
+                        >
                           <motion.span
                             whileHover={{ scale: 1.15, rotate: 5 }}
                             whileTap={{ scale: 0.9 }}

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/StatusBadge";
+import { CourtRotationView } from "@/components/CourtRotationView";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,10 +17,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
-import { CalendarDays, GraduationCap, Plus, Wallet } from "lucide-react";
-import type { Member, PlaySchedule, Training } from "@/lib/types";
+import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet } from "lucide-react";
+import type { Member, PlaySchedule, Rotation, Training } from "@/lib/types";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 
 export const Route = createFileRoute("/_authenticated/invitations")({ component: Invitations });
@@ -61,6 +69,10 @@ function Invitations() {
   const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId));
   const activePrograms = s.trainings.filter((t) => t.status === "released" || t.status === "open");
   const releasedSchedules = s.schedules.filter((sch) => sch.status === "released");
+  const [courtsPopup, setCourtsPopup] = useState<{
+    schedule: PlaySchedule;
+    rotation: Rotation;
+  } | null>(null);
 
   const [enrollSelections, setEnrollSelections] = useState<Record<string, string[]>>({});
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
@@ -133,8 +145,20 @@ function Invitations() {
   }, [user.id, syncData, enrollPlay]);
 
   const name = (mid: string) => {
+    if (typeof mid === "string" && mid.startsWith("guest_")) {
+      return `Guest Player ${mid.split("_")[1]}`;
+    }
     const m = s.members.find((x) => x.id === mid);
     return m ? `${m.firstName} ${m.lastName}` : "";
+  };
+
+  const openCourtsPopup = (sch: PlaySchedule) => {
+    const rotation = s.rotations.find((r) => r.scheduleId === sch.id);
+    if (!rotation) {
+      toast.error("Court rotation is not available yet.");
+      return;
+    }
+    setCourtsPopup({ schedule: sch, rotation });
   };
 
   const invitedMemberIds = (trainingId: string) =>
@@ -220,7 +244,7 @@ function Invitations() {
             </div>
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
-            <StatusBadge status={i.status === "declined" ? "open" : i.status} />
+            <StatusBadge kind="invitation" status={i.status === "declined" ? "open" : i.status} />
             <div className="rounded-md border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] px-3 py-2 min-w-[72px] text-left">
               <div className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
                 Players
@@ -305,6 +329,28 @@ function Invitations() {
 
   return (
     <div className="space-y-6">
+      <Dialog open={!!courtsPopup} onOpenChange={(open) => !open && setCourtsPopup(null)}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE]">
+              {courtsPopup?.schedule.name ?? "Court rotation"}
+            </DialogTitle>
+            <DialogDescription className="text-[#8A8A98]">
+              {courtsPopup
+                ? `${fmtDateTime(courtsPopup.schedule.date)} · ${courtsPopup.schedule.location}`
+                : "Published court assignments"}
+            </DialogDescription>
+          </DialogHeader>
+          {courtsPopup && (
+            <CourtRotationView
+              schedule={courtsPopup.schedule}
+              rotation={courtsPopup.rotation}
+              memberName={name}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!creditGap} onOpenChange={(open) => !open && setCreditGap(null)}>
         <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-md">
           <AlertDialogHeader>
@@ -403,7 +449,22 @@ function Invitations() {
                         {fmtDateTime(sch.date)} · {sch.location}
                       </div>
                     </div>
-                    <StatusBadge status={sch.status} />
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <StatusBadge status={sch.status} />
+                      {(sch.status === "published" || sch.status === "closed") &&
+                        s.rotations.some((r) => r.scheduleId === sch.id) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="btn-premium-outline h-8 text-[11px] cursor-pointer"
+                            onClick={() => openCourtsPopup(sch)}
+                          >
+                            <LayoutGrid className="size-3.5 mr-1" />
+                            View courts
+                          </Button>
+                        )}
+                    </div>
                   </div>
 
                   {canEnroll && adultPlayers.length === 0 && (
@@ -584,7 +645,7 @@ function Invitations() {
                         <div className="text-[11px] text-[#34D399] font-medium">
                           Child: {name(i.memberId)}
                         </div>
-                        <StatusBadge status={i.status} />
+                        <StatusBadge kind="invitation" status={i.status} />
                       </div>
                       {i.status === "open" && (
                         <div className="flex gap-2">

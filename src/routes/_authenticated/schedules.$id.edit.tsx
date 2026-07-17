@@ -49,8 +49,11 @@ function EditSchedule() {
     location: "",
     isLeagueMatch: false,
     leagueGroupIds: [] as string[],
+    repeatWeeks: 1,
   });
   const [nameTouched, setNameTouched] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const create = useStore((state) => state.createSchedule);
 
   useEffect(() => {
     if (sch) {
@@ -66,6 +69,7 @@ function EditSchedule() {
         location: sch.location,
         isLeagueMatch: sch.isLeagueMatch ?? false,
         leagueGroupIds: sch.leagueGroupIds ?? [],
+        repeatWeeks: 1,
       });
       setNameTouched(true);
     }
@@ -73,10 +77,28 @@ function EditSchedule() {
 
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
+  const repeatPreview = useMemo(() => {
+    const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
+    if (!f.date || weeks <= 1) return null;
+    const start = new Date(f.date);
+    if (Number.isNaN(start.getTime())) return null;
+    const end = new Date(start);
+    end.setDate(end.getDate() + (weeks - 1) * 7);
+    const endLabel = parseScheduleDateTime(
+      `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}T${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`,
+    );
+    return {
+      weeks,
+      extra: weeks - 1,
+      day: scheduleWhen?.day ?? "same day",
+      endDate: endLabel?.date ?? end.toLocaleDateString(),
+    };
+  }, [f.date, f.repeatWeeks, scheduleWhen?.day]);
+
   if (!sch) return <Navigate to="/schedules" />;
 
   // Lock editing once rotation has been generated (or session closed)
-  if (sch.status === "rotated" || sch.status === "closed") {
+  if (sch.status === "rotated" || sch.status === "published" || sch.status === "closed") {
     return <Navigate to="/schedules/$id" params={{ id: sch.id }} />;
   }
 
@@ -91,6 +113,14 @@ function EditSchedule() {
     }));
   };
 
+  const addWeeksToLocal = (value: string, weeks: number) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    d.setDate(d.getDate() + weeks * 7);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -101,12 +131,31 @@ function EditSchedule() {
       <form
         onSubmit={async (e) => {
           e.preventDefault();
+          const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
+          setSubmitting(true);
           try {
-            await update(sch.id, f);
-            toast.success("Schedule updated successfully");
+            const { repeatWeeks: _rw, ...patch } = f;
+            await update(sch.id, patch);
+            if (weeks > 1) {
+              const nextDate = addWeeksToLocal(f.date, 1);
+              const nextParsed = parseScheduleDateTime(nextDate);
+              await create({
+                ...patch,
+                date: nextDate,
+                name: nextParsed?.label ?? patch.name,
+                repeatWeeks: weeks - 1,
+              });
+            }
+            toast.success(
+              weeks > 1
+                ? `Schedule updated and ${weeks - 1} more week${weeks - 1 === 1 ? "" : "s"} created`
+                : "Schedule updated successfully",
+            );
             navigate({ to: "/schedules" });
           } catch (error: any) {
             toast.error(error.message || "Failed to update schedule.");
+          } finally {
+            setSubmitting(false);
           }
         }}
         className="space-y-6"
@@ -157,7 +206,26 @@ function EditSchedule() {
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
               />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Repeat for Weeks
+              </Label>
+              <Input
+                required
+                type="number"
+                min={1}
+                max={52}
+                value={f.repeatWeeks}
+                onChange={(e) => set("repeatWeeks", Math.max(1, Math.min(52, Number(e.target.value) || 1)))}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+              />
+              <p className="text-[11px] text-[#8A8A98]">
+                {repeatPreview
+                  ? `Updates this schedule and creates ${repeatPreview.extra} more every ${repeatPreview.day} through ${repeatPreview.endDate}.`
+                  : "Enter 1 to update only this schedule, or more to also create the same day in following weeks."}
+              </p>
+            </div>
+            <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Club Location</Label>
               {locations.length > 0 && f.location ? (
                 <Select value={f.location} onValueChange={(v) => set("location", v)}>
@@ -324,8 +392,12 @@ function EditSchedule() {
           </CardContent>
         </Card>
         <div className="flex justify-end">
-          <Button type="submit" className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer">
-            Update schedule
+          <Button type="submit" disabled={submitting} className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer">
+            {submitting
+              ? "Saving…"
+              : Number(f.repeatWeeks) > 1
+                ? `Update & create ${Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1))} weeks`
+                : "Update schedule"}
           </Button>
         </div>
       </form>

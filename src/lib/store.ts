@@ -99,11 +99,12 @@ interface State {
   rejectCredit: (id: string) => Promise<void>;
 
   // schedules
-  createSchedule: (s: Omit<PlaySchedule, "id" | "status">) => Promise<void>;
+  createSchedule: (s: Omit<PlaySchedule, "id" | "status"> & { repeatWeeks?: number }) => Promise<void>;
   updateSchedule: (id: string, patch: Partial<PlaySchedule>) => Promise<void>;
   releaseSchedule: (id: string) => Promise<{ message?: string; inviteCount?: number }>;
   closeSchedule: (id: string) => Promise<void>;
   deleteSchedule: (id: string) => Promise<void>;
+  publishSchedule: (id: string) => Promise<void>;
   respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<PlayInvitation>;
   enrollPlay: (scheduleId: string, memberIds: string[]) => Promise<void>;
   generateRotation: (scheduleId: string) => Promise<void>;
@@ -540,6 +541,11 @@ export const useStore = create<State>((set, get) => ({
 
   deleteSchedule: async (id) => {
     await api.delete(`/schedules/${id}`);
+    await get().syncData();
+  },
+
+  publishSchedule: async (id) => {
+    await api.post<{ schedule: PlaySchedule }>(`/schedules/${id}/publish`);
     await get().syncData();
   },
 

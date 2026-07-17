@@ -148,7 +148,7 @@ function TrainingPage() {
                         <TableRow key={i.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
                           <TableCell className="font-semibold text-[#F1F0EE] text-[13px] px-5 py-4">{memberName(i.memberId)}</TableCell>
                           <TableCell className="font-mono text-xs text-[#34D399] px-5 py-4">${fee.toFixed(2)}</TableCell>
-                          <TableCell className="text-right px-5 py-4"><StatusBadge status={i.status} /></TableCell>
+                          <TableCell className="text-right px-5 py-4"><StatusBadge kind="invitation" status={i.status} /></TableCell>
                         </TableRow>
                       );
                     })}
