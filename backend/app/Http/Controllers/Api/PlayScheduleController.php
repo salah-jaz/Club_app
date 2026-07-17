@@ -327,6 +327,35 @@ class PlayScheduleController extends Controller
         ]);
     }
 
+    /**
+     * Clear court rotation and return schedule to released so it can be regenerated.
+     * Does not refund session fees (accept/decline rules still apply).
+     */
+    public function revertRotation(Request $request, $id)
+    {
+        $user = $request->user();
+        if (!$user || $user->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can revert court rotations.'], 403);
+        }
+
+        $schedule = PlaySchedule::findOrFail($id);
+
+        if (!in_array($schedule->status, ['rotated', 'published'], true)) {
+            return response()->json([
+                'message' => 'Only a generated or published rotation can be reverted.',
+            ], 422);
+        }
+
+        Rotation::where('schedule_id', $id)->delete();
+        $schedule->status = 'released';
+        $schedule->save();
+
+        return response()->json([
+            'message' => 'Court rotation reverted. You can generate a new rotation.',
+            'schedule' => $this->formatSchedule($schedule),
+        ]);
+    }
+
     public function rotate($id)
     {
         $schedule = PlaySchedule::findOrFail($id);

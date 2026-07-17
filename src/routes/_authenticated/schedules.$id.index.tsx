@@ -14,7 +14,7 @@ import {
 import { fmtDateTime } from "@/lib/format";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { toast } from "sonner";
-import { Download, FileSpreadsheet, FileText, Pencil, Shuffle, Send, X } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Pencil, Shuffle, Send, X, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PlayInvitation, PlaySchedule, Rotation, RotationRound } from "@/lib/types";
 import { jsPDF } from "jspdf";
@@ -351,6 +351,8 @@ function SchedulePage() {
   const [editingRotation, setEditingRotation] = useState(false);
   const [draftRounds, setDraftRounds] = useState<RotationRound[] | null>(null);
   const [savingRotation, setSavingRotation] = useState(false);
+  const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
+  const [reverting, setReverting] = useState(false);
 
   if (!sch) return <Navigate to="/schedules" />;
 
@@ -453,6 +455,24 @@ function SchedulePage() {
     void runGenerateRotation();
   };
 
+  const canRevertRotation =
+    isAdmin && !!rot && (sch.status === "rotated" || sch.status === "published");
+
+  const runRevertRotation = async () => {
+    setReverting(true);
+    try {
+      await s.revertRotation(sch.id);
+      setEditingRotation(false);
+      setDraftRounds(null);
+      setRevertConfirmOpen(false);
+      toast.success("Court rotation reverted. You can generate a new one.");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to revert rotation.");
+    } finally {
+      setReverting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <AlertDialog open={rotateConfirmOpen} onOpenChange={setRotateConfirmOpen}>
@@ -488,6 +508,38 @@ function SchedulePage() {
               }}
             >
               {rotating ? "Generating…" : "Add guests & generate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={revertConfirmOpen} onOpenChange={setRevertConfirmOpen}>
+        <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#F1F0EE]">Revert court rotation?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#C4D4CF] space-y-2">
+              <span className="block">
+                This removes the current court assignments
+                {sch.status === "published" ? " and hides them from members" : ""}. The session
+                returns to <strong className="text-[#F1F0EE]">Released</strong> so you can generate
+                a new rotation.
+              </span>
+              <span className="block">Accepted players and session fees are kept.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel className="btn-premium-outline cursor-pointer" disabled={reverting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#EF4444] hover:bg-[#DC2626] text-white cursor-pointer"
+              disabled={reverting}
+              onClick={(e) => {
+                e.preventDefault();
+                void runRevertRotation();
+              }}
+            >
+              {reverting ? "Reverting…" : "Revert rotation"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -622,6 +674,19 @@ function SchedulePage() {
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {canRevertRotation && !editingRotation && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="btn-premium-outline h-8 px-3 text-xs cursor-pointer"
+                  onClick={() => setRevertConfirmOpen(true)}
+                  disabled={reverting}
+                >
+                  <RotateCcw className="size-3.5 mr-1.5" />
+                  Revert rotation
+                </Button>
+              )}
               {canEditRotation && !editingRotation && (
                 <Button
                   type="button"
