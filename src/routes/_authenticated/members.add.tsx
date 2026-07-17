@@ -11,6 +11,7 @@ export const Route = createFileRoute("/_authenticated/members/add")({ component:
 function AddMember() {
   const user = useCurrentUser()!;
   const add = useStore((s) => s.addMember);
+  const members = useStore((s) => s.members);
   const navigate = useNavigate();
   const isAdmin = user.role === "admin";
   const [initialBiMemberId, setInitialBiMemberId] = useState("");
@@ -51,14 +52,15 @@ function AddMember() {
         title={isAdmin ? "Add member" : "Add family member"}
         description={
           isAdmin
-            ? "Create a member profile and login account."
-            : "Register a new family member to your club account."
+            ? "Create a member profile. Juniors can be linked under a parent adult."
+            : "Register a new junior under your club account."
         }
         backTo="/members"
       />
       <MemberForm
         showLoginFields={isAdmin}
         familyMemberMode={!isAdmin}
+        submitLabel="Save member"
         initial={{
           userId: user.id,
           firstName: "",
@@ -72,16 +74,32 @@ function AddMember() {
           trainingEligible: !isAdmin,
           skipCreditConsumption: false,
           applyDiscount: false,
-          grade: "B",
+          grade: "",
           biMemberId: initialBiMemberId,
           nickname: "",
           status: "active",
+          parentMemberId: null,
           ...(isAdmin ? { mobile: "", address: "", password: "" } : {}),
         }}
         onSubmit={async (v) => {
           try {
-            await add(v, isAdmin && v.memberType !== "junior");
-            toast.success(isAdmin && v.memberType !== "junior" ? "Member and login account created" : "Member added");
+            const isJunior = v.memberType === "junior";
+            let payload = { ...v };
+
+            if (isJunior && v.parentMemberId) {
+              const parent = members.find((m) => m.id === v.parentMemberId);
+              if (parent?.userId) {
+                payload = { ...payload, userId: parent.userId };
+              }
+            }
+
+            // New login only for adults created by admin
+            await add(payload, isAdmin && !isJunior);
+            toast.success(
+              isAdmin && !isJunior
+                ? "Member and login account created"
+                : "Member added",
+            );
             navigate({ to: "/members" });
           } catch (error: any) {
             toast.error(error.message || "Failed to add member.");

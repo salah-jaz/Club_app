@@ -14,6 +14,7 @@ class Member extends Model
     protected $fillable = [
         'id',
         'user_id',
+        'parent_member_id',
         'first_name',
         'last_name',
         'nickname',
@@ -44,6 +45,16 @@ class Member extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function parentMember(): BelongsTo
+    {
+        return $this->belongsTo(Member::class, 'parent_member_id');
+    }
+
+    public function juniorMembers(): HasMany
+    {
+        return $this->hasMany(Member::class, 'parent_member_id');
     }
 
     public function creditRequests(): HasMany

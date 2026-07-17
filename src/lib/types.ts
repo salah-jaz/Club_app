@@ -21,6 +21,8 @@ export type MemberType = "adult" | "junior";
 export interface Member {
   id: string;
   userId: string;
+  /** Adult this junior belongs to (null for adults / unlinked juniors) */
+  parentMemberId?: string | null;
   firstName: string;
   lastName: string;
   dob: string;

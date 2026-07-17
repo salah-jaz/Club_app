@@ -68,6 +68,7 @@ class MemberController extends Controller
             'biMemberId' => 'nullable|string',
             'nickname' => 'nullable|string|max:255',
             'status' => 'required|in:active,disabled',
+            'parentMemberId' => 'nullable|string|exists:members,id',
         ];
 
         if ($createLogin) {
@@ -79,6 +80,37 @@ class MemberController extends Controller
             ]));
 
             $member = DB::transaction(function () use ($request) {
+                $parentId = $request->input('parentMemberId');
+                $parent = $parentId ? Member::find($parentId) : null;
+                if ($request->memberType === 'junior' && $parent && $parent->member_type !== 'adult') {
+                    abort(response()->json(['message' => 'Parent must be an adult member.'], 422));
+                }
+
+                // Juniors with a parent share the parent's login account (no separate login)
+                if ($request->memberType === 'junior' && $parent && $parent->user_id) {
+                    return Member::create([
+                        'id' => 'm_' . Str::random(8),
+                        'user_id' => $parent->user_id,
+                        'parent_member_id' => $parent->id,
+                        'first_name' => $request->firstName,
+                        'last_name' => $request->lastName,
+                        'dob' => $request->dob,
+                        'email' => $request->email,
+                        'sex' => $request->sex,
+                        'member_type' => 'junior',
+                        'membership' => $request->membership,
+                        'league' => false,
+                        'training_eligible' => $this->resolveTrainingEligible($request),
+                        'grade' => $request->grade,
+                        'bi_member_id' => $request->biMemberId,
+                        'nickname' => $request->nickname,
+                        'status' => $request->status,
+                        'credit' => 0.00,
+                        'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
+                        'apply_discount' => $request->boolean('applyDiscount'),
+                    ]);
+                }
+
                 $user = User::create([
                     'id' => 'u_' . Str::random(8),
                     'first_name' => $request->firstName,
@@ -96,6 +128,7 @@ class MemberController extends Controller
                 return Member::create([
                     'id' => 'm_' . Str::random(8),
                     'user_id' => $user->id,
+                    'parent_member_id' => $request->memberType === 'junior' ? $parentId : null,
                     'first_name' => $request->firstName,
                     'last_name' => $request->lastName,
                     'dob' => $request->dob,
@@ -119,9 +152,13 @@ class MemberController extends Controller
                 'userId' => 'required|string',
             ]));
 
+            $parentId = $request->input('parentMemberId');
+            $parent = $parentId ? Member::find($parentId) : null;
+
             $member = Member::create([
                 'id' => 'm_' . Str::random(8),
                 'user_id' => $request->userId,
+                'parent_member_id' => $request->memberType === 'junior' ? ($parentId ?: null) : null,
                 'first_name' => $request->firstName,
                 'last_name' => $request->lastName,
                 'dob' => $request->dob,
@@ -168,6 +205,24 @@ class MemberController extends Controller
         if ($request->has('credit')) $data['credit'] = $request->credit;
         if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->skipCreditConsumption;
         if ($request->has('applyDiscount')) $data['apply_discount'] = $request->applyDiscount;
+        if ($request->has('parentMemberId')) {
+            $parentId = $request->input('parentMemberId') ?: null;
+            if ($parentId) {
+                $parent = Member::find($parentId);
+                if (!$parent || $parent->member_type !== 'adult') {
+                    return response()->json(['message' => 'Parent must be an adult member.'], 422);
+                }
+                if ($parent->id === $member->id) {
+                    return response()->json(['message' => 'A member cannot be their own parent.'], 422);
+                }
+                $data['parent_member_id'] = $parent->id;
+                if ($parent->user_id) {
+                    $data['user_id'] = $parent->user_id;
+                }
+            } else {
+                $data['parent_member_id'] = null;
+            }
+        }
 
         $member->update($data);
 
@@ -301,6 +356,7 @@ class MemberController extends Controller
         return [
             'id' => $m->id,
             'userId' => $m->user_id,
+            'parentMemberId' => $m->parent_member_id,
             'firstName' => $m->first_name,
             'lastName' => $m->last_name,
             'dob' => $m->dob,
@@ -372,7 +428,30 @@ class MemberController extends Controller
                     continue;
                 }
 
-                $user = User::where('email', $email)->first();
+                $memberType = strtolower(trim((string) ($row['member_type'] ?? $row['membertype'] ?? 'adult')));
+                $parentBi = trim((string) ($row['parent_bi_member_id'] ?? $row['parent_bi'] ?? ''));
+                $parentEmail = trim((string) ($row['parent_email'] ?? ''));
+                $parent = null;
+                if ($memberType === 'junior') {
+                    if ($parentBi !== '') {
+                        $parent = Member::where('bi_member_id', $parentBi)
+                            ->where('member_type', 'adult')
+                            ->first();
+                    }
+                    if (!$parent && $parentEmail !== '') {
+                        $parent = Member::where('email', $parentEmail)
+                            ->where('member_type', 'adult')
+                            ->first();
+                    }
+                }
+
+                $user = null;
+                if ($parent && $parent->user_id) {
+                    $user = User::find($parent->user_id);
+                }
+                if (!$user) {
+                    $user = User::where('email', $email)->first();
+                }
                 if (!$user) {
                     $user = User::create([
                         'id' => 'u_' . Str::random(8),
@@ -394,12 +473,13 @@ class MemberController extends Controller
                     Member::create([
                         'id' => 'm_' . Str::random(8),
                         'user_id' => $user->id,
+                        'parent_member_id' => $parent?->id,
                         'first_name' => $firstName,
                         'last_name' => $lastName,
                         'dob' => $row['dob'] ?? '1990-01-01',
                         'email' => $email,
                         'sex' => $row['sex'] ?? 'male',
-                        'member_type' => $row['member_type'] ?? $row['membertype'] ?? 'adult',
+                        'member_type' => $memberType ?: 'adult',
                         'membership' => filter_var($row['membership'] ?? true, FILTER_VALIDATE_BOOLEAN),
                         'league' => filter_var($row['league'] ?? $row['membership'] ?? false, FILTER_VALIDATE_BOOLEAN),
                         'training_eligible' => filter_var($row['training_eligible'] ?? $row['trainingeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
