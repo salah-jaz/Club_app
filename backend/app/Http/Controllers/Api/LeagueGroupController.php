@@ -4,19 +4,34 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\LeagueGroup;
+use App\Models\Member;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class LeagueGroupController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $user = $request->user();
         $groups = LeagueGroup::with('members')->orderBy('name')->get();
-        return response()->json($groups->map(fn($g) => $this->formatGroup($g)));
+
+        // Members only see groups they (or their family profiles) belong to
+        if (!$user || $user->role !== 'admin') {
+            $myMemberIds = Member::where('user_id', $user->id)->pluck('id')->all();
+            $groups = $groups->filter(function ($g) use ($myMemberIds) {
+                return $g->members->contains(fn ($m) => in_array($m->id, $myMemberIds, true));
+            })->values();
+        }
+
+        return response()->json($groups->map(fn ($g) => $this->formatGroup($g)));
     }
 
     public function store(Request $request)
     {
+        if ($request->user()?->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can create league groups.'], 403);
+        }
+
         $request->validate([
             'name'                  => 'required|string|max:255',
             'description'           => 'nullable|string',
@@ -42,6 +57,10 @@ class LeagueGroupController extends Controller
 
     public function update(Request $request, $id)
     {
+        if ($request->user()?->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can update league groups.'], 403);
+        }
+
         $group = LeagueGroup::findOrFail($id);
 
         $request->validate([
@@ -65,8 +84,12 @@ class LeagueGroupController extends Controller
         return response()->json($this->formatGroup($group->load('members')));
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if ($request->user()?->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can delete league groups.'], 403);
+        }
+
         $group = LeagueGroup::findOrFail($id);
         $group->delete();
 
@@ -93,10 +116,18 @@ class LeagueGroupController extends Controller
     {
         $memberIds       = [];
         $memberPositions = [];
+        $members         = [];
 
         foreach ($g->members as $member) {
-            $memberIds[]                         = $member->id;
-            $memberPositions[$member->id]        = $member->pivot->position ?? null;
+            $memberIds[]                  = $member->id;
+            $memberPositions[$member->id] = $member->pivot->position ?? null;
+            $members[] = [
+                'id'        => $member->id,
+                'firstName' => $member->first_name,
+                'lastName'  => $member->last_name,
+                'grade'     => $member->grade,
+                'position'  => $member->pivot->position ?? null,
+            ];
         }
 
         return [
@@ -105,6 +136,7 @@ class LeagueGroupController extends Controller
             'description'     => $g->description ?? '',
             'memberIds'       => $memberIds,
             'memberPositions' => $memberPositions,
+            'members'         => $members,
         ];
     }
 }

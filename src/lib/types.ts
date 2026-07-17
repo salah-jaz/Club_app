@@ -63,12 +63,22 @@ export interface PlayerPositionItem {
   skipLeagueFee: boolean;
 }
 
+export interface LeagueGroupMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  grade?: string | null;
+  position?: string | null;
+}
+
 export interface LeagueGroup {
   id: string;
   name: string;
   description: string;
   memberIds: string[];
   memberPositions?: Record<string, string | null>;
+  /** Populated by API for display (view-only member screens). */
+  members?: LeagueGroupMember[];
 }
 
 export interface PlaySchedule {

@@ -53,7 +53,7 @@ export function AppSidebar() {
     { to: "/credits", label: "Credits", icon: Wallet, show: isMember || isAdmin },
     { to: "/invitations", label: "My Invitations", icon: Inbox, show: isMember },
     { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin },
-    { to: "/league-groups", label: "League Groups", icon: Users, show: isAdmin },
+    { to: "/league-groups", label: "League Groups", icon: Users, show: isAdmin || isMember },
     { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isAdmin || isVol },
     { to: "/transactions", label: "Transactions", icon: Receipt, show: true },
   ];

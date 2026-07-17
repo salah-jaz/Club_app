@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
-import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle } from "lucide-react";
+import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy } from "lucide-react";
 import type { Member, PlaySchedule, Rotation, Training } from "@/lib/types";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 
@@ -536,8 +536,16 @@ function Invitations() {
                   className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 rounded-lg p-4 space-y-3"
                 >
                   <div className="flex justify-between items-start gap-3">
-                    <div>
-                      <div className="font-semibold text-[#F1F0EE] text-[14px]">{sch.name}</div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-semibold text-[#F1F0EE] text-[14px]">{sch.name}</div>
+                        {sch.isLeagueMatch && (
+                          <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
+                            <Trophy className="size-3" />
+                            League
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
                         {fmtDateTime(sch.date)} · {sch.location}
                       </div>
