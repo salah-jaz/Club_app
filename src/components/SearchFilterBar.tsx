@@ -106,13 +106,13 @@ export function SearchFilterBar({
   }, [activeFilters, filters]);
 
   return (
-    <div className="w-full space-y-4 mb-6">
+    <div className="w-full min-w-0 space-y-4 mb-6">
       {/* Search and Filters Layout Wrapper */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 w-full">
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 w-full min-w-0">
         
         {/* Search Input (Left Column on Desktop, full-width / flex-row on mobile) */}
-        <div className="flex items-center gap-2 w-full md:max-w-md">
-          <div className="relative flex-1">
+        <div className="flex items-center gap-2 w-full lg:max-w-md lg:shrink-0 min-w-0">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
               value={tempSearch}
@@ -131,8 +131,8 @@ export function SearchFilterBar({
             )}
           </div>
 
-          {/* Mobile Filter Button (Only Visible on Mobile) */}
-          <div className="md:hidden shrink-0">
+          {/* Mobile / tablet Filter Button (sheet until lg — prevents desktop filter row overflow) */}
+          <div className="lg:hidden shrink-0">
             <Sheet>
               <SheetTrigger asChild>
                 <Button
@@ -221,19 +221,22 @@ export function SearchFilterBar({
           </div>
         </div>
 
-        {/* Desktop Filter Dropdowns (Hidden on Mobile) */}
-        <div className="hidden md:flex items-center gap-3 flex-wrap ml-auto">
+        {/* Desktop Filter Dropdowns (lg+ only — avoids overflow beside search) */}
+        <div className="hidden lg:flex items-center gap-2 xl:gap-3 flex-wrap justify-end flex-1 min-w-0">
           {filters.map((f) => (
-            <div key={f.key} className="flex items-center gap-2">
-              <span className="text-[11px] font-medium tracking-[0.06em] text-[#8A8A98] uppercase">
+            <div key={f.key} className="flex items-center gap-1.5 min-w-0 shrink-0">
+              <span className="text-[11px] font-medium tracking-[0.06em] text-[#8A8A98] uppercase hidden xl:inline">
                 {f.label}:
               </span>
               <Select
                 value={activeFilters[f.key] || "all"}
                 onValueChange={(val) => onFilterChange(f.key, val)}
               >
-                <SelectTrigger className="w-[140px] bg-[#131916] border-[rgba(255,255,255,0.06)] focus:ring-0 text-[#F1F0EE] h-9 rounded-lg text-xs cursor-pointer">
-                  <SelectValue />
+                <SelectTrigger
+                  aria-label={f.label}
+                  className="w-[120px] xl:w-[140px] bg-[#131916] border-[rgba(255,255,255,0.06)] focus:ring-0 text-[#F1F0EE] h-9 rounded-lg text-xs cursor-pointer"
+                >
+                  <SelectValue placeholder={f.label} />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
                   {f.options.map((opt) => (
@@ -248,13 +251,16 @@ export function SearchFilterBar({
 
           {/* Sort Dropdown (if enabled) */}
           {sortOptions.length > 0 && onSortChange && (
-            <div className="flex items-center gap-2 ml-2 pl-2 border-l border-white/[0.06]">
-              <span className="text-[11px] font-medium tracking-[0.06em] text-[#8A8A98] uppercase">
+            <div className="flex items-center gap-1.5 ml-0 xl:ml-2 xl:pl-2 xl:border-l border-white/[0.06] shrink-0">
+              <span className="text-[11px] font-medium tracking-[0.06em] text-[#8A8A98] uppercase hidden xl:inline">
                 Sort:
               </span>
               <Select value={currentSort} onValueChange={onSortChange}>
-                <SelectTrigger className="w-[150px] bg-[#131916] border-[rgba(255,255,255,0.06)] focus:ring-0 text-[#F1F0EE] h-9 rounded-lg text-xs cursor-pointer">
-                  <SelectValue />
+                <SelectTrigger
+                  aria-label="Sort"
+                  className="w-[130px] xl:w-[150px] bg-[#131916] border-[rgba(255,255,255,0.06)] focus:ring-0 text-[#F1F0EE] h-9 rounded-lg text-xs cursor-pointer"
+                >
+                  <SelectValue placeholder="Sort" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
                   {sortOptions.map((opt) => (

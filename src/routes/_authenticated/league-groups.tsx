@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
+import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import { useStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,9 +65,7 @@ function LeagueGroupsPage() {
       return 0;
     });
   }, [leagueGroups, allMembers, searchTerm, sortBy]);
-  const [viewMode, setViewMode] = useState<"grid" | "list">(
-    () => (localStorage.getItem("clubapp-view-mode-league-groups") as "grid" | "list") || "grid"
-  );
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-league-groups", "grid");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -260,13 +260,14 @@ function LeagueGroupsPage() {
                         return (
                           <div
                             key={m.id}
-                            className={`flex items-center gap-3 p-2.5 bg-[#1A2120] border rounded-lg transition-all ${
+                            className={`flex flex-col sm:flex-row sm:items-center gap-3 p-2.5 bg-[#1A2120] border rounded-lg transition-all ${
                               isSelected
                                 ? "border-[#10B981] bg-[#1A2120]/80"
                                 : "border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
                             }`}
                           >
                             {/* Checkbox */}
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={() => toggleMember(m.id)}
@@ -279,15 +280,16 @@ function LeagueGroupsPage() {
                               </div>
                               <div className="text-[10px] text-muted-foreground">{m.grade}</div>
                             </div>
+                            </div>
                             {/* Position dropdown — only visible when member is selected */}
                             {isSelected && (
-                              <div className="shrink-0 w-[160px]">
+                              <div className="w-full sm:w-[160px] sm:shrink-0 pl-8 sm:pl-0">
                                 {playerPositions.length > 0 ? (
                                   <Select
                                     value={memberPositions[m.id] || ""}
                                     onValueChange={(val) => setPosition(m.id, val)}
                                   >
-                                    <SelectTrigger className="h-8 text-[11px] bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] rounded-md cursor-pointer">
+                                    <SelectTrigger className="h-8 text-[11px] bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] rounded-md cursor-pointer w-full">
                                       <SelectValue placeholder="Assign position…" />
                                     </SelectTrigger>
                                     <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -316,11 +318,11 @@ function LeagueGroupsPage() {
                 </div>
               </div>
 
-              <div className="flex gap-2 justify-end">
-                <Button type="button" variant="outline" onClick={handleCancel} className="btn-premium-outline h-10 px-4 cursor-pointer">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={handleCancel} className="btn-premium-outline h-10 px-4 cursor-pointer w-full sm:w-auto">
                   <X className="size-4 mr-1.5" /> Cancel
                 </Button>
-                <Button type="submit" className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer">
+                <Button type="submit" className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer w-full sm:w-auto">
                   <Save className="size-4 mr-1.5" /> Save Group
                 </Button>
               </div>
@@ -333,7 +335,7 @@ function LeagueGroupsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-3.5 rounded-xl">
             <div className="flex items-center gap-3 flex-1 flex-wrap">
               {/* Search */}
-              <div className="relative w-full max-w-[320px]">
+              <div className="relative w-full sm:max-w-[320px] min-w-0">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
                 <Input
                   value={searchTerm}
@@ -353,7 +355,7 @@ function LeagueGroupsPage() {
 
               {/* Sort By */}
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[180px] rounded-lg cursor-pointer text-xs">
+                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[180px] rounded-lg cursor-pointer text-xs">
                   <SelectValue placeholder="Sort By" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -368,26 +370,26 @@ function LeagueGroupsPage() {
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-10">
               <button
-                onClick={() => {
-                  setViewMode("grid");
-                  localStorage.setItem("clubapp-view-mode-league-groups", "grid");
-                }}
-                className={`px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center ${
-                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                }`}
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={cn(
+                  "px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center",
+                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                )}
                 title="Grid view"
               >
                 <LayoutGrid className="size-4" />
               </button>
               <button
-                onClick={() => {
-                  setViewMode("list");
-                  localStorage.setItem("clubapp-view-mode-league-groups", "list");
-                }}
-                className={`px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center ${
-                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                }`}
-                title="List view"
+                type="button"
+                onClick={() => setViewMode("list")}
+                disabled={isMobile}
+                className={cn(
+                  "px-2.5 h-full rounded-md transition-all flex items-center",
+                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                  isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+                )}
+                title={isMobile ? "List view available on larger screens" : "List view"}
               >
                 <List className="size-4" />
               </button>

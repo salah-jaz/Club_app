@@ -454,11 +454,11 @@ function SchedulePage() {
         description={`${fmtDateTime(sch.date)} · ${sch.location} · Session Rate: $${sch.sessionRate.toFixed(2)} · Capacity: ${sch.players} players`}
         backTo="/schedules"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={sch.status} />
             {sch.status === "released" && realAccepted.length > 0 && (
               <Button
-                className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer"
+                className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer w-full sm:w-auto"
                 onClick={onGenerateClick}
                 disabled={rotating}
               >
@@ -467,7 +467,7 @@ function SchedulePage() {
             )}
             {sch.status === "rotated" && rot && (
               <Button
-                className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer"
+                className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer w-full sm:w-auto"
                 onClick={async () => {
                   try {
                     await s.publishSchedule(sch.id);
@@ -483,7 +483,7 @@ function SchedulePage() {
             {sch.status !== "closed" && (
               <Button
                 variant="outline"
-                className="btn-premium-outline h-9 px-4 text-xs cursor-pointer"
+                className="btn-premium-outline h-9 px-4 text-xs cursor-pointer w-full sm:w-auto"
                 onClick={async () => {
                   try {
                     await s.closeSchedule(sch.id);
@@ -500,7 +500,7 @@ function SchedulePage() {
         }
       />
 
-      <div className="grid lg:grid-cols-3 gap-5 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
         {columns.map((col) => (
           <Card key={col.key} className="bg-[#131916] border-[rgba(255,255,255,0.06)]">
             <CardHeader className="pb-3 border-b border-[rgba(255,255,255,0.04)]">

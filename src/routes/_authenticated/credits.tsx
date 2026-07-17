@@ -371,7 +371,7 @@ function CreditsPage() {
       </Dialog>
 
       <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] overflow-hidden">
-        <CardHeader className="border-b border-[rgba(255,255,255,0.06)] py-4.5 px-6 flex flex-row items-center justify-between">
+        <CardHeader className="border-b border-[rgba(255,255,255,0.06)] py-4.5 px-4 sm:px-6 flex flex-row items-center justify-between">
           <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
             <span>
               {focusMember
@@ -385,7 +385,7 @@ function CreditsPage() {
             )}
           </CardTitle>
         </CardHeader>
-        <div className="px-6 py-4 border-b border-[rgba(255,255,255,0.06)] bg-[#131916]">
+        <div className="px-4 sm:px-6 py-4 border-b border-[rgba(255,255,255,0.06)] bg-[#131916]">
           <div className="flex items-center gap-2 md:hidden">
             {!isMemberScoped && (
               <div className="relative flex-1">
@@ -594,7 +594,7 @@ function CreditsPage() {
 
             <div className="flex items-center gap-2">
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[180px] rounded-lg cursor-pointer text-xs">
+                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[180px] rounded-lg cursor-pointer text-xs">
                   <SelectValue placeholder="Sort By" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -673,15 +673,16 @@ function CreditsPage() {
           </div>
         )}
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-[#0C0F0E]/30">
               <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                <TableHead className="type-table-head py-3.5 px-6">Member</TableHead>
-                <TableHead className="type-table-head py-3.5 px-6">Amount</TableHead>
-                <TableHead className="type-table-head py-3.5 px-6">Date</TableHead>
-                <TableHead className="type-table-head py-3.5 px-6">Status</TableHead>
+                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Member</TableHead>
+                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Amount</TableHead>
+                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Date</TableHead>
+                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Status</TableHead>
                 {user.role === "admin" && (
-                  <TableHead className="type-table-head py-3.5 px-6">Actions</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Actions</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -784,6 +785,7 @@ function CreditsPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

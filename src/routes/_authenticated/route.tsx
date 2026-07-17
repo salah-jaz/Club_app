@@ -59,6 +59,13 @@ function Layout() {
     void syncData();
   }, [moduleKey, loading, userId, syncData]);
 
+  // Move focus to main on route change (WCAG SPA pattern)
+  useEffect(() => {
+    if (loading) return;
+    const main = document.getElementById("main-content");
+    main?.focus({ preventScroll: true });
+  }, [pathname, loading]);
+
   // Theme state
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -134,7 +141,7 @@ function Layout() {
   if (!userId) return <Navigate to="/login" />;
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#090D0A] flex flex-col items-center justify-center gap-6">
+      <div className="min-h-dvh min-h-screen bg-[#090D0A] flex flex-col items-center justify-center gap-6">
         {/* Pulse ring */}
         <div className="relative flex items-center justify-center">
           <div
@@ -165,7 +172,7 @@ function Layout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background text-foreground">
+      <div className="min-h-dvh min-h-screen flex w-full bg-background text-foreground">
         <AppSidebar />
         <SidebarInset className="bg-background relative overflow-hidden flex-1">
 
@@ -178,25 +185,26 @@ function Layout() {
             )}
           </AnimatePresence>
 
-          <header className="h-12 flex items-center justify-between px-6 border-b border-border bg-background sticky top-0 z-10">
-            <div className="flex items-center gap-3">
-              <SidebarTrigger className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors" />
-              <Separator orientation="vertical" className="h-4 bg-border" />
-              <div className="breadcrumbs text-[13px] font-normal text-muted-foreground/60 flex items-center gap-2">
-                <span>Connect App</span>
-                <span className="breadcrumbs-separator opacity-40">/</span>
-                <span className="breadcrumbs-current text-muted-foreground">{screenName}</span>
+          <header className="h-12 flex items-center justify-between px-3 sm:px-6 border-b border-border bg-background sticky top-0 z-10 gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <SidebarTrigger className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0" />
+              <Separator orientation="vertical" className="h-4 bg-border hidden sm:block" />
+              <div className="breadcrumbs text-[13px] font-normal text-muted-foreground/60 flex items-center gap-2 min-w-0 truncate">
+                <span className="hidden xs:inline sm:inline">Connect App</span>
+                <span className="breadcrumbs-separator opacity-40 hidden sm:inline">/</span>
+                <span className="breadcrumbs-current text-muted-foreground truncate">{screenName}</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-3 sm:gap-5 shrink-0">
               {/* Theme Toggle — animated rotation on hover */}
               <motion.button
                 onClick={toggleTheme}
                 whileHover={{ rotate: 20, scale: 1.1 }}
                 whileTap={{ scale: 0.88 }}
-                className="flex items-center justify-center size-8 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-border/80 cursor-pointer transition-colors"
+                className="flex items-center justify-center size-9 sm:size-8 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-border/80 cursor-pointer transition-colors"
                 title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
               >
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.span
@@ -211,8 +219,8 @@ function Layout() {
                 </AnimatePresence>
               </motion.button>
 
-              {/* Live clock */}
-              <div className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight">
+              {/* Live clock — hidden on very small screens to reduce chrome crowding */}
+              <div className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight hidden sm:block" aria-hidden="true">
                 {timeStr}
               </div>
 
@@ -234,7 +242,11 @@ function Layout() {
             </div>
           </header>
 
-          <main className="flex-1 w-full min-w-0 px-4 py-6 sm:px-6 lg:px-8">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex-1 w-full min-w-0 px-4 py-6 sm:px-6 lg:px-8 outline-none"
+          >
             <AnimatePresence mode="wait">
               <MotionWrapper key={pathname}>
                 <Outlet />

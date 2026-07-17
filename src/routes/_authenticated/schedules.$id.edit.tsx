@@ -174,10 +174,10 @@ function EditSchedule() {
                 type="datetime-local"
                 value={f.date}
                 onChange={(e) => onDateChange(e.target.value)}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg w-full min-w-0"
               />
               {scheduleWhen && (
-                <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
                     <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Day</p>
                     <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.day}</p>

@@ -37,13 +37,13 @@ export function PageHeader({
   };
 
   return (
-    <div className="mb-6 w-full">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
+    <div className="mb-6 w-full min-w-0">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 min-w-0">
+        <div className="min-w-0 flex-1">
           <span className="text-[11px] font-semibold tracking-[0.12em] text-[#10B981] uppercase block mb-1.5">
             {getEyebrow()}
           </span>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {backTo && (
               <Link 
                 to={backTo} 
@@ -53,7 +53,7 @@ export function PageHeader({
                 <ArrowLeft className="size-4" />
               </Link>
             )}
-            <h1 className="type-page-title">
+            <h1 className="type-page-title min-w-0 truncate">
               {title}
             </h1>
           </div>
@@ -63,7 +63,11 @@ export function PageHeader({
             </p>
           )}
         </div>
-        {actions && <div className="flex items-center gap-3 self-start md:self-end">{actions}</div>}
+        {actions && (
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto md:max-w-[min(100%,28rem)] lg:max-w-none self-stretch md:self-start min-w-0 justify-start md:justify-end">
+            {actions}
+          </div>
+        )}
       </div>
       <div className="signature-divider mt-5 mb-5" />
     </div>

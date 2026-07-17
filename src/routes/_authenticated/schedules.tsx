@@ -11,7 +11,9 @@ import { fmtDateTime } from "@/lib/format";
 import { Plus, MapPin, Calendar, Eye, Pencil, Trash2, Send, Shuffle, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
+import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import type { PlaySchedule } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
@@ -82,9 +84,7 @@ function getFillRate(schedule: PlaySchedule, accepted: number) {
 function SchedulesList() {
   const s = useStore();
   const locations = useStore((st) => st.locations);
-  const [viewMode, setViewMode] = useState<"grid" | "list">(
-    () => (localStorage.getItem("clubapp-view-mode-schedules") as "grid" | "list") || "list"
-  );
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-schedules", "list");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
 
   const requestDeleteSchedule = (sch: PlaySchedule) => {
@@ -269,26 +269,26 @@ function SchedulesList() {
             <span className="type-helper text-xs">{processed.length} schedules found</span>
             <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg">
               <button
-                onClick={() => {
-                  setViewMode("grid");
-                  localStorage.setItem("clubapp-view-mode-schedules", "grid");
-                }}
-                className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                }`}
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={cn(
+                  "p-1.5 rounded-md transition-all cursor-pointer",
+                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                )}
                 title="Grid view"
               >
                 <LayoutGrid className="size-4" />
               </button>
               <button
-                onClick={() => {
-                  setViewMode("list");
-                  localStorage.setItem("clubapp-view-mode-schedules", "list");
-                }}
-                className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                }`}
-                title="List view"
+                type="button"
+                onClick={() => setViewMode("list")}
+                disabled={isMobile}
+                className={cn(
+                  "p-1.5 rounded-md transition-all",
+                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                  isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+                )}
+                title={isMobile ? "List view available on larger screens" : "List view"}
               >
                 <List className="size-4" />
               </button>

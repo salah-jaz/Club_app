@@ -10,6 +10,7 @@ import { Plus, LayoutGrid, List, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useState, useMemo } from "react";
+import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -39,9 +40,7 @@ function TrainingsList() {
   const s = useStore();
   const releaseTraining = useStore((st) => st.releaseTraining);
   const user = useCurrentUser()!;
-  const [viewMode, setViewMode] = useState<"grid" | "list">(
-    () => (localStorage.getItem("clubapp-view-mode-trainings") as "grid" | "list") || "grid"
-  );
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-trainings", "grid");
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
 
@@ -129,9 +128,9 @@ function TrainingsList() {
         <>
           {/* Filter Toolbar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-3.5 rounded-xl mt-6">
-            <div className="flex items-center gap-3 flex-1 flex-wrap">
+            <div className="flex items-center gap-3 flex-1 flex-wrap w-full">
               {/* Search */}
-              <div className="relative w-full max-w-[320px]">
+              <div className="relative w-full sm:max-w-[320px] sm:flex-1 min-w-0">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
                 <Input
                   value={searchTerm}
@@ -152,7 +151,7 @@ function TrainingsList() {
               {/* Status Dropdown */}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className={cn(
-                  "bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[150px] rounded-lg cursor-pointer text-xs",
+                  "bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[150px] rounded-lg cursor-pointer text-xs",
                   statusFilter !== "all" && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]"
                 )}>
                   <SelectValue placeholder="All Statuses" />
@@ -168,7 +167,7 @@ function TrainingsList() {
 
               {/* Sort By */}
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[180px] rounded-lg cursor-pointer text-xs">
+                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[180px] rounded-lg cursor-pointer text-xs">
                   <SelectValue placeholder="Sort By" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -183,26 +182,26 @@ function TrainingsList() {
             {/* View Mode Toggle */}
             <div className="flex items-center gap-1 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-10">
               <button
-                onClick={() => {
-                  setViewMode("grid");
-                  localStorage.setItem("clubapp-view-mode-trainings", "grid");
-                }}
-                className={`px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center ${
-                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                }`}
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={cn(
+                  "px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center",
+                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                )}
                 title="Grid view"
               >
                 <LayoutGrid className="size-4" />
               </button>
               <button
-                onClick={() => {
-                  setViewMode("list");
-                  localStorage.setItem("clubapp-view-mode-trainings", "list");
-                }}
-                className={`px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center ${
-                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]"
-                }`}
-                title="List view"
+                type="button"
+                onClick={() => setViewMode("list")}
+                disabled={isMobile}
+                className={cn(
+                  "px-2.5 h-full rounded-md transition-all flex items-center",
+                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                  isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+                )}
+                title={isMobile ? "List view available on larger screens" : "List view"}
               >
                 <List className="size-4" />
               </button>
@@ -298,7 +297,7 @@ function TrainingsList() {
                   </div>
 
                   {/* Stats Row */}
-                  <div className="grid grid-cols-3 gap-4 border-t border-[rgba(255,255,255,0.06)] pt-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-[rgba(255,255,255,0.06)] pt-4 text-sm">
                     <div>
                       <div className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Sessions</div>
                       <div className="type-mono-value text-[15.5px] mt-1">{t.sessions}</div>

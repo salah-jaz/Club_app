@@ -56,12 +56,12 @@ export function CourtRotationView({
   return (
     <div className={cn("space-y-4", className)}>
       <Tabs defaultValue="r1" className="w-full">
-        <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-4 h-10 max-w-full overflow-x-auto">
+        <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-4 h-10 max-w-full w-full sm:w-auto overflow-x-auto">
           {rotation.rounds.map((r) => (
             <TabsTrigger
               key={r.round}
               value={`r${r.round}`}
-              className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
+              className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all shrink-0"
             >
               Round {r.round}
             </TabsTrigger>
@@ -76,7 +76,7 @@ export function CourtRotationView({
                 {r.courts.map((c) => (
                   <Card key={c.courtNo} className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
                     <CardHeader className="pb-3 border-b border-white/[0.03]">
-                      <CardTitle className="text-[12px] font-semibold text-[#F1F0EE] flex items-center justify-between gap-3">
+                      <CardTitle className="text-[12px] font-semibold text-[#F1F0EE] flex flex-col xs:flex-row sm:flex-row sm:items-center justify-between gap-2">
                         <span className="flex items-center gap-2">
                           <Trophy className="size-4 text-[#34D399]" /> Court {c.courtNo}
                         </span>
@@ -94,13 +94,14 @@ export function CourtRotationView({
                           <div
                             key={idx}
                             className={cn(
-                              "rounded-lg border px-3 py-2.5 text-center text-[13px] font-semibold truncate transition-colors",
+                              "rounded-lg border px-2 sm:px-3 py-2.5 text-center text-[12px] sm:text-[13px] font-semibold truncate transition-colors min-w-0",
                               p
                                 ? isGuest
                                   ? "bg-[#1A2120] border-[rgba(245,158,11,0.35)] text-[#FBBF24]"
                                   : "bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] hover:border-[rgba(16,185,129,0.3)]"
                                 : "bg-[#1A2120]/60 border-dashed border-[rgba(255,255,255,0.08)] text-[#4A5E58]",
                             )}
+                            title={p ? memberName(p) : undefined}
                           >
                             {p ? memberName(p) : "—"}
                           </div>

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { useMemo, useRef, useState } from "react";
+import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -261,14 +262,16 @@ function MemberActions({
   const isJunior = member.memberType.toLowerCase() === "junior";
   const canEdit = activeRole === "admin" || (activeRole === "member" && isJunior);
   const canCredits = activeRole === "admin" || activeRole === "member";
-  const btnClass = compact ? "h-8 text-xs" : "h-9 text-xs flex-1";
+  const btnClass = compact
+    ? "h-8 text-xs px-2"
+    : "h-9 text-xs flex-1 basis-[calc(50%-0.25rem)] sm:basis-0 min-w-0";
 
   return (
-    <div className={cn("flex gap-2", compact ? "justify-end flex-wrap" : "w-full")}>
+    <div className={cn("flex flex-wrap gap-2 min-w-0", compact ? "justify-end" : "w-full")}>
       {activeRole === "admin" && !isJunior && (
         <Button
           variant="outline"
-          className={cn("bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 hover:cursor-pointer", btnClass)}
+          className={cn("bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 hover:cursor-pointer min-w-0", btnClass)}
           onClick={async () => {
             if (confirm(`Login as ${member.firstName} ${member.lastName}?`)) {
               try {
@@ -281,30 +284,35 @@ function MemberActions({
             }
           }}
         >
-          <LogIn className="size-3.5 mr-1" /> Login
+          <LogIn className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Login</span>
         </Button>
       )}
       {canEdit && (
-        <Button asChild variant="outline" className={cn("btn-premium-outline hover:cursor-pointer", btnClass)}>
+        <Button asChild variant="outline" className={cn("btn-premium-outline hover:cursor-pointer min-w-0", btnClass)}>
           <Link to="/members/$id/edit" params={{ id: member.id }}>
-            <Pencil className="size-3.5 mr-1" /> Edit
+            <Pencil className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Edit</span>
           </Link>
         </Button>
       )}
       {canCredits && (
-        <Button asChild variant="outline" className={cn("btn-premium-violet-outline hover:cursor-pointer", btnClass)}>
+        <Button asChild variant="outline" className={cn("btn-premium-violet-outline hover:cursor-pointer min-w-0", btnClass)}>
           <Link to={`/credits?memberId=${member.id}` as any}>
-            <Wallet className="size-3.5 mr-1" /> Credits
+            <Wallet className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Credits</span>
           </Link>
         </Button>
       )}
       {canEdit && (
         <Button
           variant="destructive"
-          className={cn("btn-premium-danger hover:cursor-pointer", btnClass)}
+          className={cn(
+            "btn-premium-danger hover:cursor-pointer shrink-0",
+            compact ? "h-8 w-8 p-0" : "h-9 w-9 p-0",
+          )}
           onClick={() => onRequestDelete(member)}
+          aria-label={`Remove ${member.firstName} ${member.lastName}`}
+          title="Remove"
         >
-          <Trash2 className="size-3.5 mr-1" /> Remove
+          <Trash2 className="size-3.5" />
         </Button>
       )}
     </div>
@@ -321,9 +329,7 @@ function MembersList() {
   const activeRole = useStore((s) => s.activeRole) || user.role;
   const store = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">(
-    () => (localStorage.getItem("clubapp-view-mode-members") as "grid" | "list") || "list",
-  );
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-members", "list");
   const [templateImporting, setTemplateImporting] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
@@ -664,7 +670,7 @@ function MembersList() {
         onOpenChange={(open) => !open && setDeleteRequest(null)}
       />
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
-        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-4xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] w-[calc(100%-1.5rem)] max-w-4xl max-h-[85dvh] flex flex-col gap-0 p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-white/[0.06] shrink-0">
             <DialogTitle className="text-[#F1F0EE]">Bulk upload template</DialogTitle>
             <DialogDescription className="text-[#8A8A98] text-left">
@@ -809,29 +815,34 @@ function MembersList() {
             : "View and manage your family's club profiles."
         }
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 w-full min-w-0 justify-start md:justify-end">
             <input type="file" ref={fileInputRef} onChange={handleBulkUpload} accept=".csv" className="hidden" />
             {activeRole === "admin" && (
               <>
                 <Button
                   variant="outline"
-                  className="btn-premium-outline h-[38px] px-3 hover:cursor-pointer"
+                  className="btn-premium-outline h-[38px] px-3 hover:cursor-pointer shrink-0"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="size-4 mr-1.5" /> Bulk upload
+                  <Upload className="size-4 mr-1.5 shrink-0" />
+                  <span className="whitespace-nowrap">Bulk upload</span>
                 </Button>
                 <Button
                   variant="ghost"
-                  className="text-xs text-[#8FA89F] hover:text-[#EEF2F0] h-[38px] px-3 border border-dashed border-[rgba(255,255,255,0.08)] rounded-lg hover:cursor-pointer"
+                  className="text-xs text-[#8FA89F] hover:text-[#EEF2F0] h-[38px] px-3 border border-dashed border-[rgba(255,255,255,0.08)] rounded-lg hover:cursor-pointer shrink-0"
                   onClick={() => setTemplateOpen(true)}
                 >
-                  <Download className="size-4 mr-1.5" /> Template
+                  <Download className="size-4 mr-1.5 shrink-0" />
+                  <span className="whitespace-nowrap">Template</span>
                 </Button>
               </>
             )}
             {(activeRole === "admin" || activeRole === "member") && (
-              <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
-                <Link to="/members/add"><Plus className="size-4 mr-1.5" /> Add member</Link>
+              <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer shrink-0">
+                <Link to="/members/add">
+                  <Plus className="size-4 mr-1.5 shrink-0" />
+                  <span className="whitespace-nowrap">Add member</span>
+                </Link>
               </Button>
             )}
           </div>
@@ -970,18 +981,20 @@ function MembersList() {
           <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg">
             <button
               type="button"
-              onClick={() => { setViewMode("list"); localStorage.setItem("clubapp-view-mode-members", "list"); }}
+              onClick={() => setViewMode("list")}
+              disabled={isMobile}
               className={cn(
-                "p-1.5 rounded-md transition-all cursor-pointer",
+                "p-1.5 rounded-md transition-all",
                 viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
               )}
-              title="Table view"
+              title={isMobile ? "Table view available on larger screens" : "Table view"}
             >
               <List className="size-4" />
             </button>
             <button
               type="button"
-              onClick={() => { setViewMode("grid"); localStorage.setItem("clubapp-view-mode-members", "grid"); }}
+              onClick={() => setViewMode("grid")}
               className={cn(
                 "p-1.5 rounded-md transition-all cursor-pointer",
                 viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",

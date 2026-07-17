@@ -399,7 +399,7 @@ function Invitations() {
         description="Enroll in released play sessions and training programs, and respond to invitations."
       />
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-2">

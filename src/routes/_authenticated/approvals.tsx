@@ -20,6 +20,7 @@ import { fmtDate, fmtMoney } from "@/lib/format";
 import type { MemberType, User } from "@/lib/types";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
+import { ResponsiveTable } from "@/components/ResponsiveTable";
 
 export const Route = createFileRoute("/_authenticated/approvals")({ component: Approvals });
 
@@ -108,16 +109,16 @@ function Approvals() {
       <PageHeader title="Approvals" description="Review and authorize pending registrations and credit additions." />
 
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-10">
+        <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
           <TabsTrigger
             value="users"
-            className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
+            className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all whitespace-nowrap"
           >
             Member Requests ({pendingU.length})
           </TabsTrigger>
           <TabsTrigger
             value="credits"
-            className="text-[13px] font-medium px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all"
+            className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all whitespace-nowrap"
           >
             Credit Requests ({pendingC.length})
           </TabsTrigger>
@@ -134,6 +135,58 @@ function Approvals() {
           ) : (
             <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
               <CardContent className="p-0">
+                <ResponsiveTable
+                  mobile={
+                    <div className="p-3 space-y-3">
+                      {pendingU.map((u) => (
+                        <div
+                          key={u.id}
+                          className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/50 p-4 space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-bold text-[#EEF2F0] text-[14px] truncate">
+                                {u.firstName} {u.lastName}
+                              </p>
+                              <p className="text-[12px] text-[#C4D4CF] truncate mt-0.5">{u.email}</p>
+                              <p className="text-[12px] text-[#8A8A98] font-mono mt-1">{u.mobile}</p>
+                            </div>
+                            <StatusBadge status={u.status} />
+                          </div>
+                          <p className="text-[11px] text-[#8A8A98]">Registered {fmtDate(u.createdAt)}</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              className="btn-premium-solid h-9 text-[11px] px-3 font-semibold cursor-pointer flex-1 min-w-[100px]"
+                              onClick={() => openApprove(u)}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={rejectingUserId === u.id}
+                              className="btn-premium-outline h-9 text-[11px] px-3 cursor-pointer flex-1 min-w-[100px]"
+                              onClick={async () => {
+                                setRejectingUserId(u.id);
+                                try {
+                                  await s.rejectUser(u.id);
+                                  toast.success(`${u.firstName} rejected`);
+                                } catch (error: any) {
+                                  toast.error(error.message || "Failed to reject user.");
+                                } finally {
+                                  setRejectingUserId(null);
+                                }
+                              }}
+                            >
+                              {rejectingUserId === u.id ? <BtnSpinner /> : "Reject"}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  }
+                  desktop={
                 <Table>
                   <TableHeader className="bg-[#0C0F0E]/60">
                     <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
@@ -194,6 +247,8 @@ function Approvals() {
                     ))}
                   </TableBody>
                 </Table>
+                  }
+                />
               </CardContent>
             </Card>
           )}
@@ -210,6 +265,73 @@ function Approvals() {
           ) : (
             <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
               <CardContent className="p-0">
+                <ResponsiveTable
+                  mobile={
+                    <div className="p-3 space-y-3">
+                      {pendingC.map((r) => {
+                        const m = s.members.find((x) => x.id === r.memberId);
+                        return (
+                          <div
+                            key={r.id}
+                            className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/50 p-4 space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-bold text-[#EEF2F0] text-[14px] truncate">
+                                  {m?.firstName} {m?.lastName}
+                                </p>
+                                <p className="static-financial-credit-text type-mono-value text-[14px] font-semibold mt-1">
+                                  {fmtMoney(r.amount)}
+                                </p>
+                                <p className="text-[11px] text-[#8A8A98] mt-1">{fmtDate(r.date)}</p>
+                              </div>
+                              <StatusBadge status={r.status} />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                disabled={approvingCreditId === r.id}
+                                className="btn-premium-solid h-9 text-[11px] px-3 font-semibold cursor-pointer flex-1 min-w-[100px]"
+                                onClick={async () => {
+                                  setApprovingCreditId(r.id);
+                                  try {
+                                    await s.approveCredit(r.id);
+                                    toast.success("Credit approved & balance updated");
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to approve credit request.");
+                                  } finally {
+                                    setApprovingCreditId(null);
+                                  }
+                                }}
+                              >
+                                {approvingCreditId === r.id ? <BtnSpinner /> : "Approve"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={rejectingCreditId === r.id}
+                                className="btn-premium-outline h-9 text-[11px] px-3 cursor-pointer flex-1 min-w-[100px]"
+                                onClick={async () => {
+                                  setRejectingCreditId(r.id);
+                                  try {
+                                    await s.rejectCredit(r.id);
+                                    toast.success("Credit request rejected");
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to reject credit request.");
+                                  } finally {
+                                    setRejectingCreditId(null);
+                                  }
+                                }}
+                              >
+                                {rejectingCreditId === r.id ? <BtnSpinner /> : "Reject"}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  }
+                  desktop={
                 <Table>
                   <TableHeader className="bg-[#0C0F0E]/60">
                     <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
@@ -282,6 +404,8 @@ function Approvals() {
                     })}
                   </TableBody>
                 </Table>
+                  }
+                />
               </CardContent>
             </Card>
           )}

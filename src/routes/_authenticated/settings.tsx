@@ -1163,7 +1163,7 @@ function SettingsPage() {
                   <p className="text-xs text-muted-foreground mt-1 font-light">Select your preferred color layout theme for the portal.</p>
                 </div>
                 <Select value={localTheme} onValueChange={(v) => handleThemeChange(v as "dark" | "light")}>
-                  <SelectTrigger className="w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
+                  <SelectTrigger className="w-full sm:w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -1180,7 +1180,7 @@ function SettingsPage() {
                   <p className="text-xs text-muted-foreground mt-1 font-light">Select your preferred branding colors for accents, buttons, and badges.</p>
                 </div>
                 <Select value={localColorTheme} onValueChange={(v) => handleColorThemeChange(v as any)}>
-                  <SelectTrigger className="w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
+                  <SelectTrigger className="w-full sm:w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">

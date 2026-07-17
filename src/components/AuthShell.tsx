@@ -16,7 +16,7 @@ export function AuthShell({
   const appName = useStore((s) => s.appName);
   const appLogoBase64 = useStore((s) => s.appLogoBase64);
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
+    <div className="min-h-dvh min-h-screen grid lg:grid-cols-2 bg-background">
       <div className="hidden lg:flex flex-col justify-between p-12 bg-[#0D1210] border-r border-[rgba(255,255,255,0.06)] relative overflow-hidden">
         {/* Background Image of Shuttlecock Banner */}
         <div 

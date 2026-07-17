@@ -131,7 +131,7 @@ function TrainingPage() {
                   Invitations sent
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 <Table>
                   <TableHeader className="bg-[#0C0F0E]/60">
                     <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">

@@ -235,9 +235,9 @@ function EmailTemplatesPage() {
         description="Customize the brand theme colors, typography, logos, and footer information for all outgoing emails."
       />
 
-      <div className="grid lg:grid-cols-5 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
         {/* Settings Panel */}
-        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top lg:col-span-2">
+        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top lg:col-span-2 order-1">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
             <CardTitle className="text-xs font-semibold tracking-wider text-[#34D399] uppercase flex items-center gap-1.5">
               <Palette className="size-4" /> Styling Options
@@ -249,7 +249,7 @@ function EmailTemplatesPage() {
           <CardContent className="pt-6">
             <form onSubmit={handleSave} className="space-y-5">
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="primaryColor" className="text-[10px] font-semibold text-[#8A8A98] uppercase tracking-wider">
                       Primary Accent
@@ -383,7 +383,7 @@ function EmailTemplatesPage() {
         </Card>
 
         {/* Live Preview Panel */}
-        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top lg:col-span-3 h-full flex flex-col">
+        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top lg:col-span-3 h-full flex flex-col order-2">
           <CardHeader className="pb-3 border-b border-white/[0.03] flex flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle className="text-xs font-semibold tracking-wider text-[#34D399] uppercase flex items-center gap-1.5">
