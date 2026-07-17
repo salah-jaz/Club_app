@@ -602,10 +602,23 @@ select:disabled {
   border-color: var(--border-subtle) !important;
 }
 
-/* Date input calendar icon color */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.6) !important;
+/* Date / datetime picker icon — visible on dark inputs */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator {
   cursor: pointer !important;
+  opacity: 1 !important;
+  filter: invert(0.35) !important;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator,
+.dark input[type="month"]::-webkit-calendar-picker-indicator,
+.dark input[type="week"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.9) !important;
 }
 
 /* Sidebar Custom Overrides for Premium Aesthetic */

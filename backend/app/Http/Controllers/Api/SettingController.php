@@ -53,7 +53,11 @@ class SettingController extends Controller
             'adultGrades'     => Grade::where('type', 'adult')->orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
             'juniorGrades'    => Grade::where('type', 'junior')->orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
             'holidays'        => Holiday::pluck('date')->toArray(),
-            'playerPositions' => PlayerPosition::pluck('name')->toArray(),
+            'playerPositions' => PlayerPosition::orderBy('name')->pluck('name')->toArray(),
+            'playerPositionItems' => PlayerPosition::orderBy('name')->get()->map(fn ($p) => [
+                'name' => $p->name,
+                'skipLeagueFee' => (bool) $p->skip_league_fee,
+            ])->values()->all(),
         ];
 
         foreach ($this->settingKeys as $camel => $snake) {
@@ -161,12 +165,50 @@ class SettingController extends Controller
             }
         }
 
-        if ($request->has('playerPositions')) {
-            $newPositions = $request->playerPositions ?? [];
+        if ($request->has('playerPositionItems')) {
+            $items = $request->playerPositionItems ?? [];
+            $names = [];
+            $now = now();
+            foreach ($items as $item) {
+                if (is_string($item)) {
+                    $name = trim($item);
+                    $skip = false;
+                } elseif (is_array($item)) {
+                    $name = trim((string) ($item['name'] ?? ''));
+                    $skip = filter_var($item['skipLeagueFee'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                } else {
+                    continue;
+                }
+                if ($name === '') {
+                    continue;
+                }
+                $names[] = $name;
+                $pos = PlayerPosition::firstOrNew(['name' => $name]);
+                $pos->skip_league_fee = $skip;
+                if (!$pos->exists) {
+                    $pos->created_at = $now;
+                }
+                $pos->updated_at = $now;
+                $pos->save();
+            }
+            if (!empty($names)) {
+                PlayerPosition::whereNotIn('name', $names)->delete();
+            } else {
+                PlayerPosition::query()->delete();
+            }
+        } elseif ($request->has('playerPositions')) {
+            // Legacy: name list only — preserve skip_league_fee for existing names
+            $newPositions = array_values(array_filter(
+                $request->playerPositions ?? [],
+                fn($p) => is_string($p) && $p !== ''
+            ));
             PlayerPosition::whereNotIn('name', $newPositions)->delete();
             $now = now();
             foreach ($newPositions as $pos) {
-                PlayerPosition::firstOrCreate(['name' => $pos], ['created_at' => $now, 'updated_at' => $now]);
+                PlayerPosition::firstOrCreate(
+                    ['name' => $pos],
+                    ['skip_league_fee' => false, 'created_at' => $now, 'updated_at' => $now]
+                );
             }
         }
 

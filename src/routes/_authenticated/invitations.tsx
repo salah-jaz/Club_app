@@ -226,13 +226,35 @@ function Invitations() {
     },
   ) => {
     const member = s.members.find((x) => x.id === i.memberId);
-    const estimatedFee = applyMemberFee(
-      playSessionBaseFee(sch.sessionRate),
-      member,
-      discountsFromStore(s),
-    );
+    const skipsLeagueFee = (() => {
+      if (!sch.isLeagueMatch || !sch.leagueGroupIds?.length) return false;
+      const skipNames = new Set(
+        (s.playerPositionItems ?? [])
+          .filter((p) => p.skipLeagueFee)
+          .map((p) => p.name),
+      );
+      if (skipNames.size === 0) return false;
+      for (const gid of sch.leagueGroupIds) {
+        const group = s.leagueGroups.find((g) => g.id === gid);
+        const pos = group?.memberPositions?.[i.memberId];
+        if (pos && skipNames.has(pos)) return true;
+      }
+      return false;
+    })();
+    const estimatedFee = skipsLeagueFee
+      ? 0
+      : applyMemberFee(
+          playSessionBaseFee(sch.sessionRate),
+          member,
+          discountsFromStore(s),
+        );
+    // League matches allow accept with low credit (balance may go negative). Non-league blocks.
     const hasInsufficientCredits =
-      member && !member.skipCreditConsumption && member.credit < estimatedFee;
+      !!member &&
+      !member.skipCreditConsumption &&
+      !skipsLeagueFee &&
+      !sch.isLeagueMatch &&
+      member.credit < estimatedFee;
 
     const responsesLocked =
       sch.status === "rotated" || sch.status === "published" || sch.status === "closed";

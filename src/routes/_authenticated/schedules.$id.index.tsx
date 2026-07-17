@@ -421,11 +421,30 @@ function SchedulePage() {
 
   const discounts = discountsFromStore(s);
 
+  const memberSkipsLeagueFee = (memberId: string) => {
+    if (!sch.isLeagueMatch || !sch.leagueGroupIds?.length) return false;
+    const skipNames = new Set(
+      (s.playerPositionItems ?? [])
+        .filter((p) => p.skipLeagueFee)
+        .map((p) => p.name),
+    );
+    if (skipNames.size === 0) return false;
+    for (const gid of sch.leagueGroupIds) {
+      const group = s.leagueGroups.find((g) => g.id === gid);
+      const pos = group?.memberPositions?.[memberId];
+      if (pos && skipNames.has(pos)) return true;
+    }
+    return false;
+  };
+
   const getMemberFee = (mid: string) => {
     if (typeof mid === "string" && mid.startsWith("guest_")) {
       return 0;
     }
     const m = s.members.find((x) => x.id === mid);
+    if (sch.isLeagueMatch && memberSkipsLeagueFee(mid)) {
+      return 0;
+    }
     const base = playSessionBaseFee(sch.sessionRate);
     return applyMemberFee(base, m, discounts);
   };

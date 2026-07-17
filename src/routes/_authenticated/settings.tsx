@@ -16,6 +16,7 @@ import {
   type ConfirmDeleteRequest,
 } from "@/components/ConfirmDeleteDialog";
 import { TIMEZONE_OPTIONS, resolveTimezone } from "@/lib/timezones";
+import type { PlayerPositionItem } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -211,7 +212,15 @@ function SettingsPage() {
     setJuniorGrades(store.juniorGrades);
   }, [store.juniorGrades]);
   const [holidays, setHolidays] = useState<string[]>(store.holidays);
-  const [playerPositions, setPlayerPositions] = useState<string[]>(store.playerPositions);
+  const [playerPositionItems, setPlayerPositionItems] = useState<PlayerPositionItem[]>(
+    store.playerPositionItems,
+  );
+
+  useEffect(() => {
+    setPlayerPositionItems(store.playerPositionItems);
+  }, [store.playerPositionItems]);
+
+  const playerPositions = playerPositionItems.map((p) => p.name);
 
   // States for SMTP Settings
   const [mailHost, setMailHost] = useState(store.mailHost || "");
@@ -407,11 +416,12 @@ function SettingsPage() {
     successLabel: string,
   ) => {
     const trimmed = editingValue.trim();
+    const original = editingOriginal;
     if (!trimmed) {
       toast.error("Name cannot be empty");
       return;
     }
-    if (trimmed === editingOriginal) {
+    if (trimmed === original) {
       cancelEditing();
       return;
     }
@@ -419,17 +429,25 @@ function SettingsPage() {
       toast.error(`${successLabel} already exists`);
       return;
     }
-    const updated = items.map((item) => (item === editingOriginal ? trimmed : item));
-    setItems(updated);
     cancelEditing();
+
+    if (list === "playerPositions") {
+      const updatedItems = playerPositionItems.map((p) =>
+        p.name === original ? { ...p, name: trimmed } : p,
+      );
+      setPlayerPositionItems(updatedItems);
+      await saveUpdatedList({ playerPositionItems: updatedItems }, `${successLabel} updated`);
+      return;
+    }
+
+    const updated = items.map((item) => (item === original ? trimmed : item));
+    setItems(updated);
     const payload =
       list === "locations"
         ? { locations: updated }
         : list === "adultGrades"
           ? { adultGrades: updated }
-          : list === "juniorGrades"
-            ? { juniorGrades: updated }
-            : { playerPositions: updated };
+          : { juniorGrades: updated };
     await saveUpdatedList(payload, `${successLabel} updated`);
   };
 
@@ -711,10 +729,18 @@ function SettingsPage() {
       toast.error("Position already exists");
       return;
     }
-    const updated = [...playerPositions, trimmed];
-    setPlayerPositions(updated);
+    const updated = [...playerPositionItems, { name: trimmed, skipLeagueFee: false }];
+    setPlayerPositionItems(updated);
     setNewPlayerPosition("");
-    saveUpdatedList({ playerPositions: updated }, "Player position added");
+    saveUpdatedList({ playerPositionItems: updated }, "Player position added");
+  };
+
+  const handleTogglePositionSkipLeagueFee = (posName: string, skipLeagueFee: boolean) => {
+    const updated = playerPositionItems.map((p) =>
+      p.name === posName ? { ...p, skipLeagueFee } : p,
+    );
+    setPlayerPositionItems(updated);
+    void saveUpdatedList({ playerPositionItems: updated }, "Position league fee setting updated");
   };
 
   const handleDeletePlayerPosition = (pos: string) => {
@@ -734,9 +760,9 @@ function SettingsPage() {
           toast.error("Cannot delete position while league groups still use it.");
           throw new Error("Position in use");
         }
-        const updated = playerPositions.filter((x) => x !== pos);
-        setPlayerPositions(updated);
-        saveUpdatedList({ playerPositions: updated }, "Player position removed");
+        const updated = playerPositionItems.filter((p) => p.name !== pos);
+        setPlayerPositionItems(updated);
+        saveUpdatedList({ playerPositionItems: updated }, "Player position removed");
       },
     });
   };
@@ -748,6 +774,7 @@ function SettingsPage() {
       juniorGrades?: string[];
       holidays?: string[];
       playerPositions?: string[];
+      playerPositionItems?: PlayerPositionItem[];
     },
     successMsg: string
   ) => {
@@ -761,7 +788,7 @@ function SettingsPage() {
       setAdultGrades(store.adultGrades);
       setJuniorGrades(store.juniorGrades);
       setHolidays(store.holidays);
-      setPlayerPositions(store.playerPositions);
+      setPlayerPositionItems(store.playerPositionItems);
     }
   };
 
@@ -1627,6 +1654,10 @@ function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
+                <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
+                  Enable <span className="text-[#EEF2F0]">Skip league fee</span> so members with that
+                  position are not charged for league match schedules.
+                </p>
                 <div className="flex gap-2 mb-4">
                   <Input
                     value={newPlayerPosition}
@@ -1643,22 +1674,48 @@ function SettingsPage() {
                     <Plus className="size-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
-                  {playerPositions.length === 0 ? (
+                <div className="flex-1 overflow-y-auto max-h-[280px] pr-1 space-y-1">
+                  {playerPositionItems.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">No player positions configured.</div>
                   ) : (
-                    playerPositions.map((pos) => (
-                      <EditableConfigRow
-                        key={pos}
-                        value={pos}
-                        isEditing={editingList === "playerPositions" && editingOriginal === pos}
-                        editValue={editingValue}
-                        onEditValueChange={setEditingValue}
-                        onStartEdit={() => startEditing("playerPositions", pos)}
-                        onSave={() => renameListItem("playerPositions", playerPositions, setPlayerPositions, "Player position")}
-                        onCancel={cancelEditing}
-                        onDelete={() => handleDeletePlayerPosition(pos)}
-                      />
+                    playerPositionItems.map((pos) => (
+                      <div key={pos.name} className="space-y-0">
+                        <EditableConfigRow
+                          value={pos.name}
+                          isEditing={editingList === "playerPositions" && editingOriginal === pos.name}
+                          editValue={editingValue}
+                          onEditValueChange={setEditingValue}
+                          onStartEdit={() => startEditing("playerPositions", pos.name)}
+                          onSave={() =>
+                            renameListItem(
+                              "playerPositions",
+                              playerPositions,
+                              () => {},
+                              "Player position",
+                            )
+                          }
+                          onCancel={cancelEditing}
+                          onDelete={() => handleDeletePlayerPosition(pos.name)}
+                        />
+                        {!editingList || editingOriginal !== pos.name ? (
+                          <div className="flex items-center justify-between gap-2 px-3 pb-2 -mt-0.5">
+                            <Label
+                              htmlFor={`skip-league-${pos.name}`}
+                              className="text-[10px] text-[#8A8A98] font-normal cursor-pointer"
+                            >
+                              Skip league fee
+                            </Label>
+                            <Switch
+                              id={`skip-league-${pos.name}`}
+                              checked={pos.skipLeagueFee}
+                              onCheckedChange={(checked) =>
+                                handleTogglePositionSkipLeagueFee(pos.name, checked)
+                              }
+                              className="scale-90 origin-right"
+                            />
+                          </div>
+                        ) : null}
+                      </div>
                     ))
                   )}
                 </div>

@@ -58,6 +58,11 @@ export interface Transaction {
   date: string;
 }
 
+export interface PlayerPositionItem {
+  name: string;
+  skipLeagueFee: boolean;
+}
+
 export interface LeagueGroup {
   id: string;
   name: string;

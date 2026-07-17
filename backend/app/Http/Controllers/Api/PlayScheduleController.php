@@ -7,11 +7,13 @@ use App\Models\PlaySchedule;
 use App\Models\PlayInvitation;
 use App\Models\Member;
 use App\Models\Grade;
+use App\Models\PlayerPosition;
 use App\Models\Rotation;
 use App\Models\Transaction;
 use App\Helpers\MailHelper;
 use App\Helpers\FeeHelper;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class PlayScheduleController extends Controller
@@ -159,7 +161,7 @@ class PlayScheduleController extends Controller
         // Get active adult league participants
         $eligible = Member::eligibleForPlay();
         if ($sch->is_league_match && !empty($sch->league_group_ids)) {
-            $memberIds = \DB::table('league_group_member')
+            $memberIds = DB::table('league_group_member')
                 ->whereIn('league_group_id', $sch->league_group_ids)
                 ->pluck('member_id')
                 ->toArray();
@@ -170,32 +172,58 @@ class PlayScheduleController extends Controller
         // Delete old invitations for this schedule (if any)
         PlayInvitation::where('schedule_id', $id)->delete();
 
-        // Create new invitations
+        $isLeague = (bool) $sch->is_league_match;
+        $capacity = max((int) $sch->players, 1);
+        $acceptedCount = 0;
+
+        // Create new invitations (league matches auto-accept up to capacity)
         $invites = [];
         foreach ($eligible as $member) {
+            $status = 'open';
+            $acceptedAt = null;
+            if ($isLeague) {
+                if ($acceptedCount < $capacity) {
+                    $status = 'accepted';
+                    $acceptedAt = now();
+                    $acceptedCount++;
+                } else {
+                    $status = 'waiting';
+                }
+            }
+
             $inv = PlayInvitation::create([
                 'id' => 'pi_' . Str::random(8),
                 'schedule_id' => $id,
                 'member_id' => $member->id,
-                'status' => 'open',
+                'status' => $status,
+                'accepted_at' => $acceptedAt,
             ]);
+
+            if ($status === 'accepted') {
+                $this->debitPlayInvite($sch, $inv);
+                $inv->refresh();
+            }
+
             $invites[] = [
                 'id' => $inv->id,
                 'scheduleId' => $inv->schedule_id,
                 'memberId' => $inv->member_id,
                 'status' => $inv->status,
-                'debited' => (bool)$inv->debited,
+                'debited' => (bool) $inv->debited,
+                'acceptedAt' => optional($inv->accepted_at)?->toISOString(),
             ];
 
             try {
-                MailHelper::sendScheduleNotification($member, $sch, 'open', 'release');
+                MailHelper::sendScheduleNotification($member, $sch, $inv->status, 'release');
             } catch (\Exception $e) {
                 logger()->error("Schedule release email failed for member {$member->id}: " . $e->getMessage());
             }
         }
 
         return response()->json([
-            'message' => 'Schedule released and invitations sent to ' . count($invites) . ' league participants.',
+            'message' => $isLeague
+                ? 'League schedule released; invitations auto-accepted for ' . $acceptedCount . ' players.'
+                : 'Schedule released and invitations sent to ' . count($invites) . ' participants.',
             'inviteCount' => count($invites),
             'schedule' => $this->formatSchedule($sch),
             'invitations' => $invites,
@@ -233,7 +261,7 @@ class PlayScheduleController extends Controller
         }
 
         if ($sch->is_league_match && !empty($sch->league_group_ids)) {
-            $groupMemberIds = \DB::table('league_group_member')
+            $groupMemberIds = DB::table('league_group_member')
                 ->whereIn('league_group_id', $sch->league_group_ids)
                 ->pluck('member_id')
                 ->all();
@@ -652,7 +680,9 @@ class PlayScheduleController extends Controller
             }
 
             $member = Member::find($invite->member_id);
-            if ($member && !$member->skip_credit_consumption) {
+            $skipsLeagueFee = $member && $this->memberSkipsLeagueFee($sch, $member->id);
+            // League matches: always allow accept (debit may go negative). Non-league: require credit.
+            if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
                 $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
                 if ($member->credit < $estimatedFee) {
                     return response()->json([
@@ -717,7 +747,13 @@ class PlayScheduleController extends Controller
 
                 if ($next) {
                     $nextMember = Member::find($next->member_id);
-                    if ($nextMember && !$nextMember->skip_credit_consumption) {
+                    // Non-league: require enough credit to promote. League: always promote (may go negative).
+                    if (
+                        $nextMember
+                        && !$nextMember->skip_credit_consumption
+                        && !$this->memberSkipsLeagueFee($sch, $nextMember->id)
+                        && !(bool) $sch->is_league_match
+                    ) {
                         $estimatedFee = FeeHelper::playSessionFee(
                             (float) $sch->session_rate,
                             0,
@@ -751,6 +787,8 @@ class PlayScheduleController extends Controller
 
     /**
      * Debit play session fee when a member accepts (idempotent via invite.debited).
+     * League matches: always debit (allow negative credit) unless position skips league fee.
+     * Non-league: skip debit when insufficient credit (rotate/cron safety).
      */
     private function debitPlayInvite(PlaySchedule $schedule, PlayInvitation $invite): void
     {
@@ -769,9 +807,17 @@ class PlayScheduleController extends Controller
             return;
         }
 
+        if ($this->memberSkipsLeagueFee($schedule, $member->id)) {
+            $invite->debited = true;
+            $invite->save();
+            return;
+        }
+
         $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
+        $isLeague = (bool) $schedule->is_league_match;
+
         if (!$member->skip_credit_consumption && $memberFee > 0) {
-            if ($member->credit < $memberFee) {
+            if (!$isLeague && $member->credit < $memberFee) {
                 return;
             }
             $member->credit -= $memberFee;
@@ -808,7 +854,7 @@ class PlayScheduleController extends Controller
         }
 
         $member = Member::find($invite->member_id);
-        if (!$member || $member->skip_credit_consumption) {
+        if (!$member || $member->skip_credit_consumption || $this->memberSkipsLeagueFee($schedule, $member->id)) {
             $invite->debited = false;
             $invite->save();
             return;
@@ -837,6 +883,35 @@ class PlayScheduleController extends Controller
 
         $invite->debited = false;
         $invite->save();
+    }
+
+    /**
+     * True when this is a league match and the member's position in a linked
+     * league group has skip_league_fee enabled.
+     */
+    private function memberSkipsLeagueFee(PlaySchedule $schedule, string $memberId): bool
+    {
+        if (!$schedule->is_league_match || empty($schedule->league_group_ids)) {
+            return false;
+        }
+
+        $positions = DB::table('league_group_member')
+            ->whereIn('league_group_id', $schedule->league_group_ids)
+            ->where('member_id', $memberId)
+            ->whereNotNull('position')
+            ->pluck('position')
+            ->unique()
+            ->filter()
+            ->values()
+            ->all();
+
+        if (empty($positions)) {
+            return false;
+        }
+
+        return PlayerPosition::whereIn('name', $positions)
+            ->where('skip_league_fee', true)
+            ->exists();
     }
 
     public function listRotations(Request $request)

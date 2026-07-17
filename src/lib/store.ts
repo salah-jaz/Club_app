@@ -11,6 +11,7 @@ import type {
   Transaction,
   User,
   LeagueGroup,
+  PlayerPositionItem,
 } from "./types";
 import { api } from "./api";
 
@@ -34,6 +35,7 @@ interface State {
   juniorGrades: string[];
   holidays: string[];
   playerPositions: string[];
+  playerPositionItems: PlayerPositionItem[];
   leagueGroups: LeagueGroup[];
   appName: string;
   appLogoText: string;
@@ -134,6 +136,7 @@ interface State {
     juniorGrades?: string[];
     holidays?: string[];
     playerPositions?: string[];
+    playerPositionItems?: PlayerPositionItem[];
     mailHost?: string;
     mailPort?: string;
     mailUsername?: string;
@@ -219,6 +222,7 @@ export const useStore = create<State>((set, get) => ({
   juniorGrades: [],
   holidays: [],
   playerPositions: [],
+  playerPositionItems: [],
   appName: "Connect App",
   appLogoText: "C",
   appLogoBase64: "/logo.png",
@@ -298,6 +302,7 @@ export const useStore = create<State>((set, get) => ({
           juniorGrades?: string[];
           holidays: string[];
           playerPositions: string[];
+          playerPositionItems?: PlayerPositionItem[];
           appName: string;
           appLogoText: string;
           appLogoBase64?: string | null;
@@ -353,6 +358,8 @@ export const useStore = create<State>((set, get) => ({
         juniorGrades: settings.juniorGrades || [],
         holidays: settings.holidays,
         playerPositions: settings.playerPositions || [],
+        playerPositionItems: settings.playerPositionItems ||
+          (settings.playerPositions || []).map((name) => ({ name, skipLeagueFee: false })),
         appName: settings.appName || "Connect App",
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || "/logo.png",
@@ -680,6 +687,7 @@ export const useStore = create<State>((set, get) => ({
       juniorGrades?: string[];
       holidays: string[];
       playerPositions: string[];
+      playerPositionItems?: PlayerPositionItem[];
       appName: string;
       appLogoText: string;
       appLogoBase64: string | null;
@@ -715,6 +723,8 @@ export const useStore = create<State>((set, get) => ({
       juniorGrades: updated.juniorGrades || [],
       holidays: updated.holidays,
       playerPositions: updated.playerPositions || [],
+      playerPositionItems: updated.playerPositionItems ||
+        (updated.playerPositions || []).map((name) => ({ name, skipLeagueFee: false })),
       appName: updated.appName,
       appLogoText: updated.appLogoText,
       appLogoBase64: updated.appLogoBase64,
