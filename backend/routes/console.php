@@ -68,4 +68,4 @@ Artisan::command('debit:cancellations', function () {
             $inv->save();
         }
     }
-})->purpose('Auto-debit play session fee when cancellation window starts')->everyMinute();
+})->purpose('Safety net: debit any accepted play invites that were not charged on accept')->everyMinute();

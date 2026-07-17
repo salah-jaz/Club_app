@@ -348,46 +348,15 @@ class PlayScheduleController extends Controller
             'rounds' => $rounds,
         ]);
 
-        $fee = $schedule->session_rate;
-        $feeRounded = round($fee, 2);
-
         foreach ($playerIds as $memberId) {
             if ($this->isGuestMemberId($memberId)) {
                 continue;
             }
 
             $invite = PlayInvitation::where('schedule_id', $id)->where('member_id', $memberId)->first();
-            if ($invite && $invite->debited) {
-                continue;
-            }
-
-            $member = Member::find($memberId);
-            if ($member) {
-                $memberFee = FeeHelper::forMember($feeRounded, $member);
-                if (!$member->skip_credit_consumption && $memberFee > 0) {
-                    $member->credit -= $memberFee;
-                    $member->save();
-     
-                    $transaction = Transaction::create([
-                        'id' => 't_' . Str::random(8),
-                        'member_id' => $memberId,
-                        'type' => 'debit',
-                        'amount' => $memberFee,
-                        'description' => "Play session: " . $schedule->name,
-                        'date' => now(),
-                    ]);
-
-                    try {
-                        MailHelper::sendTransactionEmail($member, $transaction);
-                    } catch (\Exception $e) {
-                        logger()->error("Transaction debit email failed for member {$memberId}: " . $e->getMessage());
-                    }
-                }
-            }
-
+            // Prefer debit-on-accept; only charge leftovers that somehow were not debited
             if ($invite) {
-                $invite->debited = true;
-                $invite->save();
+                $this->debitPlayInvite($schedule, $invite);
             }
         }
 
@@ -401,6 +370,95 @@ class PlayScheduleController extends Controller
                 'rounds' => $rounds
             ],
             'schedule' => $this->formatSchedule($schedule)
+        ]);
+    }
+
+    public function updateRotation(Request $request, $id)
+    {
+        $user = $request->user();
+        if (!$user || $user->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can edit court rotations.'], 403);
+        }
+
+        $schedule = PlaySchedule::findOrFail($id);
+        if (!in_array($schedule->status, ['rotated', 'published'], true)) {
+            return response()->json([
+                'message' => 'Court rotation can only be edited after it is generated (and before the session is closed).',
+            ], 422);
+        }
+
+        $request->validate([
+            'rounds' => 'required|array|min:1',
+            'rounds.*.round' => 'required|integer|min:1',
+            'rounds.*.courts' => 'required|array',
+            'rounds.*.courts.*.courtNo' => 'required|integer|min:1',
+            'rounds.*.courts.*.players' => 'present|array',
+            'rounds.*.courts.*.players.*' => 'nullable|string',
+            'rounds.*.resting' => 'present|array',
+            'rounds.*.resting.*' => 'nullable|string',
+        ]);
+
+        $rounds = [];
+        foreach ($request->rounds as $round) {
+            $courts = [];
+            foreach ($round['courts'] as $court) {
+                $players = array_values(array_filter(
+                    $court['players'] ?? [],
+                    fn($p) => is_string($p) && $p !== ''
+                ));
+                if (count($players) > 4) {
+                    return response()->json([
+                        'message' => 'Each court can have at most 4 players.',
+                    ], 422);
+                }
+                $courts[] = [
+                    'courtNo' => (int) $court['courtNo'],
+                    'players' => $players,
+                ];
+            }
+            $resting = array_values(array_filter(
+                $round['resting'] ?? [],
+                fn($p) => is_string($p) && $p !== ''
+            ));
+
+            // No duplicate players within a round
+            $all = [];
+            foreach ($courts as $c) {
+                foreach ($c['players'] as $p) {
+                    $all[] = $p;
+                }
+            }
+            foreach ($resting as $p) {
+                $all[] = $p;
+            }
+            if (count($all) !== count(array_unique($all))) {
+                return response()->json([
+                    'message' => 'Each player can appear only once per round.',
+                ], 422);
+            }
+
+            $rounds[] = [
+                'round' => (int) $round['round'],
+                'courts' => $courts,
+                'resting' => $resting,
+            ];
+        }
+
+        $rotation = Rotation::where('schedule_id', $id)->first();
+        if (!$rotation) {
+            return response()->json(['message' => 'No rotation found for this schedule.'], 404);
+        }
+
+        $rotation->rounds = $rounds;
+        $rotation->save();
+
+        return response()->json([
+            'message' => 'Court rotation updated.',
+            'rotation' => [
+                'scheduleId' => $id,
+                'rounds' => $rotation->rounds,
+            ],
+            'schedule' => $this->formatSchedule($schedule),
         ]);
     }
 
@@ -488,6 +546,7 @@ class PlayScheduleController extends Controller
                     'memberId' => $guestId,
                     'status' => 'accepted',
                     'debited' => true,
+                    'acceptedAt' => null,
                     'updatedAt' => optional($schedule->updated_at)?->toISOString(),
                     'createdAt' => optional($schedule->created_at)?->toISOString(),
                     'isGuest' => true,
@@ -508,6 +567,13 @@ class PlayScheduleController extends Controller
         $sch = PlaySchedule::findOrFail($invite->schedule_id);
         $desired = $request->status;
         $promoted = null;
+
+        // Once rotation is generated (or published/closed), members cannot change RSVP
+        if (in_array($sch->status, ['rotated', 'published', 'closed'], true)) {
+            return response()->json([
+                'message' => 'Court rotation is locked. Accept and decline are no longer available.',
+            ], 422);
+        }
 
         if ($desired === 'accepted') {
             if (!in_array($invite->status, ['open', 'declined'], true)) {
@@ -532,13 +598,44 @@ class PlayScheduleController extends Controller
             $capacity = max((int) $sch->players, 1);
 
             $invite->status = $acceptedCount < $capacity ? 'accepted' : 'waiting';
-            $invite->save();
+            if ($invite->status === 'accepted') {
+                $invite->accepted_at = now();
+                $invite->save();
+                // Charge session fee immediately on accept
+                $this->debitPlayInvite($sch, $invite);
+            } else {
+                $invite->accepted_at = null;
+                $invite->save();
+            }
         } else {
             // Decline / cancel → return to Yet to Accept (open)
             $previous = $invite->status;
             $wasAccepted = $previous === 'accepted';
 
+            if (!in_array($previous, ['accepted', 'waiting'], true)) {
+                return response()->json([
+                    'message' => 'This invitation cannot be declined in its current state.',
+                ], 422);
+            }
+
+            // Accepted players may cancel only within 24 hours of accepting
+            if ($wasAccepted) {
+                $acceptedAt = $invite->accepted_at ?? $invite->updated_at;
+                if ($acceptedAt && $acceptedAt->lt(now()->subHours(24))) {
+                    return response()->json([
+                        'message' => 'Decline is no longer available. The 24-hour window after accepting has ended.',
+                    ], 422);
+                }
+            }
+
+            // Refund if they were charged on accept
+            if ($wasAccepted) {
+                $this->refundPlayInvite($sch, $invite);
+            }
+
             $invite->status = 'open';
+            $invite->accepted_at = null;
+            $invite->debited = false;
             $invite->save();
 
             // Free seat in Accepted → promote earliest waiting member (first come) to end of Accepted
@@ -566,8 +663,10 @@ class PlayScheduleController extends Controller
 
                     if ($next) {
                         $next->status = 'accepted';
+                        $next->accepted_at = now();
                         $next->save();
-                        $promoted = $this->formatInvitation($next);
+                        $this->debitPlayInvite($sch, $next);
+                        $promoted = $this->formatInvitation($next->fresh());
                     }
                 }
             }
@@ -579,6 +678,96 @@ class PlayScheduleController extends Controller
         }
 
         return response()->json($payload);
+    }
+
+    /**
+     * Debit play session fee when a member accepts (idempotent via invite.debited).
+     */
+    private function debitPlayInvite(PlaySchedule $schedule, PlayInvitation $invite): void
+    {
+        $invite->refresh();
+        if ($invite->debited || $invite->status !== 'accepted') {
+            return;
+        }
+        if ($this->isGuestMemberId($invite->member_id)) {
+            $invite->debited = true;
+            $invite->save();
+            return;
+        }
+
+        $member = Member::find($invite->member_id);
+        if (!$member) {
+            return;
+        }
+
+        $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
+        if (!$member->skip_credit_consumption && $memberFee > 0) {
+            if ($member->credit < $memberFee) {
+                return;
+            }
+            $member->credit -= $memberFee;
+            $member->save();
+
+            $transaction = Transaction::create([
+                'id' => 't_' . Str::random(8),
+                'member_id' => $member->id,
+                'type' => 'debit',
+                'amount' => $memberFee,
+                'description' => 'Play session: ' . $schedule->name,
+                'date' => now(),
+            ]);
+
+            try {
+                MailHelper::sendTransactionEmail($member, $transaction);
+            } catch (\Exception $e) {
+                logger()->error("Transaction debit email failed for member {$member->id}: " . $e->getMessage());
+            }
+        }
+
+        $invite->debited = true;
+        $invite->save();
+    }
+
+    /**
+     * Refund play session fee when a member cancels within the allowed window.
+     */
+    private function refundPlayInvite(PlaySchedule $schedule, PlayInvitation $invite): void
+    {
+        $invite->refresh();
+        if (!$invite->debited || $this->isGuestMemberId($invite->member_id)) {
+            return;
+        }
+
+        $member = Member::find($invite->member_id);
+        if (!$member || $member->skip_credit_consumption) {
+            $invite->debited = false;
+            $invite->save();
+            return;
+        }
+
+        $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
+        if ($memberFee > 0) {
+            $member->credit += $memberFee;
+            $member->save();
+
+            $transaction = Transaction::create([
+                'id' => 't_' . Str::random(8),
+                'member_id' => $member->id,
+                'type' => 'credit',
+                'amount' => $memberFee,
+                'description' => 'Refund — cancelled play session: ' . $schedule->name,
+                'date' => now(),
+            ]);
+
+            try {
+                MailHelper::sendTransactionEmail($member, $transaction);
+            } catch (\Exception $e) {
+                logger()->error("Transaction refund email failed for member {$member->id}: " . $e->getMessage());
+            }
+        }
+
+        $invite->debited = false;
+        $invite->save();
     }
 
     public function listRotations(Request $request)
@@ -636,6 +825,7 @@ class PlayScheduleController extends Controller
             'memberId' => $i->member_id,
             'status' => $i->status,
             'debited' => (bool) $i->debited,
+            'acceptedAt' => optional($i->accepted_at)?->toISOString(),
             'updatedAt' => optional($i->updated_at)?->toISOString(),
             'createdAt' => optional($i->created_at)?->toISOString(),
             'isGuest' => $this->isGuestMemberId($i->member_id),

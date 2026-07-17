@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/schedules/{id}/close', [PlayScheduleController::class, 'close']);
     Route::post('/schedules/{id}/rotate', [PlayScheduleController::class, 'rotate']);
     Route::post('/schedules/{id}/publish', [PlayScheduleController::class, 'publish']);
+    Route::patch('/schedules/{id}/rotation', [PlayScheduleController::class, 'updateRotation']);
     Route::post('/schedules/{id}/enroll', [PlayScheduleController::class, 'enroll']);
     
     // Play Invitations

@@ -33,6 +33,7 @@ class SettingController extends Controller
         'emailFooterText' => 'email_footer_text',
         'cancellationLockHours' => 'cancellation_lock_hours',
         'debitTimingHours' => 'debit_timing_hours',
+        'showGradeInCourtRotation' => 'show_grade_in_court_rotation',
         'adultDiscountPercent' => 'adult_discount_percent',
         'adultDiscountAmount' => 'adult_discount_amount',
         'adultDiscountMode' => 'adult_discount_mode',
@@ -58,6 +59,8 @@ class SettingController extends Controller
         foreach ($this->settingKeys as $camel => $snake) {
             $val = $dbSettings->get($snake);
             if ($camel === 'skipCreditConsumption') {
+                $data[$camel] = $val === 'true';
+            } else if ($camel === 'showGradeInCourtRotation') {
                 $data[$camel] = $val === 'true';
             } else if ($camel === 'cancellationLockHours' || $camel === 'debitTimingHours') {
                 $data[$camel] = $val !== null ? (int)$val : null;
@@ -96,8 +99,8 @@ class SettingController extends Controller
         foreach ($this->settingKeys as $camel => $snake) {
             if ($request->has($camel)) {
                 $val = $request->input($camel);
-                if ($camel === 'skipCreditConsumption') {
-                    $val = $val ? 'true' : 'false';
+                if ($camel === 'skipCreditConsumption' || $camel === 'showGradeInCourtRotation') {
+                    $val = filter_var($val, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
                 }
                 if (in_array($camel, ['adultDiscountMode', 'juniorDiscountMode'], true)) {
                     $val = $val === 'amount' ? 'amount' : 'percent';

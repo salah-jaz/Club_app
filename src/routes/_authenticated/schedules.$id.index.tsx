@@ -1,17 +1,22 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useStore } from "@/lib/store";
+import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
-import { CourtRotationView, getCourtTimeRange } from "@/components/CourtRotationView";
+import {
+  CourtRotationView,
+  cloneRounds,
+  getCourtTimeRange,
+  stripEmptySlots,
+} from "@/components/CourtRotationView";
 import { fmtDateTime } from "@/lib/format";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { toast } from "sonner";
-import { Download, FileSpreadsheet, FileText, Shuffle, Send } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Pencil, Shuffle, Send, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PlayInvitation, PlaySchedule, Rotation } from "@/lib/types";
+import type { PlayInvitation, PlaySchedule, Rotation, RotationRound } from "@/lib/types";
 import { jsPDF } from "jspdf";
 import {
   DropdownMenu,
@@ -336,14 +341,48 @@ async function downloadRotationPdf(
 
 function SchedulePage() {
   const { id } = Route.useParams();
+  const user = useCurrentUser()!;
   const s = useStore();
   const sch = s.schedules.find((x) => x.id === id);
   const invs = s.playInvites.filter((i) => i.scheduleId === id);
   const rot = s.rotations.find((r) => r.scheduleId === id);
   const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false);
   const [rotating, setRotating] = useState(false);
+  const [editingRotation, setEditingRotation] = useState(false);
+  const [draftRounds, setDraftRounds] = useState<RotationRound[] | null>(null);
+  const [savingRotation, setSavingRotation] = useState(false);
 
   if (!sch) return <Navigate to="/schedules" />;
+
+  const isAdmin = user.role === "admin";
+  const canEditRotation =
+    isAdmin && !!rot && (sch.status === "rotated" || sch.status === "published");
+
+  const startEditRotation = () => {
+    if (!rot) return;
+    setDraftRounds(cloneRounds(rot.rounds));
+    setEditingRotation(true);
+  };
+
+  const cancelEditRotation = () => {
+    setEditingRotation(false);
+    setDraftRounds(null);
+  };
+
+  const saveEditRotation = async () => {
+    if (!draftRounds) return;
+    setSavingRotation(true);
+    try {
+      await s.updateRotation(sch.id, stripEmptySlots(draftRounds));
+      toast.success("Court rotation updated");
+      setEditingRotation(false);
+      setDraftRounds(null);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to save rotation.");
+    } finally {
+      setSavingRotation(false);
+    }
+  };
 
   const memberName = (mid: string) => {
     if (typeof mid === "string" && mid.startsWith("guest_")) {
@@ -351,6 +390,11 @@ function SchedulePage() {
     }
     const m = s.members.find((x) => x.id === mid);
     return m ? `${m.firstName} ${m.lastName}` : "?";
+  };
+
+  const memberGrade = (mid: string) => {
+    if (typeof mid === "string" && mid.startsWith("guest_")) return undefined;
+    return s.members.find((x) => x.id === mid)?.grade || undefined;
   };
 
   const grouped = {
@@ -556,7 +600,7 @@ function SchedulePage() {
       {rot && (
         <div className="space-y-6">
           <div className="signature-divider !h-[1px] my-6" />
-          <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
             <div>
               <span className="text-[11px] font-medium tracking-[0.14em] text-[#34D399] uppercase">
                 COURT ROTATIONS & MATCHUPS
@@ -572,59 +616,107 @@ function SchedulePage() {
                 </p>
               )}
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <div className="flex items-center gap-2 flex-wrap">
+              {canEditRotation && !editingRotation && (
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   className="btn-premium-outline h-8 px-3 text-xs cursor-pointer"
+                  onClick={startEditRotation}
                 >
-                  <Download className="size-3.5 mr-1.5" />
-                  Export
+                  <Pencil className="size-3.5 mr-1.5" />
+                  Edit rotation
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]"
-              >
-                <DropdownMenuItem
-                  className="cursor-pointer text-xs focus:bg-white/5"
-                  onClick={() => {
-                    downloadTextFile(
-                      `${scheduleExportSlug(sch.name)}_court_rotation.csv`,
-                      buildRotationCsv(sch, rot, memberName),
-                      "text/csv;charset=utf-8",
-                    );
-                    toast.success("CSV downloaded");
-                  }}
-                >
-                  <FileSpreadsheet className="size-3.5 mr-2" />
-                  Download CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="cursor-pointer text-xs focus:bg-white/5"
-                  onClick={async () => {
-                    try {
-                      await downloadRotationPdf(sch, rot, memberName, {
-                        appName: s.appName,
-                        appLogoText: s.appLogoText,
-                        appLogoBase64: s.appLogoBase64,
-                      });
-                      toast.success("PDF downloaded");
-                    } catch (error: unknown) {
-                      toast.error(
-                        error instanceof Error ? error.message : "Failed to create PDF.",
-                      );
-                    }
-                  }}
-                >
-                  <FileText className="size-3.5 mr-2" />
-                  Download PDF
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              )}
+              {editingRotation && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="btn-premium-outline h-8 px-3 text-xs cursor-pointer"
+                    onClick={cancelEditRotation}
+                    disabled={savingRotation}
+                  >
+                    <X className="size-3.5 mr-1.5" />
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="btn-premium-solid h-8 px-3 text-xs cursor-pointer"
+                    onClick={() => void saveEditRotation()}
+                    disabled={savingRotation}
+                  >
+                    {savingRotation ? "Saving…" : "Save changes"}
+                  </Button>
+                </>
+              )}
+              {!editingRotation && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="btn-premium-outline h-8 px-3 text-xs cursor-pointer"
+                    >
+                      <Download className="size-3.5 mr-1.5" />
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]"
+                  >
+                    <DropdownMenuItem
+                      className="cursor-pointer text-xs focus:bg-white/5"
+                      onClick={() => {
+                        downloadTextFile(
+                          `${scheduleExportSlug(sch.name)}_court_rotation.csv`,
+                          buildRotationCsv(sch, rot, memberName),
+                          "text/csv;charset=utf-8",
+                        );
+                        toast.success("CSV downloaded");
+                      }}
+                    >
+                      <FileSpreadsheet className="size-3.5 mr-2" />
+                      Download CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="cursor-pointer text-xs focus:bg-white/5"
+                      onClick={async () => {
+                        try {
+                          await downloadRotationPdf(sch, rot, memberName, {
+                            appName: s.appName,
+                            appLogoText: s.appLogoText,
+                            appLogoBase64: s.appLogoBase64,
+                          });
+                          toast.success("PDF downloaded");
+                        } catch (error: unknown) {
+                          toast.error(
+                            error instanceof Error ? error.message : "Failed to create PDF.",
+                          );
+                        }
+                      }}
+                    >
+                      <FileText className="size-3.5 mr-2" />
+                      Download PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
-          <CourtRotationView schedule={sch} rotation={rot} memberName={memberName} />
+          <CourtRotationView
+            schedule={sch}
+            rotation={rot}
+            memberName={memberName}
+            memberGrade={memberGrade}
+            editing={editingRotation}
+            draftRounds={draftRounds ?? undefined}
+            onDraftRoundsChange={setDraftRounds}
+          />
         </div>
       )}
     </div>

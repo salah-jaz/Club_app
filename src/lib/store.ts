@@ -55,6 +55,8 @@ interface State {
   skipCreditConsumption: boolean;
   cancellationLockHours: number;
   debitTimingHours: number;
+  /** When true, court rotation chips show member grade (admin + members). */
+  showGradeInCourtRotation: boolean;
   adultDiscountPercent: number;
   adultDiscountAmount: number;
   adultDiscountMode: "percent" | "amount";
@@ -108,6 +110,7 @@ interface State {
   respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<PlayInvitation>;
   enrollPlay: (scheduleId: string, memberIds: string[]) => Promise<void>;
   generateRotation: (scheduleId: string) => Promise<void>;
+  updateRotation: (scheduleId: string, rounds: Rotation["rounds"]) => Promise<void>;
 
   // trainings
   createTraining: (t: Omit<Training, "id" | "status">) => Promise<void>;
@@ -145,6 +148,7 @@ interface State {
     skipCreditConsumption?: boolean;
     cancellationLockHours?: number;
     debitTimingHours?: number;
+    showGradeInCourtRotation?: boolean;
     adultDiscountPercent?: number;
     adultDiscountAmount?: number;
     adultDiscountMode?: "percent" | "amount";
@@ -234,6 +238,7 @@ export const useStore = create<State>((set, get) => ({
   skipCreditConsumption: false,
   cancellationLockHours: 24,
   debitTimingHours: 24,
+  showGradeInCourtRotation: false,
   adultDiscountPercent: 0,
   adultDiscountAmount: 0,
   adultDiscountMode: "percent",
@@ -312,6 +317,7 @@ export const useStore = create<State>((set, get) => ({
           skipCreditConsumption?: boolean;
           cancellationLockHours?: number;
           debitTimingHours?: number;
+          showGradeInCourtRotation?: boolean;
           adultDiscountPercent?: number;
           adultDiscountAmount?: number;
           adultDiscountMode?: "percent" | "amount";
@@ -366,6 +372,7 @@ export const useStore = create<State>((set, get) => ({
         skipCreditConsumption: settings.skipCreditConsumption ?? false,
         cancellationLockHours: settings.cancellationLockHours ?? 24,
         debitTimingHours: settings.debitTimingHours ?? 24,
+        showGradeInCourtRotation: settings.showGradeInCourtRotation ?? false,
         adultDiscountPercent: settings.adultDiscountPercent ?? 0,
         adultDiscountAmount: settings.adultDiscountAmount ?? 0,
         adultDiscountMode:
@@ -565,10 +572,10 @@ export const useStore = create<State>((set, get) => ({
       }),
     }));
 
-    // Refresh invitations so accepted counts / waiting list stay accurate
-    const playInvites = await api.get<PlayInvitation[]>("/play-invitations");
-    set({ playInvites });
+    // Refresh invites + member balances / transactions (fee debited or refunded on accept/cancel)
+    await get().syncData();
 
+    const playInvites = get().playInvites;
     return playInvites.find((i) => i.id === inviteId) ?? updated;
   },
 
@@ -593,6 +600,14 @@ export const useStore = create<State>((set, get) => ({
   generateRotation: async (scheduleId) => {
     await api.post<{ schedule: PlaySchedule; rotation: Rotation }>(
       `/schedules/${scheduleId}/rotate`
+    );
+    await get().syncData();
+  },
+
+  updateRotation: async (scheduleId, rounds) => {
+    await api.patch<{ schedule: PlaySchedule; rotation: Rotation }>(
+      `/schedules/${scheduleId}/rotation`,
+      { rounds },
     );
     await get().syncData();
   },
@@ -677,6 +692,7 @@ export const useStore = create<State>((set, get) => ({
       skipCreditConsumption: boolean;
       cancellationLockHours: number;
       debitTimingHours: number;
+      showGradeInCourtRotation: boolean;
       adultDiscountPercent: number;
       adultDiscountAmount: number;
       adultDiscountMode: "percent" | "amount";
@@ -711,6 +727,7 @@ export const useStore = create<State>((set, get) => ({
       skipCreditConsumption: updated.skipCreditConsumption,
       cancellationLockHours: updated.cancellationLockHours,
       debitTimingHours: updated.debitTimingHours,
+      showGradeInCourtRotation: updated.showGradeInCourtRotation ?? false,
       adultDiscountPercent: updated.adultDiscountPercent ?? 0,
       adultDiscountAmount: updated.adultDiscountAmount ?? 0,
       adultDiscountMode:

@@ -89,6 +89,8 @@ export interface PlayInvitation {
   memberId: string;
   status: InviteStatus;
   debited?: boolean;
+  /** When the member accepted (ISO). Used for the 24h decline window. */
+  acceptedAt?: string | null;
   updatedAt?: string;
   createdAt?: string;
   isGuest?: boolean;
