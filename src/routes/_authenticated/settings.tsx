@@ -166,7 +166,6 @@ function SettingsPage() {
     setCurrency(store.currency);
   }, [store.currency]);
   const [cancellationLockHours, setCancellationLockHours] = useState(store.cancellationLockHours);
-  const [debitTimingHours, setDebitTimingHours] = useState(store.debitTimingHours);
   const [adultDiscountPercent, setAdultDiscountPercent] = useState(store.adultDiscountPercent);
   const [adultDiscountAmount, setAdultDiscountAmount] = useState(store.adultDiscountAmount);
   const [adultDiscountMode, setAdultDiscountMode] = useState<"percent" | "amount">(
@@ -181,10 +180,6 @@ function SettingsPage() {
   useEffect(() => {
     setCancellationLockHours(store.cancellationLockHours);
   }, [store.cancellationLockHours]);
-
-  useEffect(() => {
-    setDebitTimingHours(store.debitTimingHours);
-  }, [store.debitTimingHours]);
 
   useEffect(() => {
     setAdultDiscountPercent(store.adultDiscountPercent);
@@ -550,7 +545,6 @@ function SettingsPage() {
         timezone,
         skipCreditConsumption,
         cancellationLockHours,
-        debitTimingHours,
       });
       toast.success("Branding settings saved successfully");
     } catch (err: any) {
@@ -939,7 +933,7 @@ function SettingsPage() {
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4 border-t border-white/[0.03] pt-4 mt-4">
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 sm:col-span-2 sm:max-w-md">
                     <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                       Cancellation Lock Window (Hours)
                     </Label>
@@ -952,21 +946,6 @@ function SettingsPage() {
                     />
                     <p className="text-[10px] text-muted-foreground/60 font-light">
                       Hours before the match starts when users are blocked from cancelling accepted invitations.
-                    </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                      Auto-Debit Timing (Hours)
-                    </Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={debitTimingHours}
-                      onChange={(e) => setDebitTimingHours(Number(e.target.value))}
-                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
-                    />
-                    <p className="text-[10px] text-muted-foreground/60 font-light">
-                      Hours before the match starts when accepted users are automatically debited.
                     </p>
                   </div>
                 </div>
