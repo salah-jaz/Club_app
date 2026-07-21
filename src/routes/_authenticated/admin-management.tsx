@@ -55,9 +55,10 @@ function PermissionMatrix({
   const grouped = useMemo(() => {
     const map = new Map<string, Permission[]>();
     for (const p of allPermissions) {
-      const arr = map.get(p.module) || [];
+      const moduleKey = p.module ?? "other";
+      const arr = map.get(moduleKey) || [];
       arr.push(p);
-      map.set(p.module, arr);
+      map.set(moduleKey, arr);
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [allPermissions]);
@@ -137,7 +138,7 @@ function PermissionMatrix({
                       className="border-[rgba(255,255,255,0.15)] data-[state=checked]:bg-[#10B981] data-[state=checked]:border-[#10B981]"
                     />
                     <span className="text-[11px] text-[#C4D4CF] group-hover:text-[#F1F0EE] transition-colors capitalize">
-                      {p.action.replace(/_/g, " ")}
+                      {(p.action ?? p.label ?? p.id).replace(/_/g, " ")}
                     </span>
                   </label>
                 ))}
@@ -501,8 +502,6 @@ function ResetPasswordDialog({
 
 function AdminManagement() {
   const user = useCurrentUser()!;
-  if (user.role !== "admin") return <Navigate to="/dashboard" />;
-
   const s = useStore();
   const { adminRoles, allPermissions, adminUsers } = s;
 
@@ -565,6 +564,8 @@ function AdminManagement() {
     return m;
   }, [adminRoles]);
 
+  if (user.role !== "admin") return <Navigate to="/dashboard" />;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -573,17 +574,23 @@ function AdminManagement() {
       />
 
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="bg-[#0C0F0E] border border-white/[0.06] rounded-lg p-1 h-auto">
-          <TabsTrigger value="users" className="text-xs data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#34D399] cursor-pointer rounded-md px-4 py-1.5">
+        <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
+          <TabsTrigger
+            value="users"
+            className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all whitespace-nowrap"
+          >
             Admin Users ({adminUsers.length})
           </TabsTrigger>
-          <TabsTrigger value="roles" className="text-xs data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#34D399] cursor-pointer rounded-md px-4 py-1.5">
+          <TabsTrigger
+            value="roles"
+            className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all whitespace-nowrap"
+          >
             Roles ({adminRoles.length})
           </TabsTrigger>
         </TabsList>
 
         {/* ── Admin Users Tab ── */}
-        <TabsContent value="users" className="mt-5">
+        <TabsContent value="users" className="focus-visible:outline-none">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[13px] font-semibold text-[#F1F0EE]">Admin Accounts</h2>
             <Button size="sm" className="btn-premium-solid h-8 px-3 text-xs cursor-pointer" onClick={openCreateUser}>
@@ -685,7 +692,7 @@ function AdminManagement() {
         </TabsContent>
 
         {/* ── Roles Tab ── */}
-        <TabsContent value="roles" className="mt-5">
+        <TabsContent value="roles" className="focus-visible:outline-none">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[13px] font-semibold text-[#F1F0EE]">Admin Roles</h2>
             <Button size="sm" className="btn-premium-solid h-8 px-3 text-xs cursor-pointer" onClick={openCreateRole}>

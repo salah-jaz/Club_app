@@ -862,8 +862,10 @@ export const useStore = create<State>((set, get) => ({
 
   fetchAllPermissions: async () => {
     try {
-      const grouped = await api.get<Record<string, Permission[]>>("/admin-roles/permissions");
-      const flat = Object.values(grouped).flat();
+      const grouped = await api.get<Record<string, Omit<Permission, "module">[]>>("/admin-roles/permissions");
+      const flat: Permission[] = Object.entries(grouped).flatMap(([module, perms]) =>
+        perms.map((p) => ({ ...p, module }))
+      );
       set({ allPermissions: flat });
     } catch { /* non-admin */ }
   },
