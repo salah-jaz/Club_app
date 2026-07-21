@@ -64,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/schedules/{id}/publish', [PlayScheduleController::class, 'publish']);
     Route::post('/schedules/{id}/revert-rotation', [PlayScheduleController::class, 'revertRotation']);
     Route::patch('/schedules/{id}/rotation', [PlayScheduleController::class, 'updateRotation']);
+    Route::patch('/schedules/{id}/rotation/show-grades', [PlayScheduleController::class, 'updateRotationShowGrades']);
     Route::post('/schedules/{id}/enroll', [PlayScheduleController::class, 'enroll']);
     
     // Play Invitations

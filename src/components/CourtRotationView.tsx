@@ -178,6 +178,7 @@ export function CourtRotationView({
   editing = false,
   draftRounds,
   onDraftRoundsChange,
+  isAdmin = false,
 }: {
   schedule: PlaySchedule;
   rotation: Rotation;
@@ -189,9 +190,13 @@ export function CourtRotationView({
   editing?: boolean;
   draftRounds?: RotationRound[];
   onDraftRoundsChange?: (rounds: RotationRound[]) => void;
+  /** Only admins see the show-grades toggle */
+  isAdmin?: boolean;
 }) {
-  const showGrade = useStore((s) => s.showGradeInCourtRotation);
-  const updateSettings = useStore((s) => s.updateSettings);
+  const updateRotationShowGrades = useStore((s) => s.updateRotationShowGrades);
+  const showGrade = !!rotation.showMemberGrades;
+  // Editable only before publish (status === "rotated")
+  const canChangeShowGrade = isAdmin && schedule.status === "rotated";
   const [savingGradePref, setSavingGradePref] = useState(false);
 
   const rounds = useMemo(
@@ -207,9 +212,10 @@ export function CourtRotationView({
   };
 
   const onToggleShowGrade = async (checked: boolean) => {
+    if (!canChangeShowGrade) return;
     setSavingGradePref(true);
     try {
-      await updateSettings({ showGradeInCourtRotation: checked });
+      await updateRotationShowGrades(schedule.id, checked);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to update preference.");
     } finally {
@@ -340,23 +346,38 @@ export function CourtRotationView({
 
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E]/70 px-3 py-2">
-          <Switch
-            id="show-grade-court-rotation"
-            checked={showGrade}
-            disabled={savingGradePref}
-            onCheckedChange={(v) => void onToggleShowGrade(v)}
-            className="data-[state=checked]:bg-[#10B981]"
-          />
-          <Label
-            htmlFor="show-grade-court-rotation"
-            className="text-[12px] text-[#C4D4CF] font-medium cursor-pointer"
+      {isAdmin && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E]/70 px-3 py-2",
+              !canChangeShowGrade && "opacity-70",
+            )}
+            title={
+              canChangeShowGrade
+                ? undefined
+                : "Grade visibility is locked after the rotation is published."
+            }
           >
-            Show member grades
-          </Label>
+            <Switch
+              id="show-grade-court-rotation"
+              checked={showGrade}
+              disabled={!canChangeShowGrade || savingGradePref}
+              onCheckedChange={(v) => void onToggleShowGrade(v)}
+              className="data-[state=checked]:bg-[#10B981]"
+            />
+            <Label
+              htmlFor="show-grade-court-rotation"
+              className={cn(
+                "text-[12px] text-[#C4D4CF] font-medium",
+                canChangeShowGrade ? "cursor-pointer" : "cursor-default",
+              )}
+            >
+              Show member grades
+            </Label>
+          </div>
         </div>
-      </div>
+      )}
       {editing && (
         <p className="text-[12px] text-[#8FA89F] bg-[#0C0F0E]/60 border border-white/[0.06] rounded-lg px-3 py-2">
           Drag players between court slots and resting. Drop onto another player to swap.

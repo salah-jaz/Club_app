@@ -34,6 +34,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  ConfirmActionDialog,
+  type ConfirmActionRequest,
+} from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/_authenticated/schedules/$id/")({ component: SchedulePage });
 
@@ -353,6 +357,7 @@ function SchedulePage() {
   const [savingRotation, setSavingRotation] = useState(false);
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
   const [reverting, setReverting] = useState(false);
+  const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
 
   if (!sch) return <Navigate to="/schedules" />;
 
@@ -459,8 +464,9 @@ function SchedulePage() {
           : "Rotation generated & fees deducted",
       );
       setRotateConfirmOpen(false);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to generate rotation.");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to generate rotation.");
+      throw error;
     } finally {
       setRotating(false);
     }
@@ -471,7 +477,78 @@ function SchedulePage() {
       setRotateConfirmOpen(true);
       return;
     }
-    void runGenerateRotation();
+    setActionRequest({
+      title: "Generate court rotation?",
+      description: (
+        <>
+          <span className="block">
+            Generate court rotations for <strong className="text-[#F1F0EE]">“{sch.name}”</strong>?
+          </span>
+          <span className="block text-[#8A8A98]">
+            {realAccepted.length} accepted player{realAccepted.length === 1 ? "" : "s"} will be
+            assigned to courts. After this, members can no longer accept or decline.
+          </span>
+        </>
+      ),
+      confirmLabel: "Generate rotation",
+      onConfirm: async () => {
+        await runGenerateRotation();
+      },
+    });
+  };
+
+  const requestPublish = () => {
+    setActionRequest({
+      title: "Publish court rotation?",
+      description: (
+        <>
+          <span className="block">
+            Publish court assignments for <strong className="text-[#F1F0EE]">“{sch.name}”</strong> to
+            members?
+          </span>
+          <span className="block text-[#8A8A98]">
+            Members will be able to view court details from My Invitations.
+          </span>
+        </>
+      ),
+      confirmLabel: "Publish to members",
+      onConfirm: async () => {
+        try {
+          await s.publishSchedule(sch.id);
+          toast.success("Court rotation published to members");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to publish rotation.");
+          throw error;
+        }
+      },
+    });
+  };
+
+  const requestClose = () => {
+    setActionRequest({
+      title: "Close session?",
+      description: (
+        <>
+          <span className="block">
+            Close <strong className="text-[#F1F0EE]">“{sch.name}”</strong>?
+          </span>
+          <span className="block text-[#8A8A98]">
+            The session will be marked closed. This cannot be undone from the list.
+          </span>
+        </>
+      ),
+      confirmLabel: "Close session",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await s.closeSchedule(sch.id);
+          toast.success("Schedule closed");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to close schedule.");
+          throw error;
+        }
+      },
+    });
   };
 
   const canRevertRotation =
@@ -564,6 +641,11 @@ function SchedulePage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <ConfirmActionDialog
+        request={actionRequest}
+        onOpenChange={(open) => !open && setActionRequest(null)}
+      />
+
       <PageHeader
         title={sch.name}
         description={`${fmtDateTime(sch.date)} · ${sch.location} · Session Rate: $${sch.sessionRate.toFixed(2)} · Capacity: ${sch.players} players`}
@@ -588,14 +670,7 @@ function SchedulePage() {
             {sch.status === "rotated" && rot && (
               <Button
                 className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer w-full sm:w-auto"
-                onClick={async () => {
-                  try {
-                    await s.publishSchedule(sch.id);
-                    toast.success("Court rotation published to members");
-                  } catch (error: any) {
-                    toast.error(error.message || "Failed to publish rotation.");
-                  }
-                }}
+                onClick={requestPublish}
               >
                 <Send className="size-3.5 mr-1" /> Publish to members
               </Button>
@@ -604,14 +679,7 @@ function SchedulePage() {
               <Button
                 variant="outline"
                 className="btn-premium-outline h-9 px-4 text-xs cursor-pointer w-full sm:w-auto"
-                onClick={async () => {
-                  try {
-                    await s.closeSchedule(sch.id);
-                    toast.success("Schedule closed");
-                  } catch (error: any) {
-                    toast.error(error.message || "Failed to close schedule.");
-                  }
-                }}
+                onClick={requestClose}
               >
                 Close Session
               </Button>
@@ -805,6 +873,7 @@ function SchedulePage() {
             editing={editingRotation}
             draftRounds={draftRounds ?? undefined}
             onDraftRoundsChange={setDraftRounds}
+            isAdmin={isAdmin}
           />
         </div>
       )}

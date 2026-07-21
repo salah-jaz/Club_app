@@ -104,7 +104,7 @@ export interface PlayInvitation {
   memberId: string;
   status: InviteStatus;
   debited?: boolean;
-  /** When the member accepted (ISO). Used for the 24h decline window. */
+  /** When the member accepted (ISO). */
   acceptedAt?: string | null;
   updatedAt?: string;
   createdAt?: string;
@@ -119,6 +119,8 @@ export interface RotationRound {
 export interface Rotation {
   scheduleId: string;
   rounds: RotationRound[];
+  /** Admin-set before publish; locked after publish */
+  showMemberGrades?: boolean;
 }
 
 export interface Training {

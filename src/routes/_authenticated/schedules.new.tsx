@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 export const Route = createFileRoute("/_authenticated/schedules/new")({ component: NewSchedule });
 
 function NewSchedule() {
+  const holidays = useStore((s) => s.holidays);
   const create = useStore((s) => s.createSchedule);
   const locations = useStore((s) => s.locations);
   const leagueGroups = useStore((s) => s.leagueGroups || []);
@@ -32,6 +33,11 @@ function NewSchedule() {
 
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
+  const holidaySet = useMemo(() => new Set(holidays ?? []), [holidays]);
+
+  const toIsoDate = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
   const repeatPreview = useMemo(() => {
     const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
     if (!f.date || weeks <= 1) return null;
@@ -42,12 +48,21 @@ function NewSchedule() {
     const endLabel = parseScheduleDateTime(
       `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}T${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`,
     );
+
+    let holidayWeeks = 0;
+    const cursor = new Date(start);
+    for (let i = 0; i < weeks; i++) {
+      if (holidaySet.has(toIsoDate(cursor))) holidayWeeks++;
+      cursor.setDate(cursor.getDate() + 7);
+    }
+
     return {
       weeks,
       day: scheduleWhen?.day ?? "same day",
       endDate: endLabel?.date ?? end.toLocaleDateString(),
+      holidayWeeks,
     };
-  }, [f.date, f.repeatWeeks, scheduleWhen?.day]);
+  }, [f.date, f.repeatWeeks, scheduleWhen?.day, holidaySet]);
 
   const onDateChange = (value: string) => {
     const parsed = parseScheduleDateTime(value);
@@ -144,7 +159,11 @@ function NewSchedule() {
               />
               <p className="text-[11px] text-[#8A8A98]">
                 {repeatPreview
-                  ? `Creates ${repeatPreview.weeks} schedules every ${repeatPreview.day} through ${repeatPreview.endDate}.`
+                  ? `Creates ${repeatPreview.weeks} schedules every ${repeatPreview.day} through ${repeatPreview.endDate}${
+                      repeatPreview.holidayWeeks > 0
+                        ? ` (${repeatPreview.holidayWeeks} fall on club holiday${repeatPreview.holidayWeeks === 1 ? "" : "s"})`
+                        : ""
+                    }.`
                   : "Enter 1 for a single session, or more to repeat on the same weekday."}
               </p>
             </div>

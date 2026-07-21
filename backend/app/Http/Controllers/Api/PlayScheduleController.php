@@ -10,6 +10,7 @@ use App\Models\Grade;
 use App\Models\PlayerPosition;
 use App\Models\Rotation;
 use App\Models\Transaction;
+use App\Models\Setting;
 use App\Helpers\MailHelper;
 use App\Helpers\FeeHelper;
 use Illuminate\Http\Request;
@@ -398,12 +399,16 @@ class PlayScheduleController extends Controller
         $rotationPlayers = array_merge($playerIds, $this->guestIdsForAccepted($schedule, count($playerIds)));
         $rounds = $this->buildRotationRounds($schedule, $rotationPlayers);
 
+        // Seed grade visibility from club default; admin can change until publish.
+        $showGrades = Setting::where('key', 'show_grade_in_court_rotation')->value('value') === 'true';
+
         // Save or update rotation in DB
         Rotation::where('schedule_id', $id)->delete();
-        Rotation::create([
+        $rotation = Rotation::create([
             'id' => 'r_' . Str::random(8),
             'schedule_id' => $id,
             'rounds' => $rounds,
+            'show_member_grades' => $showGrades,
         ]);
 
         foreach ($playerIds as $memberId) {
@@ -423,10 +428,7 @@ class PlayScheduleController extends Controller
 
         return response()->json([
             'message' => 'Rotation generated successfully.',
-            'rotation' => [
-                'scheduleId' => $id,
-                'rounds' => $rounds
-            ],
+            'rotation' => $this->formatRotation($rotation),
             'schedule' => $this->formatSchedule($schedule)
         ]);
     }
@@ -512,10 +514,40 @@ class PlayScheduleController extends Controller
 
         return response()->json([
             'message' => 'Court rotation updated.',
-            'rotation' => [
-                'scheduleId' => $id,
-                'rounds' => $rotation->rounds,
-            ],
+            'rotation' => $this->formatRotation($rotation),
+            'schedule' => $this->formatSchedule($schedule),
+        ]);
+    }
+
+    public function updateRotationShowGrades(Request $request, $id)
+    {
+        $user = $request->user();
+        if (!$user || $user->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can change grade visibility.'], 403);
+        }
+
+        $schedule = PlaySchedule::findOrFail($id);
+        if ($schedule->status !== 'rotated') {
+            return response()->json([
+                'message' => 'Show member grades can only be changed before the rotation is published.',
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'showMemberGrades' => 'required|boolean',
+        ]);
+
+        $rotation = Rotation::where('schedule_id', $id)->first();
+        if (!$rotation) {
+            return response()->json(['message' => 'No rotation found for this schedule.'], 404);
+        }
+
+        $rotation->show_member_grades = (bool) $data['showMemberGrades'];
+        $rotation->save();
+
+        return response()->json([
+            'message' => 'Grade visibility updated.',
+            'rotation' => $this->formatRotation($rotation),
             'schedule' => $this->formatSchedule($schedule),
         ]);
     }
@@ -717,12 +749,18 @@ class PlayScheduleController extends Controller
                 ], 422);
             }
 
-            // Accepted players may cancel only within 24 hours of accepting
+            // Accepted players cannot cancel within the lock window before match start
             if ($wasAccepted) {
-                $acceptedAt = $invite->accepted_at ?? $invite->updated_at;
-                if ($acceptedAt && $acceptedAt->lt(now()->subHours(24))) {
+                $lockHours = (int) (Setting::where('key', 'cancellation_lock_hours')->value('value') ?? 24);
+                if ($lockHours < 0) {
+                    $lockHours = 0;
+                }
+                $matchStart = \Carbon\Carbon::parse($sch->date);
+                $cancelDeadline = $matchStart->copy()->subHours($lockHours);
+                if (now()->greaterThanOrEqualTo($cancelDeadline)) {
+                    $hoursLabel = $lockHours === 1 ? '1 hour' : "{$lockHours} hours";
                     return response()->json([
-                        'message' => 'Decline is no longer available. The 24-hour window after accepting has ended.',
+                        'message' => "Decline is no longer available. Cancellations close {$hoursLabel} before the match starts.",
                     ], 422);
                 }
             }
@@ -926,10 +964,7 @@ class PlayScheduleController extends Controller
             if (!$isAdmin && (!$schedule || !in_array($schedule->status, ['published', 'closed'], true))) {
                 return null;
             }
-            return [
-                'scheduleId' => $r->schedule_id,
-                'rounds' => $r->rounds ?? [],
-            ];
+            return $this->formatRotation($r);
         })->filter()->values());
     }
 
@@ -973,6 +1008,15 @@ class PlayScheduleController extends Controller
             'updatedAt' => optional($i->updated_at)?->toISOString(),
             'createdAt' => optional($i->created_at)?->toISOString(),
             'isGuest' => $this->isGuestMemberId($i->member_id),
+        ];
+    }
+
+    private function formatRotation(Rotation $r): array
+    {
+        return [
+            'scheduleId' => $r->schedule_id,
+            'rounds' => $r->rounds ?? [],
+            'showMemberGrades' => (bool) $r->show_member_grades,
         ];
     }
 

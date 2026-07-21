@@ -118,6 +118,7 @@ interface State {
   enrollPlay: (scheduleId: string, memberIds: string[]) => Promise<void>;
   generateRotation: (scheduleId: string) => Promise<void>;
   updateRotation: (scheduleId: string, rounds: Rotation["rounds"]) => Promise<void>;
+  updateRotationShowGrades: (scheduleId: string, showMemberGrades: boolean) => Promise<void>;
   revertRotation: (scheduleId: string) => Promise<void>;
 
   // trainings
@@ -631,6 +632,14 @@ export const useStore = create<State>((set, get) => ({
     await api.patch<{ schedule: PlaySchedule; rotation: Rotation }>(
       `/schedules/${scheduleId}/rotation`,
       { rounds },
+    );
+    await get().syncData();
+  },
+
+  updateRotationShowGrades: async (scheduleId, showMemberGrades) => {
+    await api.patch<{ schedule: PlaySchedule; rotation: Rotation }>(
+      `/schedules/${scheduleId}/rotation/show-grades`,
+      { showMemberGrades },
     );
     await get().syncData();
   },
