@@ -584,7 +584,7 @@ function Invitations() {
   return (
     <div className="space-y-6">
       <Dialog open={!!courtsPopup} onOpenChange={(open) => !open && setCourtsPopup(null)}>
-        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">
               {courtsPopup?.schedule.name ?? "Court details"}

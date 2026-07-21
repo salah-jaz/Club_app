@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { Search, X, SlidersHorizontal, Calendar, Plus, Wallet, Clock3, CheckCircle2, CircleDollarSign } from "lucide-react";
+import { Search, X, SlidersHorizontal, Calendar, Plus, Wallet, Clock3, CheckCircle2, CircleDollarSign, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
@@ -32,6 +33,9 @@ import {
 type CreditsSearch = {
   memberId?: string;
 };
+
+type TypeTab = "all" | "debit" | "credit";
+type EntryType = "credit" | "debit";
 
 export const Route = createFileRoute("/_authenticated/credits")({
   validateSearch: (search: Record<string, unknown>): CreditsSearch => {
@@ -93,12 +97,32 @@ function CreditStatCard({
   );
 }
 
+function TypeBadge({ type }: { type: EntryType }) {
+  const isCredit = type === "credit";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide",
+        isCredit
+          ? "bg-[#10B981]/12 text-[#34D399] border border-[#10B981]/25"
+          : "bg-[#EF4444]/12 text-[#F87171] border border-[#EF4444]/25",
+      )}
+    >
+      {isCredit ? <ArrowDownLeft className="size-3" /> : <ArrowUpRight className="size-3" />}
+      {isCredit ? "Credit" : "Debit"}
+    </span>
+  );
+}
+
 function CreditsPage() {
   const user = useCurrentUser()!;
   const s = useStore();
   const search = Route.useSearch();
-  const myMembers = user.role === "admin" ? s.members : s.members.filter((m) => m.userId === user.id);
+  const isAdmin = user.role === "admin";
+  const myMembers = isAdmin ? s.members : s.members.filter((m) => m.userId === user.id);
 
+  const [typeTab, setTypeTab] = useState<TypeTab>("all");
+  const [entryType, setEntryType] = useState<EntryType>("credit");
   const [addOpen, setAddOpen] = useState(false);
   const [memberId, setMemberId] = useState(() => search.memberId || (myMembers[0]?.id ?? ""));
   const [amount, setAmount] = useState("");
@@ -112,7 +136,7 @@ function CreditsPage() {
   }, [search.memberId]);
 
   const myReqs = s.creditRequests.filter((r) =>
-    user.role === "admin" ? true : myMembers.some((m) => m.id === r.memberId),
+    isAdmin ? true : myMembers.some((m) => m.id === r.memberId),
   );
 
   // When opened from Members → Credits, lock the page to that member only.
@@ -124,8 +148,13 @@ function CreditsPage() {
   const scopedReqs = focusMember ? myReqs.filter((r) => r.memberId === focusMember.id) : myReqs;
   const addMembers = focusMember ? [focusMember] : myMembers;
 
+  const tabReqs = useMemo(() => {
+    if (typeTab === "all") return scopedReqs;
+    return scopedReqs.filter((r) => (r.type || "credit") === typeTab);
+  }, [scopedReqs, typeTab]);
+
   const stats = useMemo(() => {
-    const pending = scopedReqs.filter((r) => r.status === "created").length;
+    const pending = scopedReqs.filter((r) => (r.type || "credit") === "credit" && r.status === "created").length;
     const approved = scopedReqs.filter((r) => r.status === "approved").length;
     const approvedTotal = scopedReqs
       .filter((r) => r.status === "approved")
@@ -134,13 +163,13 @@ function CreditsPage() {
       ? focusMember.credit || 0
       : myMembers.reduce((sum, m) => sum + (m.credit || 0), 0);
     return {
-      total: scopedReqs.length,
+      total: tabReqs.length,
       pending,
       approved,
       approvedTotal,
       balanceTotal,
     };
-  }, [scopedReqs, myMembers, focusMember]);
+  }, [scopedReqs, tabReqs, myMembers, focusMember]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -161,7 +190,7 @@ function CreditsPage() {
     searchTerm !== "" || statusFilter !== "all" || fromDate !== "" || toDate !== "" || sortBy !== "newest";
 
   const filteredReqs = useMemo(() => {
-    return scopedReqs
+    return tabReqs
       .filter((r) => {
         if (searchTerm.trim()) {
           const m = s.members.find((x) => x.id === r.memberId);
@@ -203,9 +232,11 @@ function CreditsPage() {
         }
         return 0;
       });
-  }, [scopedReqs, s.members, searchTerm, statusFilter, fromDate, toDate, sortBy]);
+  }, [tabReqs, s.members, searchTerm, statusFilter, fromDate, toDate, sortBy]);
 
-  const openAddDialog = () => {
+  const openAddDialog = (type: EntryType) => {
+    if (type === "debit" && !isAdmin) return;
+    setEntryType(type);
     if (focusMember) {
       setMemberId(focusMember.id);
     } else if (!memberId && myMembers[0]) {
@@ -221,8 +252,10 @@ function CreditsPage() {
     if (!targetMemberId || !amount) return;
     setSubmitting(true);
     try {
-      await s.requestCredit(targetMemberId, parseFloat(amount), date);
-      if (user.role === "admin") {
+      await s.requestCredit(targetMemberId, parseFloat(amount), date, entryType);
+      if (entryType === "debit") {
+        toast.success("Debit applied — amount transferred to your member balance");
+      } else if (isAdmin) {
         toast.success("Credit added successfully");
       } else {
         toast.success("Credit request submitted for approval");
@@ -230,11 +263,23 @@ function CreditsPage() {
       setAmount("");
       setAddOpen(false);
     } catch (error: any) {
-      toast.error(error.message || "Failed to submit credit request.");
+      toast.error(error.message || `Failed to submit ${entryType} request.`);
     } finally {
       setSubmitting(false);
     }
   };
+
+  const creditCount = scopedReqs.filter((r) => (r.type || "credit") === "credit").length;
+  const debitCount = scopedReqs.filter((r) => r.type === "debit").length;
+  const colSpan = isAdmin ? 6 : 5;
+
+  const historyTitle = focusMember
+    ? `${focusMember.firstName} ${focusMember.lastName} — History`
+    : typeTab === "debit"
+      ? "Debit History"
+      : typeTab === "credit"
+        ? "Credit History"
+        : "Credit / Debit History";
 
   return (
     <div className="space-y-6">
@@ -242,25 +287,44 @@ function CreditsPage() {
         title={
           focusMember
             ? `${focusMember.firstName} ${focusMember.lastName}`
-            : "Credits"
+            : "Credit / Debit"
         }
         description={
           focusMember
-            ? `Credit history and top-ups for this member only. Current balance ${fmtMoney(focusMember.credit || 0)}.`
-            : "Top-up requests and balance management."
+            ? `Credit and debit history for this member. Current balance ${fmtMoney(focusMember.credit || 0)}.`
+            : "Top-ups, debits, and balance management."
         }
-        eyebrow={focusMember ? "FINANCE / MEMBER CREDITS" : undefined}
+        eyebrow={focusMember ? "FINANCE / MEMBER CREDIT / DEBIT" : undefined}
         backTo={focusMember ? "/members" : undefined}
         actions={
-          <Button
-            type="button"
-            className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer"
-            onClick={openAddDialog}
-            disabled={addMembers.length === 0}
-          >
-            <Plus className="size-4 mr-1.5" />
-            {user.role === "admin" ? "Add credit" : "Request credit"}
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {isAdmin && (typeTab === "debit" || typeTab === "all") && (
+              <Button
+                type="button"
+                variant="outline"
+                className="btn-premium-outline h-[38px] px-4 hover:cursor-pointer"
+                onClick={() => openAddDialog("debit")}
+                disabled={addMembers.length === 0}
+              >
+                <Plus className="size-4 mr-1.5" />
+                Add debit
+              </Button>
+            )}
+            {(typeTab === "credit" || typeTab === "all") && (
+              <Button
+                type="button"
+                className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer"
+                onClick={() => openAddDialog("credit")}
+                disabled={addMembers.length === 0}
+              >
+                <Plus className="size-4 mr-1.5" />
+                {isAdmin ? "Add credit" : "Request credit"}
+              </Button>
+            )}
+            {typeTab === "debit" && !isAdmin && (
+              <span className="text-xs text-[#8A8A98]">Only admins can add debits</span>
+            )}
+          </div>
         }
       />
 
@@ -273,12 +337,20 @@ function CreditsPage() {
         <CreditStatCard
           label="Total"
           value={stats.total}
-          hint={isMemberScoped ? "Requests for this member" : "All credit requests"}
+          hint={
+            typeTab === "debit"
+              ? "Debit entries"
+              : typeTab === "credit"
+                ? "Credit requests"
+                : isMemberScoped
+                  ? "Entries for this member"
+                  : "All credit & debit entries"
+          }
           icon={Wallet}
           index={0}
         />
-        <CreditStatCard label="Pending" value={stats.pending} hint="Awaiting approval" icon={Clock3} index={1} />
-        <CreditStatCard label="Approved" value={stats.approved} hint="Completed top-ups" icon={CheckCircle2} index={2} />
+        <CreditStatCard label="Pending" value={stats.pending} hint="Credit requests awaiting approval" icon={Clock3} index={1} />
+        <CreditStatCard label="Approved" value={stats.approved} hint="Completed entries" icon={CheckCircle2} index={2} />
         <CreditStatCard
           label="Balance"
           value={stats.balanceTotal}
@@ -289,18 +361,49 @@ function CreditsPage() {
         />
       </motion.div>
 
+      <Tabs value={typeTab} onValueChange={(v) => setTypeTab(v as TypeTab)} className="w-full">
+        <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-0 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
+          <TabsTrigger
+            value="all"
+            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+          >
+            All ({scopedReqs.length})
+          </TabsTrigger>
+          <TabsTrigger
+            value="debit"
+            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+          >
+            Debit ({debitCount})
+          </TabsTrigger>
+          <TabsTrigger
+            value="credit"
+            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+          >
+            Credit ({creditCount})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md overflow-visible">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">
-              {user.role === "admin" ? "Add member credit top-up" : "Request credit top-up"}
+              {entryType === "debit"
+                ? "Add member debit"
+                : isAdmin
+                  ? "Add member credit top-up"
+                  : "Request credit top-up"}
             </DialogTitle>
             <DialogDescription className="text-[#8A8A98]">
-              {focusMember
-                ? `Top-up will be applied to ${focusMember.firstName} ${focusMember.lastName} only.`
-                : user.role === "admin"
-                  ? "Credit is applied after you submit. Pending requests from members still need approval."
-                  : "Your request will be sent for admin approval."}
+              {entryType === "debit"
+                ? focusMember
+                  ? `Debit will be deducted from ${focusMember.firstName} ${focusMember.lastName} and credited to your admin member balance.`
+                  : "Amount is deducted from the member and credited to your admin member balance."
+                : focusMember
+                  ? `Top-up will be applied to ${focusMember.firstName} ${focusMember.lastName} only.`
+                  : isAdmin
+                    ? "Credit is applied after you submit. Pending requests from members still need approval."
+                    : "Your request will be sent for admin approval."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
@@ -361,9 +464,11 @@ function CreditsPage() {
               <Button type="submit" className="btn-premium-solid cursor-pointer" disabled={submitting || !(focusMember?.id || memberId)}>
                 {submitting
                   ? "Saving…"
-                  : user.role === "admin"
-                    ? "Add credit"
-                    : "Submit request"}
+                  : entryType === "debit"
+                    ? "Add debit"
+                    : isAdmin
+                      ? "Add credit"
+                      : "Submit request"}
               </Button>
             </DialogFooter>
           </form>
@@ -373,12 +478,8 @@ function CreditsPage() {
       <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] overflow-hidden">
         <CardHeader className="border-b border-[rgba(255,255,255,0.06)] py-4.5 px-4 sm:px-6 flex flex-row items-center justify-between">
           <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
-            <span>
-              {focusMember
-                ? `${focusMember.firstName} ${focusMember.lastName} — Credit History`
-                : "Credit History"}
-            </span>
-            {stats.pending > 0 && (
+            <span>{historyTitle}</span>
+            {stats.pending > 0 && typeTab !== "debit" && (
               <span className="text-[11px] font-semibold bg-[#F59E0B]/10 text-[#F59E0B] px-2 py-0.5 rounded-full">
                 {stats.pending} pending
               </span>
@@ -678,10 +779,11 @@ function CreditsPage() {
             <TableHeader className="bg-[#0C0F0E]/30">
               <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
                 <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Member</TableHead>
+                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Type</TableHead>
                 <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Amount</TableHead>
                 <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Date</TableHead>
                 <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Status</TableHead>
-                {user.role === "admin" && (
+                {isAdmin && (
                   <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Actions</TableHead>
                 )}
               </TableRow>
@@ -689,22 +791,28 @@ function CreditsPage() {
             <TableBody>
               {filteredReqs.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={user.role === "admin" ? 5 : 4} className="p-0">
+                  <TableCell colSpan={colSpan} className="p-0">
                     <EmptyIllustration
                       icon="wallet"
                       title={
                         hasActiveFilters
-                          ? "No credit requests found"
+                          ? "No entries found"
                           : focusMember
-                            ? "No credit history for this member"
-                            : "No credit requests yet"
+                            ? "No credit / debit history for this member"
+                            : typeTab === "debit"
+                              ? "No debit entries yet"
+                              : typeTab === "credit"
+                                ? "No credit requests yet"
+                                : "No credit / debit entries yet"
                       }
                       description={
                         hasActiveFilters
                           ? "Try adjusting your filters or search terms."
                           : focusMember
-                            ? "Use Add credit to create a top-up for this member."
-                            : "Click Add credit to submit a top-up request."
+                            ? "Use Add credit or Add debit for this member."
+                            : typeTab === "debit"
+                              ? "Click Add debit to transfer balance from a member."
+                              : "Click Add credit to submit a top-up request."
                       }
                     />
                   </TableCell>
@@ -717,6 +825,8 @@ function CreditsPage() {
                     m?.memberType.toLowerCase() === "junior"
                       ? "bg-[#1A1A0A] text-[#F59E0B]"
                       : "bg-[#0D2E22] text-[#10B981]";
+                  const reqType: EntryType = (r.type || "credit") as EntryType;
+                  const canApprove = reqType === "credit" && r.status === "created";
 
                   return (
                     <motion.tr
@@ -738,14 +848,17 @@ function CreditsPage() {
                           </span>
                         </div>
                       </TableCell>
+                      <TableCell className="py-3 px-6">
+                        <TypeBadge type={reqType} />
+                      </TableCell>
                       <TableCell className="py-3 px-6 type-mono-value">{fmtMoney(r.amount)}</TableCell>
                       <TableCell className="py-3 px-6 type-mono-value text-[#EEF2F0]">{fmtDate(r.date)}</TableCell>
                       <TableCell className="py-3 px-6">
                         <StatusBadge status={r.status} />
                       </TableCell>
-                      {user.role === "admin" && (
+                      {isAdmin && (
                         <TableCell className="py-3 px-6">
-                          {r.status === "created" ? (
+                          {canApprove ? (
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={async () => {

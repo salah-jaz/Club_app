@@ -13,6 +13,7 @@ class CreditRequest extends Model
     protected $fillable = [
         'id',
         'member_id',
+        'type',
         'amount',
         'date',
         'status',

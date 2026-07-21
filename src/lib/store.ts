@@ -108,7 +108,7 @@ interface State {
   rejectJunior: (id: string) => Promise<void>;
 
   // credits
-  requestCredit: (memberId: string, amount: number, date: string) => Promise<void>;
+  requestCredit: (memberId: string, amount: number, date: string, type?: "credit" | "debit") => Promise<void>;
   approveCredit: (id: string) => Promise<void>;
   approveAllCredits: () => Promise<void>;
   rejectCredit: (id: string) => Promise<void>;
@@ -543,8 +543,8 @@ export const useStore = create<State>((set, get) => ({
     await get().syncData();
   },
 
-  requestCredit: async (memberId, amount, date) => {
-    await api.post<CreditRequest>("/credit-requests", { memberId, amount, date });
+  requestCredit: async (memberId, amount, date, type = "credit") => {
+    await api.post<CreditRequest>("/credit-requests", { memberId, amount, date, type });
     await get().syncData();
   },
 

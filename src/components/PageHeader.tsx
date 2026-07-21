@@ -21,7 +21,7 @@ export function PageHeader({
       case "members":
         return "CLUB / ROSTER";
       case "credits":
-        return "FINANCE / CREDITS";
+        return "FINANCE / CREDIT / DEBIT";
       case "invitations":
       case "schedules":
         return "SESSIONS / PLAY";

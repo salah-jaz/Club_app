@@ -66,6 +66,7 @@ export interface CreditRequest {
   memberId: string;
   amount: number;
   date: string;
+  type: "credit" | "debit";
   status: "created" | "approved" | "rejected";
   createdAt: string;
 }

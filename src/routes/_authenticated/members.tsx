@@ -391,7 +391,7 @@ function MemberActions({
       {canCredits && (
         <Button asChild variant="outline" className={cn("btn-premium-violet-outline hover:cursor-pointer min-w-0", btnClass)}>
           <Link to={`/credits?memberId=${member.id}` as any}>
-            <Wallet className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Credits</span>
+            <Wallet className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Credit / Debit</span>
           </Link>
         </Button>
       )}

@@ -51,7 +51,7 @@ function Approvals() {
   const adultGrades = useStore((st) => st.adultGrades);
   const juniorGrades = useStore((st) => st.juniorGrades);
   const pendingU = s.users.filter((u) => u.status === "created");
-  const pendingC = s.creditRequests.filter((c) => c.status === "created");
+  const pendingC = s.creditRequests.filter((c) => (c.type || "credit") === "credit" && c.status === "created");
   const pendingJuniors = s.members.filter(
     (m) => m.memberType === "junior" && m.status === "pending",
   );

@@ -208,7 +208,7 @@ function Dashboard() {
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const totalCredit = myMembers.reduce((t, m) => t + m.credit, 0);
   const pendingUsers = s.users.filter((u) => u.status === "created").length;
-  const pendingCredits = s.creditRequests.filter((c) => c.status === "created").length;
+  const pendingCredits = s.creditRequests.filter((c) => (c.type || "credit") === "credit" && c.status === "created").length;
 
   const upcomingSchedules = useMemo(
     () =>

@@ -17,7 +17,7 @@ function Layout() {
   const user = useCurrentUser();
   const timezone = useStore((s) => s.timezone);
   const pendingUsers = useStore((s) => s.users.filter((u) => u.status === "created").length);
-  const pendingCredits = useStore((s) => s.creditRequests.filter((cr) => cr.status === "created").length);
+  const pendingCredits = useStore((s) => s.creditRequests.filter((cr) => (cr.type || "credit") === "credit" && cr.status === "created").length);
   const notifCount = pendingUsers + pendingCredits;
 
   const pathname = useRouterState({ select: (r) => r.location.pathname });
