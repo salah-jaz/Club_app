@@ -21,6 +21,10 @@ import {
   ConfirmDeleteDialog,
   type ConfirmDeleteRequest,
 } from "@/components/ConfirmDeleteDialog";
+import {
+  ConfirmActionDialog,
+  type ConfirmActionRequest,
+} from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/_authenticated/schedules")({ component: SchedulesLayout });
 
@@ -81,11 +85,77 @@ function getFillRate(schedule: PlaySchedule, accepted: number) {
   return max > 0 ? (accepted / max) * 100 : 0;
 }
 
+function scheduleDateIso(dateStr: string): string | null {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function SchedulesList() {
   const s = useStore();
   const locations = useStore((st) => st.locations);
+  const holidays = useStore((st) => st.holidays);
   const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-schedules", "list");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
+  const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
+
+  const requestReleaseSchedule = (sch: PlaySchedule) => {
+    setActionRequest({
+      title: "Release session?",
+      description: (
+        <>
+          <span className="block">
+            Release <strong className="text-[#F1F0EE]">“{sch.name}”</strong> and send invitations to
+            eligible members?
+          </span>
+          <span className="block text-[#8A8A98]">
+            Members will be able to accept or decline from My Invitations.
+          </span>
+        </>
+      ),
+      confirmLabel: "Release",
+      onConfirm: async () => {
+        try {
+          await s.releaseSchedule(sch.id);
+          toast.success("Session released — invitations sent");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to release schedule.");
+          throw error;
+        }
+      },
+    });
+  };
+
+  const requestGenerateRotation = (sch: PlaySchedule) => {
+    const accepted = s.playInvites.filter(
+      (i) => i.scheduleId === sch.id && i.status === "accepted",
+    ).length;
+    setActionRequest({
+      title: "Generate court rotation?",
+      description: (
+        <>
+          <span className="block">
+            Generate court rotations for <strong className="text-[#F1F0EE]">“{sch.name}”</strong>?
+          </span>
+          <span className="block text-[#8A8A98]">
+            {accepted} accepted player{accepted === 1 ? "" : "s"} will be assigned to courts. After
+            this, members can no longer accept or decline.
+          </span>
+        </>
+      ),
+      confirmLabel: "Generate rotation",
+      onConfirm: async () => {
+        try {
+          await s.generateRotation(sch.id);
+          toast.success("Rotation generated successfully");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to generate rotation.");
+          throw error;
+        }
+      },
+    });
+  };
 
   const requestDeleteSchedule = (sch: PlaySchedule) => {
     const memberCount = new Set(
@@ -131,7 +201,7 @@ function SchedulesList() {
       courts: "all",
       capacity: "all",
     },
-    "date-desc",
+    "date-asc",
   );
 
   const locationList = useMemo(() => {
@@ -140,8 +210,8 @@ function SchedulesList() {
   }, [locations, s.schedules]);
 
   const sortOptions = [
-    { value: "date-desc", label: "Newest first" },
-    { value: "date-asc", label: "Oldest first" },
+    { value: "date-asc", label: "Next scheduled" },
+    { value: "date-desc", label: "Latest first" },
     { value: "name-asc", label: "Name A–Z" },
     { value: "name-desc", label: "Name Z–A" },
     { value: "courts-desc", label: "Most courts" },
@@ -195,8 +265,8 @@ function SchedulesList() {
     const fillB = getFillRate(b, inviteStats.get(b.id) ?? 0);
 
     switch (sortBy) {
-      case "date-asc":
-        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      case "date-desc":
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
       case "name-asc":
         return a.name.localeCompare(b.name);
       case "name-desc":
@@ -209,9 +279,9 @@ function SchedulesList() {
         return fillB - fillA;
       case "fill-asc":
         return fillA - fillB;
-      case "date-desc":
+      case "date-asc":
       default:
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
     }
   });
 
@@ -220,6 +290,10 @@ function SchedulesList() {
       <ConfirmDeleteDialog
         request={deleteRequest}
         onOpenChange={(open) => !open && setDeleteRequest(null)}
+      />
+      <ConfirmActionDialog
+        request={actionRequest}
+        onOpenChange={(open) => !open && setActionRequest(null)}
       />
       <PageHeader
         title="Play schedules"
@@ -325,6 +399,14 @@ function SchedulesList() {
                                 League
                               </span>
                             )}
+                            {(() => {
+                              const iso = scheduleDateIso(sch.date);
+                              return iso && (holidays ?? []).includes(iso) ? (
+                                <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
+                                  Holiday
+                                </span>
+                              ) : null;
+                            })()}
                           </div>
                           <div className="flex items-center gap-1.5 type-helper">
                             <Calendar className="size-3.5 text-[#5A7068]" />
@@ -389,14 +471,7 @@ function SchedulesList() {
                                 size="icon"
                                 className="btn-premium-solid h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer"
                                 title="Release Session"
-                                onClick={async () => {
-                                  try {
-                                    await s.releaseSchedule(sch.id);
-                                    toast.success("Session released — invitations sent");
-                                  } catch (error: unknown) {
-                                    toast.error(error instanceof Error ? error.message : "Failed to release schedule.");
-                                  }
-                                }}
+                                onClick={() => requestReleaseSchedule(sch)}
                               >
                                 <Send className="size-4" />
                               </Button>
@@ -406,14 +481,7 @@ function SchedulesList() {
                                 size="icon"
                                 className="btn-premium-solid h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer"
                                 title="Generate Rotation"
-                                onClick={async () => {
-                                  try {
-                                    await s.generateRotation(sch.id);
-                                    toast.success("Rotation generated successfully");
-                                  } catch (error: unknown) {
-                                    toast.error(error instanceof Error ? error.message : "Failed to generate rotation.");
-                                  }
-                                }}
+                                onClick={() => requestGenerateRotation(sch)}
                               >
                                 <Shuffle className="size-4" />
                               </Button>
@@ -451,12 +519,22 @@ function SchedulesList() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 space-y-1.5">
                               <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">{sch.name}</div>
-                              {sch.isLeagueMatch && (
-                                <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
-                                  <Trophy className="size-3" />
-                                  League
-                                </span>
-                              )}
+                              <div className="flex flex-wrap gap-1.5">
+                                {sch.isLeagueMatch && (
+                                  <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
+                                    <Trophy className="size-3" />
+                                    League
+                                  </span>
+                                )}
+                                {(() => {
+                                  const iso = scheduleDateIso(sch.date);
+                                  return iso && (holidays ?? []).includes(iso) ? (
+                                    <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
+                                      Holiday
+                                    </span>
+                                  ) : null;
+                                })()}
+                              </div>
                             </div>
                             <StatusBadge status={sch.status} />
                           </div>
@@ -520,14 +598,7 @@ function SchedulesList() {
                               size="icon"
                               className="btn-premium-solid h-8 w-8 p-0 cursor-pointer"
                               title="Release Session"
-                              onClick={async () => {
-                                try {
-                                  await s.releaseSchedule(sch.id);
-                                  toast.success("Session released — invitations sent");
-                                } catch (error: unknown) {
-                                  toast.error(error instanceof Error ? error.message : "Failed to release schedule.");
-                                }
-                              }}
+                              onClick={() => requestReleaseSchedule(sch)}
                             >
                               <Send className="size-4" />
                             </Button>
@@ -537,14 +608,7 @@ function SchedulesList() {
                               size="icon"
                               className="btn-premium-solid h-8 w-8 p-0 cursor-pointer"
                               title="Generate Rotation"
-                              onClick={async () => {
-                                try {
-                                  await s.generateRotation(sch.id);
-                                  toast.success("Rotation generated successfully");
-                                } catch (error: unknown) {
-                                  toast.error(error instanceof Error ? error.message : "Failed to generate rotation.");
-                                }
-                              }}
+                              onClick={() => requestGenerateRotation(sch)}
                             >
                               <Shuffle className="size-4" />
                             </Button>

@@ -12,8 +12,8 @@ export const Route = createFileRoute("/login")({ component: LoginPage });
 function LoginPage() {
   const login = useStore((s) => s.login);
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@club.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,22 +48,26 @@ function LoginPage() {
           <Label htmlFor="email" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">Email Address</Label>
           <Input 
             id="email" 
-            type="email" 
+            type="email"
+            name="email"
+            autoComplete="username"
             value={email} 
             onChange={(e) => setEmail(e.target.value)} 
             required 
-            className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[#F1F0EE] h-10 rounded-lg"
+            className="border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] h-10 rounded-lg"
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="password" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">Password</Label>
           <Input 
             id="password" 
-            type="password" 
+            type="password"
+            name="password"
+            autoComplete="current-password"
             value={password} 
             onChange={(e) => setPassword(e.target.value)} 
             required 
-            className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[#F1F0EE] h-10 rounded-lg"
+            className="border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] h-10 rounded-lg"
           />
         </div>
         <Button type="submit" className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">

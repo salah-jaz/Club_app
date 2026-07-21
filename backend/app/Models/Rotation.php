@@ -14,10 +14,12 @@ class Rotation extends Model
         'id',
         'schedule_id',
         'rounds',
+        'show_member_grades',
     ];
 
     protected $casts = [
         'rounds' => 'array',
+        'show_member_grades' => 'boolean',
     ];
 
     public function playSchedule(): BelongsTo

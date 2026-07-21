@@ -204,7 +204,7 @@ function buildMemberBulkTemplate(adultGradesIn: string[], juniorGradesIn: string
     {
       label: "NOTES",
       value:
-        "member_type must be adult or junior; grade must match that type; membership/training_eligible are true/false; status is active or disabled. Assign league players in League Groups. Delete the REFERENCE section before uploading.",
+        "member_type must be adult or junior; grade must match that type; membership/training_eligible are true/false; status is active, disabled, pending, or rejected. Assign league players in League Groups. Delete the REFERENCE section before uploading.",
     },
   ];
 
@@ -354,6 +354,8 @@ function MemberActions({
   const isJunior = member.memberType.toLowerCase() === "junior";
   const canEdit = activeRole === "admin" || (activeRole === "member" && isJunior);
   const canCredits = activeRole === "admin" || activeRole === "member";
+  // Juniors (and all members) may only be deleted by admins
+  const canDelete = activeRole === "admin";
   const btnClass = compact
     ? "h-8 text-xs px-2"
     : "h-9 text-xs flex-1 basis-[calc(50%-0.25rem)] sm:basis-0 min-w-0";
@@ -389,11 +391,11 @@ function MemberActions({
       {canCredits && (
         <Button asChild variant="outline" className={cn("btn-premium-violet-outline hover:cursor-pointer min-w-0", btnClass)}>
           <Link to={`/credits?memberId=${member.id}` as any}>
-            <Wallet className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Credits</span>
+            <Wallet className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Credit / Debit</span>
           </Link>
         </Button>
       )}
-      {canEdit && (
+      {canDelete && (
         <Button
           variant="destructive"
           className={cn(
@@ -517,6 +519,8 @@ function MembersList() {
         { value: "all", label: "All Statuses" },
         { value: "active", label: "Active" },
         { value: "disabled", label: "Disabled" },
+        { value: "pending", label: "Pending" },
+        { value: "rejected", label: "Rejected" },
       ],
     },
     {

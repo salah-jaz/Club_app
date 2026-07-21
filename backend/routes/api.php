@@ -9,6 +9,8 @@ use App\Http\Controllers\Api\PlayScheduleController;
 use App\Http\Controllers\Api\TrainingController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\LeagueGroupController;
+use App\Http\Controllers\Api\AdminRoleController;
+use App\Http\Controllers\Api\AdminUserController;
 use Illuminate\Support\Facades\Route;
 
 // Public auth routes
@@ -39,6 +41,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/members/bulk-upload', [MemberController::class, 'bulkUpload']);
     Route::post('/members/bulk-delete', [MemberController::class, 'bulkDelete']);
     Route::post('/members/{id}/login-as', [MemberController::class, 'loginAs']);
+    Route::post('/members/{id}/approve', [MemberController::class, 'approve']);
+    Route::post('/members/{id}/reject', [MemberController::class, 'reject']);
     Route::patch('/members/{id}', [MemberController::class, 'update']);
     Route::delete('/members/{id}', [MemberController::class, 'destroy']);
 
@@ -62,6 +66,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/schedules/{id}/publish', [PlayScheduleController::class, 'publish']);
     Route::post('/schedules/{id}/revert-rotation', [PlayScheduleController::class, 'revertRotation']);
     Route::patch('/schedules/{id}/rotation', [PlayScheduleController::class, 'updateRotation']);
+    Route::patch('/schedules/{id}/rotation/show-grades', [PlayScheduleController::class, 'updateRotationShowGrades']);
     Route::post('/schedules/{id}/enroll', [PlayScheduleController::class, 'enroll']);
     
     // Play Invitations
@@ -87,4 +92,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/league-groups', [LeagueGroupController::class, 'store']);
     Route::patch('/league-groups/{id}', [LeagueGroupController::class, 'update']);
     Route::delete('/league-groups/{id}', [LeagueGroupController::class, 'destroy']);
+
+    // Admin Roles CRUD
+    Route::get('/admin-roles', [AdminRoleController::class, 'index']);
+    Route::get('/admin-roles/permissions', [AdminRoleController::class, 'permissions']);
+    Route::get('/admin-roles/{id}', [AdminRoleController::class, 'show']);
+    Route::post('/admin-roles', [AdminRoleController::class, 'store']);
+    Route::patch('/admin-roles/{id}', [AdminRoleController::class, 'update']);
+    Route::delete('/admin-roles/{id}', [AdminRoleController::class, 'destroy']);
+
+    // Admin Users CRUD
+    Route::get('/admin-users', [AdminUserController::class, 'index']);
+    Route::post('/admin-users', [AdminUserController::class, 'store']);
+    Route::patch('/admin-users/{id}', [AdminUserController::class, 'update']);
+    Route::delete('/admin-users/{id}', [AdminUserController::class, 'destroy']);
+    Route::post('/admin-users/{id}/reset-password', [AdminUserController::class, 'resetPassword']);
 });

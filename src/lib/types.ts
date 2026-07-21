@@ -15,6 +15,27 @@ export interface User {
   role: Role;
   status: UserStatus;
   createdAt: string;
+  adminRoleId?: string | null;
+  adminRoleName?: string | null;
+  isSuperAdmin?: boolean;
+  permissions?: string[];
+}
+
+export interface AdminRole {
+  id: string;
+  name: string;
+  description: string | null;
+  isSuper: boolean;
+  isSystem: boolean;
+  permissionIds: string[];
+  userCount?: number;
+}
+
+export interface Permission {
+  id: string;
+  module: string;
+  action: string;
+  label: string;
 }
 
 export type MemberType = "adult" | "junior";
@@ -36,7 +57,7 @@ export interface Member {
   grade: string;
   biMemberId: string;
   nickname?: string;
-  status: "active" | "disabled";
+  status: "active" | "disabled" | "pending" | "rejected";
   credit: number;
 }
 
@@ -45,6 +66,7 @@ export interface CreditRequest {
   memberId: string;
   amount: number;
   date: string;
+  type: "credit" | "debit";
   status: "created" | "approved" | "rejected";
   createdAt: string;
 }
@@ -104,7 +126,7 @@ export interface PlayInvitation {
   memberId: string;
   status: InviteStatus;
   debited?: boolean;
-  /** When the member accepted (ISO). Used for the 24h decline window. */
+  /** When the member accepted (ISO). */
   acceptedAt?: string | null;
   updatedAt?: string;
   createdAt?: string;
@@ -119,6 +141,8 @@ export interface RotationRound {
 export interface Rotation {
   scheduleId: string;
   rounds: RotationRound[];
+  /** Admin-set before publish; locked after publish */
+  showMemberGrades?: boolean;
 }
 
 export interface Training {

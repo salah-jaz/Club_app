@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Clock, GripVertical, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useStore } from "@/lib/store";
+import { useCurrentUser, useStore } from "@/lib/store";
 import { toast } from "sonner";
 import type { PlaySchedule, Rotation, RotationRound } from "@/lib/types";
 
@@ -178,6 +178,7 @@ export function CourtRotationView({
   editing = false,
   draftRounds,
   onDraftRoundsChange,
+  isAdmin = false,
 }: {
   schedule: PlaySchedule;
   rotation: Rotation;
@@ -189,10 +190,27 @@ export function CourtRotationView({
   editing?: boolean;
   draftRounds?: RotationRound[];
   onDraftRoundsChange?: (rounds: RotationRound[]) => void;
+  /** Only admins see the show-grades toggle */
+  isAdmin?: boolean;
 }) {
-  const showGrade = useStore((s) => s.showGradeInCourtRotation);
-  const updateSettings = useStore((s) => s.updateSettings);
+  const updateRotationShowGrades = useStore((s) => s.updateRotationShowGrades);
+  const currentUser = useCurrentUser();
+  const members = useStore((s) => s.members);
+  const showGrade = !!rotation.showMemberGrades;
+  // Editable only before publish (status === "rotated")
+  const canChangeShowGrade = isAdmin && schedule.status === "rotated";
   const [savingGradePref, setSavingGradePref] = useState(false);
+  const [courtFilter, setCourtFilter] = useState<"your" | "all">("your");
+
+  const myMemberIds = useMemo(
+    () => new Set(members.filter((m) => m.userId === currentUser?.id).map((m) => m.id)),
+    [members, currentUser?.id],
+  );
+
+  const displayName = (playerId: string) => {
+    const base = memberName(playerId);
+    return myMemberIds.has(playerId) ? `${base} (you)` : base;
+  };
 
   const rounds = useMemo(
     () => (editing && draftRounds ? draftRounds : rotation.rounds).map(normalizeRoundPlayers),
@@ -201,15 +219,36 @@ export function CourtRotationView({
   const roundCount = rounds.length;
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [activeRound, setActiveRound] = useState(`r${rounds[0]?.round ?? 1}`);
+
+  const roundsWhereYouPlay = useMemo(() => {
+    return rounds.filter((r) =>
+      (r.courts || []).some((c) => (c.players || []).some((p) => p && myMemberIds.has(p))),
+    );
+  }, [rounds, myMemberIds]);
+
+  const showCourtFilter = useMemo(() => {
+    if (editing || myMemberIds.size === 0) return false;
+    return roundsWhereYouPlay.length > 0;
+  }, [editing, myMemberIds.size, roundsWhereYouPlay.length]);
+
+  const visibleRoundList =
+    showCourtFilter && courtFilter === "your" ? roundsWhereYouPlay : rounds;
+
+  // Keep selected round valid when switching Your Court / All Courts
+  const effectiveRoundValue = visibleRoundList.some((r) => `r${r.round}` === activeRound)
+    ? activeRound
+    : `r${visibleRoundList[0]?.round ?? rounds[0]?.round ?? 1}`;
 
   const setRounds = (next: RotationRound[]) => {
     onDraftRoundsChange?.(next);
   };
 
   const onToggleShowGrade = async (checked: boolean) => {
+    if (!canChangeShowGrade) return;
     setSavingGradePref(true);
     try {
-      await updateSettings({ showGradeInCourtRotation: checked });
+      await updateRotationShowGrades(schedule.id, checked);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to update preference.");
     } finally {
@@ -248,6 +287,7 @@ export function CourtRotationView({
     },
   ) => {
     const isGuest = typeof playerId === "string" && playerId.startsWith("guest_");
+    const isYou = !!playerId && myMemberIds.has(playerId);
     const canDrag = editing && !!playerId && !!opts.source;
     const isOver = dragOverKey === opts.key;
     const isDragging = draggingKey === opts.key;
@@ -301,9 +341,11 @@ export function CourtRotationView({
           "rounded-lg border px-2 sm:px-3 py-2.5 text-center text-[12px] sm:text-[13px] font-semibold transition-colors min-w-0 select-none",
           opts.resting && "rounded-full px-3.5 py-1.5 text-[13px] font-medium",
           playerId
-            ? isGuest
-              ? "bg-[#1A2120] border-[rgba(245,158,11,0.35)] text-[#FBBF24]"
-              : "bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE]"
+            ? isYou
+              ? "bg-[#10B981]/15 border-[#10B981]/50 text-[#34D399]"
+              : isGuest
+                ? "bg-[#1A2120] border-[rgba(245,158,11,0.35)] text-[#FBBF24]"
+                : "bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE]"
             : "bg-[#1A2120]/60 border-dashed border-[rgba(255,255,255,0.08)] text-[#4A5E58]",
           editing && canDrag && "cursor-grab active:cursor-grabbing hover:border-[rgba(16,185,129,0.45)]",
           editing && !playerId && "cursor-pointer",
@@ -316,8 +358,8 @@ export function CourtRotationView({
         title={
           playerId
             ? showGrade && memberGrade?.(playerId)
-              ? `${memberName(playerId)} · ${memberGrade(playerId)}`
-              : memberName(playerId)
+              ? `${displayName(playerId)} · ${memberGrade(playerId)}`
+              : displayName(playerId)
             : editing
               ? "Drop player here"
               : undefined
@@ -327,10 +369,17 @@ export function CourtRotationView({
           {editing && playerId && (
             <GripVertical className="size-3.5 shrink-0 text-[#6B7F78]" aria-hidden />
           )}
-          <span className="truncate">{playerId ? memberName(playerId) : editing ? "Drop here" : "—"}</span>
+          <span className="break-words text-balance leading-snug">
+            {playerId ? displayName(playerId) : editing ? "Drop here" : "—"}
+          </span>
         </span>
         {showGrade && playerId && memberGrade?.(playerId) && (
-          <span className="text-[10px] font-medium text-[#8FA89F] truncate max-w-full leading-tight">
+          <span
+            className={cn(
+              "text-[10px] font-medium truncate max-w-full leading-tight",
+              isYou ? "text-[#6EE7B7]" : "text-[#8FA89F]",
+            )}
+          >
             {memberGrade(playerId)}
           </span>
         )}
@@ -340,31 +389,50 @@ export function CourtRotationView({
 
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E]/70 px-3 py-2">
-          <Switch
-            id="show-grade-court-rotation"
-            checked={showGrade}
-            disabled={savingGradePref}
-            onCheckedChange={(v) => void onToggleShowGrade(v)}
-            className="data-[state=checked]:bg-[#10B981]"
-          />
-          <Label
-            htmlFor="show-grade-court-rotation"
-            className="text-[12px] text-[#C4D4CF] font-medium cursor-pointer"
+      {isAdmin && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E]/70 px-3 py-2",
+              !canChangeShowGrade && "opacity-70",
+            )}
+            title={
+              canChangeShowGrade
+                ? undefined
+                : "Grade visibility is locked after the rotation is published."
+            }
           >
-            Show member grades
-          </Label>
+            <Switch
+              id="show-grade-court-rotation"
+              checked={showGrade}
+              disabled={!canChangeShowGrade || savingGradePref}
+              onCheckedChange={(v) => void onToggleShowGrade(v)}
+              className="data-[state=checked]:bg-[#10B981]"
+            />
+            <Label
+              htmlFor="show-grade-court-rotation"
+              className={cn(
+                "text-[12px] text-[#C4D4CF] font-medium",
+                canChangeShowGrade ? "cursor-pointer" : "cursor-default",
+              )}
+            >
+              Show member grades
+            </Label>
+          </div>
         </div>
-      </div>
+      )}
       {editing && (
         <p className="text-[12px] text-[#8FA89F] bg-[#0C0F0E]/60 border border-white/[0.06] rounded-lg px-3 py-2">
           Drag players between court slots and resting. Drop onto another player to swap.
         </p>
       )}
-      <Tabs defaultValue="r1" className="w-full">
+      <Tabs
+        value={effectiveRoundValue}
+        onValueChange={setActiveRound}
+        className="w-full"
+      >
         <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-4 h-10 max-w-full w-full sm:w-auto overflow-x-auto">
-          {rounds.map((r) => (
+          {visibleRoundList.map((r) => (
             <TabsTrigger
               key={r.round}
               value={`r${r.round}`}
@@ -375,13 +443,61 @@ export function CourtRotationView({
           ))}
         </TabsList>
 
-        {rounds.map((r, roundIdx) => {
+        {showCourtFilter && (
+          <Tabs
+            value={courtFilter}
+            onValueChange={(v) => setCourtFilter(v as "your" | "all")}
+            className="w-full mb-4"
+          >
+            <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex h-10 max-w-full w-full sm:w-auto">
+              <TabsTrigger
+                value="your"
+                className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all shrink-0"
+              >
+                Your Court
+              </TabsTrigger>
+              <TabsTrigger
+                value="all"
+                className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all shrink-0"
+              >
+                All Courts
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
+
+        {visibleRoundList.length === 0 ? (
+          <p className="text-[13px] text-[#8FA89F] bg-[#0C0F0E]/60 border border-white/[0.06] rounded-lg px-4 py-6 text-center">
+            You’re not assigned to a court in any round.
+          </p>
+        ) : (
+          rounds.map((r, roundIdx) => {
           const courtTime = getCourtTimeRange(schedule, r.round, roundCount);
+          const yourCourts = r.courts.filter((c) =>
+            (c.players || []).some((p) => p && myMemberIds.has(p)),
+          );
+          const showYourOnly = showCourtFilter && courtFilter === "your";
+          // Your Court: only rounds where you play (already filtered in tabs); never show resting
+          if (showYourOnly && yourCourts.length === 0) return null;
+          const visibleCourts = showYourOnly ? yourCourts : r.courts;
+          const showResting = !showYourOnly;
+
           return (
             <TabsContent key={r.round} value={`r${r.round}`} className="focus-visible:outline-none space-y-6">
-              <div className="grid md:grid-cols-2 gap-5">
-                {r.courts.map((c) => (
-                  <Card key={c.courtNo} className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
+              <div
+                className={cn(
+                  "grid gap-5",
+                  visibleCourts.length > 1 ? "md:grid-cols-2" : "grid-cols-1",
+                )}
+              >
+                {visibleCourts.map((c) => (
+                  <Card
+                    key={c.courtNo}
+                    className={cn(
+                      "bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top",
+                      visibleCourts.length === 1 && "md:max-w-none",
+                    )}
+                  >
                     <CardHeader className="pb-3 border-b border-white/[0.03]">
                       <CardTitle className="text-[12px] font-semibold text-[#F1F0EE] flex flex-col xs:flex-row sm:flex-row sm:items-center justify-between gap-2">
                         <span className="flex items-center gap-2">
@@ -411,6 +527,7 @@ export function CourtRotationView({
                   </Card>
                 ))}
 
+                {showResting && (
                 <Card
                   className={cn(
                     "md:col-span-2 bg-[#131916] border-[rgba(255,255,255,0.06)]",
@@ -463,10 +580,12 @@ export function CourtRotationView({
                     )}
                   </CardContent>
                 </Card>
+                )}
               </div>
             </TabsContent>
           );
-        })}
+        })
+        )}
       </Tabs>
     </div>
   );

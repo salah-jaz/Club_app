@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CourtRotationView } from "@/components/CourtRotationView";
+import { useSearchFilters } from "@/components/SearchFilterBar";
+import { ScheduleFilters } from "@/components/ScheduleFilters";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,13 +26,74 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { fmtDate, fmtDateTime } from "@/lib/format";
+import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
 import { toast } from "sonner";
-import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy } from "lucide-react";
-import type { Member, PlaySchedule, Rotation, Training } from "@/lib/types";
+import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users } from "lucide-react";
+import type { Member, PlayInvitation, PlaySchedule, Rotation, Training } from "@/lib/types";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/invitations")({ component: Invitations });
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function startOfWeek(d: Date) {
+  const x = startOfDay(d);
+  const day = x.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+
+function endOfWeek(d: Date) {
+  const start = startOfWeek(d);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return endOfDay(end);
+}
+
+function matchesDateFilter(dateStr: string, filter: string) {
+  if (filter === "all") return true;
+  const date = new Date(dateStr);
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const todayEnd = endOfDay(now);
+
+  if (filter === "upcoming") return date >= todayStart;
+  if (filter === "past") return date < todayStart;
+  if (filter === "today") return date >= todayStart && date <= todayEnd;
+  if (filter === "this-week") {
+    return date >= startOfWeek(now) && date <= endOfWeek(now);
+  }
+  if (filter === "this-month") {
+    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  }
+  return true;
+}
+
+function scheduleDateIso(dateStr: string): string | null {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function byFirstCome(a: PlayInvitation, b: PlayInvitation) {
+  const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+  const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+  if (ta !== tb) return ta - tb;
+  return a.id.localeCompare(b.id);
+}
 
 function isEligibleForPlaySchedule(
   member: Member,
@@ -73,6 +136,7 @@ function Invitations() {
     schedule: PlaySchedule;
     rotation: Rotation;
   } | null>(null);
+  const [playersPopup, setPlayersPopup] = useState<PlaySchedule | null>(null);
 
   const [enrollSelections, setEnrollSelections] = useState<Record<string, string[]>>({});
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
@@ -149,7 +213,7 @@ function Invitations() {
       return `Guest Player ${mid.split("_")[1]}`;
     }
     const m = s.members.find((x) => x.id === mid);
-    return m ? `${m.firstName} ${m.lastName}` : "";
+    return m ? `${m.firstName} ${m.lastName}` : "?";
   };
 
   const gradeOf = (mid: string) => {
@@ -164,6 +228,18 @@ function Invitations() {
       return;
     }
     setCourtsPopup({ schedule: sch, rotation });
+  };
+
+  const openPlayersPopup = (sch: PlaySchedule) => {
+    setPlayersPopup(sch);
+  };
+
+  const schedulePlayerLists = (scheduleId: string) => {
+    const invs = s.playInvites.filter((i) => i.scheduleId === scheduleId);
+    return {
+      accepted: invs.filter((i) => i.status === "accepted").sort(byFirstCome),
+      waiting: invs.filter((i) => i.status === "waiting").sort(byFirstCome),
+    };
   };
 
   const invitedMemberIds = (trainingId: string) =>
@@ -210,6 +286,96 @@ function Invitations() {
   const uniquePlaySessions = playSessions.filter(
     (sch, idx, arr) => arr.findIndex((x) => x.id === sch.id) === idx,
   );
+
+  const {
+    search,
+    filters,
+    sortBy,
+    setSearch,
+    setFilter,
+    clearFilters,
+    setSortBy,
+  } = useSearchFilters(
+    {
+      status: "all",
+      location: "all",
+      date: "all",
+      courts: "all",
+      capacity: "all",
+    },
+    "date-asc",
+  );
+
+  const locationList = useMemo(() => {
+    const fromSessions = uniquePlaySessions.map((sch) => sch.location).filter(Boolean);
+    return [...new Set([...(s.locations ?? []), ...fromSessions])].sort();
+  }, [s.locations, uniquePlaySessions]);
+
+  const inviteStats = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const sch of uniquePlaySessions) {
+      const accepted = s.playInvites.filter(
+        (i) => i.scheduleId === sch.id && i.status === "accepted",
+      ).length;
+      map.set(sch.id, accepted);
+    }
+    return map;
+  }, [uniquePlaySessions, s.playInvites]);
+
+  const sortOptions = [
+    { value: "date-asc", label: "Next scheduled" },
+    { value: "date-desc", label: "Latest first" },
+    { value: "name-asc", label: "Name A–Z" },
+    { value: "name-desc", label: "Name Z–A" },
+  ];
+
+  const filteredPlaySessions = useMemo(() => {
+    let list = uniquePlaySessions.filter((sch) => {
+      const q = search.toLowerCase().trim();
+      if (q) {
+        const haystack = `${sch.name} ${sch.location}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+
+      if (filters.status !== "all" && sch.status !== filters.status) return false;
+      if (filters.location !== "all" && sch.location !== filters.location) return false;
+      if (!matchesDateFilter(sch.date, filters.date)) return false;
+
+      if (filters.courts !== "all") {
+        if (filters.courts === "4+") {
+          if (sch.courts < 4) return false;
+        } else if (sch.courts !== Number(filters.courts)) {
+          return false;
+        }
+      }
+
+      const accepted = inviteStats.get(sch.id) ?? 0;
+      const max = sch.players || 12;
+      const fill = max > 0 ? (accepted / max) * 100 : 0;
+      if (filters.capacity === "full" && fill < 100) return false;
+      if (filters.capacity === "has-space" && fill >= 100) return false;
+      if (filters.capacity === "low" && fill >= 50) return false;
+      if (filters.capacity === "empty" && accepted > 0) return false;
+
+      return true;
+    });
+
+    list = [...list].sort((a, b) => {
+      switch (sortBy) {
+        case "date-desc":
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        case "name-asc":
+          return a.name.localeCompare(b.name);
+        case "name-desc":
+          return b.name.localeCompare(a.name);
+        case "date-asc":
+        default:
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+      }
+    });
+
+    return list;
+  }, [uniquePlaySessions, search, filters, sortBy, inviteStats]);
 
   const invitesForTraining = (trainingId: string) =>
     trainInvs.filter((i) => i.trainingId === trainingId);
@@ -258,26 +424,27 @@ function Invitations() {
 
     const responsesLocked =
       sch.status === "rotated" || sch.status === "published" || sch.status === "closed";
+    const scheduleIso = scheduleDateIso(sch.date);
+    const isHoliday = !!scheduleIso && (s.holidays ?? []).includes(scheduleIso);
     const courtsPublished =
       (sch.status === "published" || sch.status === "closed") &&
       s.rotations.some((r) => r.scheduleId === sch.id);
 
-    const acceptedAtMs = i.acceptedAt
-      ? Date.parse(i.acceptedAt)
-      : i.updatedAt
-        ? Date.parse(i.updatedAt)
-        : NaN;
-    const withinDeclineWindow =
-      Number.isFinite(acceptedAtMs) && Date.now() - acceptedAtMs <= 24 * 60 * 60 * 1000;
+    const lockHours = Math.max(0, s.cancellationLockHours ?? 24);
+    const matchStartMs = Date.parse(sch.date);
+    const withinCancelWindow =
+      Number.isFinite(matchStartMs) &&
+      Date.now() < matchStartMs - lockHours * 60 * 60 * 1000;
+    const hoursLabel = lockHours === 1 ? "1 hour" : `${lockHours} hours`;
 
     const canAccept =
       !responsesLocked && (i.status === "open" || i.status === "declined");
     const canDeclineWaiting = !responsesLocked && i.status === "waiting";
     const canDeclineAccepted =
-      !responsesLocked && i.status === "accepted" && withinDeclineWindow;
+      !responsesLocked && i.status === "accepted" && withinCancelWindow;
     const canDecline = canDeclineWaiting || canDeclineAccepted;
     const declineLockedByTime =
-      !responsesLocked && i.status === "accepted" && !withinDeclineWindow;
+      !responsesLocked && i.status === "accepted" && !withinCancelWindow;
 
     return (
       <div key={i.id} className="space-y-2 pt-2 border-t border-white/[0.03]">
@@ -287,7 +454,7 @@ function Invitations() {
             <div className="text-[11px] text-[#8A8A98] mt-0.5 font-light">
               Session Fee:{" "}
               <span className="font-semibold font-mono text-[#34D399]">
-                ${estimatedFee.toFixed(2)}
+                {fmtMoney(estimatedFee)}
               </span>
             </div>
           </div>
@@ -311,8 +478,17 @@ function Invitations() {
           <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5 font-light">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
-              <span className="font-semibold">Alert:</span> Insufficient credits ($
-              {member!.credit.toFixed(2)} / ${estimatedFee.toFixed(2)})
+              <span className="font-semibold">Alert:</span> Insufficient credits (
+              {fmtMoney(member!.credit)} / {fmtMoney(estimatedFee)})
+            </span>
+          </div>
+        )}
+        {isHoliday && (
+          <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
+            <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
+            <span>
+              <span className="font-semibold">Club holiday:</span> This session falls on a registered
+              holiday date.
             </span>
           </div>
         )}
@@ -326,8 +502,8 @@ function Invitations() {
           <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
-              <span className="font-semibold">Cancellation closed:</span> You cannot cancel after 24 hours.
-              This rule applies to all members.
+              <span className="font-semibold">Cancellation closed:</span> You cannot cancel within{" "}
+              {hoursLabel} of the match start. This rule applies to all members.
             </span>
           </div>
         )}
@@ -408,7 +584,7 @@ function Invitations() {
   return (
     <div className="space-y-6">
       <Dialog open={!!courtsPopup} onOpenChange={(open) => !open && setCourtsPopup(null)}>
-        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">
               {courtsPopup?.schedule.name ?? "Court details"}
@@ -430,6 +606,83 @@ function Invitations() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!playersPopup} onOpenChange={(open) => !open && setPlayersPopup(null)}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE]">
+              {playersPopup?.name ?? "Session players"}
+            </DialogTitle>
+            <DialogDescription className="text-[#8A8A98]">
+              {playersPopup
+                ? `${fmtDateTime(playersPopup.date)} · ${playersPopup.location}`
+                : "Accepted and waiting members"}
+            </DialogDescription>
+          </DialogHeader>
+          {playersPopup && (() => {
+            const lists = schedulePlayerLists(playersPopup.id);
+            const maxPlayers = Math.max(playersPopup.players || 0, 1);
+            const columns = [
+              {
+                key: "accepted" as const,
+                label: "Accepted",
+                color: "text-[#2DD4BF]",
+                countLabel: `(${lists.accepted.length} / ${maxPlayers})`,
+                items: lists.accepted,
+              },
+              {
+                key: "waiting" as const,
+                label: "Waiting",
+                color: "text-[#F59E0B]",
+                countLabel: `(${lists.waiting.length})`,
+                items: lists.waiting,
+              },
+            ];
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                {columns.map((col) => (
+                  <div
+                    key={col.key}
+                    className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 overflow-hidden"
+                  >
+                    <div className="px-3 py-2.5 border-b border-white/[0.04] flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
+                        {col.label}
+                      </span>
+                      <span className={cn("font-mono text-xs", col.color)}>{col.countLabel}</span>
+                    </div>
+                    <div className="px-3 py-2 max-h-[320px] overflow-y-auto space-y-0.5">
+                      {col.items.length === 0 ? (
+                        <p className="text-[13px] font-light text-[#4A5E58] py-3 text-center">
+                          No members listed.
+                        </p>
+                      ) : (
+                        col.items.map((inv, idx) => {
+                          const isGuest =
+                            typeof inv.memberId === "string" && inv.memberId.startsWith("guest_");
+                          return (
+                            <div
+                              key={inv.id}
+                              className="text-[13px] text-[#EEF2F0] py-2 border-b border-white/[0.03] last:border-0 font-semibold flex items-center gap-2"
+                            >
+                              <span className="font-mono text-[10px] text-[#8A8A98] shrink-0">
+                                {idx + 1}.
+                              </span>
+                              <span className={cn("truncate", isGuest && "text-[#D97706]")}>
+                                {name(inv.memberId)}
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!creditGap} onOpenChange={(open) => !open && setCreditGap(null)}>
         <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-md">
           <AlertDialogHeader>
@@ -443,8 +696,7 @@ function Invitations() {
               </span>
               {creditGap && (
                 <span className="block font-mono text-[13px] text-[#F1F0EE]">
-                  Balance ${creditGap.balance.toFixed(2)} · Required $
-                  {creditGap.required.toFixed(2)}
+                  Balance {fmtMoney(creditGap.balance)} · Required {fmtMoney(creditGap.required)}
                 </span>
               )}
               <span className="block">
@@ -475,8 +727,24 @@ function Invitations() {
 
       <PageHeader
         title="My invitations"
-        description="Enroll in released play sessions and training programs. Play cancellations close 24 hours after accepting."
+        description={`Enroll in released play sessions and training programs. Play cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before the match starts.`}
       />
+
+      {uniquePlaySessions.length > 0 && (
+        <ScheduleFilters
+          search={search}
+          onSearchChange={setSearch}
+          filters={filters}
+          onFilterChange={setFilter}
+          onClearAll={clearFilters}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          sortOptions={sortOptions}
+          locations={locationList}
+          totalCount={uniquePlaySessions.length}
+          filteredCount={filteredPlaySessions.length}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
@@ -494,18 +762,24 @@ function Invitations() {
               <div>
                 <p className="font-semibold text-[#FBBF24]">Cancellation policy (all members)</p>
                 <p className="mt-0.5 text-[#F59E0B]/90 font-light leading-relaxed">
-                  After you accept a play session, you can cancel only within{" "}
-                  <span className="font-semibold text-[#FBBF24]">24 hours</span>. After 24 hours,
-                  cancellation is not allowed.
+                  You can cancel an accepted play session until{" "}
+                  <span className="font-semibold text-[#FBBF24]">
+                    {s.cancellationLockHours === 1
+                      ? "1 hour"
+                      : `${s.cancellationLockHours ?? 24} hours`}
+                  </span>{" "}
+                  before the match starts. After that, cancellation is not allowed.
                 </p>
               </div>
             </div>
-            {uniquePlaySessions.length === 0 && (
+            {filteredPlaySessions.length === 0 && (
               <div className="py-4 space-y-3">
                 <p className="text-[13px] font-light text-[#4A5E58] text-center">
-                  No play sessions are open yet.
+                  {uniquePlaySessions.length === 0
+                    ? "No play sessions are open yet."
+                    : "No play sessions match your filters."}
                 </p>
-                {adultPlayers.length === 0 && (
+                {uniquePlaySessions.length === 0 && adultPlayers.length === 0 && (
                   <div className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 rounded-lg p-4 flex flex-col items-center gap-3">
                     <p className="text-[13px] text-muted-foreground text-center">
                       Add an adult family member with club membership to join when a session is released.
@@ -520,7 +794,7 @@ function Invitations() {
               </div>
             )}
 
-            {uniquePlaySessions.map((sch) => {
+            {filteredPlaySessions.map((sch) => {
               const available = availablePlayMembers(sch);
               const scheduleInvites = invitesForSchedule(sch.id);
               const canEnroll = sch.status === "released";
@@ -545,6 +819,14 @@ function Invitations() {
                             League
                           </span>
                         )}
+                        {(() => {
+                          const iso = scheduleDateIso(sch.date);
+                          return iso && (s.holidays ?? []).includes(iso) ? (
+                            <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
+                              Holiday
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
                         {fmtDateTime(sch.date)} · {sch.location}
@@ -552,6 +834,21 @@ function Invitations() {
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
                       <StatusBadge status={sch.status} />
+                      {(sch.status === "released" ||
+                        sch.status === "rotated" ||
+                        sch.status === "published" ||
+                        sch.status === "closed") && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="btn-premium-outline h-8 text-[11px] cursor-pointer"
+                          onClick={() => openPlayersPopup(sch)}
+                        >
+                          <Users className="size-3.5 mr-1" />
+                          View players
+                        </Button>
+                      )}
                       {(sch.status === "published" || sch.status === "closed") &&
                         s.rotations.some((r) => r.scheduleId === sch.id) && (
                           <Button
@@ -707,7 +1004,7 @@ function Invitations() {
                                 <div className="text-[11px] text-muted-foreground">
                                   Grade {child.grade} · Fee{" "}
                                   <span className="font-mono text-[#34D399]">
-                                    ${childFee.toFixed(2)}
+                                    {fmtMoney(childFee)}
                                   </span>
                                 </div>
                               </div>

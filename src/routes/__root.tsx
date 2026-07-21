@@ -127,8 +127,10 @@ function RootShell({ children }: { children: ReactNode }) {
                   var theme = localStorage.getItem('clubapp-theme');
                   if (theme === 'light') {
                     document.documentElement.classList.add('light');
+                    document.documentElement.style.colorScheme = 'light';
                   } else {
                     document.documentElement.classList.remove('light');
+                    document.documentElement.style.colorScheme = 'dark';
                   }
                   var colorTheme = localStorage.getItem('clubapp-color-theme') || 'sapphire';
                   if (colorTheme === 'custom') {

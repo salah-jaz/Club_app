@@ -1,24 +1,40 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, type ReactNode } from "react";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDateTime, fmtMoney } from "@/lib/format";
-import { Users, Wallet, CalendarDays, GraduationCap, Inbox, ShieldCheck } from "lucide-react";
+import {
+  Users,
+  Wallet,
+  CalendarDays,
+  GraduationCap,
+  Inbox,
+  ShieldCheck,
+  ArrowRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
+import type { PlaySchedule } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
-// Per-card accent configs: left border color + icon bg tint + icon text color
+function scheduleDateIso(dateStr: string): string | null {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 const CARD_ACCENTS = [
-  { border: "var(--primary)", iconBg: "var(--violet-dim)", iconColor: "var(--primary)" },  // theme brand primary — members
-  { border: "#F59E0B", iconBg: "rgba(245,158,11,0.12)",  iconColor: "#F59E0B" }, // amber — requests/credit
-  { border: "var(--gold)", iconBg: "var(--gold-dim)",  iconColor: "var(--gold)" }, // theme brand secondary (teal) — credits/invites
-  { border: "#818CF8", iconBg: "rgba(129,140,248,0.12)", iconColor: "#818CF8" }, // indigo — sessions/trainings
+  { border: "var(--primary)", iconBg: "var(--violet-dim)", iconColor: "var(--primary)" },
+  { border: "#F59E0B", iconBg: "rgba(245,158,11,0.12)", iconColor: "#F59E0B" },
+  { border: "var(--gold)", iconBg: "var(--gold-dim)", iconColor: "var(--gold)" },
+  { border: "#818CF8", iconBg: "rgba(129,140,248,0.12)", iconColor: "#818CF8" },
 ];
 
 function Stat({
@@ -58,7 +74,9 @@ function Stat({
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <div className="text-[13px] font-semibold tracking-wider text-[var(--text-secondary,#8FA89F)] uppercase">{label}</div>
+                <div className="text-[13px] font-semibold tracking-wider text-[var(--text-secondary,#8FA89F)] uppercase">
+                  {label}
+                </div>
                 <div className="type-stat-value mt-1.5 block">
                   {isNumeric && numericValue !== null ? (
                     <AnimatedCounter value={numericValue} />
@@ -82,8 +100,7 @@ function Stat({
   );
 }
 
-// Quick action tile with hover lift + press down
-function QuickActionTile({
+function HeaderQuickAction({
   to,
   icon: Icon,
   label,
@@ -93,25 +110,95 @@ function QuickActionTile({
   label: string;
 }) {
   return (
-    <motion.div
-      whileHover={{ y: -3, scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ duration: 0.16, ease: "easeOut" }}
-    >
-      <Link
-        to={to}
-        className="flex flex-col items-start gap-4 p-4 rounded-lg bg-[#1A2120] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(16,185,129,0.4)] hover:bg-[rgba(16,185,129,0.12)] transition-colors group"
-      >
-        <motion.div
-          whileHover={{ rotate: 8, scale: 1.15 }}
-          transition={{ duration: 0.15 }}
-          className="text-[#8FA89F] group-hover:text-[#10B981] transition-colors"
-        >
-          <Icon className="size-5" />
-        </motion.div>
-        <span className="text-[13px] font-semibold text-[#EEF2F0]">{label}</span>
+    <Button asChild variant="outline" size="sm" className="btn-premium-outline h-9 cursor-pointer">
+      <Link to={to} className="inline-flex items-center gap-1.5">
+        <Icon className="size-3.5 shrink-0" />
+        <span className="truncate">{label}</span>
       </Link>
-    </motion.div>
+    </Button>
+  );
+}
+
+function ScheduleListCard({
+  title,
+  schedules,
+  holidays,
+  emptyTitle,
+  emptyDescription,
+  emptyCtaLabel,
+  emptyCtaTo,
+  viewAllTo,
+  viewAllLabel = "View all",
+  footer,
+}: {
+  title: string;
+  schedules: PlaySchedule[];
+  holidays: string[];
+  emptyTitle: string;
+  emptyDescription: string;
+  emptyCtaLabel?: string;
+  emptyCtaTo?: string;
+  viewAllTo?: string;
+  viewAllLabel?: string;
+  footer?: ReactNode;
+}) {
+  return (
+    <Card className="signature-card-top flex flex-col">
+      <CardHeader className="px-6 pt-5 pb-2 flex flex-row items-center justify-between gap-3 space-y-0">
+        <CardTitle className="type-section-cap">{title}</CardTitle>
+        {viewAllTo && schedules.length > 0 && (
+          <Button asChild variant="ghost" size="sm" className="h-8 text-xs text-[#34D399] hover:text-[#10B981] cursor-pointer px-2">
+            <Link to={viewAllTo} className="inline-flex items-center gap-1">
+              {viewAllLabel}
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col justify-start gap-3 px-6 pt-2 pb-5">
+        {schedules.length === 0 ? (
+          <EmptyIllustration
+            icon="shuttlecock"
+            title={emptyTitle}
+            description={emptyDescription}
+            ctaLabel={emptyCtaLabel}
+            ctaTo={emptyCtaTo}
+          />
+        ) : (
+          <div className="space-y-3">
+            {schedules.slice(0, 4).map((sch, i) => {
+              const iso = scheduleDateIso(sch.date);
+              const isHoliday = !!iso && holidays.includes(iso);
+              return (
+                <motion.div
+                  key={sch.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.06, duration: 0.2 }}
+                  className="flex items-center justify-between border border-[rgba(255,255,255,0.06)] bg-[#131916]/40 hover:bg-[#1A2120]/40 rounded-lg p-3 transition-colors gap-3"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-semibold text-sm text-[#EEF2F0]">{sch.name}</div>
+                      {isHoliday && (
+                        <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
+                          Holiday
+                        </span>
+                      )}
+                    </div>
+                    <div className="type-helper mt-1">
+                      {fmtDateTime(sch.date)} · {sch.location}
+                    </div>
+                  </div>
+                  <StatusBadge status={sch.status} />
+                </motion.div>
+              );
+            })}
+            {footer}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -121,8 +208,32 @@ function Dashboard() {
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const totalCredit = myMembers.reduce((t, m) => t + m.credit, 0);
   const pendingUsers = s.users.filter((u) => u.status === "created").length;
-  const pendingCredits = s.creditRequests.filter((c) => c.status === "created").length;
-  const upcomingSchedules = s.schedules.filter((x) => x.status !== "closed");
+  const pendingCredits = s.creditRequests.filter((c) => (c.type || "credit") === "credit" && c.status === "created").length;
+
+  const upcomingSchedules = useMemo(
+    () =>
+      [...s.schedules]
+        .filter((x) => x.status !== "closed")
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [s.schedules],
+  );
+
+  const openSessions = useMemo(
+    () =>
+      [...s.schedules]
+        .filter((x) => x.status === "open")
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [s.schedules],
+  );
+
+  const otherStatusSessions = useMemo(
+    () =>
+      [...s.schedules]
+        .filter((x) => x.status !== "open" && x.status !== "closed")
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [s.schedules],
+  );
+
   const myInvites = [
     ...s.playInvites.filter(
       (i) => myMembers.some((m) => m.id === i.memberId) && i.status === "open",
@@ -132,14 +243,38 @@ function Dashboard() {
     ),
   ];
 
+  const headerActions = (
+    <div className="flex flex-wrap items-center gap-2 justify-start md:justify-end">
+      {user.role === "admin" && (
+        <>
+          <HeaderQuickAction to="/approvals" icon={ShieldCheck} label="Approvals" />
+          <HeaderQuickAction to="/schedules" icon={CalendarDays} label="New schedule" />
+          <HeaderQuickAction to="/trainings" icon={GraduationCap} label="New training" />
+          <HeaderQuickAction to="/members" icon={Users} label="Members" />
+        </>
+      )}
+      {user.role === "member" && (
+        <>
+          <HeaderQuickAction to="/members" icon={Users} label="Add family member" />
+          <HeaderQuickAction to="/credits" icon={Wallet} label="Request credit" />
+          <HeaderQuickAction to="/invitations" icon={Inbox} label="My invitations" />
+          <HeaderQuickAction to="/transactions" icon={Wallet} label="Transactions" />
+        </>
+      )}
+      {user.role === "volunteer" && (
+        <HeaderQuickAction to="/trainings" icon={GraduationCap} label="Manage trainings" />
+      )}
+    </div>
+  );
+
   return (
     <div>
       <PageHeader
         title={`Welcome, ${user.firstName}`}
         description="Here's what's happening at your club today."
+        actions={headerActions}
       />
 
-      {/* Stat Cards — staggered entrance */}
       <motion.div
         variants={staggerContainer}
         initial="hidden"
@@ -149,15 +284,38 @@ function Dashboard() {
         {user.role === "admin" && (
           <>
             <Stat label="Members" value={s.members.length} icon={Users} index={0} />
-            <Stat label="Member requests" value={pendingUsers} icon={ShieldCheck} hint="Awaiting approval" index={1} />
-            <Stat label="Pending credits" value={pendingCredits} icon={Wallet} hint="Top-up requests" index={2} />
-            <Stat label="Active sessions" value={upcomingSchedules.length} icon={CalendarDays} index={3} />
+            <Stat
+              label="Member requests"
+              value={pendingUsers}
+              icon={ShieldCheck}
+              hint="Awaiting approval"
+              index={1}
+            />
+            <Stat
+              label="Pending credits"
+              value={pendingCredits}
+              icon={Wallet}
+              hint="Top-up requests"
+              index={2}
+            />
+            <Stat
+              label="Active sessions"
+              value={upcomingSchedules.length}
+              icon={CalendarDays}
+              index={3}
+            />
           </>
         )}
         {user.role === "member" && (
           <>
             <Stat label="Family members" value={myMembers.length} icon={Users} index={0} />
-            <Stat label="Total credit" value={fmtMoney(totalCredit)} icon={Wallet} index={1} isNumeric={false} />
+            <Stat
+              label="Total credit"
+              value={fmtMoney(totalCredit)}
+              icon={Wallet}
+              index={1}
+              isNumeric={false}
+            />
             <Stat label="Open invitations" value={myInvites.length} icon={Inbox} index={2} />
             <Stat label="Trainings" value={s.trainings.length} icon={GraduationCap} index={3} />
           </>
@@ -165,105 +323,56 @@ function Dashboard() {
         {user.role === "volunteer" && (
           <>
             <Stat label="Trainings" value={s.trainings.length} icon={GraduationCap} index={0} />
-            <Stat label="Junior members" value={s.members.filter((m) => m.memberType === "junior").length} icon={Users} index={1} />
-            <Stat label="Sessions to mark" value={s.trainingDates.filter((d) => d.attended === null).length} icon={Inbox} index={2} />
+            <Stat
+              label="Junior members"
+              value={s.members.filter((m) => m.memberType === "junior").length}
+              icon={Users}
+              index={1}
+            />
+            <Stat
+              label="Sessions to mark"
+              value={s.trainingDates.filter((d) => d.attended === null).length}
+              icon={Inbox}
+              index={2}
+            />
             <Stat label="Locations" value={s.locations.length} icon={CalendarDays} index={3} />
           </>
         )}
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-        {/* LEFT - Upcoming sessions */}
-        <Card className="signature-card-top flex flex-col justify-between">
-          <CardHeader className="p-6 pb-4">
-            <CardTitle className="type-section-cap">
-              Upcoming Play Sessions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col justify-center gap-3">
-            {upcomingSchedules.length === 0 ? (
-              <EmptyIllustration
-                icon="shuttlecock"
-                title="No sessions scheduled"
-                description="Sessions appear here once you create and release a schedule."
-                ctaLabel={user.role === "admin" ? "Create a schedule" : undefined}
-                ctaTo={user.role === "admin" ? "/schedules" : undefined}
-              />
-            ) : (
-              <div className="space-y-3">
-                {upcomingSchedules.slice(0, 4).map((sch, i) => (
-                  <motion.div
-                    key={sch.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.06, duration: 0.2 }}
-                    className="flex items-center justify-between border border-[rgba(255,255,255,0.06)] bg-[#131916]/40 hover:bg-[#1A2120]/40 rounded-lg p-3 transition-colors"
-                  >
-                    <div>
-                      <div className="font-semibold text-sm text-[#EEF2F0]">{sch.name}</div>
-                      <div className="type-helper mt-1">{fmtDateTime(sch.date)} · {sch.location}</div>
-                    </div>
-                    <StatusBadge status={sch.status} />
-                  </motion.div>
-                ))}
-                {user.role === "admin" && (
-                  <Button asChild variant="outline" size="sm" className="w-full mt-4 btn-premium-outline cursor-pointer">
-                    <Link to="/schedules">Manage schedules</Link>
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <ScheduleListCard
+          title="Upcoming Play Sessions"
+          schedules={otherStatusSessions}
+          holidays={s.holidays ?? []}
+          emptyTitle="No sessions scheduled"
+          emptyDescription="Released and later sessions will appear here."
+          emptyCtaLabel={user.role === "admin" ? "Create a schedule" : undefined}
+          emptyCtaTo={user.role === "admin" ? "/schedules" : undefined}
+          footer={
+            user.role === "admin" ? (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="w-full mt-1 btn-premium-outline cursor-pointer"
+              >
+                <Link to="/schedules">Manage schedules</Link>
+              </Button>
+            ) : null
+          }
+        />
 
-        {/* RIGHT - Quick actions */}
-        <Card className="flex flex-col">
-          <CardHeader className="p-6 pb-4">
-            <CardTitle className="type-section-cap">
-              Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col justify-center">
-            {user.role === "admin" && (
-              <motion.div
-                variants={staggerContainer}
-                initial="hidden"
-                animate="show"
-                className="grid grid-cols-2 gap-3"
-              >
-                <motion.div variants={staggerItem}><QuickActionTile to="/approvals" icon={ShieldCheck} label="Approvals" /></motion.div>
-                <motion.div variants={staggerItem}><QuickActionTile to="/schedules" icon={CalendarDays} label="New schedule" /></motion.div>
-                <motion.div variants={staggerItem}><QuickActionTile to="/trainings" icon={GraduationCap} label="New training" /></motion.div>
-                <motion.div variants={staggerItem}><QuickActionTile to="/members" icon={Users} label="Members" /></motion.div>
-              </motion.div>
-            )}
-            {user.role === "member" && (
-              <motion.div
-                variants={staggerContainer}
-                initial="hidden"
-                animate="show"
-                className="grid grid-cols-2 gap-3"
-              >
-                <motion.div variants={staggerItem}><QuickActionTile to="/members" icon={Users} label="Add family member" /></motion.div>
-                <motion.div variants={staggerItem}><QuickActionTile to="/credits" icon={Wallet} label="Request credit" /></motion.div>
-                <motion.div variants={staggerItem}><QuickActionTile to="/invitations" icon={Inbox} label="My invitations" /></motion.div>
-                <motion.div variants={staggerItem}><QuickActionTile to="/transactions" icon={Wallet} label="Transactions" /></motion.div>
-              </motion.div>
-            )}
-            {user.role === "volunteer" && (
-              <div className="flex flex-col items-center justify-center p-6 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] rounded-lg">
-                <motion.div whileHover={{ y: -3, scale: 1.02 }} whileTap={{ scale: 0.97 }} className="w-full">
-                  <Link to="/trainings" className="w-full flex flex-col items-center gap-3 py-6 px-4 rounded-lg hover:bg-white/3 transition-colors group">
-                    <GraduationCap className="size-8 text-[#8FA89F] group-hover:text-[#10B981] transition-colors" />
-                    <span className="text-[14px] font-semibold text-[#EEF2F0]">Manage trainings</span>
-                  </Link>
-                </motion.div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <ScheduleListCard
+          title="Open Sessions"
+          schedules={openSessions}
+          holidays={s.holidays ?? []}
+          emptyTitle="No open sessions"
+          emptyDescription="Open play sessions that have not been released yet will appear here."
+          viewAllTo={user.role === "admin" ? "/schedules" : undefined}
+          viewAllLabel="View all"
+        />
       </div>
-
     </div>
   );
 }

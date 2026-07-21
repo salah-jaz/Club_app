@@ -18,7 +18,7 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::with('adminRole')->where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
@@ -36,20 +36,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'firstName' => $user->first_name,
-                'lastName' => $user->last_name,
-                'nickname' => $user->nickname,
-                'sex' => $user->sex,
-                'dob' => $user->dob,
-                'email' => $user->email,
-                'mobile' => $user->mobile,
-                'address' => $user->address,
-                'role' => $user->role,
-                'status' => $user->status,
-                'createdAt' => $user->created_at->toISOString(),
-            ]
+            'user' => $this->formatUser($user),
         ]);
     }
 
@@ -99,8 +86,14 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        $user = $request->user();
-        return response()->json([
+        $user = $request->user()->load('adminRole');
+
+        return response()->json($this->formatUser($user));
+    }
+
+    private function formatUser(User $user): array
+    {
+        return [
             'id' => $user->id,
             'firstName' => $user->first_name,
             'lastName' => $user->last_name,
@@ -112,7 +105,11 @@ class AuthController extends Controller
             'address' => $user->address,
             'role' => $user->role,
             'status' => $user->status,
+            'adminRoleId' => $user->role === 'admin' ? $user->admin_role_id : null,
+            'adminRoleName' => $user->role === 'admin' ? $user->adminRole?->name : null,
+            'isSuperAdmin' => $user->role === 'admin' ? (bool) $user->is_super_admin : false,
+            'permissions' => $user->getPermissionIds(),
             'createdAt' => $user->created_at->toISOString(),
-        ]);
+        ];
     }
 }

@@ -70,13 +70,13 @@ function AddMember() {
           sex: "male",
           memberType: isAdmin ? "adult" : "junior",
           membership: false,
-          trainingEligible: !isAdmin,
+          trainingEligible: false,
           skipCreditConsumption: false,
           applyDiscount: false,
           grade: "",
           biMemberId: initialBiMemberId,
           nickname: "",
-          status: "active",
+          status: isAdmin ? "active" : "pending",
           parentMemberId: null,
           ...(isAdmin ? { mobile: "", address: "", password: "" } : {}),
         }}
@@ -95,9 +95,11 @@ function AddMember() {
             // New login only for adults created by admin
             await add(payload, isAdmin && !isJunior);
             toast.success(
-              isAdmin && !isJunior
-                ? "Member and login account created"
-                : "Member added",
+              !isAdmin
+                ? "Junior submitted for admin approval"
+                : isAdmin && !isJunior
+                  ? "Member and login account created"
+                  : "Member added",
             );
             navigate({ to: "/members" });
           } catch (error: any) {

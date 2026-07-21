@@ -43,8 +43,9 @@ class MemberController extends Controller
 
     public function store(Request $request)
     {
-        $createLogin = $request->boolean('createLogin')
-            && $request->user()->role === 'admin';
+        $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
+        $createLogin = $request->boolean('createLogin') && $isAdmin;
 
         $memberRules = [
             'firstName' => 'required|string|max:255',
@@ -53,7 +54,7 @@ class MemberController extends Controller
             'email' => 'required|email|max:255',
             'sex' => 'required|in:male,female',
             'memberType' => 'required|in:adult,junior',
-            'membership' => 'required|boolean',
+            'membership' => $isAdmin ? 'required|boolean' : 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
             'skipCreditConsumption' => 'sometimes|boolean',
             'applyDiscount' => 'sometimes|boolean',
@@ -66,7 +67,9 @@ class MemberController extends Controller
             ],
             'biMemberId' => 'nullable|string',
             'nickname' => 'nullable|string|max:255',
-            'status' => 'required|in:active,disabled',
+            'status' => $isAdmin
+                ? 'required|in:active,disabled,pending,rejected'
+                : 'sometimes|in:active,disabled,pending,rejected',
             'parentMemberId' => 'nullable|string|exists:members,id',
         ];
 
@@ -146,8 +149,45 @@ class MemberController extends Controller
             });
         } else {
             $request->validate(array_merge($memberRules, [
-                'userId' => 'required|string',
+                'userId' => $isAdmin ? 'required|string' : 'sometimes|string',
             ]));
+
+            // Members may only add juniors under their own account (pending approval).
+            if (!$isAdmin) {
+                if ($request->memberType !== 'junior') {
+                    return response()->json([
+                        'message' => 'Members can only register junior family members.',
+                    ], 422);
+                }
+
+                $parent = Member::where('user_id', $user->id)
+                    ->where('member_type', 'adult')
+                    ->orderBy('created_at')
+                    ->first();
+
+                $member = Member::create([
+                    'id' => 'm_' . Str::random(8),
+                    'user_id' => $user->id,
+                    'parent_member_id' => $parent?->id,
+                    'first_name' => $request->firstName,
+                    'last_name' => $request->lastName,
+                    'dob' => $request->dob,
+                    'email' => $request->email ?: ($user->email ?? ''),
+                    'sex' => $request->sex,
+                    'member_type' => 'junior',
+                    'membership' => false,
+                    'training_eligible' => false,
+                    'grade' => $request->grade,
+                    'bi_member_id' => $request->biMemberId,
+                    'nickname' => $request->nickname,
+                    'status' => 'pending',
+                    'credit' => 0.00,
+                    'skip_credit_consumption' => false,
+                    'apply_discount' => false,
+                ]);
+
+                return response()->json($this->formatMember($member), 201);
+            }
 
             $parentId = $request->input('parentMemberId');
             $parent = $parentId ? Member::find($parentId) : null;
@@ -180,6 +220,12 @@ class MemberController extends Controller
     public function update(Request $request, $id)
     {
         $member = Member::findOrFail($id);
+        $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
+
+        if (!$isAdmin && $member->user_id !== $user->id) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
 
         $data = [];
         if ($request->has('firstName')) $data['first_name'] = $request->firstName;
@@ -187,40 +233,48 @@ class MemberController extends Controller
         if ($request->has('dob')) $data['dob'] = $request->dob;
         if ($request->has('email')) $data['email'] = $request->email;
         if ($request->has('sex')) $data['sex'] = $request->sex;
-        if ($request->has('memberType')) $data['member_type'] = $request->memberType;
-        if ($request->has('membership')) $data['membership'] = $request->membership;
-        if ($request->has('trainingEligible')) $data['training_eligible'] = $request->trainingEligible;
         if ($request->has('grade')) $data['grade'] = $request->grade;
         if ($request->has('biMemberId')) $data['bi_member_id'] = $request->biMemberId;
         if ($request->has('nickname')) $data['nickname'] = $request->nickname;
-        if ($request->has('status')) $data['status'] = $request->status;
-        if ($request->has('credit')) $data['credit'] = $request->credit;
-        if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->skipCreditConsumption;
-        if ($request->has('applyDiscount')) $data['apply_discount'] = $request->applyDiscount;
-        if ($request->has('parentMemberId')) {
-            $parentId = $request->input('parentMemberId') ?: null;
-            if ($parentId) {
-                $parent = Member::find($parentId);
-                if (!$parent || $parent->member_type !== 'adult') {
-                    return response()->json(['message' => 'Parent must be an adult member.'], 422);
+
+        if ($isAdmin) {
+            if ($request->has('memberType')) $data['member_type'] = $request->memberType;
+            if ($request->has('membership')) $data['membership'] = $request->membership;
+            if ($request->has('trainingEligible')) $data['training_eligible'] = $request->trainingEligible;
+            if ($request->has('status')) {
+                if (!in_array($request->status, ['active', 'disabled', 'pending', 'rejected'], true)) {
+                    return response()->json(['message' => 'Invalid status.'], 422);
                 }
-                if ($parent->id === $member->id) {
-                    return response()->json(['message' => 'A member cannot be their own parent.'], 422);
+                $data['status'] = $request->status;
+            }
+            if ($request->has('credit')) $data['credit'] = $request->credit;
+            if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->skipCreditConsumption;
+            if ($request->has('applyDiscount')) $data['apply_discount'] = $request->applyDiscount;
+            if ($request->has('parentMemberId')) {
+                $parentId = $request->input('parentMemberId') ?: null;
+                if ($parentId) {
+                    $parent = Member::find($parentId);
+                    if (!$parent || $parent->member_type !== 'adult') {
+                        return response()->json(['message' => 'Parent must be an adult member.'], 422);
+                    }
+                    if ($parent->id === $member->id) {
+                        return response()->json(['message' => 'A member cannot be their own parent.'], 422);
+                    }
+                    $data['parent_member_id'] = $parent->id;
+                    if ($parent->user_id) {
+                        $data['user_id'] = $parent->user_id;
+                    }
+                } else {
+                    $data['parent_member_id'] = null;
                 }
-                $data['parent_member_id'] = $parent->id;
-                if ($parent->user_id) {
-                    $data['user_id'] = $parent->user_id;
-                }
-            } else {
-                $data['parent_member_id'] = null;
             }
         }
 
         $member->update($data);
 
-        if ($member->user_id) {
-            $user = User::find($member->user_id);
-            if ($user) {
+        if ($isAdmin && $member->user_id) {
+            $account = User::find($member->user_id);
+            if ($account) {
                 $userUpdates = [];
                 if ($request->has('firstName')) $userUpdates['first_name'] = $request->firstName;
                 if ($request->has('lastName')) $userUpdates['last_name'] = $request->lastName;
@@ -231,23 +285,99 @@ class MemberController extends Controller
                     $userUpdates['password'] = Hash::make($request->password);
                 }
                 if (!empty($userUpdates)) {
-                    $user->update($userUpdates);
+                    $account->update($userUpdates);
                 }
             }
         }
 
-        return response()->json($this->formatMember($member));
+        return response()->json($this->formatMember($member->fresh()));
+    }
+
+    /**
+     * Admin: approve a pending junior (activate + optional membership/training/grade).
+     */
+    public function approve(Request $request, $id)
+    {
+        if ($request->user()?->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can approve juniors.'], 403);
+        }
+
+        $member = Member::findOrFail($id);
+        if ($member->member_type !== 'junior' || $member->status !== 'pending') {
+            return response()->json([
+                'message' => 'Only pending juniors can be approved.',
+            ], 422);
+        }
+
+        $request->validate([
+            'membership' => 'sometimes|boolean',
+            'trainingEligible' => 'sometimes|boolean',
+            'grade' => [
+                'sometimes',
+                'string',
+                \Illuminate\Validation\Rule::exists('grades', 'name')->where('type', 'junior'),
+            ],
+        ]);
+
+        $member->status = 'active';
+        if ($request->has('membership')) {
+            $member->membership = $request->boolean('membership');
+        }
+        if ($request->has('trainingEligible')) {
+            $member->training_eligible = $request->boolean('trainingEligible');
+        }
+        if ($request->filled('grade')) {
+            $member->grade = $request->grade;
+        }
+        $member->save();
+
+        return response()->json([
+            'message' => 'Junior approved successfully.',
+            'member' => $this->formatMember($member),
+        ]);
+    }
+
+    /**
+     * Admin: reject a pending junior.
+     */
+    public function reject(Request $request, $id)
+    {
+        if ($request->user()?->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can reject juniors.'], 403);
+        }
+
+        $member = Member::findOrFail($id);
+        if ($member->member_type !== 'junior' || $member->status !== 'pending') {
+            return response()->json([
+                'message' => 'Only pending juniors can be rejected.',
+            ], 422);
+        }
+
+        $member->status = 'rejected';
+        $member->membership = false;
+        $member->training_eligible = false;
+        $member->save();
+
+        return response()->json([
+            'message' => 'Junior rejected.',
+            'member' => $this->formatMember($member),
+        ]);
     }
 
     public function destroy($id)
     {
         $member = Member::findOrFail($id);
         $user = auth()->user();
-        
+
+        // Only admins may delete junior members
+        if (strtolower((string) $member->member_type) === 'junior' && (!$user || $user->role !== 'admin')) {
+            return response()->json(['message' => 'Only admins can delete junior members.'], 403);
+        }
+
         if ($user->role !== 'admin' && $member->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
-        
+
         $member->delete();
 
         return response()->json(['message' => 'Member deleted successfully.']);

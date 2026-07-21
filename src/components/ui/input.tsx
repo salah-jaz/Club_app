@@ -10,7 +10,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         className={cn(
           // Base layout & typography
           "flex w-full rounded-lg px-3 py-2 text-sm",
-          // Colors — visible input well
+          // Colors — visible input well (theme tokens)
           "bg-[var(--input-bg,#0A0D0C)] text-[var(--input-text,#EEF2F0)]",
           // Border — clearly visible (not rgba near-zero)
           "border border-[var(--input-border,rgba(255,255,255,0.13))]",
@@ -28,6 +28,8 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           "disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-[var(--bg-elevated,#1A2120)]",
           // Shadow
           "shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)]",
+          // Autofill-friendly marker (styles.css uses theme vars)
+          "auth-input",
           className,
         )}
         ref={ref}

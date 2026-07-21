@@ -21,7 +21,7 @@ export function PageHeader({
       case "members":
         return "CLUB / ROSTER";
       case "credits":
-        return "FINANCE / CREDITS";
+        return "FINANCE / CREDIT / DEBIT";
       case "invitations":
       case "schedules":
         return "SESSIONS / PLAY";
@@ -31,6 +31,8 @@ export function PageHeader({
         return "FINANCE / HISTORY";
       case "approvals":
         return "ADMIN / APPROVALS";
+      case "admin-management":
+        return "ADMIN / MANAGEMENT";
       default:
         return `${role} / PORTAL`;
     }

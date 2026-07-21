@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import type { MemberType, User } from "@/lib/types";
+import type { Member, MemberType, User } from "@/lib/types";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { ResponsiveTable } from "@/components/ResponsiveTable";
@@ -51,11 +51,23 @@ function Approvals() {
   const adultGrades = useStore((st) => st.adultGrades);
   const juniorGrades = useStore((st) => st.juniorGrades);
   const pendingU = s.users.filter((u) => u.status === "created");
-  const pendingC = s.creditRequests.filter((c) => c.status === "created");
+  const pendingC = s.creditRequests.filter((c) => (c.type || "credit") === "credit" && c.status === "created");
+  const pendingJuniors = s.members.filter(
+    (m) => m.memberType === "junior" && m.status === "pending",
+  );
 
   const [approveTarget, setApproveTarget] = useState<User | null>(null);
   const [opts, setOpts] = useState<ApproveOptions>(() => defaultApproveOptions());
   const [submitting, setSubmitting] = useState(false);
+
+  const [juniorTarget, setJuniorTarget] = useState<Member | null>(null);
+  const [juniorOpts, setJuniorOpts] = useState({
+    membership: false,
+    trainingEligible: true,
+    grade: "",
+  });
+  const [approvingJuniorId, setApprovingJuniorId] = useState<string | null>(null);
+  const [rejectingJuniorId, setRejectingJuniorId] = useState<string | null>(null);
 
   // Per-row loading states
   const [rejectingUserId, setRejectingUserId] = useState<string | null>(null);
@@ -66,6 +78,35 @@ function Approvals() {
     setApproveTarget(u);
     const defaultGrade = adultGrades.length > 0 ? adultGrades[0] : "B";
     setOpts(defaultApproveOptions(defaultGrade));
+  };
+
+  const openJuniorApprove = (m: Member) => {
+    setJuniorTarget(m);
+    setJuniorOpts({
+      membership: m.membership ?? false,
+      trainingEligible: true,
+      grade: m.grade || (juniorGrades[0] ?? ""),
+    });
+  };
+
+  const confirmJuniorApprove = async () => {
+    if (!juniorTarget) return;
+    setApprovingJuniorId(juniorTarget.id);
+    try {
+      await s.approveJunior(juniorTarget.id, juniorOpts);
+      toast.success(`${juniorTarget.firstName} approved`);
+      setJuniorTarget(null);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to approve junior.");
+    } finally {
+      setApprovingJuniorId(null);
+    }
+  };
+
+  const parentName = (m: Member) => {
+    if (!m.parentMemberId) return "—";
+    const p = s.members.find((x) => x.id === m.parentMemberId);
+    return p ? `${p.firstName} ${p.lastName}` : m.parentMemberId;
   };
 
   const setMemberType = (memberType: MemberType) => {
@@ -104,7 +145,7 @@ function Approvals() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Approvals" description="Review and authorize pending registrations and credit additions." />
+      <PageHeader title="Approvals" description="Review and authorize pending registrations, juniors, and credit additions." />
 
       <Tabs defaultValue="users" className="w-full">
         <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
@@ -113,6 +154,12 @@ function Approvals() {
             className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all whitespace-nowrap"
           >
             Member Requests ({pendingU.length})
+          </TabsTrigger>
+          <TabsTrigger
+            value="juniors"
+            className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all whitespace-nowrap"
+          >
+            Junior Requests ({pendingJuniors.length})
           </TabsTrigger>
           <TabsTrigger
             value="credits"
@@ -245,6 +292,149 @@ function Approvals() {
                     ))}
                   </TableBody>
                 </Table>
+                  }
+                />
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Junior Requests Tab */}
+        <TabsContent value="juniors" className="focus-visible:outline-none">
+          {pendingJuniors.length === 0 ? (
+            <EmptyIllustration
+              icon="check"
+              title="No pending juniors"
+              description="All junior family member requests have been reviewed."
+            />
+          ) : (
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
+              <CardContent className="p-0">
+                <ResponsiveTable
+                  mobile={
+                    <div className="p-3 space-y-3">
+                      {pendingJuniors.map((m) => (
+                        <div
+                          key={m.id}
+                          className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/50 p-4 space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-bold text-[#EEF2F0] text-[14px] truncate">
+                                {m.firstName} {m.lastName}
+                              </p>
+                              <p className="text-[12px] text-[#C4D4CF] mt-0.5">
+                                Parent: {parentName(m)}
+                              </p>
+                              <p className="text-[12px] text-[#8A8A98] mt-1">
+                                Grade: {m.grade || "—"}
+                                {m.biMemberId ? ` · ${m.biMemberId}` : ""}
+                              </p>
+                            </div>
+                            <StatusBadge status={m.status} />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer flex-1"
+                              onClick={() => openJuniorApprove(m)}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={rejectingJuniorId === m.id}
+                              className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer flex-1"
+                              onClick={async () => {
+                                setRejectingJuniorId(m.id);
+                                try {
+                                  await s.rejectJunior(m.id);
+                                  toast.success("Junior rejected");
+                                } catch (error: unknown) {
+                                  toast.error(
+                                    error instanceof Error ? error.message : "Failed to reject junior.",
+                                  );
+                                } finally {
+                                  setRejectingJuniorId(null);
+                                }
+                              }}
+                            >
+                              {rejectingJuniorId === m.id ? <BtnSpinner /> : "Reject"}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  }
+                  desktop={
+                    <Table>
+                      <TableHeader className="bg-[#0C0F0E]/60">
+                        <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                          <TableHead className="type-table-head h-11 px-5">Junior</TableHead>
+                          <TableHead className="type-table-head h-11">Parent</TableHead>
+                          <TableHead className="type-table-head h-11">Grade</TableHead>
+                          <TableHead className="type-table-head h-11">Status</TableHead>
+                          <TableHead className="type-table-head h-11 text-right px-5">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingJuniors.map((m, i) => (
+                          <motion.tr
+                            key={m.id}
+                            custom={i}
+                            variants={staggerRow}
+                            initial="hidden"
+                            animate="show"
+                            className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
+                          >
+                            <TableCell className="font-bold text-[#EEF2F0] text-[14px] type-table-body px-5 py-4">
+                              {m.firstName} {m.lastName}
+                              {m.biMemberId ? (
+                                <span className="block text-[11px] text-[#8A8A98] font-mono font-normal mt-0.5">
+                                  {m.biMemberId}
+                                </span>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="type-table-body text-[#C4D4CF]">{parentName(m)}</TableCell>
+                            <TableCell className="type-table-body text-[#EEF2F0]">{m.grade || "—"}</TableCell>
+                            <TableCell className="py-4">
+                              <StatusBadge status={m.status} />
+                            </TableCell>
+                            <TableCell className="text-right px-5 py-4 space-x-2">
+                              <Button
+                                size="sm"
+                                className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer min-w-[70px]"
+                                onClick={() => openJuniorApprove(m)}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={rejectingJuniorId === m.id}
+                                className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer min-w-[60px]"
+                                onClick={async () => {
+                                  setRejectingJuniorId(m.id);
+                                  try {
+                                    await s.rejectJunior(m.id);
+                                    toast.success("Junior rejected");
+                                  } catch (error: unknown) {
+                                    toast.error(
+                                      error instanceof Error ? error.message : "Failed to reject junior.",
+                                    );
+                                  } finally {
+                                    setRejectingJuniorId(null);
+                                  }
+                                }}
+                              >
+                                {rejectingJuniorId === m.id ? <BtnSpinner /> : "Reject"}
+                              </Button>
+                            </TableCell>
+                          </motion.tr>
+                        ))}
+                      </TableBody>
+                    </Table>
                   }
                 />
               </CardContent>
@@ -478,6 +668,88 @@ function Approvals() {
               onClick={confirmApprove}
             >
               {submitting ? (
+                <span className="flex items-center gap-2">
+                  <BtnSpinner /> Approving...
+                </span>
+              ) : (
+                "Confirm approval"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!juniorTarget} onOpenChange={(open) => !open && setJuniorTarget(null)}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE]">
+              Approve {juniorTarget?.firstName} {juniorTarget?.lastName}
+            </DialogTitle>
+            <DialogDescription className="text-[#8A8A98]">
+              Activate this junior and set membership options. Parent:{" "}
+              {juniorTarget ? parentName(juniorTarget) : "—"}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Grade</Label>
+              <Select
+                value={juniorOpts.grade || undefined}
+                onValueChange={(grade) => setJuniorOpts((p) => ({ ...p, grade }))}
+              >
+                <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
+                  <SelectValue placeholder="Select grade" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  {juniorGrades.map((g) => (
+                    <SelectItem key={g} value={g}>
+                      {g}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+              <div>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Club membership</Label>
+                <p className="text-xs text-muted-foreground">Paid yearly fee / play invitations.</p>
+              </div>
+              <Switch
+                checked={juniorOpts.membership}
+                onCheckedChange={(membership) => setJuniorOpts((p) => ({ ...p, membership }))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+              <div>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Training eligible</Label>
+                <p className="text-xs text-muted-foreground">Can be invited to junior training sessions.</p>
+              </div>
+              <Switch
+                checked={juniorOpts.trainingEligible}
+                onCheckedChange={(trainingEligible) =>
+                  setJuniorOpts((p) => ({ ...p, trainingEligible }))
+                }
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="btn-premium-outline cursor-pointer"
+              onClick={() => setJuniorTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="btn-premium-solid cursor-pointer min-w-[130px]"
+              disabled={!!approvingJuniorId || !juniorOpts.grade}
+              onClick={() => void confirmJuniorApprove()}
+            >
+              {approvingJuniorId ? (
                 <span className="flex items-center gap-2">
                   <BtnSpinner /> Approving...
                 </span>

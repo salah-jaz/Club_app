@@ -155,6 +155,11 @@
   --sidebar-accent-foreground: #E8F0EE;
   --sidebar-border: rgba(255,255,255,0.06);
   --sidebar-ring: #3B82F6;
+  --input-bg: #0A0D0C;
+  --input-border: rgba(255,255,255,0.13);
+  --input-border-focus: #3B82F6;
+  --input-text: #EEF2F0;
+  --input-placeholder: #6B8580;
 }
 
 .light {
@@ -812,6 +817,60 @@ aside[data-sidebar="sidebar"] {
 /* Input focus glow */
 .input-focus-glow:focus-within {
   --tw-ring-shadow: 0 0 0 3px rgba(16,185,129,0.12);
+}
+
+/* Prefer browser UI that matches app theme (autofill, pickers, scrollbars) */
+:root {
+  color-scheme: dark;
+}
+html.light {
+  color-scheme: light;
+}
+
+/* Chrome/Safari autofill — theme-aware so text stays visible in dark & light, everywhere */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--input-text) !important;
+  color: var(--input-text) !important;
+  caret-color: var(--input-text) !important;
+  background-color: var(--input-bg) !important;
+  background-image: none !important;
+  box-shadow: inset 0 0 0 1000px var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  transition: background-color 99999s ease-out 0s, color 99999s ease-out 0s;
+}
+
+input.auth-input,
+input.auth-input:hover,
+input.auth-input:focus,
+textarea.auth-input,
+textarea.auth-input:hover,
+textarea.auth-input:focus {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  -webkit-text-fill-color: var(--input-text);
+  caret-color: var(--input-text);
+}
+
+input.auth-input:-webkit-autofill,
+input.auth-input:-webkit-autofill:hover,
+input.auth-input:-webkit-autofill:focus,
+input.auth-input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--input-text) !important;
+  color: var(--input-text) !important;
+  caret-color: var(--input-text) !important;
+  background-color: var(--input-bg) !important;
+  box-shadow: inset 0 0 0 1000px var(--input-bg) !important;
 }
 
 /* Form validation shake */
