@@ -39,6 +39,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/members/bulk-upload', [MemberController::class, 'bulkUpload']);
     Route::post('/members/bulk-delete', [MemberController::class, 'bulkDelete']);
     Route::post('/members/{id}/login-as', [MemberController::class, 'loginAs']);
+    Route::post('/members/{id}/approve', [MemberController::class, 'approve']);
+    Route::post('/members/{id}/reject', [MemberController::class, 'reject']);
     Route::patch('/members/{id}', [MemberController::class, 'update']);
     Route::delete('/members/{id}', [MemberController::class, 'destroy']);
 

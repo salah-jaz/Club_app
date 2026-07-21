@@ -95,6 +95,11 @@ interface State {
   updateMember: (id: string, patch: Partial<Member>) => Promise<void>;
   deleteMember: (id: string) => Promise<void>;
   bulkDeleteMembers: (ids: string[]) => Promise<number>;
+  approveJunior: (
+    id: string,
+    opts?: { membership?: boolean; trainingEligible?: boolean; grade?: string },
+  ) => Promise<void>;
+  rejectJunior: (id: string) => Promise<void>;
 
   // credits
   requestCredit: (memberId: string, amount: number, date: string) => Promise<void>;
@@ -504,6 +509,16 @@ export const useStore = create<State>((set, get) => ({
     const res = await api.post<{ deletedCount?: number }>("/members/bulk-delete", { ids: unique });
     await get().syncData();
     return res.deletedCount ?? unique.length;
+  },
+
+  approveJunior: async (id, opts = {}) => {
+    await api.post(`/members/${id}/approve`, opts);
+    await get().syncData();
+  },
+
+  rejectJunior: async (id) => {
+    await api.post(`/members/${id}/reject`);
+    await get().syncData();
   },
 
   requestCredit: async (memberId, amount, date) => {

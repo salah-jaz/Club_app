@@ -10,6 +10,7 @@ const map: Record<string, string> = {
   released: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
   open: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
   created: "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20",
+  pending: "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20",
   waiting: "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20",
   declined: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
   rejected: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
@@ -21,6 +22,7 @@ type StatusKind = "default" | "invitation";
 
 function labelFor(status: string, kind: StatusKind): string {
   if (status === "created") return "pending";
+  if (status === "pending") return "Pending";
   if (status === "waiting") return "Waiting list";
   // Invitation "open" = member has not responded yet.
   // Schedule/training "open" = created but not released.

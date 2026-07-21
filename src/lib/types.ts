@@ -36,7 +36,7 @@ export interface Member {
   grade: string;
   biMemberId: string;
   nickname?: string;
-  status: "active" | "disabled";
+  status: "active" | "disabled" | "pending" | "rejected";
   credit: number;
 }
 

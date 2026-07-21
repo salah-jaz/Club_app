@@ -58,6 +58,7 @@ export function MemberForm({
   const members = useStore((s) => s.members);
   const users = useStore((s) => s.users);
   const currentUser = useCurrentUser();
+  const isAdmin = currentUser?.role === "admin";
   const [v, setV] = useState(initial);
   const [submitting, setSubmitting] = useState(false);
   const set = <K extends keyof MemberFormValues>(k: K, val: MemberFormValues[K]) =>
@@ -96,6 +97,11 @@ export function MemberForm({
         ? {
             ...finalV,
             memberType: "junior" as const,
+            status: "pending" as const,
+            membership: false,
+            trainingEligible: false,
+            skipCreditConsumption: false,
+            applyDiscount: false,
             // Nest under the adult profile on this login when present
             parentMemberId:
               finalV.parentMemberId ||
@@ -329,66 +335,77 @@ export function MemberForm({
               </FormField>
             )}
 
-            <FormField label="Status">
-              <Select value={v.status} onValueChange={(x) => set("status", x as any)}>
-                <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="disabled">Disabled</SelectItem>
-                </SelectContent>
-              </Select>
-            </FormField>
-            <div className="sm:col-span-2 grid sm:grid-cols-2 gap-4 mt-2">
-              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-                <div>
-                  <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Club membership</Label>
-                  <p className="type-helper mt-1">Paid yearly fee. Receives play schedule invitations.</p>
-                </div>
-                <Switch checked={v.membership} onCheckedChange={(x) => set("membership", x)} />
+            {!isAdmin && (
+              <div className="sm:col-span-2 rounded-lg border border-[#F59E0B]/25 bg-[#F59E0B]/10 px-4 py-3">
+                <p className="text-[12px] text-[#FBBF24] leading-relaxed">
+                  An admin must approve this junior before they can join training. Membership and
+                  training settings are set by an admin on approval.
+                </p>
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-                <div>
-                  <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Training eligible</Label>
-                  <p className="type-helper mt-1">
-                    {familyMemberMode
-                      ? "Child can be selected for training when a program opens (My Invitations)"
-                      : v.memberType === "adult"
-                        ? "Family can enroll children in junior training sessions"
-                        : "Can be invited to junior training sessions"}
-                  </p>
-                </div>
-                <Switch
-                  checked={v.trainingEligible ?? false}
-                  onCheckedChange={(x) => set("trainingEligible", x)}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-                <div>
-                  <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Bypass Credit Consumption</Label>
-                  <p className="type-helper mt-1">Do not deduct credits when participating in play schedules.</p>
-                </div>
-                <Switch
-                  checked={v.skipCreditConsumption ?? false}
-                  onCheckedChange={(x) => set("skipCreditConsumption", x)}
-                />
-              </div>
-              {currentUser?.role === "admin" && (
-                <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
-                  <div>
-                    <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Apply Discount</Label>
-                    <p className="type-helper mt-1">
-                      Use {v.memberType === "junior" ? "junior" : "adult"} discount settings on play and training fees.
-                    </p>
+            )}
+
+            {isAdmin && (
+              <>
+                <FormField label="Status">
+                  <Select value={v.status} onValueChange={(x) => set("status", x as Member["status"])}>
+                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="disabled">Disabled</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <div className="sm:col-span-2 grid sm:grid-cols-2 gap-4 mt-2">
+                  <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                    <div>
+                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Club membership</Label>
+                      <p className="type-helper mt-1">Paid yearly fee. Receives play schedule invitations.</p>
+                    </div>
+                    <Switch checked={v.membership} onCheckedChange={(x) => set("membership", x)} />
                   </div>
-                  <Switch
-                    checked={v.applyDiscount ?? false}
-                    onCheckedChange={(x) => set("applyDiscount", x)}
-                  />
+                  <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                    <div>
+                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Training eligible</Label>
+                      <p className="type-helper mt-1">
+                        {v.memberType === "adult"
+                          ? "Family can enroll children in junior training sessions"
+                          : "Can be invited to junior training sessions"}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={v.trainingEligible ?? false}
+                      onCheckedChange={(x) => set("trainingEligible", x)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                    <div>
+                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Bypass Credit Consumption</Label>
+                      <p className="type-helper mt-1">Do not deduct credits when participating in play schedules.</p>
+                    </div>
+                    <Switch
+                      checked={v.skipCreditConsumption ?? false}
+                      onCheckedChange={(x) => set("skipCreditConsumption", x)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                    <div>
+                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Apply Discount</Label>
+                      <p className="type-helper mt-1">
+                        Use {v.memberType === "junior" ? "junior" : "adult"} discount settings on play and training fees.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={v.applyDiscount ?? false}
+                      onCheckedChange={(x) => set("applyDiscount", x)}
+                    />
+                  </div>
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </motion.div>
