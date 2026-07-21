@@ -31,6 +31,8 @@ export function PageHeader({
         return "FINANCE / HISTORY";
       case "approvals":
         return "ADMIN / APPROVALS";
+      case "admin-management":
+        return "ADMIN / MANAGEMENT";
       default:
         return `${role} / PORTAL`;
     }

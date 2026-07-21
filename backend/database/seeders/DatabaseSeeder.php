@@ -47,7 +47,10 @@ class DatabaseSeeder extends Seeder
             )->all()
         );
 
-        // 3. Seed Admin User only
+        // 3. Seed permissions and admin roles
+        $this->call(PermissionSeeder::class);
+
+        // 4. Seed Admin User
         User::updateOrCreate(['id' => 'u_admin'], [
             'first_name' => 'Club',
             'last_name' => 'Admin',
@@ -58,6 +61,8 @@ class DatabaseSeeder extends Seeder
             'address' => 'Club HQ',
             'password' => Hash::make('admin123'),
             'role' => 'admin',
+            'admin_role_id' => 'ar_super',
+            'is_super_admin' => true,
             'status' => 'active',
         ]);
     }

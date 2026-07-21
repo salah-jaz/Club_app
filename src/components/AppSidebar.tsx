@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Wallet, CalendarDays, GraduationCap,
-  Inbox, Receipt, ShieldCheck, LogOut, User as UserIcon, Settings,
+  Inbox, Receipt, ShieldCheck, LogOut, User as UserIcon, Settings, UserCog,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -62,6 +62,7 @@ export function AppSidebar() {
     { to: "/approvals", label: "Approvals", icon: ShieldCheck },
     { to: "/email-templates", label: "Email Templates", icon: Inbox },
     { to: "/settings", label: "Settings", icon: Settings },
+    { to: "/admin-management", label: "Club Admin", icon: UserCog },
   ];
 
   // Find the active item key for the layout animation

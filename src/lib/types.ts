@@ -15,6 +15,27 @@ export interface User {
   role: Role;
   status: UserStatus;
   createdAt: string;
+  adminRoleId?: string | null;
+  adminRoleName?: string | null;
+  isSuperAdmin?: boolean;
+  permissions?: string[];
+}
+
+export interface AdminRole {
+  id: string;
+  name: string;
+  description: string | null;
+  isSuper: boolean;
+  isSystem: boolean;
+  permissionIds: string[];
+  userCount?: number;
+}
+
+export interface Permission {
+  id: string;
+  module: string;
+  action: string;
+  label: string;
 }
 
 export type MemberType = "adult" | "junior";

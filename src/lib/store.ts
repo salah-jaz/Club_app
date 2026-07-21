@@ -1,9 +1,12 @@
 import { create } from "zustand";
 import type {
+  AdminRole,
   CreditRequest,
   Member,
+  Permission,
   PlayInvitation,
   PlaySchedule,
+  Role,
   Rotation,
   Training,
   TrainingDate,
@@ -37,6 +40,9 @@ interface State {
   playerPositions: string[];
   playerPositionItems: PlayerPositionItem[];
   leagueGroups: LeagueGroup[];
+  adminRoles: AdminRole[];
+  allPermissions: Permission[];
+  adminUsers: User[];
   appName: string;
   appLogoText: string;
   appLogoBase64: string | null;
@@ -191,6 +197,18 @@ interface State {
   deleteLeagueGroup: (id: string) => Promise<void>;
   setActiveRole: (role: Role) => void;
   bulkUploadMembers: (file: File, options?: { allowExamples?: boolean }) => Promise<number>;
+
+  // admin management
+  fetchAdminRoles: () => Promise<void>;
+  fetchAllPermissions: () => Promise<void>;
+  fetchAdminUsers: () => Promise<void>;
+  createAdminRole: (role: { name: string; description?: string; permissionIds: string[] }) => Promise<void>;
+  updateAdminRole: (id: string, patch: { name?: string; description?: string; permissionIds?: string[] }) => Promise<void>;
+  deleteAdminRole: (id: string) => Promise<void>;
+  createAdminUser: (u: { firstName: string; lastName: string; email: string; password: string; mobile?: string; adminRoleId: string }) => Promise<void>;
+  updateAdminUser: (id: string, patch: { firstName?: string; lastName?: string; email?: string; mobile?: string; adminRoleId?: string }) => Promise<void>;
+  deleteAdminUser: (id: string) => Promise<void>;
+  resetAdminPassword: (id: string, password: string) => Promise<void>;
 }
 
 const getInitialUserId = () => {
@@ -218,6 +236,9 @@ export const useStore = create<State>((set, get) => ({
   schedules: [],
   playInvites: [],
   leagueGroups: [],
+  adminRoles: [],
+  allPermissions: [],
+  adminUsers: [],
   rotations: [],
   trainings: [],
   trainingInvites: [],
@@ -830,6 +851,62 @@ export const useStore = create<State>((set, get) => ({
     const res = await api.post<{ createdCount?: number }>("/members/bulk-upload", formData);
     await get().syncData();
     return res.createdCount ?? 0;
+  },
+
+  fetchAdminRoles: async () => {
+    try {
+      const roles = await api.get<AdminRole[]>("/admin-roles");
+      set({ adminRoles: roles });
+    } catch { /* non-admin */ }
+  },
+
+  fetchAllPermissions: async () => {
+    try {
+      const grouped = await api.get<Record<string, Permission[]>>("/admin-roles/permissions");
+      const flat = Object.values(grouped).flat();
+      set({ allPermissions: flat });
+    } catch { /* non-admin */ }
+  },
+
+  fetchAdminUsers: async () => {
+    try {
+      const users = await api.get<User[]>("/admin-users");
+      set({ adminUsers: users });
+    } catch { /* non-admin */ }
+  },
+
+  createAdminRole: async (role) => {
+    await api.post("/admin-roles", role);
+    await get().fetchAdminRoles();
+  },
+
+  updateAdminRole: async (id, patch) => {
+    await api.patch(`/admin-roles/${id}`, patch);
+    await get().fetchAdminRoles();
+  },
+
+  deleteAdminRole: async (id) => {
+    await api.delete(`/admin-roles/${id}`);
+    await get().fetchAdminRoles();
+  },
+
+  createAdminUser: async (u) => {
+    await api.post("/admin-users", u);
+    await get().fetchAdminUsers();
+  },
+
+  updateAdminUser: async (id, patch) => {
+    await api.patch(`/admin-users/${id}`, patch);
+    await get().fetchAdminUsers();
+  },
+
+  deleteAdminUser: async (id) => {
+    await api.delete(`/admin-users/${id}`);
+    await get().fetchAdminUsers();
+  },
+
+  resetAdminPassword: async (id, password) => {
+    await api.post(`/admin-users/${id}/reset-password`, { password });
   },
 }));
 
