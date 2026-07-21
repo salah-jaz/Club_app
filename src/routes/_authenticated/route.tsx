@@ -128,10 +128,12 @@ function Layout() {
     if (nextLight) {
       document.documentElement.classList.add("light");
       localStorage.setItem("clubapp-theme", "light");
+      document.documentElement.style.colorScheme = "light";
       setTheme("light");
     } else {
       document.documentElement.classList.remove("light");
       localStorage.setItem("clubapp-theme", "dark");
+      document.documentElement.style.colorScheme = "dark";
       setTheme("dark");
     }
     const colorTheme = localStorage.getItem("clubapp-color-theme") || "sapphire";

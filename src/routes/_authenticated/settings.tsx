@@ -274,8 +274,10 @@ function SettingsPage() {
     localStorage.setItem("clubapp-theme", mode);
     if (mode === "light") {
       document.documentElement.classList.add("light");
+      document.documentElement.style.colorScheme = "light";
     } else {
       document.documentElement.classList.remove("light");
+      document.documentElement.style.colorScheme = "dark";
     }
     window.dispatchEvent(new Event("clubapp-theme-changed"));
     toast.success(`Theme switched to ${mode} mode`);
