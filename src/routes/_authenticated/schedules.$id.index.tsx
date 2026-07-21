@@ -11,7 +11,7 @@ import {
   getCourtTimeRange,
   stripEmptySlots,
 } from "@/components/CourtRotationView";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDateTime, fmtMoney } from "@/lib/format";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { toast } from "sonner";
 import { Download, FileSpreadsheet, FileText, Pencil, Shuffle, Send, X, RotateCcw } from "lucide-react";
@@ -648,7 +648,7 @@ function SchedulePage() {
 
       <PageHeader
         title={sch.name}
-        description={`${fmtDateTime(sch.date)} · ${sch.location} · Session Rate: $${sch.sessionRate.toFixed(2)} · Capacity: ${sch.players} players`}
+        description={`${fmtDateTime(sch.date)} · ${sch.location} · Session Rate: ${fmtMoney(sch.sessionRate)} · Capacity: ${sch.players} players`}
         backTo="/schedules"
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -731,7 +731,7 @@ function SchedulePage() {
                     >
                       {typeof i.memberId === "string" && i.memberId.startsWith("guest_")
                         ? "Guest"
-                        : `$${getMemberFee(i.memberId).toFixed(2)}`}
+                        : fmtMoney(getMemberFee(i.memberId))}
                     </span>
                   </div>
                 ))

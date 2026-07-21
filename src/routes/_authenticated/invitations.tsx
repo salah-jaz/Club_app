@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { fmtDate, fmtDateTime } from "@/lib/format";
+import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
 import { toast } from "sonner";
 import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users } from "lucide-react";
 import type { Member, PlayInvitation, PlaySchedule, Rotation, Training } from "@/lib/types";
@@ -454,7 +454,7 @@ function Invitations() {
             <div className="text-[11px] text-[#8A8A98] mt-0.5 font-light">
               Session Fee:{" "}
               <span className="font-semibold font-mono text-[#34D399]">
-                ${estimatedFee.toFixed(2)}
+                {fmtMoney(estimatedFee)}
               </span>
             </div>
           </div>
@@ -478,8 +478,8 @@ function Invitations() {
           <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5 font-light">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
-              <span className="font-semibold">Alert:</span> Insufficient credits ($
-              {member!.credit.toFixed(2)} / ${estimatedFee.toFixed(2)})
+              <span className="font-semibold">Alert:</span> Insufficient credits (
+              {fmtMoney(member!.credit)} / {fmtMoney(estimatedFee)})
             </span>
           </div>
         )}
@@ -696,8 +696,7 @@ function Invitations() {
               </span>
               {creditGap && (
                 <span className="block font-mono text-[13px] text-[#F1F0EE]">
-                  Balance ${creditGap.balance.toFixed(2)} · Required $
-                  {creditGap.required.toFixed(2)}
+                  Balance {fmtMoney(creditGap.balance)} · Required {fmtMoney(creditGap.required)}
                 </span>
               )}
               <span className="block">
@@ -1005,7 +1004,7 @@ function Invitations() {
                                 <div className="text-[11px] text-muted-foreground">
                                   Grade {child.grade} · Fee{" "}
                                   <span className="font-mono text-[#34D399]">
-                                    ${childFee.toFixed(2)}
+                                    {fmtMoney(childFee)}
                                   </span>
                                 </div>
                               </div>
