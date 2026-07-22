@@ -11,6 +11,7 @@ use App\Models\PlayerPosition;
 use App\Models\Rotation;
 use App\Models\Transaction;
 use App\Models\Setting;
+use App\Models\Holiday;
 use App\Helpers\MailHelper;
 use App\Helpers\FeeHelper;
 use Illuminate\Http\Request;
@@ -701,6 +702,13 @@ class PlayScheduleController extends Controller
         if (in_array($sch->status, ['rotated', 'published', 'closed'], true)) {
             return response()->json([
                 'message' => 'Court rotation is locked. Accept and decline are no longer available.',
+            ], 422);
+        }
+
+        $scheduleDate = \Carbon\Carbon::parse($sch->date)->toDateString();
+        if (Holiday::where('date', $scheduleDate)->exists()) {
+            return response()->json([
+                'message' => 'This session falls on a club holiday. Accept and decline are not available.',
             ], 422);
         }
 

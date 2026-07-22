@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import {
   ArrowUpRight,
   ArrowDownLeft,
-  Scale,
   Search,
   X,
   SlidersHorizontal,
@@ -175,7 +174,6 @@ function Txns() {
       total: filteredTxns.length,
       totalCredited,
       totalDebited,
-      netFlow: totalCredited - totalDebited,
     };
   }, [filteredTxns]);
 
@@ -196,7 +194,7 @@ function Txns() {
         variants={staggerContainer}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
+        className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4"
       >
         <TxnStatCard
           label="Total"
@@ -208,7 +206,7 @@ function Txns() {
         <TxnStatCard
           label="Credited"
           value={stats.totalCredited}
-          hint="Top-ups & refunds"
+          hint="From member credit recharges"
           icon={ArrowUpRight}
           index={1}
           format={fmtMoney}
@@ -216,18 +214,10 @@ function Txns() {
         <TxnStatCard
           label="Debited"
           value={stats.totalDebited}
-          hint="Session charges"
+          hint="Debits from members"
           icon={ArrowDownLeft}
           index={2}
           format={fmtMoney}
-        />
-        <TxnStatCard
-          label="Net flow"
-          value={stats.netFlow}
-          hint={stats.netFlow >= 0 ? "Positive balance trend" : "More debits than credits"}
-          icon={Scale}
-          index={3}
-          format={(n) => `${n >= 0 ? "+" : ""}${fmtMoney(n)}`}
         />
       </motion.div>
 

@@ -157,7 +157,7 @@ function CreditsPage() {
     const pending = scopedReqs.filter((r) => (r.type || "credit") === "credit" && r.status === "created").length;
     const approved = scopedReqs.filter((r) => r.status === "approved").length;
     const approvedTotal = scopedReqs
-      .filter((r) => r.status === "approved")
+      .filter((r) => r.status === "approved" && (r.type || "credit") === "credit")
       .reduce((sum, r) => sum + r.amount, 0);
     const balanceTotal = focusMember
       ? focusMember.credit || 0
@@ -254,7 +254,7 @@ function CreditsPage() {
     try {
       await s.requestCredit(targetMemberId, parseFloat(amount), date, entryType);
       if (entryType === "debit") {
-        toast.success("Debit applied — amount transferred to your member balance");
+        toast.success("Debit applied — member balance reduced");
       } else if (isAdmin) {
         toast.success("Credit added successfully");
       } else {
@@ -354,7 +354,7 @@ function CreditsPage() {
         <CreditStatCard
           label="Balance"
           value={stats.balanceTotal}
-          hint={`${fmtMoney(stats.approvedTotal)} approved total`}
+          hint={`${fmtMoney(stats.approvedTotal)} approved credits`}
           icon={CircleDollarSign}
           index={3}
           format={fmtMoney}
@@ -397,8 +397,8 @@ function CreditsPage() {
             <DialogDescription className="text-[#8A8A98]">
               {entryType === "debit"
                 ? focusMember
-                  ? `Debit will be deducted from ${focusMember.firstName} ${focusMember.lastName} and credited to your admin member balance.`
-                  : "Amount is deducted from the member and credited to your admin member balance."
+                  ? `Amount will be deducted from ${focusMember.firstName} ${focusMember.lastName}'s balance (same as play session debits).`
+                  : "Amount is deducted from the member's balance and recorded as a debit (same as play session debits)."
                 : focusMember
                   ? `Top-up will be applied to ${focusMember.firstName} ${focusMember.lastName} only.`
                   : isAdmin
@@ -811,7 +811,7 @@ function CreditsPage() {
                           : focusMember
                             ? "Use Add credit or Add debit for this member."
                             : typeTab === "debit"
-                              ? "Click Add debit to transfer balance from a member."
+                              ? "Click Add debit to deduct from a member's balance."
                               : "Click Add credit to submit a top-up request."
                       }
                     />

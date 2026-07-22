@@ -76,17 +76,6 @@ class CreditRequestController extends Controller
             return response()->json(['message' => 'Only admins can create debit entries.'], 403);
         }
 
-        $adminMember = $this->resolveAdminMember($user->id);
-        if (!$adminMember) {
-            return response()->json([
-                'message' => 'Your admin account has no linked member profile to receive the debit transfer. Create a member profile for your admin user first.',
-            ], 400);
-        }
-
-        if ($adminMember->id === $request->memberId) {
-            return response()->json(['message' => 'Cannot debit your own member balance.'], 400);
-        }
-
         $member = Member::findOrFail($request->memberId);
 
         if ((float) $member->credit < (float) $request->amount) {
@@ -104,27 +93,16 @@ class CreditRequestController extends Controller
             'status' => 'approved',
         ]);
 
+        // Same pattern as play-schedule debits: reduce member balance + one debit txn only
         $member->credit -= $request->amount;
         $member->save();
-
-        $adminMember->credit += $request->amount;
-        $adminMember->save();
 
         $debitTxn = Transaction::create([
             'id' => 't_' . Str::random(8),
             'member_id' => $member->id,
             'type' => 'debit',
             'amount' => $request->amount,
-            'description' => 'Debit (Admin transfer to club)',
-            'date' => $request->date,
-        ]);
-
-        $creditTxn = Transaction::create([
-            'id' => 't_' . Str::random(8),
-            'member_id' => $adminMember->id,
-            'type' => 'credit',
-            'amount' => $request->amount,
-            'description' => 'Credit from member debit (Admin)',
+            'description' => 'Debit (Admin)',
             'date' => $request->date,
         ]);
 
@@ -134,35 +112,7 @@ class CreditRequestController extends Controller
             logger()->error("Transaction debit email failed: " . $e->getMessage());
         }
 
-        try {
-            MailHelper::sendTransactionEmail($adminMember, $creditTxn);
-        } catch (\Exception $e) {
-            logger()->error("Transaction admin credit email failed: " . $e->getMessage());
-        }
-
         return response()->json($this->formatRequest($cr), 201);
-    }
-
-    /**
-     * Prefer an active adult member linked to the admin user; fall back to any linked member.
-     */
-    private function resolveAdminMember(string $userId): ?Member
-    {
-        $members = Member::where('user_id', $userId)->get();
-        if ($members->isEmpty()) {
-            return null;
-        }
-
-        $preferred = $members
-            ->filter(fn(Member $m) => $m->status === 'active' && $m->member_type === 'adult')
-            ->first();
-
-        if ($preferred) {
-            return $preferred;
-        }
-
-        $active = $members->first(fn(Member $m) => $m->status === 'active');
-        return $active ?: $members->first();
     }
 
     public function approve($id)

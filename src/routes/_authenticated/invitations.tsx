@@ -438,13 +438,13 @@ function Invitations() {
     const hoursLabel = lockHours === 1 ? "1 hour" : `${lockHours} hours`;
 
     const canAccept =
-      !responsesLocked && (i.status === "open" || i.status === "declined");
-    const canDeclineWaiting = !responsesLocked && i.status === "waiting";
+      !isHoliday && !responsesLocked && (i.status === "open" || i.status === "declined");
+    const canDeclineWaiting = !isHoliday && !responsesLocked && i.status === "waiting";
     const canDeclineAccepted =
-      !responsesLocked && i.status === "accepted" && withinCancelWindow;
+      !isHoliday && !responsesLocked && i.status === "accepted" && withinCancelWindow;
     const canDecline = canDeclineWaiting || canDeclineAccepted;
     const declineLockedByTime =
-      !responsesLocked && i.status === "accepted" && !withinCancelWindow;
+      !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
 
     return (
       <div key={i.id} className="space-y-2 pt-2 border-t border-white/[0.03]">
@@ -487,8 +487,8 @@ function Invitations() {
           <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
-              <span className="font-semibold">Club holiday:</span> This session falls on a registered
-              holiday date.
+              <span className="font-semibold">Club holiday:</span> Accept and decline are closed for
+              this session.
             </span>
           </div>
         )}
