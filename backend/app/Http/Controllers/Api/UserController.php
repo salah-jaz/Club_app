@@ -37,6 +37,7 @@ class UserController extends Controller
                 })
             ],
             'trainingEligible' => 'sometimes|boolean',
+            'playEligible' => 'sometimes|boolean',
         ]);
 
         $user = User::findOrFail($id);
@@ -47,6 +48,9 @@ class UserController extends Controller
         $trainingEligible = $request->has('trainingEligible')
             ? $request->boolean('trainingEligible')
             : ($memberType === 'junior');
+        $playEligible = $request->has('playEligible')
+            ? $request->boolean('playEligible')
+            : false;
 
         $defaultGrade = Grade::where('type', $memberType)->first()?->name ?? ($memberType === 'junior' ? 'Beginner' : 'B');
 
@@ -61,6 +65,7 @@ class UserController extends Controller
             'member_type' => $memberType,
             'membership' => true,
             'training_eligible' => $trainingEligible,
+            'play_eligible' => $playEligible,
             'grade' => $request->input('grade', $defaultGrade),
             'nickname' => $user->nickname,
             'status' => 'active',
@@ -145,6 +150,7 @@ class UserController extends Controller
             'memberType' => $m->member_type,
             'membership' => (bool) $m->membership,
             'trainingEligible' => (bool) $m->training_eligible,
+            'playEligible' => (bool) $m->play_eligible,
             'grade' => $m->grade,
             'biMemberId' => $m->bi_member_id ?? '',
             'nickname' => $m->nickname ?? '',

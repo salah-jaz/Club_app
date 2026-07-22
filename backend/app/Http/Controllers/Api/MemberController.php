@@ -56,6 +56,7 @@ class MemberController extends Controller
             'memberType' => 'required|in:adult,junior',
             'membership' => $isAdmin ? 'required|boolean' : 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
+            'playEligible' => 'sometimes|boolean',
             'skipCreditConsumption' => 'sometimes|boolean',
             'applyDiscount' => 'sometimes|boolean',
             'grade' => [
@@ -102,6 +103,7 @@ class MemberController extends Controller
                         'member_type' => 'junior',
                         'membership' => $request->membership,
                         'training_eligible' => $this->resolveTrainingEligible($request),
+                        'play_eligible' => $this->resolvePlayEligible($request),
                         'grade' => $request->grade,
                         'bi_member_id' => $request->biMemberId,
                         'nickname' => $request->nickname,
@@ -138,6 +140,7 @@ class MemberController extends Controller
                     'member_type' => $request->memberType,
                     'membership' => $request->membership,
                     'training_eligible' => $this->resolveTrainingEligible($request),
+                    'play_eligible' => $this->resolvePlayEligible($request),
                     'grade' => $request->grade,
                     'bi_member_id' => $request->biMemberId,
                     'nickname' => $request->nickname,
@@ -177,6 +180,7 @@ class MemberController extends Controller
                     'member_type' => 'junior',
                     'membership' => false,
                     'training_eligible' => false,
+                    'play_eligible' => false,
                     'grade' => $request->grade,
                     'bi_member_id' => $request->biMemberId,
                     'nickname' => $request->nickname,
@@ -204,6 +208,7 @@ class MemberController extends Controller
                 'member_type' => $request->memberType,
                 'membership' => $request->membership,
                 'training_eligible' => $this->resolveTrainingEligible($request),
+                'play_eligible' => $this->resolvePlayEligible($request),
                 'grade' => $request->grade,
                 'bi_member_id' => $request->biMemberId,
                 'nickname' => $request->nickname,
@@ -241,6 +246,7 @@ class MemberController extends Controller
             if ($request->has('memberType')) $data['member_type'] = $request->memberType;
             if ($request->has('membership')) $data['membership'] = $request->membership;
             if ($request->has('trainingEligible')) $data['training_eligible'] = $request->trainingEligible;
+            if ($request->has('playEligible')) $data['play_eligible'] = $request->playEligible;
             if ($request->has('status')) {
                 if (!in_array($request->status, ['active', 'disabled', 'pending', 'rejected'], true)) {
                     return response()->json(['message' => 'Invalid status.'], 422);
@@ -312,6 +318,7 @@ class MemberController extends Controller
         $request->validate([
             'membership' => 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
+            'playEligible' => 'sometimes|boolean',
             'grade' => [
                 'sometimes',
                 'string',
@@ -325,6 +332,9 @@ class MemberController extends Controller
         }
         if ($request->has('trainingEligible')) {
             $member->training_eligible = $request->boolean('trainingEligible');
+        }
+        if ($request->has('playEligible')) {
+            $member->play_eligible = $request->boolean('playEligible');
         }
         if ($request->filled('grade')) {
             $member->grade = $request->grade;
@@ -356,6 +366,7 @@ class MemberController extends Controller
         $member->status = 'rejected';
         $member->membership = false;
         $member->training_eligible = false;
+        $member->play_eligible = false;
         $member->save();
 
         return response()->json([
@@ -487,6 +498,7 @@ class MemberController extends Controller
             'memberType' => $m->member_type,
             'membership' => (bool)$m->membership,
             'trainingEligible' => (bool)$m->training_eligible,
+            'playEligible' => (bool)$m->play_eligible,
             'grade' => $m->grade,
             'biMemberId' => $m->bi_member_id ?? "",
             'nickname' => $m->nickname ?? "",
@@ -504,6 +516,15 @@ class MemberController extends Controller
         }
 
         return $request->memberType === 'junior';
+    }
+
+    private function resolvePlayEligible(Request $request): bool
+    {
+        if ($request->has('playEligible')) {
+            return $request->boolean('playEligible');
+        }
+
+        return false;
     }
 
     public function bulkUpload(Request $request)
@@ -603,6 +624,7 @@ class MemberController extends Controller
                         'member_type' => $memberType ?: 'adult',
                         'membership' => filter_var($row['membership'] ?? true, FILTER_VALIDATE_BOOLEAN),
                         'training_eligible' => filter_var($row['training_eligible'] ?? $row['trainingeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'play_eligible' => filter_var($row['play_eligible'] ?? $row['playeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
                         'grade' => $row['grade'] ?? 'Beginner',
                         'bi_member_id' => $row['bi_member_id'] ?? $row['bimemberid'] ?? null,
                         'nickname' => $row['nickname'] ?? $row['alias'] ?? null,

@@ -64,6 +64,7 @@ function Approvals() {
   const [juniorOpts, setJuniorOpts] = useState({
     membership: false,
     trainingEligible: true,
+    playEligible: false,
     grade: "",
   });
   const [approvingJuniorId, setApprovingJuniorId] = useState<string | null>(null);
@@ -85,6 +86,7 @@ function Approvals() {
     setJuniorOpts({
       membership: m.membership ?? false,
       trainingEligible: true,
+      playEligible: false,
       grade: m.grade || (juniorGrades[0] ?? ""),
     });
   };
@@ -714,11 +716,24 @@ function Approvals() {
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
                 <Label className="text-[11px] font-medium text-[#F1F0EE]">Club membership</Label>
-                <p className="text-xs text-muted-foreground">Paid yearly fee / play invitations.</p>
+                <p className="text-xs text-muted-foreground">Paid yearly fee.</p>
               </div>
               <Switch
                 checked={juniorOpts.membership}
                 onCheckedChange={(membership) => setJuniorOpts((p) => ({ ...p, membership }))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+              <div>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Play schedule eligible</Label>
+                <p className="text-xs text-muted-foreground">
+                  Family head can enroll this junior in play sessions.
+                </p>
+              </div>
+              <Switch
+                checked={juniorOpts.playEligible}
+                onCheckedChange={(playEligible) => setJuniorOpts((p) => ({ ...p, playEligible }))}
               />
             </div>
 

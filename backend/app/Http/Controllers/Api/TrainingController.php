@@ -180,10 +180,10 @@ class TrainingController extends Controller
             ], 422);
         }
 
-        [$invites, $trainingDates] = $this->createInvitationsForMembers($tr, $newMemberIds, false);
+        [$invites, $trainingDates] = $this->createInvitationsForMembers($tr, $newMemberIds, false, 'accepted');
 
         return response()->json([
-            'message' => 'Family members enrolled. Review and accept the invitations below.',
+            'message' => 'Family members accepted into this training program.',
             'training' => $this->formatTraining($tr),
             'invitations' => $invites,
             'dates' => $trainingDates,
@@ -250,7 +250,12 @@ class TrainingController extends Controller
         ]);
     }
 
-    private function createInvitationsForMembers(Training $tr, array $memberIds, bool $replaceDatesForMember = true): array
+    private function createInvitationsForMembers(
+        Training $tr,
+        array $memberIds,
+        bool $replaceDatesForMember = true,
+        string $inviteStatus = 'open',
+    ): array
     {
         $holidayDates = Holiday::pluck('date')->toArray();
         $dates = $this->generateWeeklyDates($tr->start_date, $tr->sessions, $holidayDates);
@@ -261,7 +266,7 @@ class TrainingController extends Controller
                 'id' => 'ti_' . Str::random(8),
                 'training_id' => $tr->id,
                 'member_id' => $mid,
-                'status' => 'open',
+                'status' => $inviteStatus,
             ]);
             $invites[] = [
                 'id' => $inv->id,
@@ -273,7 +278,7 @@ class TrainingController extends Controller
             $member = Member::find($mid);
             if ($member) {
                 try {
-                    MailHelper::sendTrainingNotification($member, $tr, 'open', 'release');
+                    MailHelper::sendTrainingNotification($member, $tr, $inviteStatus, 'release');
                 } catch (\Exception $e) {
                     logger()->error("Training release email failed for member {$mid}: " . $e->getMessage());
                 }

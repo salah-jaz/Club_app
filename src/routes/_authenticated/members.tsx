@@ -335,6 +335,11 @@ function MemberTags({ member }: { member: Member }) {
           Training
         </Badge>
       )}
+      {member.playEligible && (
+        <Badge variant="outline" className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#93C5FD] px-2 py-0">
+          Play
+        </Badge>
+      )}
     </div>
   );
 }
@@ -1381,7 +1386,10 @@ function MembersList() {
                           {m.trainingEligible && (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]">T</Badge>
                           )}
-                          {!m.membership && !m.trainingEligible && (
+                          {m.playEligible && (
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#3B82F6]/30 text-[#93C5FD]">P</Badge>
+                          )}
+                          {!m.membership && !m.trainingEligible && !m.playEligible && (
                             <span className="text-[#6B7F78] text-xs">—</span>
                           )}
                         </div>

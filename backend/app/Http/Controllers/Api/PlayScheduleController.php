@@ -237,9 +237,11 @@ class PlayScheduleController extends Controller
         $request->validate([
             'memberIds' => 'required|array|min:1',
             'memberIds.*' => 'required|string',
+            'autoAccept' => 'sometimes|boolean',
         ]);
 
         $sch = PlaySchedule::findOrFail($id);
+        $autoAccept = $request->boolean('autoAccept');
 
         if ($sch->status !== 'released') {
             return response()->json([
@@ -247,18 +249,40 @@ class PlayScheduleController extends Controller
             ], 422);
         }
 
+        if ($autoAccept) {
+            $scheduleDate = \Carbon\Carbon::parse($sch->date)->toDateString();
+            if (Holiday::where('date', $scheduleDate)->exists()) {
+                return response()->json([
+                    'message' => 'This session falls on a club holiday. Accept is not available.',
+                ], 422);
+            }
+        }
+
         $memberIds = $request->memberIds;
         $userId = $request->user()->id;
 
-        $familyAdultIds = Member::eligibleForPlay()
+        $allowedAdultIds = Member::eligibleForPlay()
             ->where('user_id', $userId)
             ->whereIn('id', $memberIds)
             ->pluck('id')
             ->all();
 
-        if (count($familyAdultIds) !== count($memberIds)) {
+        // Juniors: family head enrolls play-eligible children (same pattern as trainings).
+        // League matches stay adult-only.
+        $allowedJuniorIds = [];
+        if (!(bool) $sch->is_league_match) {
+            $allowedJuniorIds = Member::eligibleForPlayAsJunior()
+                ->where('user_id', $userId)
+                ->whereIn('id', $memberIds)
+                ->pluck('id')
+                ->all();
+        }
+
+        $allowedIds = array_values(array_unique(array_merge($allowedAdultIds, $allowedJuniorIds)));
+
+        if (count($allowedIds) !== count(array_unique($memberIds))) {
             return response()->json([
-                'message' => 'You can only enroll your own active adult members with club membership.',
+                'message' => 'You can only enroll your own eligible family members (adults with club membership, or play-eligible juniors).',
             ], 422);
         }
 
@@ -297,11 +321,24 @@ class PlayScheduleController extends Controller
                 'member_id' => $memberId,
                 'status' => 'open',
             ]);
+
+            if ($autoAccept) {
+                $acceptError = $this->acceptNewlyEnrolledInvite($sch, $inv, $member);
+                if ($acceptError !== null) {
+                    $inv->delete();
+                    return response()->json(['message' => $acceptError], 422);
+                }
+                $inv = $inv->fresh();
+            }
+
             $invites[] = $this->formatInvitation($inv);
 
             if ($member) {
                 try {
-                    MailHelper::sendScheduleNotification($member, $sch, 'open', 'release');
+                    $mailStatus = $autoAccept
+                        ? ($inv->status === 'waiting' ? 'waiting' : 'accepted')
+                        : 'open';
+                    MailHelper::sendScheduleNotification($member, $sch, $mailStatus, 'release');
                 } catch (\Exception $e) {
                     logger()->error("Schedule enroll email failed for member {$memberId}: " . $e->getMessage());
                 }
@@ -309,10 +346,44 @@ class PlayScheduleController extends Controller
         }
 
         return response()->json([
-            'message' => 'Members enrolled. Review and accept the invitations below.',
+            'message' => $autoAccept
+                ? 'Family members accepted for this play session.'
+                : 'Members enrolled. Review and accept the invitations below.',
             'schedule' => $this->formatSchedule($sch),
             'invitations' => $invites,
         ]);
+    }
+
+    /**
+     * Accept a freshly enrolled open invite (capacity / waiting / debit).
+     * @return string|null error message, or null on success
+     */
+    private function acceptNewlyEnrolledInvite(PlaySchedule $sch, PlayInvitation $invite, ?Member $member): ?string
+    {
+        $skipsLeagueFee = $member && $this->memberSkipsLeagueFee($sch, $member->id);
+        if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
+            $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
+            if ($member->credit < $estimatedFee) {
+                return "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule.";
+            }
+        }
+
+        $acceptedCount = PlayInvitation::where('schedule_id', $sch->id)
+            ->where('status', 'accepted')
+            ->count();
+        $capacity = max((int) $sch->players, 1);
+
+        $invite->status = $acceptedCount < $capacity ? 'accepted' : 'waiting';
+        if ($invite->status === 'accepted') {
+            $invite->accepted_at = now();
+            $invite->save();
+            $this->debitPlayInvite($sch, $invite);
+        } else {
+            $invite->accepted_at = null;
+            $invite->save();
+        }
+
+        return null;
     }
 
     public function close($id)

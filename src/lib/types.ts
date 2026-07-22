@@ -52,6 +52,7 @@ export interface Member {
   memberType: MemberType;
   membership: boolean;
   trainingEligible: boolean;
+  playEligible: boolean;
   skipCreditConsumption: boolean;
   applyDiscount: boolean;
   grade: string;

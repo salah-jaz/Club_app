@@ -100,6 +100,7 @@ export function MemberForm({
             status: "pending" as const,
             membership: false,
             trainingEligible: false,
+            playEligible: false,
             skipCreditConsumption: false,
             applyDiscount: false,
             // Nest under the adult profile on this login when present
@@ -363,7 +364,11 @@ export function MemberForm({
                   <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                     <div>
                       <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Club membership</Label>
-                      <p className="type-helper mt-1">Paid yearly fee. Receives play schedule invitations.</p>
+                      <p className="type-helper mt-1">
+                        {v.memberType === "junior"
+                          ? "Paid yearly fee."
+                          : "Paid yearly fee. Receives play schedule invitations."}
+                      </p>
                     </div>
                     <Switch checked={v.membership} onCheckedChange={(x) => set("membership", x)} />
                   </div>
@@ -381,6 +386,22 @@ export function MemberForm({
                       onCheckedChange={(x) => set("trainingEligible", x)}
                     />
                   </div>
+                  {v.memberType === "junior" && (
+                    <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
+                      <div>
+                        <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">
+                          Play schedule eligible
+                        </Label>
+                        <p className="type-helper mt-1">
+                          Family head can enroll this junior in play sessions.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={v.playEligible ?? false}
+                        onCheckedChange={(x) => set("playEligible", x)}
+                      />
+                    </div>
+                  )}
                   <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                     <div>
                       <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Bypass Credit Consumption</Label>

@@ -4,7 +4,6 @@ import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CourtRotationView } from "@/components/CourtRotationView";
 import { useSearchFilters } from "@/components/SearchFilterBar";
@@ -100,7 +99,16 @@ function isEligibleForPlaySchedule(
   sch: PlaySchedule,
   leagueGroups: { id: string; memberIds: string[] }[],
 ) {
-  if (member.memberType !== "adult" || member.status !== "active" || !member.membership) {
+  if (member.status !== "active") return false;
+
+  if (member.memberType === "junior") {
+    // Family head enrolls play-eligible juniors; league matches stay adult-only.
+    if (!(member.playEligible ?? false)) return false;
+    if (sch.isLeagueMatch) return false;
+    return true;
+  }
+
+  if (member.memberType !== "adult" || !member.membership) {
     return false;
   }
   if (sch.isLeagueMatch && sch.leagueGroupIds && sch.leagueGroupIds.length > 0) {
@@ -125,6 +133,7 @@ function Invitations() {
   const juniorChildren = myMembers.filter(
     (m) => m.memberType === "junior" && m.status === "active",
   );
+  const playEligibleJuniors = juniorChildren.filter((m) => m.playEligible ?? false);
   const adultPlayers = myMembers.filter(
     (m) => m.memberType === "adult" && m.status === "active",
   );
@@ -138,7 +147,6 @@ function Invitations() {
   } | null>(null);
   const [playersPopup, setPlayersPopup] = useState<PlaySchedule | null>(null);
 
-  const [enrollSelections, setEnrollSelections] = useState<Record<string, string[]>>({});
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
   const [autoInviting, setAutoInviting] = useState(false);
   const autoInviteAttempted = useRef<Set<string>>(new Set());
@@ -257,12 +265,13 @@ function Invitations() {
     );
   };
 
-  const toggleEnrollChild = (trainingId: string, memberId: string, checked: boolean) => {
-    setEnrollSelections((prev) => {
-      const current = prev[trainingId] ?? [];
-      const next = checked ? [...current, memberId] : current.filter((id) => id !== memberId);
-      return { ...prev, [trainingId]: next };
-    });
+  const availablePlayJuniors = (sch: PlaySchedule) => {
+    const invited = new Set(
+      s.playInvites.filter((i) => i.scheduleId === sch.id).map((i) => i.memberId),
+    );
+    return playEligibleJuniors.filter(
+      (m) => isEligibleForPlaySchedule(m, sch, s.leagueGroups) && !invited.has(m.id),
+    );
   };
 
   const trainingPrograms: Training[] = [
@@ -450,7 +459,10 @@ function Invitations() {
       <div key={i.id} className="space-y-2 pt-2 border-t border-white/[0.03]">
         <div className="flex justify-between items-start gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] text-[#34D399] font-medium">Player: {name(i.memberId)}</div>
+            <div className="text-[11px] text-[#34D399] font-medium">
+              {s.members.find((m) => m.id === i.memberId)?.memberType === "junior" ? "Child" : "Player"}:{" "}
+              {name(i.memberId)}
+            </div>
             <div className="text-[11px] text-[#8A8A98] mt-0.5 font-light">
               Session Fee:{" "}
               <span className="font-semibold font-mono text-[#34D399]">
@@ -796,6 +808,7 @@ function Invitations() {
 
             {filteredPlaySessions.map((sch) => {
               const available = availablePlayMembers(sch);
+              const availableJuniors = availablePlayJuniors(sch);
               const scheduleInvites = invitesForSchedule(sch.id);
               const canEnroll = sch.status === "released";
               const waitingForInvite = canEnroll && available.length > 0 && (autoInviting || scheduleInvites.length === 0);
@@ -865,10 +878,10 @@ function Invitations() {
                     </div>
                   </div>
 
-                  {canEnroll && adultPlayers.length === 0 && (
+                  {canEnroll && adultPlayers.length === 0 && playEligibleJuniors.length === 0 && (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-white/[0.03]">
                       <p className="text-[12px] text-muted-foreground">
-                        Add an adult family member to join this session.
+                        Add an eligible family member to join this session.
                       </p>
                       <Button
                         asChild
@@ -886,11 +899,13 @@ function Invitations() {
                   {canEnroll &&
                     adultPlayers.length > 0 &&
                     available.length === 0 &&
+                    availableJuniors.length === 0 &&
                     scheduleInvites.length === 0 && (
                       <p className="text-[12px] text-muted-foreground pt-1 border-t border-white/[0.03]">
                         None of your members are eligible for this session yet (active adult with club
                         membership
-                        {sch.isLeagueMatch ? ", and in the assigned league group" : ""}).
+                        {sch.isLeagueMatch ? ", and in the assigned league group" : ", or play-eligible junior"}
+                        ).
                       </p>
                     )}
 
@@ -898,6 +913,81 @@ function Invitations() {
                     <p className="text-[12px] text-muted-foreground pt-1 border-t border-white/[0.03]">
                       Preparing your invitation…
                     </p>
+                  )}
+
+                  {canEnroll && !sch.isLeagueMatch && availableJuniors.length > 0 && (
+                    <div className="space-y-2 pt-1 border-t border-white/[0.03]">
+                      <p className="text-[11px] font-medium tracking-[0.08em] text-[#8A8A98] uppercase">
+                        Accept children into this session
+                      </p>
+                      <div className="grid gap-2">
+                        {availableJuniors.map((child) => {
+                          const estimatedFee = applyMemberFee(
+                            playSessionBaseFee(sch.sessionRate),
+                            child,
+                            discountsFromStore(s),
+                          );
+                          const hasInsufficientCredits =
+                            !child.skipCreditConsumption && child.credit < estimatedFee;
+                          const acceptingKey = `${sch.id}:${child.id}`;
+                          return (
+                            <div
+                              key={child.id}
+                              className="flex items-center gap-3 p-2.5 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] rounded-lg"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
+                                  {child.firstName} {child.lastName}
+                                </div>
+                                <div className="text-[11px] text-muted-foreground">
+                                  Grade {child.grade} · Session fee{" "}
+                                  <span className="font-mono text-[#34D399]">
+                                    {fmtMoney(estimatedFee)}
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                disabled={enrollingId === acceptingKey}
+                                className="btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer shrink-0"
+                                onClick={async () => {
+                                  if (hasInsufficientCredits) {
+                                    setCreditGap({
+                                      memberId: child.id,
+                                      balance: child.credit,
+                                      required: estimatedFee,
+                                    });
+                                    return;
+                                  }
+                                  setEnrollingId(acceptingKey);
+                                  try {
+                                    await enrollPlay(sch.id, [child.id], true);
+                                    toast.success(
+                                      `Accepted ${child.firstName} — session fee deducted from credits`,
+                                    );
+                                  } catch (error: any) {
+                                    const msg = error.message || "Failed to accept child.";
+                                    if (/insufficient credits/i.test(msg)) {
+                                      setCreditGap({
+                                        memberId: child.id,
+                                        balance: child.credit,
+                                        required: estimatedFee,
+                                      });
+                                    } else {
+                                      toast.error(msg);
+                                    }
+                                  } finally {
+                                    setEnrollingId(null);
+                                  }
+                                }}
+                              >
+                                Accept
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
 
                   {scheduleInvites.map((i) =>
@@ -941,7 +1031,6 @@ function Invitations() {
 
             {uniquePrograms.map((t) => {
               const children = availableChildren(t.id);
-              const selected = enrollSelections[t.id] ?? [];
               const programInvites = invitesForTraining(t.id);
               const canEnroll = t.status === "open" || t.status === "released";
 
@@ -982,21 +1071,17 @@ function Invitations() {
                   {canEnroll && children.length > 0 && (
                     <div className="space-y-2 pt-1 border-t border-white/[0.03]">
                       <p className="text-[11px] font-medium tracking-[0.08em] text-[#8A8A98] uppercase">
-                        Select children to invite
+                        Accept children into this program
                       </p>
                       <div className="grid gap-2">
                         {children.map((child) => {
                           const childFee = applyMemberFee(t.fees, child, discountsFromStore(s));
+                          const acceptingKey = `${t.id}:${child.id}`;
                           return (
-                            <label
+                            <div
                               key={child.id}
-                              className="flex items-center gap-3 p-2.5 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(16,185,129,0.3)] rounded-lg cursor-pointer transition-all"
+                              className="flex items-center gap-3 p-2.5 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] rounded-lg"
                             >
-                              <Checkbox
-                                checked={selected.includes(child.id)}
-                                onCheckedChange={(c) => toggleEnrollChild(t.id, child.id, !!c)}
-                                className="border-[rgba(255,255,255,0.2)] data-[state=checked]:bg-[#10B981] data-[state=checked]:border-[#10B981]"
-                              />
                               <div className="min-w-0 flex-1">
                                 <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
                                   {child.firstName} {child.lastName}
@@ -1008,32 +1093,28 @@ function Invitations() {
                                   </span>
                                 </div>
                               </div>
-                            </label>
+                              <Button
+                                size="sm"
+                                disabled={enrollingId === acceptingKey}
+                                className="btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer shrink-0"
+                                onClick={async () => {
+                                  setEnrollingId(acceptingKey);
+                                  try {
+                                    await enrollTraining(t.id, [child.id]);
+                                    toast.success(`Accepted ${child.firstName} into training`);
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to accept child.");
+                                  } finally {
+                                    setEnrollingId(null);
+                                  }
+                                }}
+                              >
+                                Accept
+                              </Button>
+                            </div>
                           );
                         })}
                       </div>
-                      <Button
-                        size="sm"
-                        disabled={selected.length === 0 || enrollingId === t.id}
-                        className="btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer w-full sm:w-auto"
-                        onClick={async () => {
-                          setEnrollingId(t.id);
-                          try {
-                            await enrollTraining(t.id, selected);
-                            await syncData();
-                            toast.success(
-                              `Invited ${selected.length} child${selected.length === 1 ? "" : "ren"}`,
-                            );
-                            setEnrollSelections((prev) => ({ ...prev, [t.id]: [] }));
-                          } catch (error: any) {
-                            toast.error(error.message || "Failed to send invitations.");
-                          } finally {
-                            setEnrollingId(null);
-                          }
-                        }}
-                      >
-                        Send invitations
-                      </Button>
                     </div>
                   )}
 
@@ -1086,7 +1167,7 @@ function Invitations() {
                     children.length === 0 &&
                     programInvites.length === 0 && (
                       <p className="text-[12px] text-muted-foreground pt-1 border-t border-white/[0.03]">
-                        Select your children above to receive invitations.
+                        No eligible children left to accept for this program.
                       </p>
                     )}
                 </div>

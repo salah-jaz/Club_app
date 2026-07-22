@@ -71,6 +71,7 @@ function AddMember() {
           memberType: isAdmin ? "adult" : "junior",
           membership: false,
           trainingEligible: false,
+          playEligible: false,
           skipCreditConsumption: false,
           applyDiscount: false,
           grade: "",
