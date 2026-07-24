@@ -507,7 +507,7 @@ function SchedulePage() {
             members?
           </span>
           <span className="block text-[#8A8A98]">
-            Members will be able to view court details from My Invitations.
+            Members will be able to view court details from Events.
           </span>
         </>
       ),

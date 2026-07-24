@@ -27,11 +27,23 @@ export const Route = createFileRoute("/_authenticated/approvals")({ component: A
 type ApproveOptions = {
   memberType: MemberType;
   grade: string;
+  membership: boolean;
   trainingEligible: boolean;
+  playEligible: boolean;
+  skipCreditConsumption: boolean;
+  applyDiscount: boolean;
 };
 
 function defaultApproveOptions(defaultGrade: string = "B"): ApproveOptions {
-  return { memberType: "adult", grade: defaultGrade, trainingEligible: false };
+  return {
+    memberType: "adult",
+    grade: defaultGrade,
+    membership: true,
+    trainingEligible: false,
+    playEligible: false,
+    skipCreditConsumption: false,
+    applyDiscount: false,
+  };
 }
 
 /** Inline spinner SVG for button loading states */
@@ -109,6 +121,33 @@ function Approvals() {
     if (!m.parentMemberId) return "—";
     const p = s.members.find((x) => x.id === m.parentMemberId);
     return p ? `${p.firstName} ${p.lastName}` : m.parentMemberId;
+  };
+
+  const getJuniorAddress = (m: Member): string => {
+    if ((m as any).address && typeof (m as any).address === "string" && (m as any).address.trim()) {
+      return (m as any).address.trim();
+    }
+    if (m.userId) {
+      const u = s.users.find((x) => x.id === m.userId);
+      if (u?.address && u.address.trim()) {
+        return u.address.trim();
+      }
+    }
+    if (m.parentMemberId) {
+      const p = s.members.find((x) => x.id === m.parentMemberId);
+      if (p) {
+        if ((p as any).address && typeof (p as any).address === "string" && (p as any).address.trim()) {
+          return (p as any).address.trim();
+        }
+        if (p.userId) {
+          const pu = s.users.find((x) => x.id === p.userId);
+          if (pu?.address && pu.address.trim()) {
+            return pu.address.trim();
+          }
+        }
+      }
+    }
+    return "N/A";
   };
 
   const setMemberType = (memberType: MemberType) => {
@@ -197,6 +236,10 @@ function Approvals() {
                               </p>
                               <p className="text-[12px] text-[#C4D4CF] truncate mt-0.5">{u.email}</p>
                               <p className="text-[12px] text-[#8A8A98] font-mono mt-1">{u.mobile}</p>
+                              <p className="text-[12px] text-[#C4D4CF] mt-1 truncate">
+                                <span className="text-[#8A8A98]">Address: </span>
+                                {u.address && u.address.trim() ? u.address.trim() : "N/A"}
+                              </p>
                             </div>
                             <StatusBadge status={u.status} />
                           </div>
@@ -240,6 +283,7 @@ function Approvals() {
                       <TableHead className="type-table-head h-11 px-5">Name</TableHead>
                       <TableHead className="type-table-head h-11">Email</TableHead>
                       <TableHead className="type-table-head h-11">Mobile</TableHead>
+                      <TableHead className="type-table-head h-11">Address</TableHead>
                       <TableHead className="type-table-head h-11">Registered</TableHead>
                       <TableHead className="type-table-head h-11">Status</TableHead>
                       <TableHead className="type-table-head h-11 text-right px-5">Actions</TableHead>
@@ -260,6 +304,7 @@ function Approvals() {
                         </TableCell>
                         <TableCell className="type-table-body text-[#C4D4CF]">{u.email}</TableCell>
                         <TableCell className="type-mono-value text-[#EEF2F0]">{u.mobile}</TableCell>
+                        <TableCell className="type-table-body text-[#C4D4CF]">{u.address && u.address.trim() ? u.address.trim() : "N/A"}</TableCell>
                         <TableCell className="type-mono-value text-[#EEF2F0]">{fmtDate(u.createdAt)}</TableCell>
                         <TableCell className="py-4"><StatusBadge status={u.status} /></TableCell>
                         <TableCell className="text-right px-5 py-4 space-x-2">
@@ -328,6 +373,10 @@ function Approvals() {
                               <p className="text-[12px] text-[#C4D4CF] mt-0.5">
                                 Parent: {parentName(m)}
                               </p>
+                              <p className="text-[12px] text-[#C4D4CF] mt-0.5 truncate">
+                                <span className="text-[#8A8A98]">Address: </span>
+                                {getJuniorAddress(m)}
+                              </p>
                               <p className="text-[12px] text-[#8A8A98] mt-1">
                                 Grade: {m.grade || "—"}
                                 {m.biMemberId ? ` · ${m.biMemberId}` : ""}
@@ -375,6 +424,7 @@ function Approvals() {
                         <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
                           <TableHead className="type-table-head h-11 px-5">Junior</TableHead>
                           <TableHead className="type-table-head h-11">Parent</TableHead>
+                          <TableHead className="type-table-head h-11">Address</TableHead>
                           <TableHead className="type-table-head h-11">Grade</TableHead>
                           <TableHead className="type-table-head h-11">Status</TableHead>
                           <TableHead className="type-table-head h-11 text-right px-5">Actions</TableHead>
@@ -399,6 +449,7 @@ function Approvals() {
                               ) : null}
                             </TableCell>
                             <TableCell className="type-table-body text-[#C4D4CF]">{parentName(m)}</TableCell>
+                            <TableCell className="type-table-body text-[#C4D4CF]">{getJuniorAddress(m)}</TableCell>
                             <TableCell className="type-table-body text-[#EEF2F0]">{m.grade || "—"}</TableCell>
                             <TableCell className="py-4">
                               <StatusBadge status={m.status} />
@@ -646,6 +697,21 @@ function Approvals() {
 
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Club membership</Label>
+                <p className="text-xs text-muted-foreground">
+                  {opts.memberType === "junior"
+                    ? "Paid yearly fee."
+                    : "Paid yearly fee. Receives play schedule invitations."}
+                </p>
+              </div>
+              <Switch
+                checked={opts.membership}
+                onCheckedChange={(membership) => setOpts((p) => ({ ...p, membership }))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+              <div>
                 <Label className="text-[11px] font-medium text-[#F1F0EE]">Training eligible</Label>
                 <p className="text-xs text-muted-foreground">
                   {opts.memberType === "adult"
@@ -656,6 +722,47 @@ function Approvals() {
               <Switch
                 checked={opts.trainingEligible}
                 onCheckedChange={(trainingEligible) => setOpts((p) => ({ ...p, trainingEligible }))}
+              />
+            </div>
+
+            {opts.memberType === "junior" && (
+              <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+                <div>
+                  <Label className="text-[11px] font-medium text-[#F1F0EE]">Play schedule eligible</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Family head can enroll this junior in play sessions.
+                  </p>
+                </div>
+                <Switch
+                  checked={opts.playEligible}
+                  onCheckedChange={(playEligible) => setOpts((p) => ({ ...p, playEligible }))}
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+              <div>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Bypass Credit Consumption</Label>
+                <p className="text-xs text-muted-foreground">
+                  Do not deduct credits when participating in play schedules.
+                </p>
+              </div>
+              <Switch
+                checked={opts.skipCreditConsumption}
+                onCheckedChange={(skipCreditConsumption) => setOpts((p) => ({ ...p, skipCreditConsumption }))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+              <div>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Apply Discount</Label>
+                <p className="text-xs text-muted-foreground">
+                  Use {opts.memberType === "junior" ? "junior" : "adult"} discount settings on play and training fees.
+                </p>
+              </div>
+              <Switch
+                checked={opts.applyDiscount}
+                onCheckedChange={(applyDiscount) => setOpts((p) => ({ ...p, applyDiscount }))}
               />
             </div>
           </div>

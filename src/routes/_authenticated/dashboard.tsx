@@ -4,7 +4,7 @@ import { useCurrentUser, useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { fmtDateTime, fmtMoney } from "@/lib/format";
+import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
 import {
   Users,
   Wallet,
@@ -19,7 +19,7 @@ import { motion } from "framer-motion";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
-import type { PlaySchedule } from "@/lib/types";
+import type { PlaySchedule, Training } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
@@ -202,6 +202,77 @@ function ScheduleListCard({
   );
 }
 
+function TrainingListCard({
+  title,
+  trainings,
+  emptyTitle,
+  emptyDescription,
+  viewAllTo,
+  viewAllLabel = "View all",
+  footer,
+}: {
+  title: string;
+  trainings: Training[];
+  emptyTitle: string;
+  emptyDescription?: string;
+  viewAllTo?: string;
+  viewAllLabel?: string;
+  footer?: ReactNode;
+}) {
+  return (
+    <Card className="signature-card-top flex flex-col">
+      <CardHeader className="px-6 pt-5 pb-2 flex flex-row items-center justify-between gap-3 space-y-0">
+        <CardTitle className="type-section-cap">{title}</CardTitle>
+        {viewAllTo && trainings.length > 0 && (
+          <Button asChild variant="ghost" size="sm" className="h-8 text-xs text-[#34D399] hover:text-[#10B981] cursor-pointer px-2">
+            <Link to={viewAllTo} className="inline-flex items-center gap-1">
+              {viewAllLabel}
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col justify-start gap-3 px-6 pt-2 pb-5">
+        {trainings.length === 0 ? (
+          <EmptyIllustration
+            icon="training"
+            title={emptyTitle}
+            description={emptyDescription ?? ""}
+          />
+        ) : (
+          <div className="space-y-3">
+            {trainings.slice(0, 4).map((tr, i) => {
+              const dateTimeStr = tr.startDate.includes("T")
+                ? fmtDateTime(tr.startDate)
+                : fmtDate(tr.startDate);
+              return (
+                <motion.div
+                  key={tr.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.06, duration: 0.2 }}
+                  className="flex items-center justify-between border border-[rgba(255,255,255,0.06)] bg-[#131916]/40 hover:bg-[#1A2120]/40 rounded-lg p-3 transition-colors gap-3"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-semibold text-sm text-[#EEF2F0]">{tr.name}</div>
+                    </div>
+                    <div className="type-helper mt-1">
+                      {dateTimeStr} · {tr.location}
+                    </div>
+                  </div>
+                  <StatusBadge status={tr.status} />
+                </motion.div>
+              );
+            })}
+            {footer}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function Dashboard() {
   const user = useCurrentUser()!;
   const s = useStore();
@@ -210,28 +281,20 @@ function Dashboard() {
   const pendingUsers = s.users.filter((u) => u.status === "created").length;
   const pendingCredits = s.creditRequests.filter((c) => (c.type || "credit") === "credit" && c.status === "created").length;
 
-  const upcomingSchedules = useMemo(
-    () =>
-      [...s.schedules]
-        .filter((x) => x.status !== "closed")
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
-    [s.schedules],
-  );
-
-  const openSessions = useMemo(
-    () =>
-      [...s.schedules]
-        .filter((x) => x.status === "open")
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
-    [s.schedules],
-  );
-
   const otherStatusSessions = useMemo(
     () =>
       [...s.schedules]
         .filter((x) => x.status !== "open" && x.status !== "closed")
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
     [s.schedules],
+  );
+
+  const upcomingTrainings = useMemo(
+    () =>
+      [...s.trainings]
+        .filter((x) => x.status !== "closed")
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
+    [s.trainings],
   );
 
   const myInvites = [
@@ -257,7 +320,7 @@ function Dashboard() {
         <>
           <HeaderQuickAction to="/members" icon={Users} label="Add family member" />
           <HeaderQuickAction to="/credits" icon={Wallet} label="Request credit" />
-          <HeaderQuickAction to="/invitations" icon={Inbox} label="My invitations" />
+          <HeaderQuickAction to="/events" icon={Inbox} label="Events" />
           <HeaderQuickAction to="/transactions" icon={Wallet} label="Transactions" />
         </>
       )}
@@ -279,7 +342,7 @@ function Dashboard() {
         variants={staggerContainer}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8"
       >
         {user.role === "admin" && (
           <>
@@ -299,10 +362,16 @@ function Dashboard() {
               index={2}
             />
             <Stat
-              label="Active sessions"
-              value={upcomingSchedules.length}
+              label="Active Play Sessions"
+              value={otherStatusSessions.length}
               icon={CalendarDays}
               index={3}
+            />
+            <Stat
+              label="Active Training Sessions"
+              value={upcomingTrainings.length}
+              icon={GraduationCap}
+              index={4}
             />
           </>
         )}
@@ -363,13 +432,11 @@ function Dashboard() {
           }
         />
 
-        <ScheduleListCard
-          title="Open Sessions"
-          schedules={openSessions}
-          holidays={s.holidays ?? []}
-          emptyTitle="No open sessions"
-          emptyDescription="Open play sessions that have not been released yet will appear here."
-          viewAllTo={user.role === "admin" ? "/schedules" : undefined}
+        <TrainingListCard
+          title="Upcoming Training Sessions"
+          trainings={upcomingTrainings}
+          emptyTitle="No upcoming training sessions."
+          viewAllTo={user.role === "admin" || user.role === "volunteer" ? "/trainings" : undefined}
           viewAllLabel="View all"
         />
       </div>

@@ -121,9 +121,11 @@ export function EmptyIllustration({
       />
 
       <h3 className="text-[15px] font-semibold text-[#F1F0EE] mb-2">{title}</h3>
-      <p className="text-[13px] font-light text-[#8A8A9A] max-w-[280px] mb-6 leading-relaxed">
-        {description}
-      </p>
+      {description && (
+        <p className="text-[13px] font-light text-[#8A8A9A] max-w-[280px] mb-6 leading-relaxed">
+          {description}
+        </p>
+      )}
 
       {ctaLabel && ctaTo && (
         <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>

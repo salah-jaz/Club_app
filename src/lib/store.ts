@@ -15,6 +15,7 @@ import type {
   User,
   LeagueGroup,
   PlayerPositionItem,
+  HolidayItem,
 } from "./types";
 import { api } from "./api";
 
@@ -37,6 +38,7 @@ interface State {
   adultGrades: string[];
   juniorGrades: string[];
   holidays: string[];
+  holidayItems: HolidayItem[];
   playerPositions: string[];
   playerPositionItems: PlayerPositionItem[];
   leagueGroups: LeagueGroup[];
@@ -87,7 +89,15 @@ interface State {
   // user admin
   approveUser: (
     id: string,
-    opts?: { memberType?: Member["memberType"]; grade?: string; trainingEligible?: boolean },
+    opts?: {
+      memberType?: Member["memberType"];
+      grade?: string;
+      membership?: boolean;
+      trainingEligible?: boolean;
+      playEligible?: boolean;
+      skipCreditConsumption?: boolean;
+      applyDiscount?: boolean;
+    },
   ) => Promise<void>;
   approveAllUsers: () => Promise<void>;
   rejectUser: (id: string) => Promise<void>;
@@ -108,7 +118,7 @@ interface State {
   rejectJunior: (id: string) => Promise<void>;
 
   // credits
-  requestCredit: (memberId: string, amount: number, date: string, type?: "credit" | "debit") => Promise<void>;
+  requestCredit: (memberId: string, amount: number, date: string, type?: "credit" | "debit", reason?: string) => Promise<void>;
   approveCredit: (id: string) => Promise<void>;
   approveAllCredits: () => Promise<void>;
   rejectCredit: (id: string) => Promise<void>;
@@ -147,6 +157,7 @@ interface State {
     adultGrades?: string[];
     juniorGrades?: string[];
     holidays?: string[];
+    holidayItems?: HolidayItem[];
     playerPositions?: string[];
     playerPositionItems?: PlayerPositionItem[];
     mailHost?: string;
@@ -248,6 +259,7 @@ export const useStore = create<State>((set, get) => ({
   adultGrades: [],
   juniorGrades: [],
   holidays: [],
+  holidayItems: [],
   playerPositions: [],
   playerPositionItems: [],
   appName: "Connect App",
@@ -328,6 +340,7 @@ export const useStore = create<State>((set, get) => ({
           adultGrades?: string[];
           juniorGrades?: string[];
           holidays: string[];
+          holidayItems?: HolidayItem[];
           playerPositions: string[];
           playerPositionItems?: PlayerPositionItem[];
           appName: string;
@@ -383,7 +396,9 @@ export const useStore = create<State>((set, get) => ({
         grades: settings.grades,
         adultGrades: settings.adultGrades || [],
         juniorGrades: settings.juniorGrades || [],
-        holidays: settings.holidays,
+        holidays: settings.holidays || [],
+        holidayItems: settings.holidayItems ||
+          (settings.holidays || []).map((date) => ({ name: "", date })),
         playerPositions: settings.playerPositions || [],
         playerPositionItems: settings.playerPositionItems ||
           (settings.playerPositions || []).map((name) => ({ name, skipLeagueFee: false })),
@@ -543,8 +558,8 @@ export const useStore = create<State>((set, get) => ({
     await get().syncData();
   },
 
-  requestCredit: async (memberId, amount, date, type = "credit") => {
-    await api.post<CreditRequest>("/credit-requests", { memberId, amount, date, type });
+  requestCredit: async (memberId, amount, date, type = "credit", reason) => {
+    await api.post<CreditRequest>("/credit-requests", { memberId, amount, date, type, reason });
     await get().syncData();
   },
 
@@ -734,6 +749,7 @@ export const useStore = create<State>((set, get) => ({
       adultGrades?: string[];
       juniorGrades?: string[];
       holidays: string[];
+      holidayItems?: HolidayItem[];
       playerPositions: string[];
       playerPositionItems?: PlayerPositionItem[];
       appName: string;
@@ -769,7 +785,9 @@ export const useStore = create<State>((set, get) => ({
       grades: updated.grades,
       adultGrades: updated.adultGrades || [],
       juniorGrades: updated.juniorGrades || [],
-      holidays: updated.holidays,
+      holidays: updated.holidays || [],
+      holidayItems: updated.holidayItems ||
+        (updated.holidays || []).map((date) => ({ name: "", date })),
       playerPositions: updated.playerPositions || [],
       playerPositionItems: updated.playerPositionItems ||
         (updated.playerPositions || []).map((name) => ({ name, skipLeagueFee: false })),
@@ -807,6 +825,7 @@ export const useStore = create<State>((set, get) => ({
           ? updated.juniorDiscountMode
           : "percent",
     });
+    await get().syncData();
   },
 
   updateProfile: async (profile) => {

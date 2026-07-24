@@ -69,6 +69,7 @@ export interface CreditRequest {
   date: string;
   type: "credit" | "debit";
   status: "created" | "approved" | "rejected";
+  reason?: string;
   createdAt: string;
 }
 
@@ -78,12 +79,18 @@ export interface Transaction {
   type: "credit" | "debit";
   amount: number;
   description: string;
+  reason?: string;
   date: string;
 }
 
 export interface PlayerPositionItem {
   name: string;
   skipLeagueFee: boolean;
+}
+
+export interface HolidayItem {
+  name: string;
+  date: string;
 }
 
 export interface LeagueGroupMember {

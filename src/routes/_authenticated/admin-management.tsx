@@ -598,7 +598,7 @@ function AdminManagement() {
             </Button>
           </div>
           {adminUsers.length === 0 ? (
-            <EmptyIllustration label="No admin users found" />
+            <EmptyIllustration title="No admin users found" description="Create an admin user to get started." />
           ) : (
             <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
               <div className="overflow-x-auto">
@@ -700,7 +700,7 @@ function AdminManagement() {
             </Button>
           </div>
           {adminRoles.length === 0 ? (
-            <EmptyIllustration label="No roles found" />
+            <EmptyIllustration title="No roles found" description="Create an admin role to get started." />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {adminRoles.map((r) => (

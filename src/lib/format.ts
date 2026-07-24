@@ -1,4 +1,5 @@
 import { useStore } from "./store";
+import type { Transaction } from "./types";
 
 export const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -8,6 +9,27 @@ export const fmtMoney = (n: number) => {
   const symbol = useStore.getState().currency || "$";
   return `${symbol}${n.toFixed(2)}`;
 };
+
+/** Format description display for transactions (specifically Manual Debit vs others). */
+export function formatTxnDescription(t: Transaction): string {
+  const isDebit = t.type === "debit";
+  const desc = (t.description || "").trim();
+  const descLower = desc.toLowerCase();
+
+  const isAutoDebit =
+    descLower.startsWith("play session") ||
+    descLower.startsWith("auto debit") ||
+    descLower.startsWith("training");
+
+  const isManualDebit = isDebit && !isAutoDebit;
+
+  if (isManualDebit) {
+    const reasonText = t.reason?.trim() || desc;
+    return reasonText ? `Reason: ${reasonText}` : "Reason: N/A";
+  }
+
+  return t.description || t.reason || "N/A";
+}
 
 /** Parse `datetime-local` value (`YYYY-MM-DDTHH:mm`) into day / date / time labels. */
 export function parseScheduleDateTime(value: string): {
@@ -38,4 +60,4 @@ export function parseScheduleDateTime(value: string): {
     time,
     label: `${day} · ${date} · ${time}`,
   };
-}
+}

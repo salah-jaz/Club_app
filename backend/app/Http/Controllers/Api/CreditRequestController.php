@@ -76,6 +76,30 @@ class CreditRequestController extends Controller
             return response()->json(['message' => 'Only admins can create debit entries.'], 403);
         }
 
+        $rawReason = $request->input('reason');
+        $reason = is_string($rawReason) ? trim($rawReason) : '';
+
+        if ($reason === '') {
+            return response()->json([
+                'message' => 'Reason is required.',
+                'errors' => ['reason' => ['Reason is required.']]
+            ], 422);
+        }
+
+        if (mb_strlen($reason) < 5) {
+            return response()->json([
+                'message' => 'Reason must be at least 5 characters.',
+                'errors' => ['reason' => ['Reason must be at least 5 characters.']]
+            ], 422);
+        }
+
+        if (mb_strlen($reason) > 500) {
+            return response()->json([
+                'message' => 'Reason must not exceed 500 characters.',
+                'errors' => ['reason' => ['Reason must not exceed 500 characters.']]
+            ], 422);
+        }
+
         $member = Member::findOrFail($request->memberId);
 
         if ((float) $member->credit < (float) $request->amount) {
@@ -91,6 +115,7 @@ class CreditRequestController extends Controller
             'amount' => $request->amount,
             'date' => $request->date,
             'status' => 'approved',
+            'reason' => $reason,
         ]);
 
         // Same pattern as play-schedule debits: reduce member balance + one debit txn only
@@ -102,7 +127,8 @@ class CreditRequestController extends Controller
             'member_id' => $member->id,
             'type' => 'debit',
             'amount' => $request->amount,
-            'description' => 'Debit (Admin)',
+            'description' => $reason,
+            'reason' => $reason,
             'date' => $request->date,
         ]);
 
@@ -188,6 +214,7 @@ class CreditRequestController extends Controller
             'date' => $r->date,
             'type' => $r->type ?? 'credit',
             'status' => $r->status,
+            'reason' => $r->reason,
             'createdAt' => $r->created_at->toISOString(),
         ];
     }
