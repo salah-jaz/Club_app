@@ -21,6 +21,7 @@ import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedMembersRouteImport } from './routes/_authenticated/members'
 import { Route as AuthenticatedLeagueGroupsRouteImport } from './routes/_authenticated/league-groups'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
+import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated/events'
 import { Route as AuthenticatedEmailTemplatesRouteImport } from './routes/_authenticated/email-templates'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCreditsRouteImport } from './routes/_authenticated/credits'
@@ -97,6 +98,11 @@ const AuthenticatedInvitationsRoute =
     path: '/invitations',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEventsRoute = AuthenticatedEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedEmailTemplatesRoute =
   AuthenticatedEmailTemplatesRouteImport.update({
     id: '/email-templates',
@@ -181,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/email-templates': typeof AuthenticatedEmailTemplatesRoute
+  '/events': typeof AuthenticatedEventsRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/league-groups': typeof AuthenticatedLeagueGroupsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
@@ -207,6 +214,7 @@ export interface FileRoutesByTo {
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/email-templates': typeof AuthenticatedEmailTemplatesRoute
+  '/events': typeof AuthenticatedEventsRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/league-groups': typeof AuthenticatedLeagueGroupsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
@@ -235,6 +243,7 @@ export interface FileRoutesById {
   '/_authenticated/credits': typeof AuthenticatedCreditsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/email-templates': typeof AuthenticatedEmailTemplatesRoute
+  '/_authenticated/events': typeof AuthenticatedEventsRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/league-groups': typeof AuthenticatedLeagueGroupsRoute
   '/_authenticated/members': typeof AuthenticatedMembersRouteWithChildren
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/credits'
     | '/dashboard'
     | '/email-templates'
+    | '/events'
     | '/invitations'
     | '/league-groups'
     | '/members'
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/credits'
     | '/dashboard'
     | '/email-templates'
+    | '/events'
     | '/invitations'
     | '/league-groups'
     | '/members'
@@ -316,6 +327,7 @@ export interface FileRouteTypes {
     | '/_authenticated/credits'
     | '/_authenticated/dashboard'
     | '/_authenticated/email-templates'
+    | '/_authenticated/events'
     | '/_authenticated/invitations'
     | '/_authenticated/league-groups'
     | '/_authenticated/members'
@@ -425,6 +437,13 @@ declare module '@tanstack/react-router' {
       path: '/invitations'
       fullPath: '/invitations'
       preLoaderRoute: typeof AuthenticatedInvitationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/events': {
+      id: '/_authenticated/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof AuthenticatedEventsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/email-templates': {
@@ -576,6 +595,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCreditsRoute: typeof AuthenticatedCreditsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEmailTemplatesRoute: typeof AuthenticatedEmailTemplatesRoute
+  AuthenticatedEventsRoute: typeof AuthenticatedEventsRoute
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
   AuthenticatedLeagueGroupsRoute: typeof AuthenticatedLeagueGroupsRoute
   AuthenticatedMembersRoute: typeof AuthenticatedMembersRouteWithChildren
@@ -592,6 +612,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCreditsRoute: AuthenticatedCreditsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEmailTemplatesRoute: AuthenticatedEmailTemplatesRoute,
+  AuthenticatedEventsRoute: AuthenticatedEventsRoute,
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
   AuthenticatedLeagueGroupsRoute: AuthenticatedLeagueGroupsRoute,
   AuthenticatedMembersRoute: AuthenticatedMembersRouteWithChildren,

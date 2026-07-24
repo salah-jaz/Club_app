@@ -110,7 +110,7 @@ function SchedulesList() {
             eligible members?
           </span>
           <span className="block text-[#8A8A98]">
-            Members will be able to accept or decline from My Invitations.
+            Members will be able to accept or decline from Events.
           </span>
         </>
       ),

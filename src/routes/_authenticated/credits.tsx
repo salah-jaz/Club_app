@@ -2,10 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { useCurrentUser, useStore } from "@/lib/store";
+import type { CreditRequest } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -126,6 +128,9 @@ function CreditsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [memberId, setMemberId] = useState(() => search.memberId || (myMembers[0]?.id ?? ""));
   const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string | null>(null);
+  const [selectedDebitDetail, setSelectedDebitDetail] = useState<CreditRequest | null>(null);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
 
@@ -243,6 +248,8 @@ function CreditsPage() {
       setMemberId(myMembers[0].id);
     }
     setDate(new Date().toISOString().slice(0, 10));
+    setReason("");
+    setReasonError(null);
     setAddOpen(true);
   };
 
@@ -250,9 +257,28 @@ function CreditsPage() {
     e.preventDefault();
     const targetMemberId = focusMember?.id || memberId;
     if (!targetMemberId || !amount) return;
+
+    if (entryType === "debit") {
+      const trimmedReason = reason.trim();
+      if (!trimmedReason) {
+        setReasonError("Reason is required.");
+        return;
+      }
+      if (trimmedReason.length < 5) {
+        setReasonError("Reason must be at least 5 characters.");
+        return;
+      }
+      if (trimmedReason.length > 500) {
+        setReasonError("Reason must not exceed 500 characters.");
+        return;
+      }
+    }
+
     setSubmitting(true);
+    setReasonError(null);
     try {
-      await s.requestCredit(targetMemberId, parseFloat(amount), date, entryType);
+      const trimmedReason = entryType === "debit" ? reason.trim() : undefined;
+      await s.requestCredit(targetMemberId, parseFloat(amount), date, entryType, trimmedReason);
       if (entryType === "debit") {
         toast.success("Debit applied — member balance reduced");
       } else if (isAdmin) {
@@ -261,9 +287,16 @@ function CreditsPage() {
         toast.success("Credit request submitted for approval");
       }
       setAmount("");
+      setReason("");
       setAddOpen(false);
     } catch (error: any) {
-      toast.error(error.message || `Failed to submit ${entryType} request.`);
+      if (error.response?.data?.errors?.reason?.[0]) {
+        setReasonError(error.response.data.errors.reason[0]);
+      } else if (error.response?.data?.message && error.response.data.message.includes("Reason")) {
+        setReasonError(error.response.data.message);
+      } else {
+        toast.error(error.message || `Failed to submit ${entryType} request.`);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -442,8 +475,33 @@ function CreditsPage() {
                 className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px]"
               />
             </div>
+            {entryType === "debit" && (
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
+                  Reason <span className="text-[#EF4444]">*</span>
+                </Label>
+                <Textarea
+                  rows={3}
+                  value={reason}
+                  onChange={(e) => {
+                    setReason(e.target.value);
+                    if (reasonError) setReasonError(null);
+                  }}
+                  placeholder="Enter the reason for deducting this amount..."
+                  className={cn(
+                    "bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] resize-none focus-visible:ring-1 focus-visible:ring-[#10B981]",
+                    reasonError && "border-[#EF4444] focus-visible:ring-[#EF4444]",
+                  )}
+                />
+                {reasonError && (
+                  <p className="text-xs text-[#EF4444] mt-1 font-medium">{reasonError}</p>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
-              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Date</Label>
+              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
+                Date <span className="text-[#EF4444]">*</span>
+              </Label>
               <Input
                 type="date"
                 value={date}
@@ -843,9 +901,21 @@ function CreditsPage() {
                               {initials}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-bold text-[14px] text-[#EEF2F0]">
-                            {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
-                          </span>
+                          <div>
+                            <span className="font-bold text-[14px] text-[#EEF2F0] block">
+                              {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                            </span>
+                            {r.reason && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDebitDetail(r)}
+                                className="text-left text-xs text-[#8A8A98] hover:text-[#34D399] font-normal block mt-0.5 max-w-[240px] truncate cursor-pointer transition-colors"
+                                title={`Reason: ${r.reason} (Click to view details)`}
+                              >
+                                Reason: {r.reason}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="py-3 px-6">
@@ -888,7 +958,18 @@ function CreditsPage() {
                               </button>
                             </div>
                           ) : (
-                            <span className="text-[12px] text-[#4A5E58]">Processed</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[12px] text-[#4A5E58]">Processed</span>
+                              {r.reason && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedDebitDetail(r)}
+                                  className="text-xs text-[#10B981] hover:underline cursor-pointer ml-1"
+                                >
+                                  Details
+                                </button>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                       )}
@@ -901,6 +982,56 @@ function CreditsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(selectedDebitDetail)} onOpenChange={(open) => !open && setSelectedDebitDetail(null)}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE]">Debit Details</DialogTitle>
+            <DialogDescription className="text-[#8A8A98]">
+              Details of the member debit transaction.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedDebitDetail && (() => {
+            const dm = s.members.find((x) => x.id === selectedDebitDetail.memberId);
+            return (
+              <div className="space-y-4 py-2">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-xs text-[#8A8A98]">Member</span>
+                  <span className="text-sm font-semibold text-[#EEF2F0]">
+                    {dm ? `${dm.firstName} ${dm.lastName}` : "Unknown Member"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                    <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Amount</span>
+                    <span className="text-base font-bold text-[#EF4444]">{fmtMoney(selectedDebitDetail.amount)}</span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                    <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Date</span>
+                    <span className="text-sm font-medium text-[#EEF2F0]">{fmtDate(selectedDebitDetail.date)}</span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Reason</span>
+                  <div className="p-3.5 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] text-sm text-[#EEF2F0] leading-relaxed whitespace-pre-wrap">
+                    {selectedDebitDetail.reason || "No reason specified"}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="btn-premium-outline cursor-pointer"
+              onClick={() => setSelectedDebitDetail(null)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

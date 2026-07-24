@@ -2,6 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\PlaySchedule;
+use App\Models\PlayInvitation;
+use App\Models\Member;
+use App\Models\Transaction;
+use App\Helpers\FeeHelper;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use App\Models\Location;
 use App\Models\Grade;
@@ -53,6 +60,10 @@ class SettingController extends Controller
             'adultGrades'     => Grade::where('type', 'adult')->orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
             'juniorGrades'    => Grade::where('type', 'junior')->orderBy('rank')->orderBy('name')->pluck('name')->toArray(),
             'holidays'        => Holiday::pluck('date')->toArray(),
+            'holidayItems'    => Holiday::orderBy('date')->get()->map(fn ($h) => [
+                'name' => $h->name ?? '',
+                'date' => $h->date,
+            ])->values()->all(),
             'playerPositions' => PlayerPosition::orderBy('name')->pluck('name')->toArray(),
             'playerPositionItems' => PlayerPosition::orderBy('name')->get()->map(fn ($p) => [
                 'name' => $p->name,
@@ -157,12 +168,44 @@ class SettingController extends Controller
             }
         }
 
-        if ($request->has('holidays')) {
+        $savedHolidayDates = [];
+        if ($request->has('holidayItems')) {
+            Holiday::truncate();
+            $now = now();
+            foreach ($request->holidayItems as $h) {
+                if (is_array($h)) {
+                    $date = $h['date'] ?? null;
+                    $name = trim($h['name'] ?? '');
+                } else {
+                    $date = $h;
+                    $name = '';
+                }
+                if ($date) {
+                    Holiday::create(['date' => $date, 'name' => $name, 'created_at' => $now, 'updated_at' => $now]);
+                    $savedHolidayDates[] = \Carbon\Carbon::parse($date)->toDateString();
+                }
+            }
+        } elseif ($request->has('holidays')) {
             Holiday::truncate();
             $now = now();
             foreach ($request->holidays as $h) {
-                Holiday::create(['date' => $h, 'created_at' => $now, 'updated_at' => $now]);
+                if (is_array($h)) {
+                    $date = $h['date'] ?? null;
+                    $name = trim($h['name'] ?? '');
+                } else {
+                    $date = $h;
+                    $name = '';
+                }
+                if ($date) {
+                    Holiday::create(['date' => $date, 'name' => $name, 'created_at' => $now, 'updated_at' => $now]);
+                    $savedHolidayDates[] = \Carbon\Carbon::parse($date)->toDateString();
+                }
             }
+        }
+
+        $allHolidayDates = Holiday::pluck('date')->toArray();
+        if (!empty($allHolidayDates)) {
+            $this->processHolidayRefunds($allHolidayDates);
         }
 
         if ($request->has('playerPositionItems')) {
@@ -260,5 +303,135 @@ class SettingController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function processHolidayRefunds(array $holidayDates): void
+    {
+        $holidayDates = array_values(array_unique(array_filter($holidayDates)));
+        if (empty($holidayDates)) {
+            return;
+        }
+
+        foreach ($holidayDates as $hDate) {
+            $scheduleDateStr = \Carbon\Carbon::parse($hDate)->toDateString();
+
+            $schedules = PlaySchedule::whereDate('date', $scheduleDateStr)->get();
+
+            foreach ($schedules as $schedule) {
+                $memberIdsToRefund = [];
+
+                $invitations = PlayInvitation::where('schedule_id', $schedule->id)->get();
+                foreach ($invitations as $invite) {
+                    if ($invite->debited && is_string($invite->member_id) && !str_starts_with($invite->member_id, 'guest_')) {
+                        $memberIdsToRefund[$invite->member_id] = $invite;
+                    }
+                }
+
+                $debitTxns = Transaction::where('type', 'debit')
+                    ->where(function ($q) use ($schedule) {
+                        $q->where('description', 'Play session: ' . $schedule->name)
+                          ->orWhere('description', 'like', '%' . $schedule->name . '%');
+                    })
+                    ->get();
+
+                foreach ($debitTxns as $dt) {
+                    if ($dt->member_id && !str_starts_with($dt->member_id, 'guest_')) {
+                        if (!isset($memberIdsToRefund[$dt->member_id])) {
+                            $memberIdsToRefund[$dt->member_id] = null;
+                        }
+                    }
+                }
+
+                foreach ($memberIdsToRefund as $memberId => $invite) {
+                    $member = Member::find($memberId);
+                    if (!$member) {
+                        continue;
+                    }
+
+                    if ($member->skip_credit_consumption || $this->memberSkipsLeagueFee($schedule, $member->id)) {
+                        if ($invite) {
+                            $invite->debited = false;
+                            $invite->save();
+                        }
+                        continue;
+                    }
+
+                    $desc = 'Refund – Club Holiday: ' . $scheduleDateStr;
+                    $descHyphen = 'Refund - Club Holiday: ' . $scheduleDateStr;
+
+                    $alreadyRefunded = Transaction::where('member_id', $member->id)
+                        ->where('type', 'credit')
+                        ->where(function ($q) use ($desc, $descHyphen, $scheduleDateStr) {
+                            $q->where('description', $desc)
+                              ->orWhere('description', $descHyphen)
+                              ->orWhere('description', 'like', 'Refund%Club Holiday%' . $scheduleDateStr . '%');
+                        })
+                        ->exists();
+
+                    if (!$alreadyRefunded) {
+                        $debitTxn = Transaction::where('member_id', $member->id)
+                            ->where('type', 'debit')
+                            ->where(function ($q) use ($schedule) {
+                                $q->where('description', 'Play session: ' . $schedule->name)
+                                  ->orWhere('description', 'like', '%' . $schedule->name . '%');
+                            })
+                            ->latest()
+                            ->first();
+
+                        $refundAmount = $debitTxn ? (float) $debitTxn->amount : FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
+
+                        if ($refundAmount > 0) {
+                            $member->credit += $refundAmount;
+                            $member->save();
+
+                            $transaction = Transaction::create([
+                                'id' => 't_' . Str::random(8),
+                                'member_id' => $member->id,
+                                'type' => 'credit',
+                                'amount' => $refundAmount,
+                                'description' => $desc,
+                                'date' => now(),
+                            ]);
+
+                            try {
+                                MailHelper::sendTransactionEmail($member, $transaction);
+                            } catch (\Exception $e) {
+                                logger()->error("Holiday refund email failed for member {$member->id}: " . $e->getMessage());
+                            }
+                        }
+                    }
+
+                    if ($invite) {
+                        $invite->debited = false;
+                        $invite->save();
+                    }
+                }
+            }
+        }
+    }
+
+    private function memberSkipsLeagueFee(PlaySchedule $schedule, string $memberId): bool
+    {
+        if (!$schedule->is_league_match || empty($schedule->league_group_ids)) {
+            return false;
+        }
+
+        $positions = DB::table('league_group_member')
+            ->whereIn('league_group_id', $schedule->league_group_ids)
+            ->where('member_id', $memberId)
+            ->whereNotNull('position')
+            ->pluck('position')
+            ->unique()
+            ->filter()
+            ->values()
+            ->all();
+
+        if (empty($positions)) {
+            return false;
+        }
+
+        return PlayerPosition::whereIn('name', $positions)
+            ->where('skip_league_fee', true)
+            ->exists();
     }
 }

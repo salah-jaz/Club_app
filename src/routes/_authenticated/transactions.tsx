@@ -3,7 +3,7 @@ import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtDateTime, fmtMoney, fmtDate } from "@/lib/format";
+import { fmtDateTime, fmtMoney, fmtDate, formatTxnDescription } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   ArrowUpRight,
@@ -26,6 +26,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 
 type TransactionsSearch = {
@@ -105,21 +113,29 @@ function Txns() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [memberTypeFilter, setMemberTypeFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedTxnDetail, setSelectedTxnDetail] = useState<import("@/lib/types").Transaction | null>(null);
 
   const resetFilters = () => {
     setSearchTerm("");
     setTypeFilter("all");
+    setMemberTypeFilter("all");
     setFromDate("");
     setToDate("");
     setSortBy("newest");
   };
 
   const hasActiveFilters =
-    searchTerm !== "" || typeFilter !== "all" || fromDate !== "" || toDate !== "" || sortBy !== "newest";
+    searchTerm !== "" ||
+    typeFilter !== "all" ||
+    memberTypeFilter !== "all" ||
+    fromDate !== "" ||
+    toDate !== "" ||
+    sortBy !== "newest";
 
   const baseTxns = useMemo(() => {
     let list = user.role === "admin" ? s.transactions : s.transactions.filter((t) => myMemberIds.includes(t.memberId));
@@ -132,10 +148,20 @@ function Txns() {
   const filteredTxns = useMemo(() => {
     return baseTxns
       .filter((t) => {
+        const m = s.members.find((x) => x.id === t.memberId);
+        if (memberTypeFilter !== "all") {
+          if (!m || m.memberType.toLowerCase() !== memberTypeFilter.toLowerCase()) {
+            return false;
+          }
+        }
         if (searchTerm.trim()) {
-          const m = s.members.find((x) => x.id === t.memberId);
           const fullName = (m ? `${m.firstName} ${m.lastName} ${m.nickname || ""}` : "").toLowerCase();
-          if (!fullName.includes(searchTerm.toLowerCase()) && !t.description.toLowerCase().includes(searchTerm.toLowerCase())) {
+          const descDisplay = formatTxnDescription(t).toLowerCase();
+          if (
+            !fullName.includes(searchTerm.toLowerCase()) &&
+            !t.description.toLowerCase().includes(searchTerm.toLowerCase()) &&
+            !descDisplay.includes(searchTerm.toLowerCase())
+          ) {
             return false;
           }
         }
@@ -163,7 +189,7 @@ function Txns() {
         if (sortBy === "amount_low") return a.amount - b.amount;
         return 0;
       });
-  }, [baseTxns, s.members, searchTerm, typeFilter, fromDate, toDate, sortBy]);
+  }, [baseTxns, s.members, memberTypeFilter, searchTerm, typeFilter, fromDate, toDate, sortBy]);
 
   const stats = useMemo(() => {
     const creditTxns = filteredTxns.filter((t) => t.type === "credit");
@@ -282,13 +308,26 @@ function Txns() {
               <div className="space-y-1">
                 <Label className="text-[10px] font-medium text-[#8A8A98]">Type</Label>
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg">
+                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="credit">Credit</SelectItem>
-                    <SelectItem value="debit">Debit</SelectItem>
+                    <SelectItem value="all" className="text-xs">All Types</SelectItem>
+                    <SelectItem value="credit" className="text-xs">Credit</SelectItem>
+                    <SelectItem value="debit" className="text-xs">Debit</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-medium text-[#8A8A98]">Member Type</Label>
+                <Select value={memberTypeFilter} onValueChange={setMemberTypeFilter}>
+                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                    <SelectItem value="all" className="text-xs">All</SelectItem>
+                    <SelectItem value="adult" className="text-xs">Adult</SelectItem>
+                    <SelectItem value="junior" className="text-xs">Junior</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -312,14 +351,14 @@ function Txns() {
               <div className="space-y-1">
                 <Label className="text-[10px] font-medium text-[#8A8A98]">Sort By</Label>
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg">
+                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="newest">Newest First</SelectItem>
-                    <SelectItem value="oldest">Oldest First</SelectItem>
-                    <SelectItem value="amount_high">Amount High to Low</SelectItem>
-                    <SelectItem value="amount_low">Amount Low to High</SelectItem>
+                    <SelectItem value="newest" className="text-xs">Newest First</SelectItem>
+                    <SelectItem value="oldest" className="text-xs">Oldest First</SelectItem>
+                    <SelectItem value="amount_high" className="text-xs">Amount High to Low</SelectItem>
+                    <SelectItem value="amount_low" className="text-xs">Amount Low to High</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -366,6 +405,28 @@ function Txns() {
                   </SelectItem>
                   <SelectItem value="debit" className="text-xs">
                     Debit
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={memberTypeFilter} onValueChange={setMemberTypeFilter}>
+                <SelectTrigger
+                  className={cn(
+                    "bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[140px] rounded-lg cursor-pointer text-xs",
+                    memberTypeFilter !== "all" && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]",
+                  )}
+                >
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="all" className="text-xs">
+                    All
+                  </SelectItem>
+                  <SelectItem value="adult" className="text-xs">
+                    Adult
+                  </SelectItem>
+                  <SelectItem value="junior" className="text-xs">
+                    Junior
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -485,6 +546,14 @@ function Txns() {
                 </button>
               </span>
             )}
+            {memberTypeFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
+                <span className="capitalize">Member Type: {memberTypeFilter}</span>
+                <button onClick={() => setMemberTypeFilter("all")} className="hover:text-white transition-colors cursor-pointer">
+                  <X className="size-3 text-[#10B981]" />
+                </button>
+              </span>
+            )}
             {(fromDate || toDate) && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
                 <span>
@@ -578,7 +647,14 @@ function Txns() {
                         </div>
                       </TableCell>
                       <TableCell className="py-3 px-6 text-[13px] text-[#C4D4CF] font-light max-w-[280px] truncate">
-                        {t.description}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTxnDetail(t)}
+                          className="text-left hover:text-[#EEF2F0] hover:underline cursor-pointer transition-colors"
+                          title={formatTxnDescription(t)}
+                        >
+                          {formatTxnDescription(t)}
+                        </button>
                       </TableCell>
                       <TableCell className="py-3 px-6">
                         <span
@@ -615,6 +691,65 @@ function Txns() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(selectedTxnDetail)} onOpenChange={(open) => !open && setSelectedTxnDetail(null)}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE]">
+              {selectedTxnDetail?.type === "debit" ? "Debit Details" : "Transaction Details"}
+            </DialogTitle>
+            <DialogDescription className="text-[#8A8A98]">
+              {selectedTxnDetail?.type === "debit"
+                ? "Details of the member debit transaction."
+                : "Details of the recorded transaction."}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedTxnDetail && (() => {
+            const tm = s.members.find((x) => x.id === selectedTxnDetail.memberId);
+            const isCred = selectedTxnDetail.type === "credit";
+            return (
+              <div className="space-y-4 py-2">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-xs text-[#8A8A98]">Member</span>
+                  <span className="text-sm font-semibold text-[#EEF2F0]">
+                    {tm ? `${tm.firstName} ${tm.lastName}` : "Unknown Member"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                    <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Amount</span>
+                    <span className={cn("text-base font-bold", isCred ? "text-[#34D399]" : "text-[#EF4444]")}>
+                      {isCred ? "+" : "−"}{fmtMoney(selectedTxnDetail.amount)}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                    <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Date & Time</span>
+                    <span className="text-xs font-medium text-[#EEF2F0]">{fmtDateTime(selectedTxnDetail.date)}</span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
+                    {selectedTxnDetail.type === "debit" ? "Reason" : "Description"}
+                  </span>
+                  <div className="p-3.5 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] text-sm text-[#EEF2F0] leading-relaxed whitespace-pre-wrap">
+                    {formatTxnDescription(selectedTxnDetail)}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="btn-premium-outline cursor-pointer"
+              onClick={() => setSelectedTxnDetail(null)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -16,6 +16,7 @@ class TransactionController extends Controller
             'type' => $t->type,
             'amount' => (float)$t->amount,
             'description' => $t->description,
+            'reason' => $t->reason ?? ($t->type === 'debit' ? $t->description : null),
             'date' => $t->date,
         ]));
     }

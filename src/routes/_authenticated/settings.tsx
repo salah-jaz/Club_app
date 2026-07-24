@@ -16,7 +16,7 @@ import {
   type ConfirmDeleteRequest,
 } from "@/components/ConfirmDeleteDialog";
 import { TIMEZONE_OPTIONS, resolveTimezone } from "@/lib/timezones";
-import type { PlayerPositionItem } from "@/lib/types";
+import type { PlayerPositionItem, HolidayItem } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -206,7 +206,14 @@ function SettingsPage() {
   useEffect(() => {
     setJuniorGrades(store.juniorGrades);
   }, [store.juniorGrades]);
+  const [holidayItems, setHolidayItems] = useState<HolidayItem[]>(store.holidayItems);
   const [holidays, setHolidays] = useState<string[]>(store.holidays);
+
+  useEffect(() => {
+    setHolidayItems(store.holidayItems);
+    setHolidays(store.holidays);
+  }, [store.holidayItems, store.holidays]);
+
   const [playerPositionItems, setPlayerPositionItems] = useState<PlayerPositionItem[]>(
     store.playerPositionItems,
   );
@@ -388,7 +395,8 @@ function SettingsPage() {
   const [newLocation, setNewLocation] = useState("");
   const [newAdultGrade, setNewAdultGrade] = useState("");
   const [newJuniorGrade, setNewJuniorGrade] = useState("");
-  const [newHoliday, setNewHoliday] = useState("");
+  const [newHolidayName, setNewHolidayName] = useState("");
+  const [newHolidayDate, setNewHolidayDate] = useState("");
   const [newPlayerPosition, setNewPlayerPosition] = useState("");
   const [editingList, setEditingList] = useState<EditableListKey | null>(null);
   const [editingOriginal, setEditingOriginal] = useState("");
@@ -701,21 +709,36 @@ function SettingsPage() {
   };
 
   const handleAddHoliday = () => {
-    if (!newHoliday) return;
-    if (holidays.includes(newHoliday)) {
+    const trimmedName = newHolidayName.trim();
+    if (!trimmedName) {
+      toast.error("Holiday name is required");
+      return;
+    }
+    if (!newHolidayDate) {
+      toast.error("Holiday date is required");
+      return;
+    }
+    if (holidayItems.some((h) => h.date === newHolidayDate)) {
       toast.error("Holiday date already exists");
       return;
     }
-    const updated = [...holidays, newHoliday].sort();
-    setHolidays(updated);
-    setNewHoliday("");
-    saveUpdatedList({ holidays: updated }, "Holiday added");
+    const updatedItems = [...holidayItems, { name: trimmedName, date: newHolidayDate }].sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+    const updatedDates = updatedItems.map((h) => h.date);
+    setHolidayItems(updatedItems);
+    setHolidays(updatedDates);
+    setNewHolidayName("");
+    setNewHolidayDate("");
+    saveUpdatedList({ holidayItems: updatedItems, holidays: updatedDates }, "Holiday added");
   };
 
-  const handleDeleteHoliday = (h: string) => {
-    const updated = holidays.filter((x) => x !== h);
-    setHolidays(updated);
-    saveUpdatedList({ holidays: updated }, "Holiday removed");
+  const handleDeleteHoliday = (targetDate: string) => {
+    const updatedItems = holidayItems.filter((x) => x.date !== targetDate);
+    const updatedDates = updatedItems.map((x) => x.date);
+    setHolidayItems(updatedItems);
+    setHolidays(updatedDates);
+    saveUpdatedList({ holidayItems: updatedItems, holidays: updatedDates }, "Holiday removed");
   };
 
   const handleAddPlayerPosition = () => {
@@ -769,6 +792,7 @@ function SettingsPage() {
       adultGrades?: string[];
       juniorGrades?: string[];
       holidays?: string[];
+      holidayItems?: HolidayItem[];
       playerPositions?: string[];
       playerPositionItems?: PlayerPositionItem[];
     },
@@ -783,6 +807,7 @@ function SettingsPage() {
       setLocations(store.locations);
       setAdultGrades(store.adultGrades);
       setJuniorGrades(store.juniorGrades);
+      setHolidayItems(store.holidayItems);
       setHolidays(store.holidays);
       setPlayerPositionItems(store.playerPositionItems);
     }
@@ -1583,39 +1608,52 @@ function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1">
-                <div className="grid sm:grid-cols-2 gap-4 mb-4 items-end">
-                  <div className="space-y-1">
-                    <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Select Holiday Date</Label>
+                <div className="grid sm:grid-cols-1 md:grid-cols-5 gap-3 mb-4 items-end">
+                  <div className="space-y-1 md:col-span-2">
+                    <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Name</Label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Christmas Day"
+                      value={newHolidayName}
+                      onChange={(e) => setNewHolidayName(e.target.value)}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Date</Label>
                     <Input
                       type="date"
-                      value={newHoliday}
-                      onChange={(e) => setNewHoliday(e.target.value)}
+                      value={newHolidayDate}
+                      onChange={(e) => setNewHolidayDate(e.target.value)}
                       className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
                     />
                   </div>
                   <Button
                     type="button"
                     onClick={handleAddHoliday}
-                    className="h-9 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer w-full sm:w-auto font-semibold text-xs"
+                    className="h-9 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer w-full md:col-span-1 font-semibold text-xs shrink-0"
                   >
                     <Plus className="size-4 mr-1.5 inline" /> Add Holiday
                   </Button>
                 </div>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 overflow-y-auto max-h-[300px] pr-1">
-                  {holidays.length === 0 ? (
+                  {holidayItems.length === 0 ? (
                     <div className="text-center py-8 text-xs text-muted-foreground/60 sm:col-span-2 lg:col-span-3">
                       No holidays registered. Weekly training sessions will generate on all consecutive dates.
                     </div>
                   ) : (
-                    holidays.map((h) => (
+                    holidayItems.map((h) => (
                       <div
-                        key={h}
+                        key={h.date}
                         className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
                       >
-                        <span className="text-[#F1F0EE] font-mono font-medium">{h}</span>
+                        <div className="flex flex-col min-w-0 pr-2">
+                          <span className="text-[#F1F0EE] font-medium truncate">{h.name || "Club Holiday"}</span>
+                          <span className="text-[#8A8A98] font-mono text-[11px]">{h.date}</span>
+                        </div>
                         <button
-                          onClick={() => handleDeleteHoliday(h)}
-                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+                          onClick={() => handleDeleteHoliday(h.date)}
+                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1 shrink-0"
                           title="Delete holiday"
                         >
                           <Trash2 className="size-3.5" />

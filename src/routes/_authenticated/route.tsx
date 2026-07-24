@@ -170,7 +170,11 @@ function Layout() {
 
   // Breadcrumb screen name resolution
   const pathPart = pathname.split("/").filter(Boolean)[0] || "dashboard";
-  const screenName = pathPart.charAt(0).toUpperCase() + pathPart.slice(1);
+  const routeNames: Record<string, string> = {
+    events: "Events",
+    invitations: "Events",
+  };
+  const screenName = routeNames[pathPart] || (pathPart.charAt(0).toUpperCase() + pathPart.slice(1));
 
   return (
     <SidebarProvider>

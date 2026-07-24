@@ -73,7 +73,7 @@ function TrainingPage() {
               </CardHeader>
               <CardContent className="pt-4 space-y-5">
                 <p className="text-[13px] text-muted-foreground font-light">
-                  Open the program so family heads can enroll their children from My Invitations, or directly invite selected juniors below.
+                  Open the program so family heads can enroll their children from Events, or directly invite selected juniors below.
                 </p>
                 <Button
                   className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer"
@@ -156,7 +156,7 @@ function TrainingPage() {
                       <TableRow>
                         <TableCell colSpan={3} className="text-center text-[#4A5E58] py-10 font-light text-[13px]">
                           {t.status === "released"
-                            ? "No enrollments yet. Family heads can select children from My Invitations."
+                            ? "No enrollments yet. Family heads can select children from Events."
                             : "Not released yet."}
                         </TableCell>
                       </TableRow>

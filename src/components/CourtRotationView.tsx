@@ -221,19 +221,21 @@ export function CourtRotationView({
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [activeRound, setActiveRound] = useState(`r${rounds[0]?.round ?? 1}`);
 
-  const roundsWhereYouPlay = useMemo(() => {
-    return rounds.filter((r) =>
-      (r.courts || []).some((c) => (c.players || []).some((p) => p && myMemberIds.has(p))),
+  const roundsForYou = useMemo(() => {
+    return rounds.filter(
+      (r) =>
+        (r.courts || []).some((c) => (c.players || []).some((p) => p && myMemberIds.has(p))) ||
+        (r.resting || []).some((p) => p && myMemberIds.has(p)),
     );
   }, [rounds, myMemberIds]);
 
   const showCourtFilter = useMemo(() => {
     if (editing || myMemberIds.size === 0) return false;
-    return roundsWhereYouPlay.length > 0;
-  }, [editing, myMemberIds.size, roundsWhereYouPlay.length]);
+    return roundsForYou.length > 0;
+  }, [editing, myMemberIds.size, roundsForYou.length]);
 
   const visibleRoundList =
-    showCourtFilter && courtFilter === "your" ? roundsWhereYouPlay : rounds;
+    showCourtFilter && courtFilter === "your" ? roundsForYou : rounds;
 
   // Keep selected round valid when switching Your Court / All Courts
   const effectiveRoundValue = visibleRoundList.some((r) => `r${r.round}` === activeRound)
@@ -476,11 +478,11 @@ export function CourtRotationView({
           const yourCourts = r.courts.filter((c) =>
             (c.players || []).some((p) => p && myMemberIds.has(p)),
           );
+          const isMemberRestingInRound = (r.resting || []).some((p) => p && myMemberIds.has(p));
           const showYourOnly = showCourtFilter && courtFilter === "your";
-          // Your Court: only rounds where you play (already filtered in tabs); never show resting
-          if (showYourOnly && yourCourts.length === 0) return null;
+          if (showYourOnly && yourCourts.length === 0 && !isMemberRestingInRound) return null;
           const visibleCourts = showYourOnly ? yourCourts : r.courts;
-          const showResting = !showYourOnly;
+          const showResting = showYourOnly ? isMemberRestingInRound : true;
 
           return (
             <TabsContent key={r.round} value={`r${r.round}`} className="focus-visible:outline-none space-y-6">

@@ -36,8 +36,11 @@ class UserController extends Controller
                     $query->where('type', $request->input('memberType', 'adult'));
                 })
             ],
+            'membership' => 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
             'playEligible' => 'sometimes|boolean',
+            'skipCreditConsumption' => 'sometimes|boolean',
+            'applyDiscount' => 'sometimes|boolean',
         ]);
 
         $user = User::findOrFail($id);
@@ -45,11 +48,20 @@ class UserController extends Controller
         $user->save();
 
         $memberType = $request->input('memberType', 'adult');
+        $membership = $request->has('membership')
+            ? $request->boolean('membership')
+            : true;
         $trainingEligible = $request->has('trainingEligible')
             ? $request->boolean('trainingEligible')
             : ($memberType === 'junior');
         $playEligible = $request->has('playEligible')
             ? $request->boolean('playEligible')
+            : false;
+        $skipCreditConsumption = $request->has('skipCreditConsumption')
+            ? $request->boolean('skipCreditConsumption')
+            : false;
+        $applyDiscount = $request->has('applyDiscount')
+            ? $request->boolean('applyDiscount')
             : false;
 
         $defaultGrade = Grade::where('type', $memberType)->first()?->name ?? ($memberType === 'junior' ? 'Beginner' : 'B');
@@ -63,9 +75,11 @@ class UserController extends Controller
             'email' => $user->email,
             'sex' => $user->sex,
             'member_type' => $memberType,
-            'membership' => true,
+            'membership' => $membership,
             'training_eligible' => $trainingEligible,
             'play_eligible' => $playEligible,
+            'skip_credit_consumption' => $skipCreditConsumption,
+            'apply_discount' => $applyDiscount,
             'grade' => $request->input('grade', $defaultGrade),
             'nickname' => $user->nickname,
             'status' => 'active',
@@ -156,6 +170,8 @@ class UserController extends Controller
             'nickname' => $m->nickname ?? '',
             'status' => $m->status,
             'credit' => (float) $m->credit,
+            'skipCreditConsumption' => (bool) ($m->skip_credit_consumption ?? false),
+            'applyDiscount' => (bool) ($m->apply_discount ?? false),
         ];
     }
 }

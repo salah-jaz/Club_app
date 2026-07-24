@@ -17,6 +17,7 @@ class CreditRequest extends Model
         'amount',
         'date',
         'status',
+        'reason',
     ];
 
     protected $casts = [
