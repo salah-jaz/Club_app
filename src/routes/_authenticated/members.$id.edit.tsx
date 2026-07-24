@@ -47,6 +47,7 @@ function EditMember() {
           memberType: member.memberType,
           membership: member.membership,
           trainingEligible: member.trainingEligible,
+          playEligible: member.playEligible ?? false,
           skipCreditConsumption: member.skipCreditConsumption,
           applyDiscount: member.applyDiscount,
           grade: member.grade,

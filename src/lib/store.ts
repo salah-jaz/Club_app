@@ -103,7 +103,7 @@ interface State {
   bulkDeleteMembers: (ids: string[]) => Promise<number>;
   approveJunior: (
     id: string,
-    opts?: { membership?: boolean; trainingEligible?: boolean; grade?: string },
+    opts?: { membership?: boolean; trainingEligible?: boolean; playEligible?: boolean; grade?: string },
   ) => Promise<void>;
   rejectJunior: (id: string) => Promise<void>;
 
@@ -121,7 +121,7 @@ interface State {
   deleteSchedule: (id: string) => Promise<void>;
   publishSchedule: (id: string) => Promise<void>;
   respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<PlayInvitation>;
-  enrollPlay: (scheduleId: string, memberIds: string[]) => Promise<void>;
+  enrollPlay: (scheduleId: string, memberIds: string[], autoAccept?: boolean) => Promise<void>;
   generateRotation: (scheduleId: string) => Promise<void>;
   updateRotation: (scheduleId: string, rounds: Rotation["rounds"]) => Promise<void>;
   updateRotationShowGrades: (scheduleId: string, showMemberGrades: boolean) => Promise<void>;
@@ -624,10 +624,10 @@ export const useStore = create<State>((set, get) => ({
     return playInvites.find((i) => i.id === inviteId) ?? updated;
   },
 
-  enrollPlay: async (scheduleId, memberIds) => {
+  enrollPlay: async (scheduleId, memberIds, autoAccept = false) => {
     const res = await api.post<{
       invitations?: PlayInvitation[];
-    }>(`/schedules/${scheduleId}/enroll`, { memberIds });
+    }>(`/schedules/${scheduleId}/enroll`, { memberIds, autoAccept });
     const created = res.invitations ?? [];
     if (created.length === 0) {
       // Fallback: light refresh of invites only
@@ -640,6 +640,9 @@ export const useStore = create<State>((set, get) => ({
       for (const inv of created) byId.set(inv.id, { ...byId.get(inv.id), ...inv });
       return { playInvites: Array.from(byId.values()) };
     });
+    if (autoAccept) {
+      await get().syncData();
+    }
   },
 
   generateRotation: async (scheduleId) => {

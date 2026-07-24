@@ -24,6 +24,7 @@ class Member extends Model
         'member_type',
         'membership',
         'training_eligible',
+        'play_eligible',
         'grade',
         'bi_member_id',
         'status',
@@ -35,6 +36,7 @@ class Member extends Model
     protected $casts = [
         'membership' => 'boolean',
         'training_eligible' => 'boolean',
+        'play_eligible' => 'boolean',
         'skip_credit_consumption' => 'boolean',
         'apply_discount' => 'boolean',
         'credit' => 'float',
@@ -85,6 +87,14 @@ class Member extends Model
         return $query->where('member_type', 'adult')
             ->where('status', 'active')
             ->where('membership', true);
+    }
+
+    /** Juniors family heads may enroll into play schedules (non-league). */
+    public function scopeEligibleForPlayAsJunior($query)
+    {
+        return $query->where('member_type', 'junior')
+            ->where('status', 'active')
+            ->where('play_eligible', true);
     }
 
     public function scopeEligibleForTraining($query)
