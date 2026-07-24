@@ -50,7 +50,7 @@ export function AppSidebar() {
   const main = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { to: "/members", label: "Members", icon: Users, show: isMember || isAdmin },
-    { to: "/credits", label: "Credit / Debit", icon: Wallet, show: isMember || isAdmin },
+    { to: "/credits", label: "Wallet", icon: Wallet, show: isMember || isAdmin },
     { to: "/invitations", label: "My Invitations", icon: Inbox, show: isMember },
     { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin },
     { to: "/league-groups", label: "League Groups", icon: Users, show: isAdmin || isMember },

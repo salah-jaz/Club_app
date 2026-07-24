@@ -279,7 +279,7 @@ function CreditsPage() {
       ? "Debit History"
       : typeTab === "credit"
         ? "Credit History"
-        : "Credit / Debit History";
+        : "Wallet History";
 
   return (
     <div className="space-y-6">
@@ -287,14 +287,14 @@ function CreditsPage() {
         title={
           focusMember
             ? `${focusMember.firstName} ${focusMember.lastName}`
-            : "Credit / Debit"
+            : "Wallet"
         }
         description={
           focusMember
-            ? `Credit and debit history for this member. Current balance ${fmtMoney(focusMember.credit || 0)}.`
+            ? `Wallet history for this member. Current balance ${fmtMoney(focusMember.credit || 0)}.`
             : "Top-ups, debits, and balance management."
         }
-        eyebrow={focusMember ? "FINANCE / MEMBER CREDIT / DEBIT" : undefined}
+        eyebrow={focusMember ? "FINANCE / MEMBER WALLET" : undefined}
         backTo={focusMember ? "/members" : undefined}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
@@ -344,7 +344,7 @@ function CreditsPage() {
                 ? "Credit requests"
                 : isMemberScoped
                   ? "Entries for this member"
-                  : "All credit & debit entries"
+                  : "All wallet entries"
           }
           icon={Wallet}
           index={0}
@@ -798,12 +798,12 @@ function CreditsPage() {
                         hasActiveFilters
                           ? "No entries found"
                           : focusMember
-                            ? "No credit / debit history for this member"
+                            ? "No wallet history for this member"
                             : typeTab === "debit"
                               ? "No debit entries yet"
                               : typeTab === "credit"
                                 ? "No credit requests yet"
-                                : "No credit / debit entries yet"
+                                : "No wallet entries yet"
                       }
                       description={
                         hasActiveFilters
