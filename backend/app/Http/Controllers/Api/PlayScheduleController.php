@@ -47,14 +47,18 @@ class PlayScheduleController extends Controller
         $weeks = max(1, min(52, (int) $request->input('repeatWeeks', 1)));
         $baseDate = \Carbon\Carbon::parse($request->date);
         $created = [];
+        $parentId = 's_' . Str::random(8);
 
         for ($i = 0; $i < $weeks; $i++) {
             $date = $baseDate->copy()->addWeeks($i);
             $rawName = $i === 0 ? $request->name : $this->scheduleNameFromDate($date);
             $name = $this->uniqueScheduleName($rawName);
+            $schId = $i === 0 ? $parentId : ('s_' . Str::random(8));
 
             $sch = PlaySchedule::create([
-                'id' => 's_' . Str::random(8),
+                'id' => $schId,
+                'parent_id' => $parentId,
+                'repeat_weeks' => $weeks,
                 'name' => $name,
                 'date' => $date,
                 'courts' => $request->courts,
@@ -123,6 +127,83 @@ class PlayScheduleController extends Controller
             ], 422);
         }
 
+        if (empty($sch->parent_id)) {
+            $sch->parent_id = $sch->id;
+            $sch->save();
+        }
+
+        $parentId = $sch->parent_id;
+
+        // Fetch existing series ordered by date
+        $series = PlaySchedule::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('date', 'asc')
+            ->get();
+
+        // Ensure all in series have parent_id set
+        foreach ($series as $sItem) {
+            if ($sItem->parent_id !== $parentId) {
+                $sItem->parent_id = $parentId;
+                $sItem->save();
+            }
+        }
+
+        $schIndex = $series->search(fn($item) => $item->id === $sch->id);
+        if ($schIndex === false) {
+            $schIndex = 0;
+        }
+
+        $currentRemaining = max(1, $series->count() - $schIndex);
+
+        if ($request->has('repeatWeeks')) {
+            $newRemaining = max(1, min(52, (int) $request->input('repeatWeeks')));
+
+            if ($newRemaining < $currentRemaining) {
+                // Delete excess future sessions from the tail of the series
+                $keepUntilIndex = $schIndex + $newRemaining;
+                for ($i = $keepUntilIndex; $i < $series->count(); $i++) {
+                    $sToDelete = $series[$i];
+                    PlayInvitation::where('schedule_id', $sToDelete->id)->delete();
+                    Rotation::where('schedule_id', $sToDelete->id)->delete();
+                    $sToDelete->delete();
+                }
+            } else if ($newRemaining > $currentRemaining) {
+                // Create missing future sessions after the last session in the series
+                $toAddCount = $newRemaining - $currentRemaining;
+                $lastSession = $series->last();
+                $baseDate = \Carbon\Carbon::parse($lastSession->date);
+
+                for ($i = 1; $i <= $toAddCount; $i++) {
+                    $nextDate = $baseDate->copy()->addWeeks($i);
+                    $exists = PlaySchedule::where('parent_id', $parentId)
+                        ->whereDate('date', $nextDate->toDateString())
+                        ->exists();
+
+                    if (!$exists) {
+                        $rawName = $this->scheduleNameFromDate($nextDate);
+                        $name = $this->uniqueScheduleName($rawName);
+                        PlaySchedule::create([
+                            'id' => 's_' . Str::random(8),
+                            'parent_id' => $parentId,
+                            'repeat_weeks' => $series->count() + $toAddCount,
+                            'name' => $name,
+                            'date' => $nextDate,
+                            'courts' => $request->input('courts', $sch->courts),
+                            'players' => $request->input('players', $sch->players),
+                            'slot_hours' => $request->input('slotHours', $sch->slot_hours),
+                            'slot_duration' => $request->input('slotDuration', $sch->slot_duration),
+                            'session_rate' => $request->input('sessionRate', $sch->session_rate),
+                            'hall_rate' => $request->input('hallRate', $sch->hall_rate),
+                            'location' => $request->input('location', $sch->location),
+                            'status' => 'open',
+                            'is_league_match' => $request->has('isLeagueMatch') ? $request->boolean('isLeagueMatch') : $sch->is_league_match,
+                            'league_group_ids' => $request->input('leagueGroupIds', $sch->league_group_ids),
+                        ]);
+                    }
+                }
+            }
+        }
+
         $data = [];
         if ($request->has('name')) $data['name'] = $this->uniqueScheduleName($request->name, $sch->id);
         if ($request->has('date')) $data['date'] = $request->date;
@@ -139,6 +220,16 @@ class PlayScheduleController extends Controller
 
         $sch->update($data);
 
+        // Synchronize repeat_weeks on remaining series items
+        $updatedSeries = PlaySchedule::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('date', 'asc')
+            ->get();
+        $totalCount = $updatedSeries->count();
+        foreach ($updatedSeries as $sItem) {
+            $sItem->update(['repeat_weeks' => $totalCount]);
+        }
+
         try {
             $invitations = PlayInvitation::where('schedule_id', $sch->id)->get();
             foreach ($invitations as $inv) {
@@ -150,8 +241,8 @@ class PlayScheduleController extends Controller
         } catch (\Exception $e) {
             logger()->error("Schedule update email notification failed: " . $e->getMessage());
         }
- 
-        return response()->json($this->formatSchedule($sch));
+
+        return response()->json($this->formatSchedule($sch->fresh()));
     }
 
     public function release($id)
@@ -1099,8 +1190,17 @@ class PlayScheduleController extends Controller
 
     private function formatSchedule(PlaySchedule $s)
     {
+        $parentId = $s->parent_id ?: $s->id;
+        $series = PlaySchedule::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('date', 'asc')
+            ->get();
+        $idx = $series->search(fn($item) => $item->id === $s->id);
+        $remainingWeeks = ($idx !== false) ? max(1, $series->count() - $idx) : 1;
+
         return [
             'id' => $s->id,
+            'parentId' => $s->parent_id,
             'name' => $s->name,
             'date' => $s->date,
             'courts' => (int)$s->courts,
@@ -1113,6 +1213,7 @@ class PlayScheduleController extends Controller
             'status' => $s->status,
             'isLeagueMatch' => (bool)$s->is_league_match,
             'leagueGroupIds' => $s->league_group_ids ?? [],
+            'repeatWeeks' => $remainingWeeks,
         ];
     }
 }

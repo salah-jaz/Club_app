@@ -55,6 +55,9 @@ class TrainingController extends Controller
     {
         $tr = Training::findOrFail($id);
 
+        $oldStartDate = $tr->start_date;
+        $oldSessions = $tr->sessions;
+
         $data = [];
         if ($request->has('name')) $data['name'] = $request->name;
         if ($request->has('startDate')) $data['start_date'] = $request->startDate;
@@ -68,6 +71,10 @@ class TrainingController extends Controller
         if ($request->has('status')) $data['status'] = $request->status;
 
         $tr->update($data);
+
+        if ($oldStartDate !== $tr->start_date || (int)$oldSessions !== (int)$tr->sessions) {
+            $this->regenerateScheduleForTraining($tr);
+        }
 
         try {
             $invitations = TrainingInvitation::where('training_id', $tr->id)->get();
@@ -325,6 +332,47 @@ class TrainingController extends Controller
             $safety++;
         }
         return $result;
+    }
+
+    private function regenerateScheduleForTraining(Training $tr)
+    {
+        $holidayDates = Holiday::pluck('date')->toArray();
+        $newDates = $this->generateWeeklyDates($tr->start_date, $tr->sessions, $holidayDates);
+
+        $invMemberIds = TrainingInvitation::where('training_id', $tr->id)
+            ->pluck('member_id')
+            ->toArray();
+
+        $tdMemberIds = TrainingDate::where('training_id', $tr->id)
+            ->pluck('member_id')
+            ->toArray();
+
+        $allMemberIds = array_values(array_unique(array_merge($invMemberIds, $tdMemberIds)));
+
+        foreach ($allMemberIds as $mid) {
+            $existingTDs = TrainingDate::where('training_id', $tr->id)
+                ->where('member_id', $mid)
+                ->get();
+
+            $attendanceMap = [];
+            foreach ($existingTDs as $etd) {
+                $attendanceMap[$etd->date] = $etd->attended;
+            }
+
+            TrainingDate::where('training_id', $tr->id)
+                ->where('member_id', $mid)
+                ->delete();
+
+            foreach ($newDates as $d) {
+                TrainingDate::create([
+                    'id' => 'td_' . Str::random(8),
+                    'training_id' => $tr->id,
+                    'member_id' => $mid,
+                    'date' => $d,
+                    'attended' => array_key_exists($d, $attendanceMap) ? $attendanceMap[$d] : null,
+                ]);
+            }
+        }
     }
 
     public function destroy($id)

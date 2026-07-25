@@ -9,9 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/schedules/$id/edit")({
   component: EditSchedule,
@@ -31,7 +40,7 @@ function EditSchedule() {
     if (!dateStr) return "";
     const date = new Date(dateStr);
     const tzoffset = date.getTimezoneOffset() * 60000; // offset in milliseconds
-    const localISOTime = (new Date(date.getTime() - tzoffset))
+    const localISOTime = new Date(date.getTime() - tzoffset)
       .toISOString()
       .slice(0, 16);
     return localISOTime;
@@ -53,7 +62,7 @@ function EditSchedule() {
   });
   const [nameTouched, setNameTouched] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const create = useStore((state) => state.createSchedule);
+  const [dialogState, setDialogState] = useState<{ open: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (sch) {
@@ -69,7 +78,7 @@ function EditSchedule() {
         location: sch.location,
         isLeagueMatch: sch.isLeagueMatch ?? false,
         leagueGroupIds: sch.leagueGroupIds ?? [],
-        repeatWeeks: 1,
+        repeatWeeks: sch.repeatWeeks ?? 1,
       });
       setNameTouched(true);
     }
@@ -89,7 +98,6 @@ function EditSchedule() {
     );
     return {
       weeks,
-      extra: weeks - 1,
       day: scheduleWhen?.day ?? "same day",
       endDate: endLabel?.date ?? end.toLocaleDateString(),
     };
@@ -113,12 +121,41 @@ function EditSchedule() {
     }));
   };
 
-  const addWeeksToLocal = (value: string, weeks: number) => {
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return value;
-    d.setDate(d.getDate() + weeks * 7);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const executeSave = async () => {
+    setSubmitting(true);
+    try {
+      await update(sch.id, {
+        ...f,
+        repeatWeeks: Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1)),
+      });
+      toast.success("Schedule updated successfully");
+      navigate({ to: "/schedules" });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update schedule.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const initialWeeks = sch.repeatWeeks ?? 1;
+    const newWeeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
+
+    if (newWeeks !== initialWeeks) {
+      const diff = newWeeks - initialWeeks;
+      let message = "";
+      if (diff < 0) {
+        const removeCount = Math.abs(diff);
+        message = `This schedule currently repeats for ${initialWeeks} weeks. Changing it to ${newWeeks} weeks will remove ${removeCount} future session${removeCount === 1 ? "" : "s"} from this series. Do you want to continue?`;
+      } else {
+        const addCount = diff;
+        message = `This schedule currently repeats for ${initialWeeks} weeks. Changing it to ${newWeeks} weeks will create ${addCount} additional future session${addCount === 1 ? "" : "s"}. Do you want to continue?`;
+      }
+      setDialogState({ open: true, message });
+    } else {
+      executeSave();
+    }
   };
 
   return (
@@ -128,38 +165,30 @@ function EditSchedule() {
         description="Update court capacity, scheduling details, and pricing."
         backTo="/schedules"
       />
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
-          setSubmitting(true);
-          try {
-            const { repeatWeeks: _rw, ...patch } = f;
-            await update(sch.id, patch);
-            if (weeks > 1) {
-              const nextDate = addWeeksToLocal(f.date, 1);
-              const nextParsed = parseScheduleDateTime(nextDate);
-              await create({
-                ...patch,
-                date: nextDate,
-                name: nextParsed?.label ?? patch.name,
-                repeatWeeks: weeks - 1,
-              });
-            }
-            toast.success(
-              weeks > 1
-                ? `Schedule updated and ${weeks - 1} more week${weeks - 1 === 1 ? "" : "s"} created`
-                : "Schedule updated successfully",
-            );
-            navigate({ to: "/schedules" });
-          } catch (error: any) {
-            toast.error(error.message || "Failed to update schedule.");
-          } finally {
-            setSubmitting(false);
-          }
-        }}
-        className="space-y-6"
-      >
+
+      <AlertDialog open={!!dialogState?.open} onOpenChange={(open) => !open && setDialogState(null)}>
+        <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.1)] text-[#F1F0EE]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#F1F0EE]">Confirm Schedule Changes</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#8A8A98]">
+              {dialogState?.message}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-transparent border-[rgba(255,255,255,0.1)] text-[#F1F0EE] hover:bg-white/5 cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeSave}
+              className="bg-[#10B981] hover:bg-[#059669] text-white font-medium cursor-pointer"
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
@@ -221,8 +250,8 @@ function EditSchedule() {
               />
               <p className="text-[11px] text-[#8A8A98]">
                 {repeatPreview
-                  ? `Updates this schedule and creates ${repeatPreview.extra} more every ${repeatPreview.day} through ${repeatPreview.endDate}.`
-                  : "Enter 1 to update only this schedule, or more to also create the same day in following weeks."}
+                  ? `Series will contain ${repeatPreview.weeks} sessions through ${repeatPreview.endDate}.`
+                  : "Enter remaining number of weeks for this series."}
               </p>
             </div>
             <div className="space-y-1.5">
@@ -393,11 +422,7 @@ function EditSchedule() {
         </Card>
         <div className="flex justify-end">
           <Button type="submit" disabled={submitting} className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer">
-            {submitting
-              ? "Saving…"
-              : Number(f.repeatWeeks) > 1
-                ? `Update & create ${Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1))} weeks`
-                : "Update schedule"}
+            {submitting ? "Saving…" : "Update schedule"}
           </Button>
         </div>
       </form>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 
@@ -15,9 +16,15 @@ export function AuthShell({
 }) {
   const appName = useStore((s) => s.appName);
   const appLogoBase64 = useStore((s) => s.appLogoBase64);
+  const fetchSettings = useStore((s) => s.fetchSettings);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
   return (
     <div className="min-h-dvh min-h-screen grid lg:grid-cols-2 bg-background">
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-[#0D1210] border-r border-[rgba(255,255,255,0.06)] relative overflow-hidden">
+      <div className="hidden lg:flex flex-col justify-start gap-16 p-12 bg-[#0D1210] border-r border-[rgba(255,255,255,0.06)] relative overflow-hidden">
         {/* Background Image of Shuttlecock Banner */}
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-[0.15] mix-blend-luminosity pointer-events-none" 
@@ -31,7 +38,7 @@ export function AuthShell({
           {appLogoBase64 || "/logo.png" ? (
             <img src={appLogoBase64 || "/logo.png"} alt={appName} className="size-24 rounded-xl object-contain bg-white/5 p-1" />
           ) : null}
-          <span>{appName}</span><span className="text-[var(--primary)] -ml-2.5">.</span>
+          <span>{appName}</span>
         </Link>
         <div className="space-y-6 z-10 max-w-lg">
           <span className="text-[11px] font-medium tracking-[0.14em] text-[#8A8A98] uppercase block">
@@ -44,9 +51,6 @@ export function AuthShell({
           <p className="text-[15px] font-light text-[#8A8A9A] leading-relaxed">
             Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.
           </p>
-        </div>
-        <div className="text-xs font-mono text-[#4A4A5A] tracking-wider uppercase z-10">
-          ESTABLISHED MMXXVI
         </div>
       </div>
       <div className="flex items-center justify-center p-6 sm:p-12">

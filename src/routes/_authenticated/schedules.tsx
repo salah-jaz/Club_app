@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ConfirmDeleteDialog,
   type ConfirmDeleteRequest,
@@ -99,6 +100,45 @@ function SchedulesList() {
   const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-schedules", "list");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
   const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const visibleIds = processed.map((sch) => sch.id);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    } else {
+      const visibleSet = new Set(processed.map((sch) => sch.id));
+      setSelectedIds((prev) => prev.filter((id) => !visibleSet.has(id)));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDeleteClick = () => {
+    if (selectedIds.length === 0) return;
+    setActionRequest({
+      title: "Delete selected schedules?",
+      description: "Are you sure you want to delete the selected schedules?",
+      confirmLabel: "Delete",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          for (const id of selectedIds) {
+            await s.deleteSchedule(id);
+          }
+          setSelectedIds([]);
+          toast.success("Selected schedules deleted successfully");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to delete selected schedules.");
+          throw error;
+        }
+      },
+    });
+  };
 
   const requestReleaseSchedule = (sch: PlaySchedule) => {
     setActionRequest({
@@ -339,33 +379,70 @@ function SchedulesList() {
         />
       ) : (
         <>
-          <div className="flex items-center justify-between mb-4 mt-6">
-            <span className="type-helper text-xs">{processed.length} schedules found</span>
-            <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={cn(
-                  "p-1.5 rounded-md transition-all cursor-pointer",
-                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 mt-6">
+            <div className="flex items-center gap-4 flex-wrap">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium text-[#EEF2F0] hover:text-white transition-colors">
+                <Checkbox
+                  checked={
+                    processed.length > 0 && processed.every((sch) => selectedIds.includes(sch.id))
+                      ? true
+                      : processed.some((sch) => selectedIds.includes(sch.id))
+                      ? "indeterminate"
+                      : false
+                  }
+                  onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                />
+                <span>Select All</span>
+              </label>
+              <span className="type-helper text-xs text-[#8FA89F]">
+                {selectedIds.length > 0 ? (
+                  <span className="text-[#2FD9A0] font-medium">
+                    {selectedIds.length} of {processed.length} selected
+                  </span>
+                ) : (
+                  `${processed.length} schedules found`
                 )}
-                title="Grid view"
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={selectedIds.length === 0}
+                onClick={handleBulkDeleteClick}
+                className="btn-premium-danger h-8 px-3 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <LayoutGrid className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("list")}
-                disabled={isMobile}
-                className={cn(
-                  "p-1.5 rounded-md transition-all",
-                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
-                  isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
-                )}
-                title={isMobile ? "List view available on larger screens" : "List view"}
-              >
-                <List className="size-4" />
-              </button>
+                <Trash2 className="size-3.5" />
+                <span>Delete Selected{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}</span>
+              </Button>
+
+              <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  className={cn(
+                    "p-1.5 rounded-md transition-all cursor-pointer",
+                    viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                  )}
+                  title="Grid view"
+                >
+                  <LayoutGrid className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  disabled={isMobile}
+                  className={cn(
+                    "p-1.5 rounded-md transition-all",
+                    viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                    isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+                  )}
+                  title={isMobile ? "List view available on larger screens" : "List view"}
+                >
+                  <List className="size-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -388,8 +465,18 @@ function SchedulesList() {
                     whileHover={{ y: -2, boxShadow: "0 8px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(16,185,129,0.08)" }}
                     transition={{ duration: 0.18 }}
                   >
-                    <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200">
+                    <Card className={cn(
+                      "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200",
+                      selectedIds.includes(sch.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
+                    )}>
                       <CardContent className="p-4 px-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center pr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.includes(sch.id)}
+                            onCheckedChange={() => handleToggleSelect(sch.id)}
+                            aria-label={`Select ${sch.name}`}
+                          />
+                        </div>
                         <div className="flex-[2] space-y-1.5 min-w-[200px]">
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="font-bold text-[16px] text-[#EEF2F0]">{sch.name}</div>
@@ -513,13 +600,24 @@ function SchedulesList() {
                     whileHover={{ y: -4, boxShadow: "0 14px 36px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.10)" }}
                     transition={{ duration: 0.18 }}
                   >
-                    <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200 h-full flex flex-col justify-between">
+                    <Card className={cn(
+                      "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200 h-full flex flex-col justify-between",
+                      selectedIds.includes(sch.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
+                    )}>
                       <CardContent className="p-5 flex flex-col justify-between h-full space-y-4">
                         <div>
                           <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-1.5">
-                              <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">{sch.name}</div>
-                              <div className="flex flex-wrap gap-1.5">
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                              <div className="pt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={selectedIds.includes(sch.id)}
+                                  onCheckedChange={() => handleToggleSelect(sch.id)}
+                                  aria-label={`Select ${sch.name}`}
+                                />
+                              </div>
+                              <div className="min-w-0 space-y-1.5 flex-1">
+                                <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">{sch.name}</div>
+                                <div className="flex flex-wrap gap-1.5">
                                 {sch.isLeagueMatch && (
                                   <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
                                     <Trophy className="size-3" />
@@ -534,6 +632,7 @@ function SchedulesList() {
                                     </span>
                                   ) : null;
                                 })()}
+                               </div>
                               </div>
                             </div>
                             <StatusBadge status={sch.status} />

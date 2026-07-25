@@ -229,6 +229,15 @@ function Events() {
     return s.members.find((x) => x.id === mid)?.grade || undefined;
   };
 
+  const getHolidayName = (dateStr: string) => {
+    const iso = scheduleDateIso(dateStr);
+    if (!iso) return null;
+    const match = (s.holidayItems ?? []).find((h) => h.date === iso);
+    if (match) return match.name;
+    if ((s.holidays ?? []).includes(iso)) return "Holiday";
+    return null;
+  };
+
   const openCourtsPopup = (sch: PlaySchedule) => {
     const rotation = s.rotations.find((r) => r.scheduleId === sch.id);
     if (!rotation) {
@@ -395,14 +404,10 @@ function Events() {
   const renderPlayInviteActions = (
     i: (typeof playInvs)[number],
     sch: PlaySchedule,
-    capacity: {
-      acceptedCount: number;
-      maxPlayers: number;
-    },
   ) => {
     const member = s.members.find((x) => x.id === i.memberId);
-    const scheduleIso = scheduleDateIso(sch.date);
-    const isHoliday = !!scheduleIso && (s.holidays ?? []).includes(scheduleIso);
+    const holidayName = getHolidayName(sch.date);
+    const isHoliday = !!holidayName;
     const skipsLeagueFee = (() => {
       if (!sch.isLeagueMatch || !sch.leagueGroupIds?.length) return false;
       const skipNames = new Set(
@@ -454,34 +459,76 @@ function Events() {
       !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
 
     return (
-      <div key={i.id} className="space-y-2 pt-2 border-t border-white/[0.03]">
-        <div className="flex justify-between items-start gap-3">
-          <div className="min-w-0">
-            <div className="text-[11px] text-[#34D399] font-medium">
-              {s.members.find((m) => m.id === i.memberId)?.memberType === "junior" ? "Child" : "Player"}:{" "}
+      <div key={i.id} className="pt-2 border-t border-white/[0.04] space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex items-center gap-2 flex-wrap">
+            <span className="text-[13px] font-medium text-[#F1F0EE]">
               {name(i.memberId)}
-            </div>
-            <div className="text-[11px] text-[#8A8A98] mt-0.5 font-light">
-              Session Fee:{" "}
-              <span className="font-semibold font-mono text-[#34D399]">
-                {fmtMoney(estimatedFee)}
-              </span>
-            </div>
+            </span>
+            <span className="text-xs font-mono font-medium text-[#34D399]">
+              {fmtMoney(estimatedFee)}
+            </span>
           </div>
-          <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <StatusBadge kind="invitation" status={i.status === "declined" ? "open" : i.status} />
-            <div className="rounded-md border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] px-3 py-2 min-w-[72px] text-left">
-              <div className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
-                Players
-              </div>
-              <div className="font-mono text-[18px] font-semibold text-[#F1F0EE] leading-tight mt-0.5">
-                {capacity.acceptedCount}/{capacity.maxPlayers}
-              </div>
-              <div
-                className="mt-1 h-[2px] w-full rounded-full bg-[#3B82F6]"
-                aria-hidden="true"
-              />
-            </div>
+            {canAccept && (
+              <Button
+                size="sm"
+                className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer"
+                onClick={async () => {
+                  if (hasInsufficientCredits && member) {
+                    setCreditGap({
+                      memberId: member.id,
+                      balance: member.credit,
+                      required: estimatedFee,
+                    });
+                    return;
+                  }
+                  try {
+                    const res = await s.respondPlay(i.id, "accepted");
+                    if (res.status === "waiting") {
+                      toast.success("Session is full — you're on the waiting list");
+                    } else {
+                      toast.success("Accepted — session fee deducted from credits");
+                    }
+                  } catch (error: any) {
+                    const msg = error.message || "Failed to respond to invitation.";
+                    if (member && /insufficient credits/i.test(msg)) {
+                      setCreditGap({
+                        memberId: member.id,
+                        balance: member.credit,
+                        required: estimatedFee,
+                      });
+                      return;
+                    }
+                    toast.error(msg);
+                  }
+                }}
+              >
+                Accept
+              </Button>
+            )}
+            {canDecline && (
+              <Button
+                size="sm"
+                variant="destructive"
+                className="btn-premium-danger h-7 px-3 text-[11px] font-semibold cursor-pointer"
+                onClick={async () => {
+                  try {
+                    await s.respondPlay(i.id, "declined");
+                    toast.success(
+                      i.status === "waiting"
+                        ? "Left the waiting list"
+                        : "Cancelled — session fee refunded to credits",
+                    );
+                  } catch (error: any) {
+                    toast.error(error.message || "Failed to cancel invitation.");
+                  }
+                }}
+              >
+                Decline
+              </Button>
+            )}
           </div>
         </div>
         {canAccept && hasInsufficientCredits && (
@@ -497,7 +544,7 @@ function Events() {
           <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
-              <span className="font-semibold">Club holiday:</span> Accept and decline are closed for
+              <span className="font-semibold">{holidayName}:</span> Accept and decline are closed for
               this session.
             </span>
           </div>
@@ -516,64 +563,6 @@ function Events() {
               {hoursLabel} of the match start. This rule applies to all members.
             </span>
           </div>
-        )}
-        {canAccept && (
-          <Button
-            size="sm"
-            className="w-full btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer"
-            onClick={async () => {
-              if (hasInsufficientCredits && member) {
-                setCreditGap({
-                  memberId: member.id,
-                  balance: member.credit,
-                  required: estimatedFee,
-                });
-                return;
-              }
-              try {
-                const res = await s.respondPlay(i.id, "accepted");
-                if (res.status === "waiting") {
-                  toast.success("Session is full — you're on the waiting list");
-                } else {
-                  toast.success("Accepted — session fee deducted from credits");
-                }
-              } catch (error: any) {
-                const msg = error.message || "Failed to respond to invitation.";
-                if (member && /insufficient credits/i.test(msg)) {
-                  setCreditGap({
-                    memberId: member.id,
-                    balance: member.credit,
-                    required: estimatedFee,
-                  });
-                  return;
-                }
-                toast.error(msg);
-              }
-            }}
-          >
-            Accept
-          </Button>
-        )}
-        {canDecline && (
-          <Button
-            size="sm"
-            variant="destructive"
-            className="w-full btn-premium-danger h-8 text-[11px] font-semibold cursor-pointer"
-            onClick={async () => {
-              try {
-                await s.respondPlay(i.id, "declined");
-                toast.success(
-                  i.status === "waiting"
-                    ? "Left the waiting list"
-                    : "Cancelled — session fee refunded to credits",
-                );
-              } catch (error: any) {
-                toast.error(error.message || "Failed to cancel invitation.");
-              }
-            }}
-          >
-            Decline
-          </Button>
         )}
       </div>
     );
@@ -724,7 +713,7 @@ function Events() {
       </AlertDialog>
 
       <PageHeader
-        title="Events"
+        title="Play Sessions"
         description={`Enroll in released play sessions and training programs. Play cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before the match starts.`}
       />
 
@@ -802,8 +791,8 @@ function Events() {
                 (i) => i.scheduleId === sch.id && i.status === "accepted",
               ).length;
               const maxPlayers = Math.max(sch.players || 0, 1);
-              const scheduleIso = scheduleDateIso(sch.date);
-              const isHoliday = !!scheduleIso && (s.holidays ?? []).includes(scheduleIso);
+              const holidayName = getHolidayName(sch.date);
+              const isHoliday = !!holidayName;
 
               return (
                 <div
@@ -820,54 +809,40 @@ function Events() {
                             League
                           </span>
                         )}
-                        {(() => {
-                          const iso = scheduleDateIso(sch.date);
-                          return iso && (s.holidays ?? []).includes(iso) ? (
-                            <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
-                              Holiday
-                            </span>
-                          ) : null;
-                        })()}
+                        {holidayName && (
+                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24]">
+                            {holidayName}
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
                         {fmtDateTime(sch.date)} · {sch.location}
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                      <span className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-[#0C0F0E] px-2.5 py-1 font-mono text-[11px] text-[#F1F0EE]">
+                        <Users className="size-3.5 text-[#8A8A98]" />
+                        {acceptedCount}/{maxPlayers}
+                      </span>
                       <StatusBadge status={sch.status} />
-                      {(sch.status === "released" ||
-                        sch.status === "rotated" ||
-                        sch.status === "published" ||
-                        sch.status === "closed") && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="btn-premium-outline h-8 text-[11px] cursor-pointer"
-                          onClick={() => openPlayersPopup(sch)}
-                        >
-                          <Users className="size-3.5 mr-1" />
-                          View players
-                        </Button>
-                      )}
                       {(sch.status === "published" || sch.status === "closed") &&
                         s.rotations.some((r) => r.scheduleId === sch.id) && (
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="btn-premium-outline h-8 text-[11px] cursor-pointer"
+                            className="btn-premium-outline h-7 px-2.5 text-[11px] cursor-pointer"
                             onClick={() => openCourtsPopup(sch)}
                           >
                             <LayoutGrid className="size-3.5 mr-1" />
-                            View court details
+                            Court details
                           </Button>
                         )}
                     </div>
                   </div>
 
                   {canEnroll && adultPlayers.length === 0 && playEligibleJuniors.length === 0 && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-white/[0.03]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.03]">
                       <p className="text-[12px] text-muted-foreground">
                         Add an eligible family member to join this session.
                       </p>
@@ -875,7 +850,7 @@ function Events() {
                         asChild
                         size="sm"
                         variant="outline"
-                        className="btn-premium-outline h-8 text-[11px] shrink-0"
+                        className="btn-premium-outline h-7 text-[11px] shrink-0"
                       >
                         <Link to="/members/add">
                           <Plus className="size-3.5 mr-1" /> Add family member
@@ -889,30 +864,24 @@ function Events() {
                     available.length === 0 &&
                     availableJuniors.length === 0 &&
                     scheduleInvites.length === 0 && (
-                      <p className="text-[12px] text-muted-foreground pt-1 border-t border-white/[0.03]">
-                        None of your members are eligible for this session yet (active adult with club
-                        membership
-                        {sch.isLeagueMatch ? ", and in the assigned league group" : ", or play-eligible junior"}
-                        ).
+                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.03]">
+                        No eligible members for this session.
                       </p>
                     )}
 
                   {waitingForInvite && scheduleInvites.length === 0 && (
-                    <p className="text-[12px] text-muted-foreground pt-1 border-t border-white/[0.03]">
-                      Preparing your invitation…
+                    <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.03]">
+                      Preparing invitation…
                     </p>
                   )}
 
                   {canEnroll && !sch.isLeagueMatch && availableJuniors.length > 0 && (
-                    <div className="space-y-2 pt-1 border-t border-white/[0.03]">
-                      <p className="text-[11px] font-medium tracking-[0.08em] text-[#8A8A98] uppercase">
-                        Accept children into this session
-                      </p>
+                    <div className="space-y-2 pt-2 border-t border-white/[0.03]">
                       {isHoliday ? (
                         <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
                           <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
                           <span>
-                            <span className="font-semibold">Club holiday:</span> Accept and decline are closed for
+                            <span className="font-semibold">{holidayName}:</span> Accept and decline are closed for
                             this session.
                           </span>
                         </div>
@@ -932,23 +901,20 @@ function Events() {
                             return (
                               <div
                                 key={child.id}
-                                className="flex items-center gap-3 p-2.5 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] rounded-lg"
+                                className="flex items-center justify-between gap-3 p-2 bg-[#0C0F0E]/50 border border-white/[0.04] rounded-lg"
                               >
-                                <div className="min-w-0 flex-1">
-                                  <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
+                                <div className="min-w-0 flex items-center gap-2">
+                                  <span className="text-[13px] font-medium text-[#F1F0EE] truncate">
                                     {child.firstName} {child.lastName}
-                                  </div>
-                                  <div className="text-[11px] text-muted-foreground">
-                                    Grade {child.grade} · Session fee{" "}
-                                    <span className="font-mono text-[#34D399]">
-                                      {fmtMoney(estimatedFee)}
-                                    </span>
-                                  </div>
+                                  </span>
+                                  <span className="text-xs font-mono text-[#34D399] font-medium">
+                                    {fmtMoney(estimatedFee)}
+                                  </span>
                                 </div>
                                 <Button
                                   size="sm"
                                   disabled={enrollingId === acceptingKey}
-                                  className="btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer shrink-0"
+                                  className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer shrink-0"
                                   onClick={async () => {
                                     if (hasInsufficientCredits) {
                                       setCreditGap({
@@ -991,10 +957,7 @@ function Events() {
                   )}
 
                   {scheduleInvites.map((i) =>
-                    renderPlayInviteActions(i, sch, {
-                      acceptedCount,
-                      maxPlayers,
-                    }),
+                    renderPlayInviteActions(i, sch),
                   )}
                 </div>
               );
@@ -1033,6 +996,7 @@ function Events() {
               const children = availableChildren(t.id);
               const programInvites = invitesForTraining(t.id);
               const canEnroll = t.status === "open" || t.status === "released";
+              const holidayName = getHolidayName(t.startDate);
 
               return (
                 <div
@@ -1040,8 +1004,15 @@ function Events() {
                   className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 rounded-lg p-4 space-y-3"
                 >
                   <div className="flex justify-between items-start gap-3">
-                    <div>
-                      <div className="font-semibold text-[#F1F0EE] text-[14px]">{t.name}</div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-semibold text-[#F1F0EE] text-[14px]">{t.name}</div>
+                        {holidayName && (
+                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24]">
+                            {holidayName}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
                         Coach {t.coach} · {fmtDate(t.startDate)} → {fmtDate(t.endDate)} · {t.sessions}{" "}
                         sessions
@@ -1051,7 +1022,7 @@ function Events() {
                   </div>
 
                   {canEnroll && juniorChildren.length === 0 && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-white/[0.03]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.03]">
                       <p className="text-[12px] text-muted-foreground">
                         Add a junior family member to enroll.
                       </p>
@@ -1059,7 +1030,7 @@ function Events() {
                         asChild
                         size="sm"
                         variant="outline"
-                        className="btn-premium-outline h-8 text-[11px] shrink-0"
+                        className="btn-premium-outline h-7 text-[11px] shrink-0"
                       >
                         <Link to="/members/add">
                           <Plus className="size-3.5 mr-1" /> Add family member
@@ -1069,68 +1040,60 @@ function Events() {
                   )}
 
                   {canEnroll && children.length > 0 && (
-                    <div className="space-y-2 pt-1 border-t border-white/[0.03]">
-                      <p className="text-[11px] font-medium tracking-[0.08em] text-[#8A8A98] uppercase">
-                        Accept children into this program
-                      </p>
-                      <div className="grid gap-2">
-                        {children.map((child) => {
-                          const childFee = applyMemberFee(t.fees, child, discountsFromStore(s));
-                          const acceptingKey = `${t.id}:${child.id}`;
-                          return (
-                            <div
-                              key={child.id}
-                              className="flex items-center gap-3 p-2.5 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] rounded-lg"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
-                                  {child.firstName} {child.lastName}
-                                </div>
-                                <div className="text-[11px] text-muted-foreground">
-                                  Grade {child.grade} · Fee{" "}
-                                  <span className="font-mono text-[#34D399]">
-                                    {fmtMoney(childFee)}
-                                  </span>
-                                </div>
-                              </div>
-                              <Button
-                                size="sm"
-                                disabled={enrollingId === acceptingKey}
-                                className="btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer shrink-0"
-                                onClick={async () => {
-                                  setEnrollingId(acceptingKey);
-                                  try {
-                                    await enrollTraining(t.id, [child.id]);
-                                    toast.success(`Accepted ${child.firstName} into training`);
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to accept child.");
-                                  } finally {
-                                    setEnrollingId(null);
-                                  }
-                                }}
-                              >
-                                Accept
-                              </Button>
+                    <div className="grid gap-2 pt-2 border-t border-white/[0.03]">
+                      {children.map((child) => {
+                        const childFee = applyMemberFee(t.fees, child, discountsFromStore(s));
+                        const acceptingKey = `${t.id}:${child.id}`;
+                        return (
+                          <div
+                            key={child.id}
+                            className="flex items-center justify-between gap-3 p-2 bg-[#0C0F0E]/50 border border-white/[0.04] rounded-lg"
+                          >
+                            <div className="min-w-0 flex items-center gap-2">
+                              <span className="text-[13px] font-medium text-[#F1F0EE] truncate">
+                                {child.firstName} {child.lastName}
+                              </span>
+                              <span className="text-xs font-mono text-[#34D399] font-medium">
+                                {fmtMoney(childFee)}
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
+                            <Button
+                              size="sm"
+                              disabled={enrollingId === acceptingKey}
+                              className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer shrink-0"
+                              onClick={async () => {
+                                setEnrollingId(acceptingKey);
+                                try {
+                                  await enrollTraining(t.id, [child.id]);
+                                  toast.success(`Accepted ${child.firstName} into training`);
+                                } catch (error: any) {
+                                  toast.error(error.message || "Failed to accept child.");
+                                } finally {
+                                  setEnrollingId(null);
+                                }
+                              }}
+                            >
+                              Accept
+                            </Button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
                   {programInvites.map((i) => (
-                    <div key={i.id} className="flex flex-col gap-2 pt-2 border-t border-white/[0.03]">
-                      <div className="flex justify-between items-center gap-2">
-                        <div className="text-[11px] text-[#34D399] font-medium">
-                          Child: {name(i.memberId)}
-                        </div>
+                    <div key={i.id} className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.03]">
+                      <div className="min-w-0 flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-[#F1F0EE] truncate">
+                          {name(i.memberId)}
+                        </span>
                         <StatusBadge kind="invitation" status={i.status} />
                       </div>
                       {i.status === "open" && (
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <Button
                             size="sm"
-                            className="flex-1 btn-premium-solid h-8 text-[11px] font-semibold cursor-pointer"
+                            className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer"
                             onClick={async () => {
                               try {
                                 await s.respondTraining(i.id, "accepted");
@@ -1145,7 +1108,7 @@ function Events() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="flex-1 btn-premium-outline h-8 text-[11px] cursor-pointer"
+                            className="btn-premium-outline h-7 px-3 text-[11px] cursor-pointer"
                             onClick={async () => {
                               try {
                                 await s.respondTraining(i.id, "declined");
@@ -1166,7 +1129,7 @@ function Events() {
                     juniorChildren.length > 0 &&
                     children.length === 0 &&
                     programInvites.length === 0 && (
-                      <p className="text-[12px] text-muted-foreground pt-1 border-t border-white/[0.03]">
+                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.03]">
                         No eligible children left to accept for this program.
                       </p>
                     )}

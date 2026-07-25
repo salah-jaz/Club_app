@@ -34,6 +34,7 @@ interface State {
   trainingInvites: TrainingInvitation[];
   trainingDates: TrainingDate[];
   locations: string[];
+  coaches: string[];
   grades: string[];
   adultGrades: string[];
   juniorGrades: string[];
@@ -75,6 +76,7 @@ interface State {
   juniorDiscountMode: "percent" | "amount";
 
   // sync
+  fetchSettings: () => Promise<void>;
   syncData: () => Promise<void>;
   syncCurrentUser: () => Promise<User | null>;
 
@@ -153,6 +155,7 @@ interface State {
     currency?: string;
     timezone?: string;
     locations?: string[];
+    coaches?: string[];
     grades?: string[];
     adultGrades?: string[];
     juniorGrades?: string[];
@@ -255,6 +258,7 @@ export const useStore = create<State>((set, get) => ({
   trainingInvites: [],
   trainingDates: [],
   locations: [],
+  coaches: ["Coach Lee", "Coach Alex", "Coach Sarah"],
   grades: [],
   adultGrades: [],
   juniorGrades: [],
@@ -289,6 +293,64 @@ export const useStore = create<State>((set, get) => ({
   juniorDiscountPercent: 0,
   juniorDiscountAmount: 0,
   juniorDiscountMode: "percent",
+
+  fetchSettings: async () => {
+    try {
+      const settings = await api.get<any>("/settings");
+      set({
+        locations: settings.locations || [],
+        coaches: settings.coaches || ["Coach Lee", "Coach Alex", "Coach Sarah"],
+        grades: settings.grades || [],
+        adultGrades: settings.adultGrades || [],
+        juniorGrades: settings.juniorGrades || [],
+        holidays: settings.holidays || [],
+        holidayItems: settings.holidayItems ||
+          (settings.holidays || []).map((date: string) => ({ name: "", date })),
+        playerPositions: settings.playerPositions || [],
+        playerPositionItems: settings.playerPositionItems ||
+          (settings.playerPositions || []).map((name: string) => ({ name, skipLeagueFee: false })),
+        appName: settings.appName || "Connect App",
+        appLogoText: settings.appLogoText || "C",
+        appLogoBase64: settings.appLogoBase64 || "/logo.png",
+        currency: settings.currency || "$",
+        timezone: settings.timezone || "Asia/Kolkata",
+        mailHost: settings.mailHost || "",
+        mailPort: settings.mailPort || "",
+        mailUsername: settings.mailUsername || "",
+        mailPassword: settings.mailPassword || "",
+        mailEncryption: settings.mailEncryption || "",
+        mailFromAddress: settings.mailFromAddress || "",
+        mailFromName: settings.mailFromName || "",
+        emailPrimaryColor: settings.emailPrimaryColor || "#10B981",
+        emailBgColor: settings.emailBgColor || "#0C0F0E",
+        emailTextColor: settings.emailTextColor || "#E8F0EE",
+        emailCardBgColor: settings.emailCardBgColor || "#131916",
+        emailFooterText: settings.emailFooterText || "",
+        skipCreditConsumption: settings.skipCreditConsumption ?? false,
+        cancellationLockHours: settings.cancellationLockHours ?? 24,
+        debitTimingHours: settings.debitTimingHours ?? 24,
+        showGradeInCourtRotation: settings.showGradeInCourtRotation ?? false,
+        adultDiscountPercent: settings.adultDiscountPercent ?? 0,
+        adultDiscountAmount: settings.adultDiscountAmount ?? 0,
+        adultDiscountMode:
+          settings.adultDiscountMode === "amount" || settings.adultDiscountMode === "percent"
+            ? settings.adultDiscountMode
+            : (settings.adultDiscountAmount ?? 0) > 0 && (settings.adultDiscountPercent ?? 0) <= 0
+              ? "amount"
+              : "percent",
+        juniorDiscountPercent: settings.juniorDiscountPercent ?? 0,
+        juniorDiscountAmount: settings.juniorDiscountAmount ?? 0,
+        juniorDiscountMode:
+          settings.juniorDiscountMode === "amount" || settings.juniorDiscountMode === "percent"
+            ? settings.juniorDiscountMode
+            : (settings.juniorDiscountAmount ?? 0) > 0 && (settings.juniorDiscountPercent ?? 0) <= 0
+              ? "amount"
+              : "percent",
+      });
+    } catch {
+      // Ignore if unauthenticated or network error
+    }
+  },
 
   syncCurrentUser: async () => {
     try {
@@ -336,6 +398,7 @@ export const useStore = create<State>((set, get) => ({
         api.get<Transaction[]>("/transactions"),
         api.get<{
           locations: string[];
+          coaches?: string[];
           grades: string[];
           adultGrades?: string[];
           juniorGrades?: string[];
@@ -393,6 +456,7 @@ export const useStore = create<State>((set, get) => ({
         trainingDates,
         transactions,
         locations: settings.locations,
+        coaches: settings.coaches || ["Coach Lee", "Coach Alex", "Coach Sarah"],
         grades: settings.grades,
         adultGrades: settings.adultGrades || [],
         juniorGrades: settings.juniorGrades || [],
@@ -745,6 +809,7 @@ export const useStore = create<State>((set, get) => ({
   updateSettings: async (settings) => {
     const updated = await api.post<{
       locations: string[];
+      coaches?: string[];
       grades: string[];
       adultGrades?: string[];
       juniorGrades?: string[];
@@ -782,6 +847,7 @@ export const useStore = create<State>((set, get) => ({
     }>("/settings", settings);
     set({
       locations: updated.locations,
+      coaches: updated.coaches || ["Coach Lee", "Coach Alex", "Coach Sarah"],
       grades: updated.grades,
       adultGrades: updated.adultGrades || [],
       juniorGrades: updated.juniorGrades || [],

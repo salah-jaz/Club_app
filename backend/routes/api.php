@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Route;
 // Public auth routes
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+Route::get('/settings', [SettingController::class, 'index']);
 
 // Authenticated API routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -24,7 +25,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     
     // Settings constants
-    Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings', [SettingController::class, 'update']);
     Route::post('/settings/test-smtp', [SettingController::class, 'testSmtp']);
 
