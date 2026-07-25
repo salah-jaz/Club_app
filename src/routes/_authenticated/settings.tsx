@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
 
-type EditableListKey = "locations" | "adultGrades" | "juniorGrades" | "playerPositions";
+type EditableListKey = "locations" | "coaches" | "adultGrades" | "juniorGrades" | "playerPositions";
 
 function EditableConfigRow({
   value,
@@ -152,7 +152,12 @@ function SettingsPage() {
   const [timezone, setTimezone] = useState(resolveTimezone(store.timezone));
   const [skipCreditConsumption, setSkipCreditConsumption] = useState(store.skipCreditConsumption);
   const [locations, setLocations] = useState<string[]>(store.locations);
+  const [coaches, setCoaches] = useState<string[]>(store.coaches);
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
+
+  useEffect(() => {
+    setCoaches(store.coaches);
+  }, [store.coaches]);
 
   useEffect(() => {
     setSkipCreditConsumption(store.skipCreditConsumption);
@@ -393,6 +398,7 @@ function SettingsPage() {
 
   // States for adding new items
   const [newLocation, setNewLocation] = useState("");
+  const [newCoach, setNewCoach] = useState("");
   const [newAdultGrade, setNewAdultGrade] = useState("");
   const [newJuniorGrade, setNewJuniorGrade] = useState("");
   const [newHolidayName, setNewHolidayName] = useState("");
@@ -450,9 +456,11 @@ function SettingsPage() {
     const payload =
       list === "locations"
         ? { locations: updated }
-        : list === "adultGrades"
-          ? { adultGrades: updated }
-          : { juniorGrades: updated };
+        : list === "coaches"
+          ? { coaches: updated }
+          : list === "adultGrades"
+            ? { adultGrades: updated }
+            : { juniorGrades: updated };
     await saveUpdatedList(payload, `${successLabel} updated`);
   };
 
@@ -588,6 +596,39 @@ function SettingsPage() {
     setLocations(updated);
     setNewLocation("");
     saveUpdatedList({ locations: updated }, "Location added");
+  };
+
+  const handleAddCoach = () => {
+    const trimmed = newCoach.trim();
+    if (!trimmed) return;
+    if (coaches.includes(trimmed)) {
+      toast.error("Coach already exists");
+      return;
+    }
+    const updated = [...coaches, trimmed];
+    setCoaches(updated);
+    setNewCoach("");
+    saveUpdatedList({ coaches: updated }, "Coach added");
+  };
+
+  const handleDeleteCoach = (c: string) => {
+    const trainingCount = store.trainings.filter((t) => t.coach === c).length;
+    setDeleteRequest({
+      title: "Delete coach",
+      entityName: c,
+      related: [
+        { label: trainingCount === 1 ? "training program" : "training programs", count: trainingCount },
+      ],
+      warning:
+        trainingCount > 0
+          ? "This coach is assigned to existing training programs."
+          : undefined,
+      onConfirm: async () => {
+        const updated = coaches.filter((item) => item !== c);
+        setCoaches(updated);
+        saveUpdatedList({ coaches: updated }, "Coach removed");
+      },
+    });
   };
 
   const handleDeleteLocation = (loc: string) => {
@@ -789,6 +830,7 @@ function SettingsPage() {
   const saveUpdatedList = async (
     payload: {
       locations?: string[];
+      coaches?: string[];
       adultGrades?: string[];
       juniorGrades?: string[];
       holidays?: string[];
@@ -805,6 +847,7 @@ function SettingsPage() {
       toast.error(err.message || "Failed to update configuration list");
       // Revert states from store
       setLocations(store.locations);
+      setCoaches(store.coaches);
       setAdultGrades(store.adultGrades);
       setJuniorGrades(store.juniorGrades);
       setHolidayItems(store.holidayItems);
@@ -1483,6 +1526,52 @@ function SettingsPage() {
                         onSave={() => renameListItem("locations", locations, setLocations, "Location")}
                         onCancel={cancelEditing}
                         onDelete={() => handleDeleteLocation(loc)}
+                      />
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Coach Management */}
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
+              <CardHeader className="pb-3 border-b border-white/[0.03]">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                  Coach Management
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 flex-1 flex flex-col">
+                <div className="flex gap-2 mb-4">
+                  <Input
+                    value={newCoach}
+                    onChange={(e) => setNewCoach(e.target.value)}
+                    placeholder="Add coach name (e.g. Coach Lee)"
+                    onKeyDown={(e) => e.key === "Enter" && handleAddCoach()}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddCoach}
+                    className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                  {coaches.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">No coaches configured.</div>
+                  ) : (
+                    coaches.map((c) => (
+                      <EditableConfigRow
+                        key={c}
+                        value={c}
+                        isEditing={editingList === "coaches" && editingOriginal === c}
+                        editValue={editingValue}
+                        onEditValueChange={setEditingValue}
+                        onStartEdit={() => startEditing("coaches", c)}
+                        onSave={() => renameListItem("coaches", coaches, setCoaches, "Coach")}
+                        onCancel={cancelEditing}
+                        onDelete={() => handleDeleteCoach(c)}
                       />
                     ))
                   )}

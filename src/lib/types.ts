@@ -113,6 +113,8 @@ export interface LeagueGroup {
 
 export interface PlaySchedule {
   id: string;
+  parentId?: string | null;
+  repeatWeeks?: number;
   name: string;
   date: string;
   courts: number;

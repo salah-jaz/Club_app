@@ -69,6 +69,7 @@ class SettingController extends Controller
                 'name' => $p->name,
                 'skipLeagueFee' => (bool) $p->skip_league_fee,
             ])->values()->all(),
+            'coaches' => json_decode($dbSettings->get('coaches') ?? '', true) ?: ['Coach Lee', 'Coach Alex', 'Coach Sarah'],
         ];
 
         foreach ($this->settingKeys as $camel => $snake) {
@@ -125,6 +126,11 @@ class SettingController extends Controller
         }
 
         // 2. Save lists if provided
+        if ($request->has('coaches')) {
+            $newCoaches = array_values(array_filter($request->coaches ?? [], fn($c) => is_string($c) && trim($c) !== ''));
+            Setting::updateOrCreate(['key' => 'coaches'], ['value' => json_encode($newCoaches)]);
+        }
+
         if ($request->has('locations')) {
             $newLocations = $request->locations ?? [];
             Location::whereNotIn('name', $newLocations)->delete();

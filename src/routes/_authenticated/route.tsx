@@ -171,8 +171,8 @@ function Layout() {
   // Breadcrumb screen name resolution
   const pathPart = pathname.split("/").filter(Boolean)[0] || "dashboard";
   const routeNames: Record<string, string> = {
-    events: "Events",
-    invitations: "Events",
+    events: "Play Sessions",
+    invitations: "Play Sessions",
   };
   const screenName = routeNames[pathPart] || (pathPart.charAt(0).toUpperCase() + pathPart.slice(1));
 

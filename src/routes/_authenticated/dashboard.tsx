@@ -320,7 +320,7 @@ function Dashboard() {
         <>
           <HeaderQuickAction to="/members" icon={Users} label="Add family member" />
           <HeaderQuickAction to="/credits" icon={Wallet} label="Request credit" />
-          <HeaderQuickAction to="/events" icon={Inbox} label="Events" />
+          <HeaderQuickAction to="/events" icon={CalendarDays} label="Play Sessions" />
           <HeaderQuickAction to="/transactions" icon={Wallet} label="Transactions" />
         </>
       )}
