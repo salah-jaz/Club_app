@@ -379,23 +379,18 @@ export const useStore = create<State>((set, get) => ({
         members,
         schedules,
         playInvites,
-        rotations,
         trainings,
         trainingInvites,
-        trainingDates,
-        transactions,
         settings,
         creditRequests,
         leagueGroups,
+        users,
       ] = await Promise.all([
         api.get<Member[]>("/members"),
         api.get<PlaySchedule[]>("/schedules"),
         api.get<PlayInvitation[]>("/play-invitations"),
-        api.get<Rotation[]>("/rotations"),
         api.get<Training[]>("/trainings"),
         api.get<TrainingInvitation[]>("/training-invitations"),
-        api.get<TrainingDate[]>("/training-dates"),
-        api.get<Transaction[]>("/transactions"),
         api.get<{
           locations: string[];
           coaches?: string[];
@@ -436,25 +431,15 @@ export const useStore = create<State>((set, get) => ({
         }>("/settings"),
         api.get<CreditRequest[]>("/credit-requests"),
         api.get<LeagueGroup[]>("/league-groups"),
+        api.get<User[]>("/users").catch(() => [] as User[]),
       ]);
-
-      let users: User[] = [];
-      try {
-        users = await api.get<User[]>("/users");
-      } catch {
-        // Fallback for non-admin users who cannot list all users
-        users = [];
-      }
 
       set({
         members,
         schedules,
         playInvites,
-        rotations,
         trainings,
         trainingInvites,
-        trainingDates,
-        transactions,
         locations: settings.locations,
         coaches: settings.coaches || ["Coach Lee", "Coach Alex", "Coach Sarah"],
         grades: settings.grades,
@@ -506,6 +491,15 @@ export const useStore = create<State>((set, get) => ({
         users,
         creditRequests,
         leagueGroups,
+      });
+
+      // Fetch non-critical secondary data asynchronously in background
+      void Promise.all([
+        api.get<Rotation[]>("/rotations").catch(() => [] as Rotation[]),
+        api.get<TrainingDate[]>("/training-dates").catch(() => [] as TrainingDate[]),
+        api.get<Transaction[]>("/transactions").catch(() => [] as Transaction[]),
+      ]).then(([rotations, trainingDates, transactions]) => {
+        set({ rotations, trainingDates, transactions });
       });
     } catch (e) {
       console.error("Failed to sync backend data:", e);
