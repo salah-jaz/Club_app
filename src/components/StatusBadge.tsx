@@ -14,6 +14,7 @@ const map: Record<string, string> = {
   waiting: "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20",
   declined: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
   rejected: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
+  cancelled: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
   disabled: "bg-white/5 text-[#8A8A9A] border-white/10",
   closed: "bg-white/5 text-[#8A8A9A] border-white/10",
 };
@@ -21,6 +22,7 @@ const map: Record<string, string> = {
 type StatusKind = "default" | "invitation";
 
 function labelFor(status: string, kind: StatusKind): string {
+  if (status === "cancelled") return "Cancelled";
   if (status === "created") return "pending";
   if (status === "pending") return "Pending";
   if (status === "waiting") return "Waiting list";

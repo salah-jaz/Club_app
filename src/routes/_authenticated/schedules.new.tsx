@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -78,6 +79,10 @@ function NewSchedule() {
       <PageHeader title="New play schedule" description="Define the court capacity, scheduling details, and membership pricing." backTo="/schedules" />
       <form onSubmit={async (e) => {
         e.preventDefault();
+        if (!f.date) {
+          toast.error("Please select a Date & Time for the schedule.");
+          return;
+        }
         const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
         setSubmitting(true);
         try {
@@ -104,12 +109,10 @@ function NewSchedule() {
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date & Time</Label>
-              <Input
-                required
-                type="datetime-local"
+              <DateTimePicker
                 value={f.date}
-                onChange={(e) => onDateChange(e.target.value)}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg w-full min-w-0"
+                onChange={onDateChange}
+                placeholder="Select Date & Time..."
               />
               {scheduleWhen && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">

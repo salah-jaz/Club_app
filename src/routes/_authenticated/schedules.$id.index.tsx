@@ -14,10 +14,20 @@ import {
 import { fmtDateTime, fmtMoney } from "@/lib/format";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { toast } from "sonner";
-import { Download, FileSpreadsheet, FileText, Pencil, Shuffle, Send, X, RotateCcw } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Pencil, Shuffle, Send, X, RotateCcw, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PlayInvitation, PlaySchedule, Rotation, RotationRound } from "@/lib/types";
 import { jsPDF } from "jspdf";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -472,6 +482,25 @@ function SchedulePage() {
     }
   };
 
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleCancelSession = async () => {
+    if (!cancelReason.trim()) return;
+    setCancelling(true);
+    try {
+      await s.cancelSchedule(sch.id, cancelReason.trim());
+      toast.success("Session cancelled and member fees refunded.");
+      setCancelDialogOpen(false);
+      setCancelReason("");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel session.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const onGenerateClick = () => {
     if (underCapacity) {
       setRotateConfirmOpen(true);
@@ -675,18 +704,93 @@ function SchedulePage() {
                 <Send className="size-3.5 mr-1" /> Publish to members
               </Button>
             )}
-            {sch.status !== "closed" && (
-              <Button
-                variant="outline"
-                className="btn-premium-outline h-9 px-4 text-xs cursor-pointer w-full sm:w-auto"
-                onClick={requestClose}
-              >
-                Close Session
-              </Button>
+            {sch.status !== "closed" && sch.status !== "cancelled" && (
+              <>
+                <Button
+                  variant="outline"
+                  className="btn-premium-outline h-9 px-4 text-xs cursor-pointer w-full sm:w-auto"
+                  onClick={requestClose}
+                >
+                  Close Session
+                </Button>
+                <Button
+                  variant="outline"
+                  className="bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/30 hover:bg-[#EF4444]/20 hover:text-white h-9 px-4 text-xs font-semibold cursor-pointer w-full sm:w-auto"
+                  onClick={() => setCancelDialogOpen(true)}
+                >
+                  Cancel Session
+                </Button>
+              </>
             )}
           </div>
         }
       />
+
+      <Dialog
+        open={cancelDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !cancelling) {
+            setCancelDialogOpen(false);
+            setCancelReason("");
+          }
+        }}
+      >
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE]">Cancel Session</DialogTitle>
+            <DialogDescription className="text-[#C4D4CF] text-xs">
+              Enter a reason for cancelling <strong className="text-[#F1F0EE]">“{sch.name}”</strong>. Members will be notified and any paid fees will be refunded automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label className="text-xs font-medium text-[#C4D4CF]">
+              Reason <span className="text-red-400">*</span>
+            </Label>
+            <Textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Enter cancellation reason (e.g. Coach unavailable, Court maintenance)..."
+              rows={3}
+              className="bg-[#1A2120] border-[rgba(255,255,255,0.1)] text-white text-xs placeholder:text-[#64748B] focus:border-[#EF4444]"
+            />
+            {!cancelReason.trim() && (
+              <p className="text-[11px] text-red-400 font-light">Reason is required to cancel this session.</p>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              className="btn-premium-outline cursor-pointer text-xs"
+              disabled={cancelling}
+              onClick={() => {
+                setCancelDialogOpen(false);
+                setCancelReason("");
+              }}
+            >
+              Close
+            </Button>
+            <Button
+              className="bg-[#EF4444] hover:bg-[#DC2626] text-white cursor-pointer text-xs font-semibold"
+              disabled={!cancelReason.trim() || cancelling}
+              onClick={() => void handleCancelSession()}
+            >
+              {cancelling ? "Cancelling…" : "Cancel Session"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {sch.status === "cancelled" && (
+        <div className="rounded-lg border border-[#EF4444]/30 bg-[#EF4444]/10 p-4 text-[#EF4444] flex items-start gap-2.5">
+          <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <h4 className="font-semibold text-sm">Session Cancelled</h4>
+            <p className="text-xs text-[#EF4444]/90 font-light">
+              <span className="font-semibold">Reason:</span> {sch.cancelReason || "No reason specified."}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
         {columns.map((col) => (

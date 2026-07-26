@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
 import { toast } from "sonner";
-import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users } from "lucide-react";
+import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users, User } from "lucide-react";
 import type { Member, PlayInvitation, PlaySchedule, Rotation, Training } from "@/lib/types";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { cn } from "@/lib/utils";
@@ -423,7 +423,8 @@ function Events() {
       }
       return false;
     })();
-    const estimatedFee = isHoliday
+    const isCancelled = sch.status === "cancelled";
+    const estimatedFee = isCancelled || isHoliday
       ? 0
       : skipsLeagueFee
       ? 0
@@ -432,7 +433,6 @@ function Events() {
           member,
           discountsFromStore(s),
         );
-    // League matches allow accept with low credit (balance may go negative). Non-league blocks.
     const hasInsufficientCredits =
       !!member &&
       !member.skipCreditConsumption &&
@@ -441,7 +441,7 @@ function Events() {
       member.credit < estimatedFee;
 
     const responsesLocked =
-      sch.status === "rotated" || sch.status === "published" || sch.status === "closed";
+      sch.status === "rotated" || sch.status === "published" || sch.status === "closed" || sch.status === "cancelled";
     const lockHours = Math.max(0, s.cancellationLockHours ?? 24);
     const matchStartMs = Date.parse(sch.date);
     const withinCancelWindow =
@@ -450,31 +450,37 @@ function Events() {
     const hoursLabel = lockHours === 1 ? "1 hour" : `${lockHours} hours`;
 
     const canAccept =
-      !isHoliday && !responsesLocked && (i.status === "open" || i.status === "declined");
-    const canDeclineWaiting = !isHoliday && !responsesLocked && i.status === "waiting";
+      !isCancelled && !isHoliday && !responsesLocked && (i.status === "open" || i.status === "declined");
+    const canDeclineWaiting = !isCancelled && !isHoliday && !responsesLocked && i.status === "waiting";
     const canDeclineAccepted =
-      !isHoliday && !responsesLocked && i.status === "accepted" && withinCancelWindow;
+      !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && withinCancelWindow;
     const canDecline = canDeclineWaiting || canDeclineAccepted;
     const declineLockedByTime =
-      !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
+      !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
+
+    const memberTypeLabel = member?.memberType === "junior" ? "Child" : "Player";
 
     return (
-      <div key={i.id} className="pt-2 border-t border-white/[0.04] space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 flex items-center gap-2 flex-wrap">
-            <span className="text-[13px] font-medium text-[#F1F0EE]">
+      <div key={i.id} className="pt-2.5 border-t border-white/[0.04] space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="min-w-0">
+            <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
+              <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">{memberTypeLabel}:</span>
               {name(i.memberId)}
-            </span>
-            <span className="text-xs font-mono font-medium text-[#34D399]">
-              {fmtMoney(estimatedFee)}
-            </span>
+            </div>
+            <div className="text-[11px] text-[#8A8A98] mt-0.5">
+              Session Fee:{" "}
+              <span className="font-semibold font-mono text-[#3B82F6]">
+                {fmtMoney(estimatedFee)}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
             <StatusBadge kind="invitation" status={i.status === "declined" ? "open" : i.status} />
             {canAccept && (
               <Button
                 size="sm"
-                className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer"
+                className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                 onClick={async () => {
                   if (hasInsufficientCredits && member) {
                     setCreditGap({
@@ -511,8 +517,8 @@ function Events() {
             {canDecline && (
               <Button
                 size="sm"
-                variant="destructive"
-                className="btn-premium-danger h-7 px-3 text-[11px] font-semibold cursor-pointer"
+                variant="outline"
+                className="btn-premium-danger h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                 onClick={async () => {
                   try {
                     await s.respondPlay(i.id, "declined");
@@ -532,7 +538,7 @@ function Events() {
           </div>
         </div>
         {canAccept && hasInsufficientCredits && (
-          <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5 font-light">
+          <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
               <span className="font-semibold">Alert:</span> Insufficient credits (
@@ -541,7 +547,7 @@ function Events() {
           </div>
         )}
         {isHoliday && (
-          <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
+          <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
               <span className="font-semibold">{holidayName}:</span> Accept and decline are closed for
@@ -550,13 +556,13 @@ function Events() {
           </div>
         )}
         {responsesLocked && (
-          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-lg px-2.5 py-1.5 flex items-start gap-1.5">
+          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5 flex items-start gap-1.5">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#8A8A98]" />
             <span>Court rotation is locked — accept and decline are closed for all members.</span>
           </div>
         )}
         {declineLockedByTime && (
-          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
+          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
               <span className="font-semibold">Cancellation closed:</span> You cannot cancel within{" "}
@@ -612,7 +618,7 @@ function Events() {
               {
                 key: "accepted" as const,
                 label: "Accepted",
-                color: "text-[#2DD4BF]",
+                color: "text-[#3B82F6]",
                 countLabel: `(${lists.accepted.length} / ${maxPlayers})`,
                 items: lists.accepted,
               },
@@ -629,7 +635,7 @@ function Events() {
                 {columns.map((col) => (
                   <div
                     key={col.key}
-                    className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 overflow-hidden"
+                    className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 overflow-hidden"
                   >
                     <div className="px-3 py-2.5 border-b border-white/[0.04] flex items-center justify-between gap-2">
                       <span className="text-[11px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
@@ -639,7 +645,7 @@ function Events() {
                     </div>
                     <div className="px-3 py-2 max-h-[320px] overflow-y-auto space-y-0.5">
                       {col.items.length === 0 ? (
-                        <p className="text-[13px] font-light text-[#4A5E58] py-3 text-center">
+                        <p className="text-[13px] font-light text-[#8A8A98] py-3 text-center">
                           No members listed.
                         </p>
                       ) : (
@@ -649,7 +655,7 @@ function Events() {
                           return (
                             <div
                               key={inv.id}
-                              className="text-[13px] text-[#EEF2F0] py-2 border-b border-white/[0.03] last:border-0 font-semibold flex items-center gap-2"
+                              className="text-[13px] text-[#F1F0EE] py-2 border-b border-white/[0.03] last:border-0 font-medium flex items-center gap-2"
                             >
                               <span className="font-mono text-[10px] text-[#8A8A98] shrink-0">
                                 {idx + 1}.
@@ -713,7 +719,7 @@ function Events() {
       </AlertDialog>
 
       <PageHeader
-        title="Play Sessions"
+        title="Events"
         description={`Enroll in released play sessions and training programs. Play cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before the match starts.`}
       />
 
@@ -736,8 +742,8 @@ function Events() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-2">
-              <CalendarDays className="size-4 text-[#10B981]" /> Play Sessions
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
+              <CalendarDays className="size-4 text-[#3B82F6]" /> Play Sessions
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
@@ -761,7 +767,7 @@ function Events() {
             </div>
             {filteredPlaySessions.length === 0 && (
               <div className="py-4 space-y-3">
-                <p className="text-[13px] font-light text-[#4A5E58] text-center">
+                <p className="text-[13px] font-light text-[#8A8A98] text-center">
                   {uniquePlaySessions.length === 0
                     ? "No play sessions are open yet."
                     : "No play sessions match your filters."}
@@ -787,12 +793,9 @@ function Events() {
               const scheduleInvites = invitesForSchedule(sch.id);
               const canEnroll = sch.status === "released";
               const waitingForInvite = canEnroll && available.length > 0 && (autoInviting || scheduleInvites.length === 0);
-              const acceptedCount = s.playInvites.filter(
-                (i) => i.scheduleId === sch.id && i.status === "accepted",
-              ).length;
-              const maxPlayers = Math.max(sch.players || 0, 1);
               const holidayName = getHolidayName(sch.date);
               const isHoliday = !!holidayName;
+              const isCancelled = sch.status === "cancelled";
 
               return (
                 <div
@@ -800,7 +803,7 @@ function Events() {
                   className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 rounded-lg p-4 space-y-3"
                 >
                   <div className="flex justify-between items-start gap-3">
-                    <div className="min-w-0">
+                    <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="font-semibold text-[#F1F0EE] text-[14px]">{sch.name}</div>
                         {sch.isLeagueMatch && (
@@ -809,29 +812,45 @@ function Events() {
                             League
                           </span>
                         )}
-                        {holidayName && (
-                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24]">
+                        {sch.status === "cancelled" ? (
+                          <span className="inline-flex items-center rounded-md border border-[#EF4444]/35 bg-[#EF4444]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#EF4444] uppercase">
+                            Cancelled
+                          </span>
+                        ) : holidayName ? (
+                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
                             {holidayName}
                           </span>
-                        )}
+                        ) : null}
                       </div>
-                      <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
+                      <div className="text-[11px] text-[#8A8A98] font-mono font-light">
                         {fmtDateTime(sch.date)} · {sch.location}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                      <span className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-[#0C0F0E] px-2.5 py-1 font-mono text-[11px] text-[#F1F0EE]">
-                        <Users className="size-3.5 text-[#8A8A98]" />
-                        {acceptedCount}/{maxPlayers}
-                      </span>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
                       <StatusBadge status={sch.status} />
+                      {(sch.status === "released" ||
+                        sch.status === "rotated" ||
+                        sch.status === "published" ||
+                        sch.status === "closed" ||
+                        sch.status === "cancelled") && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer"
+                          onClick={() => openPlayersPopup(sch)}
+                        >
+                          <Users className="size-3.5 mr-1" />
+                          View players
+                        </Button>
+                      )}
                       {(sch.status === "published" || sch.status === "closed") &&
                         s.rotations.some((r) => r.scheduleId === sch.id) && (
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="btn-premium-outline h-7 px-2.5 text-[11px] cursor-pointer"
+                            className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer"
                             onClick={() => openCourtsPopup(sch)}
                           >
                             <LayoutGrid className="size-3.5 mr-1" />
@@ -841,8 +860,18 @@ function Events() {
                     </div>
                   </div>
 
+                  {sch.status === "cancelled" && scheduleInvites.length === 0 && (
+                    <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+                      <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
+                      <div className="space-y-0.5">
+                        <div className="font-semibold text-[#EF4444]">Cancelled</div>
+                        <div className="text-[#EF4444]/90 font-light">Reason: {sch.cancelReason || "No reason specified."}</div>
+                      </div>
+                    </div>
+                  )}
+
                   {canEnroll && adultPlayers.length === 0 && playEligibleJuniors.length === 0 && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.03]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.04]">
                       <p className="text-[12px] text-muted-foreground">
                         Add an eligible family member to join this session.
                       </p>
@@ -864,21 +893,29 @@ function Events() {
                     available.length === 0 &&
                     availableJuniors.length === 0 &&
                     scheduleInvites.length === 0 && (
-                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.03]">
+                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.04]">
                         No eligible members for this session.
                       </p>
                     )}
 
                   {waitingForInvite && scheduleInvites.length === 0 && (
-                    <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.03]">
+                    <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.04]">
                       Preparing invitation…
                     </p>
                   )}
 
                   {canEnroll && !sch.isLeagueMatch && availableJuniors.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-white/[0.03]">
-                      {isHoliday ? (
-                        <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
+                    <div className="space-y-2 pt-2 border-t border-white/[0.04]">
+                      {isCancelled ? (
+          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+            <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
+            <div className="space-y-0.5">
+              <div className="font-semibold text-[#EF4444]">Cancelled</div>
+              <div className="text-[#EF4444]/90 font-light">Reason: {sch.cancelReason || "No reason specified."}</div>
+            </div>
+          </div>
+        ) : isHoliday ? (
+                        <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
                           <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
                           <span>
                             <span className="font-semibold">{holidayName}:</span> Accept and decline are closed for
@@ -901,20 +938,24 @@ function Events() {
                             return (
                               <div
                                 key={child.id}
-                                className="flex items-center justify-between gap-3 p-2 bg-[#0C0F0E]/50 border border-white/[0.04] rounded-lg"
+                                className="flex items-center justify-between gap-3 px-4 py-3 bg-[#F0F5FF] border border-[#D6E4FF] rounded-lg shadow-sm"
                               >
-                                <div className="min-w-0 flex items-center gap-2">
-                                  <span className="text-[13px] font-medium text-[#F1F0EE] truncate">
-                                    {child.firstName} {child.lastName}
-                                  </span>
-                                  <span className="text-xs font-mono text-[#34D399] font-medium">
-                                    {fmtMoney(estimatedFee)}
-                                  </span>
+                                <div className="min-w-0 space-y-0.5">
+                                  <div className="flex items-center gap-1.5 font-bold text-slate-900 text-[13.5px] truncate">
+                                    <User className="size-3.5 text-[#2563EB] shrink-0" />
+                                    <span className="truncate">{child.firstName} {child.lastName}</span>
+                                  </div>
+                                  <div className="text-[11.5px] text-slate-700 font-medium">
+                                    Grade {child.grade} · Session Fee:{" "}
+                                    <span className="font-mono font-bold text-[#2563EB]">
+                                      {fmtMoney(estimatedFee)}
+                                    </span>
+                                  </div>
                                 </div>
                                 <Button
                                   size="sm"
                                   disabled={enrollingId === acceptingKey}
-                                  className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer shrink-0"
+                                  className="btn-premium-solid h-7.5 px-3.5 text-[11px] font-semibold cursor-pointer shrink-0"
                                   onClick={async () => {
                                     if (hasInsufficientCredits) {
                                       setCreditGap({
@@ -956,8 +997,12 @@ function Events() {
                     </div>
                   )}
 
-                  {scheduleInvites.map((i) =>
-                    renderPlayInviteActions(i, sch),
+                  {scheduleInvites.length > 0 && (
+                    <div className="space-y-1">
+                      {scheduleInvites.map((i) =>
+                        renderPlayInviteActions(i, sch),
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -967,14 +1012,14 @@ function Events() {
 
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-2">
-              <GraduationCap className="size-4 text-[#10B981]" /> Training Programs
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
+              <GraduationCap className="size-4 text-[#3B82F6]" /> Training Programs
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
             {uniquePrograms.length === 0 && (
               <div className="py-4 space-y-3">
-                <p className="text-[13px] font-light text-[#4A5E58] text-center">
+                <p className="text-[13px] font-light text-[#8A8A98] text-center">
                   No training programs are open yet.
                 </p>
                 {juniorChildren.length === 0 && (
@@ -1004,16 +1049,16 @@ function Events() {
                   className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 rounded-lg p-4 space-y-3"
                 >
                   <div className="flex justify-between items-start gap-3">
-                    <div className="min-w-0">
+                    <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="font-semibold text-[#F1F0EE] text-[14px]">{t.name}</div>
                         {holidayName && (
-                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24]">
+                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
                             {holidayName}
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
+                      <div className="text-[11px] text-[#8A8A98] font-mono font-light">
                         Coach {t.coach} · {fmtDate(t.startDate)} → {fmtDate(t.endDate)} · {t.sessions}{" "}
                         sessions
                       </div>
@@ -1022,7 +1067,7 @@ function Events() {
                   </div>
 
                   {canEnroll && juniorChildren.length === 0 && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.03]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.04]">
                       <p className="text-[12px] text-muted-foreground">
                         Add a junior family member to enroll.
                       </p>
@@ -1040,88 +1085,99 @@ function Events() {
                   )}
 
                   {canEnroll && children.length > 0 && (
-                    <div className="grid gap-2 pt-2 border-t border-white/[0.03]">
-                      {children.map((child) => {
-                        const childFee = applyMemberFee(t.fees, child, discountsFromStore(s));
-                        const acceptingKey = `${t.id}:${child.id}`;
-                        return (
-                          <div
-                            key={child.id}
-                            className="flex items-center justify-between gap-3 p-2 bg-[#0C0F0E]/50 border border-white/[0.04] rounded-lg"
-                          >
-                            <div className="min-w-0 flex items-center gap-2">
-                              <span className="text-[13px] font-medium text-[#F1F0EE] truncate">
-                                {child.firstName} {child.lastName}
-                              </span>
-                              <span className="text-xs font-mono text-[#34D399] font-medium">
-                                {fmtMoney(childFee)}
-                              </span>
+                    <div className="space-y-2 pt-2 border-t border-white/[0.04]">
+                      <p className="text-[11px] font-medium tracking-[0.08em] text-[#8A8A98] uppercase">
+                        Accept children into this program
+                      </p>
+                      <div className="grid gap-2">
+                        {children.map((child) => {
+                          const childFee = applyMemberFee(t.fees, child, discountsFromStore(s));
+                          const acceptingKey = `${t.id}:${child.id}`;
+                          return (
+                            <div
+                              key={child.id}
+                              className="flex items-center justify-between gap-3 p-2.5 bg-[#1A2120]/60 border border-[rgba(255,255,255,0.04)] rounded-lg"
+                            >
+                              <div className="min-w-0">
+                                <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
+                                  {child.firstName} {child.lastName}
+                                </div>
+                                <div className="text-[11px] text-[#8A8A98]">
+                                  Grade {child.grade} · Fee{" "}
+                                  <span className="font-mono font-semibold text-[#3B82F6]">
+                                    {fmtMoney(childFee)}
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                disabled={enrollingId === acceptingKey}
+                                className="btn-premium-solid h-7.5 px-3.5 text-[11px] font-semibold cursor-pointer shrink-0"
+                                onClick={async () => {
+                                  setEnrollingId(acceptingKey);
+                                  try {
+                                    await enrollTraining(t.id, [child.id]);
+                                    toast.success(`Accepted ${child.firstName} into training`);
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to accept child.");
+                                  } finally {
+                                    setEnrollingId(null);
+                                  }
+                                }}
+                              >
+                                Accept
+                              </Button>
                             </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {programInvites.map((i) => (
+                    <div key={i.id} className="flex items-center justify-between gap-3 pt-2.5 border-t border-white/[0.04]">
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
+                          <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">Child:</span>
+                          {name(i.memberId)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge kind="invitation" status={i.status} />
+                        {i.status === "open" && (
+                          <div className="flex gap-2">
                             <Button
                               size="sm"
-                              disabled={enrollingId === acceptingKey}
-                              className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer shrink-0"
+                              className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                               onClick={async () => {
-                                setEnrollingId(acceptingKey);
                                 try {
-                                  await enrollTraining(t.id, [child.id]);
-                                  toast.success(`Accepted ${child.firstName} into training`);
+                                  await s.respondTraining(i.id, "accepted");
+                                  toast.success("Accepted invitation");
                                 } catch (error: any) {
-                                  toast.error(error.message || "Failed to accept child.");
-                                } finally {
-                                  setEnrollingId(null);
+                                  toast.error(error.message || "Failed to respond to invitation.");
                                 }
                               }}
                             >
                               Accept
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
+                              onClick={async () => {
+                                try {
+                                  await s.respondTraining(i.id, "declined");
+                                  toast.success("Declined invitation");
+                                } catch (error: any) {
+                                  toast.error(error.message || "Failed to respond to invitation.");
+                                }
+                              }}
+                            >
+                              Decline
+                            </Button>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {programInvites.map((i) => (
-                    <div key={i.id} className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.03]">
-                      <div className="min-w-0 flex items-center gap-2">
-                        <span className="text-[13px] font-medium text-[#F1F0EE] truncate">
-                          {name(i.memberId)}
-                        </span>
-                        <StatusBadge kind="invitation" status={i.status} />
+                        )}
                       </div>
-                      {i.status === "open" && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            size="sm"
-                            className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer"
-                            onClick={async () => {
-                              try {
-                                await s.respondTraining(i.id, "accepted");
-                                toast.success("Accepted invitation");
-                              } catch (error: any) {
-                                toast.error(error.message || "Failed to respond to invitation.");
-                              }
-                            }}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="btn-premium-outline h-7 px-3 text-[11px] cursor-pointer"
-                            onClick={async () => {
-                              try {
-                                await s.respondTraining(i.id, "declined");
-                                toast.success("Declined invitation");
-                              } catch (error: any) {
-                                toast.error(error.message || "Failed to respond to invitation.");
-                              }
-                            }}
-                          >
-                            Decline
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   ))}
 
@@ -1129,7 +1185,7 @@ function Events() {
                     juniorChildren.length > 0 &&
                     children.length === 0 &&
                     programInvites.length === 0 && (
-                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.03]">
+                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.04]">
                         No eligible children left to accept for this program.
                       </p>
                     )}

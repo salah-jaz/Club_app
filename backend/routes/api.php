@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\LeagueGroupController;
 use App\Http\Controllers\Api\AdminRoleController;
 use App\Http\Controllers\Api\AdminUserController;
+use App\Http\Controllers\Api\SyncController;
 use Illuminate\Support\Facades\Route;
 
 // Public auth routes
@@ -20,6 +21,7 @@ Route::get('/settings', [SettingController::class, 'index']);
 
 // Authenticated API routes
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/sync-data', [SyncController::class, 'index']);
     // Session / Info
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
@@ -62,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/schedules/{id}', [PlayScheduleController::class, 'destroy']);
     Route::post('/schedules/{id}/release', [PlayScheduleController::class, 'release']);
     Route::post('/schedules/{id}/close', [PlayScheduleController::class, 'close']);
+    Route::post('/schedules/{id}/cancel', [PlayScheduleController::class, 'cancel']);
     Route::post('/schedules/{id}/rotate', [PlayScheduleController::class, 'rotate']);
     Route::post('/schedules/{id}/publish', [PlayScheduleController::class, 'publish']);
     Route::post('/schedules/{id}/revert-rotation', [PlayScheduleController::class, 'revertRotation']);

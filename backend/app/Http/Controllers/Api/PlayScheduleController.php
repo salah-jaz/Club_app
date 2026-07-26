@@ -121,9 +121,9 @@ class PlayScheduleController extends Controller
     {
         $sch = PlaySchedule::findOrFail($id);
 
-        if (in_array($sch->status, ['rotated', 'published', 'closed'], true)) {
+        if (in_array($sch->status, ['rotated', 'published', 'closed', 'cancelled'], true)) {
             return response()->json([
-                'message' => 'This schedule can no longer be edited after rotation has been generated.',
+                'message' => 'This schedule can no longer be edited.',
             ], 422);
         }
 
@@ -483,6 +483,41 @@ class PlayScheduleController extends Controller
 
         return response()->json([
             'message' => 'Schedule closed successfully.',
+            'schedule' => $this->formatSchedule($sch),
+        ]);
+    }
+
+    public function cancel(Request $request, $id)
+    {
+        $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        $sch = PlaySchedule::findOrFail($id);
+        if ($sch->status === 'cancelled') {
+            return response()->json([
+                'message' => 'Schedule is already cancelled.',
+                'schedule' => $this->formatSchedule($sch),
+            ]);
+        }
+
+        $sch->status = 'cancelled';
+        $sch->cancel_reason = trim($request->reason);
+        $sch->save();
+
+        // Process refunds for members who have paid for this session
+        $invitations = PlayInvitation::where('schedule_id', $sch->id)->get();
+        foreach ($invitations as $invite) {
+            if ($invite->debited && $invite->member_id && !str_starts_with($invite->member_id, 'guest_')) {
+                $this->refundPlayInvite($sch, $invite);
+            } else {
+                $invite->debited = false;
+                $invite->save();
+            }
+        }
+
+        return response()->json([
+            'message' => 'Session cancelled successfully and eligible fees refunded.',
             'schedule' => $this->formatSchedule($sch),
         ]);
     }
@@ -858,10 +893,12 @@ class PlayScheduleController extends Controller
         $desired = $request->status;
         $promoted = null;
 
-        // Once rotation is generated (or published/closed), members cannot change RSVP
-        if (in_array($sch->status, ['rotated', 'published', 'closed'], true)) {
+        // Once rotation is generated (or published/closed/cancelled), members cannot change RSVP
+        if (in_array($sch->status, ['rotated', 'published', 'closed', 'cancelled'], true)) {
             return response()->json([
-                'message' => 'Court rotation is locked. Accept and decline are no longer available.',
+                'message' => $sch->status === 'cancelled'
+                    ? 'This session has been cancelled. Accept and decline are no longer available.'
+                    : 'Court rotation is locked. Accept and decline are no longer available.',
             ], 422);
         }
 
@@ -1211,6 +1248,7 @@ class PlayScheduleController extends Controller
             'hallRate' => (float)$s->hall_rate,
             'location' => $s->location,
             'status' => $s->status,
+            'cancelReason' => $s->cancel_reason,
             'isLeagueMatch' => (bool)$s->is_league_match,
             'leagueGroupIds' => $s->league_group_ids ?? [],
             'repeatWeeks' => $remainingWeeks,

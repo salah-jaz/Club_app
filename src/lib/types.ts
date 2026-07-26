@@ -124,7 +124,8 @@ export interface PlaySchedule {
   sessionRate: number;
   hallRate: number;
   location: string;
-  status: "open" | "released" | "rotated" | "published" | "closed";
+  status: "open" | "released" | "rotated" | "published" | "closed" | "cancelled";
+  cancelReason?: string | null;
   isLeagueMatch?: boolean;
   leagueGroupIds?: string[];
 }

@@ -130,6 +130,7 @@ interface State {
   updateSchedule: (id: string, patch: Partial<PlaySchedule>) => Promise<void>;
   releaseSchedule: (id: string) => Promise<{ message?: string; inviteCount?: number }>;
   closeSchedule: (id: string) => Promise<void>;
+  cancelSchedule: (id: string, reason: string) => Promise<void>;
   deleteSchedule: (id: string) => Promise<void>;
   publishSchedule: (id: string) => Promise<void>;
   respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<PlayInvitation>;
@@ -375,23 +376,13 @@ export const useStore = create<State>((set, get) => ({
 
   syncData: async () => {
     try {
-      const [
-        members,
-        schedules,
-        playInvites,
-        trainings,
-        trainingInvites,
-        settings,
-        creditRequests,
-        leagueGroups,
-        users,
-      ] = await Promise.all([
-        api.get<Member[]>("/members"),
-        api.get<PlaySchedule[]>("/schedules"),
-        api.get<PlayInvitation[]>("/play-invitations"),
-        api.get<Training[]>("/trainings"),
-        api.get<TrainingInvitation[]>("/training-invitations"),
-        api.get<{
+      const syncRes = await api.get<{
+        members: Member[];
+        schedules: PlaySchedule[];
+        playInvites: PlayInvitation[];
+        trainings: Training[];
+        trainingInvites: TrainingInvitation[];
+        settings: {
           locations: string[];
           coaches?: string[];
           grades: string[];
@@ -428,11 +419,23 @@ export const useStore = create<State>((set, get) => ({
           juniorDiscountPercent?: number;
           juniorDiscountAmount?: number;
           juniorDiscountMode?: "percent" | "amount";
-        }>("/settings"),
-        api.get<CreditRequest[]>("/credit-requests"),
-        api.get<LeagueGroup[]>("/league-groups"),
-        api.get<User[]>("/users").catch(() => [] as User[]),
-      ]);
+        };
+        creditRequests: CreditRequest[];
+        leagueGroups: LeagueGroup[];
+        users: User[];
+      }>("/sync-data");
+
+      const {
+        members,
+        schedules,
+        playInvites,
+        trainings,
+        trainingInvites,
+        settings,
+        creditRequests,
+        leagueGroups,
+        users,
+      } = syncRes;
 
       set({
         members,
@@ -661,6 +664,11 @@ export const useStore = create<State>((set, get) => ({
 
   closeSchedule: async (id) => {
     await api.post<{ schedule: PlaySchedule }>(`/schedules/${id}/close`);
+    await get().syncData();
+  },
+
+  cancelSchedule: async (id, reason) => {
+    await api.post<{ schedule: PlaySchedule }>(`/schedules/${id}/cancel`, { reason });
     await get().syncData();
   },
 

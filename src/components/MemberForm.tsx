@@ -281,6 +281,13 @@ export function MemberForm({
                       ...p,
                       memberType: type,
                       grade: nextGrade,
+                      ...(type === "adult"
+                        ? {
+                            membership: true,
+                            trainingEligible: false,
+                            skipCreditConsumption: false,
+                          }
+                        : {}),
                     }));
                   }}
                 >

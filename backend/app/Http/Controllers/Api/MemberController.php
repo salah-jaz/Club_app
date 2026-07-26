@@ -138,7 +138,7 @@ class MemberController extends Controller
                     'email' => $request->email,
                     'sex' => $request->sex,
                     'member_type' => $request->memberType,
-                    'membership' => $request->membership,
+                    'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
                     'training_eligible' => $this->resolveTrainingEligible($request),
                     'play_eligible' => $this->resolvePlayEligible($request),
                     'grade' => $request->grade,
@@ -206,7 +206,7 @@ class MemberController extends Controller
                 'email' => $request->email,
                 'sex' => $request->sex,
                 'member_type' => $request->memberType,
-                'membership' => $request->membership,
+                'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
                 'training_eligible' => $this->resolveTrainingEligible($request),
                 'play_eligible' => $this->resolvePlayEligible($request),
                 'grade' => $request->grade,
@@ -243,10 +243,9 @@ class MemberController extends Controller
         if ($request->has('nickname')) $data['nickname'] = $request->nickname;
 
         if ($isAdmin) {
-            if ($request->has('memberType')) $data['member_type'] = $request->memberType;
-            if ($request->has('membership')) $data['membership'] = $request->membership;
-            if ($request->has('trainingEligible')) $data['training_eligible'] = $request->trainingEligible;
-            if ($request->has('playEligible')) $data['play_eligible'] = $request->playEligible;
+            if ($request->has('membership')) $data['membership'] = $request->boolean('membership');
+            if ($request->has('trainingEligible')) $data['training_eligible'] = $request->boolean('trainingEligible');
+            if ($request->has('playEligible')) $data['play_eligible'] = $request->boolean('playEligible');
             if ($request->has('status')) {
                 if (!in_array($request->status, ['active', 'disabled', 'pending', 'rejected'], true)) {
                     return response()->json(['message' => 'Invalid status.'], 422);
@@ -254,8 +253,8 @@ class MemberController extends Controller
                 $data['status'] = $request->status;
             }
             if ($request->has('credit')) $data['credit'] = $request->credit;
-            if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->skipCreditConsumption;
-            if ($request->has('applyDiscount')) $data['apply_discount'] = $request->applyDiscount;
+            if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->boolean('skipCreditConsumption');
+            if ($request->has('applyDiscount')) $data['apply_discount'] = $request->boolean('applyDiscount');
             if ($request->has('parentMemberId')) {
                 $parentId = $request->input('parentMemberId') ?: null;
                 if ($parentId) {
