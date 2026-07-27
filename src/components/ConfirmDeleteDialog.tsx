@@ -20,6 +20,8 @@ export type ConfirmDeleteRequest = {
   title: string;
   /** Entity name shown in the dialog body */
   entityName: string;
+  /** Optional custom description message */
+  description?: string;
   /** Related FK records that will cascade-delete */
   related?: DeleteRelatedInfo[];
   /** Named play schedules / trainings this member is linked to */
@@ -37,6 +39,10 @@ type Props = {
 };
 
 function buildDescription(request: ConfirmDeleteRequest): string {
+  if (request.description) {
+    return request.description;
+  }
+
   const related = (request.related ?? []).filter((r) => r.count > 0);
   if (related.length === 0) {
     return `Are you sure you want to delete “${request.entityName}”? This cannot be undone.`;

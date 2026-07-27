@@ -12,9 +12,12 @@ class Training extends Model
 
     protected $fillable = [
         'id',
+        'parent_id',
         'name',
         'start_date',
         'end_date',
+        'repeat_weeks',
+        'repeat_months',
         'sessions',
         'slots',
         'duration',
@@ -22,9 +25,12 @@ class Training extends Model
         'coach',
         'location',
         'status',
+        'target_type',
     ];
 
     protected $casts = [
+        'repeat_weeks' => 'integer',
+        'repeat_months' => 'integer',
         'sessions' => 'integer',
         'slots' => 'integer',
         'fees' => 'float',

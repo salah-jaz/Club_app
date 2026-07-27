@@ -97,8 +97,13 @@ class Member extends Model
             ->where('play_eligible', true);
     }
 
-    public function scopeEligibleForTraining($query)
+    public function scopeEligibleForTraining($query, string $targetType = 'junior')
     {
+        if (strtolower($targetType) === 'adult') {
+            return $query->where('member_type', 'adult')
+                ->where('status', 'active');
+        }
+
         return $query->where('member_type', 'junior')
             ->where('status', 'active')
             ->where('training_eligible', true);

@@ -32,6 +32,11 @@ class AuthController extends Controller
             ]);
         }
 
+        if (Hash::needsRehash($user->password)) {
+            $user->password = Hash::make($request->password);
+            $user->save();
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([

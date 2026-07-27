@@ -25,6 +25,7 @@ class PlaySchedule extends Model
         'hall_rate',
         'location',
         'status',
+        'cancel_reason',
         'is_league_match',
         'league_group_ids',
     ];

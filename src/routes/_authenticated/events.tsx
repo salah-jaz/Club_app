@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
 import { toast } from "sonner";
-import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users } from "lucide-react";
-import type { Member, PlayInvitation, PlaySchedule, Rotation, Training } from "@/lib/types";
+import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users, User } from "lucide-react";
+import type { Member, PlayInvitation, PlaySchedule, Rotation, Training, TrainingInvitation } from "@/lib/types";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { cn } from "@/lib/utils";
 
@@ -139,7 +139,7 @@ function Events() {
   );
   const playInvs = s.playInvites.filter((i) => myIds.includes(i.memberId));
   const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId));
-  const activePrograms = s.trainings.filter((t) => t.status === "released" || t.status === "open");
+  const invitedTrainingIds = new Set(trainInvs.map((i) => i.trainingId));
   const releasedSchedules = s.schedules.filter((sch) => sch.status === "released");
   const [courtsPopup, setCourtsPopup] = useState<{
     schedule: PlaySchedule;
@@ -148,6 +148,14 @@ function Events() {
   const [playersPopup, setPlayersPopup] = useState<PlaySchedule | null>(null);
 
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
+  const [bulkAcceptPopup, setBulkAcceptPopup] = useState<{
+    member: Member;
+    training: Training;
+    // Sessions belonging to this specific monthly invitation only
+    monthSessions: Training[];
+    invitedMonthSessions: Training[];
+    invites: TrainingInvitation[];
+  } | null>(null);
   const [autoInviting, setAutoInviting] = useState(false);
   const autoInviteAttempted = useRef<Set<string>>(new Set());
   const navigate = useNavigate();
@@ -262,8 +270,17 @@ function Events() {
   const invitedMemberIds = (trainingId: string) =>
     s.trainingInvites.filter((i) => i.trainingId === trainingId).map((i) => i.memberId);
 
-  const availableChildren = (trainingId: string) =>
-    juniorChildren.filter((c) => !invitedMemberIds(trainingId).includes(c.id));
+  const isMemberInvitedToParent = (parentId: string, memberId: string) => {
+    const childIds = s.trainings.filter(x => (x.parentId || x.id) === parentId).map(x => x.id);
+    return s.trainingInvites.some(i => i.memberId === memberId && childIds.includes(i.trainingId));
+  };
+
+  const availableMembersForParent = (parentId: string, targetType: string) => {
+    if (targetType === "adult") {
+      return adultPlayers.filter((m) => !isMemberInvitedToParent(parentId, m.id));
+    }
+    return juniorChildren.filter((c) => !isMemberInvitedToParent(parentId, c.id));
+  };
 
   const availablePlayMembers = (sch: PlaySchedule) => {
     const invited = new Set(
@@ -283,16 +300,74 @@ function Events() {
     );
   };
 
-  const trainingPrograms: Training[] = [
-    ...activePrograms,
-    ...trainInvs
-      .map((i) => s.trainings.find((t) => t.id === i.trainingId))
-      .filter((t): t is Training => !!t && !activePrograms.some((p) => p.id === t.id)),
-  ];
-
-  const uniquePrograms = trainingPrograms.filter(
-    (t, idx, arr) => arr.findIndex((x) => x.id === t.id) === idx,
+  const trainingPrograms = s.trainings.filter((t) => 
+    invitedTrainingIds.has(t.id) || t.status === "open" || t.status === "released"
   );
+
+  // Build monthly cards: one entry per (parentId, monthIndex) group
+  // This ensures each monthly invitation is shown independently
+  interface MonthlyTrainingCard {
+    key: string;
+    parentId: string;
+    monthIndex: number;
+    primarySession: Training; // First session in this month group
+    monthSessions: Training[]; // All sessions in this month group
+    repeatWeeks: number;
+  }
+
+  const monthlyTrainingCards = useMemo((): MonthlyTrainingCard[] => {
+    // Group all relevant trainings by parentId
+    const seriesMap = new Map<string, Training[]>();
+    for (const t of trainingPrograms) {
+      const pid = t.parentId || t.id;
+      if (!seriesMap.has(pid)) seriesMap.set(pid, []);
+      seriesMap.get(pid)!.push(t);
+    }
+
+    const cards: MonthlyTrainingCard[] = [];
+    for (const [pid, sessions] of seriesMap.entries()) {
+      const sorted = [...sessions].sort(
+        (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+      );
+      if (sorted.length === 0) continue;
+
+      const first = sorted[0];
+      // Use repeat_weeks stored on the session to chunk into monthly groups
+      const rw = Math.max(1, first.repeatWeeks || 1);
+
+      // Determine the total number of months from the full series in the store
+      const allSeriesSessions = s.trainings
+        .filter(x => (x.parentId || x.id) === pid)
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      const totalMonths = Math.max(1, Math.ceil(allSeriesSessions.length / rw));
+
+      for (let m = 0; m < totalMonths; m++) {
+        // Full month sessions from the complete series
+        const fullMonthSessions = allSeriesSessions.slice(m * rw, (m + 1) * rw);
+        if (fullMonthSessions.length === 0) continue;
+
+        const primary = fullMonthSessions[0];
+        // Only show this monthly card if at least one session is in trainingPrograms
+        const relevantIds = new Set(sorted.map(sess => sess.id));
+        const hasRelevantSession = fullMonthSessions.some(sess => relevantIds.has(sess.id));
+        if (!hasRelevantSession) continue;
+
+        cards.push({
+          key: `${pid}_m${m}`,
+          parentId: pid,
+          monthIndex: m,
+          primarySession: primary,
+          monthSessions: fullMonthSessions,
+          repeatWeeks: rw,
+        });
+      }
+    }
+
+    // Sort by primary session start date
+    return cards.sort(
+      (a, b) => new Date(a.primarySession.startDate).getTime() - new Date(b.primarySession.startDate).getTime()
+    );
+  }, [trainingPrograms, s.trainings]);
 
   const playSessions: PlaySchedule[] = [
     ...releasedSchedules,
@@ -395,8 +470,15 @@ function Events() {
     return list;
   }, [uniquePlaySessions, search, filters, sortBy, inviteStats]);
 
-  const invitesForTraining = (trainingId: string) =>
-    trainInvs.filter((i) => i.trainingId === trainingId);
+  const invitesForTraining = (trainingId: string) => {
+    const tr = s.trainings.find((t) => t.id === trainingId);
+    const targetType = tr?.targetType || "junior";
+    return trainInvs.filter((i) => {
+      if (i.trainingId !== trainingId) return false;
+      const mem = s.members.find((m) => m.id === i.memberId);
+      return mem ? mem.memberType === targetType : true;
+    });
+  };
 
   const invitesForSchedule = (scheduleId: string) =>
     playInvs.filter((i) => i.scheduleId === scheduleId);
@@ -423,7 +505,8 @@ function Events() {
       }
       return false;
     })();
-    const estimatedFee = isHoliday
+    const isCancelled = sch.status === "cancelled";
+    const estimatedFee = isCancelled || isHoliday
       ? 0
       : skipsLeagueFee
       ? 0
@@ -432,7 +515,6 @@ function Events() {
           member,
           discountsFromStore(s),
         );
-    // League matches allow accept with low credit (balance may go negative). Non-league blocks.
     const hasInsufficientCredits =
       !!member &&
       !member.skipCreditConsumption &&
@@ -441,7 +523,7 @@ function Events() {
       member.credit < estimatedFee;
 
     const responsesLocked =
-      sch.status === "rotated" || sch.status === "published" || sch.status === "closed";
+      (sch.status === "rotated" || sch.status === "published" || sch.status === "closed") && !isCancelled;
     const lockHours = Math.max(0, s.cancellationLockHours ?? 24);
     const matchStartMs = Date.parse(sch.date);
     const withinCancelWindow =
@@ -450,31 +532,43 @@ function Events() {
     const hoursLabel = lockHours === 1 ? "1 hour" : `${lockHours} hours`;
 
     const canAccept =
-      !isHoliday && !responsesLocked && (i.status === "open" || i.status === "declined");
-    const canDeclineWaiting = !isHoliday && !responsesLocked && i.status === "waiting";
+      !isCancelled && !isHoliday && !responsesLocked && (i.status === "open" || i.status === "declined");
+    const canDeclineWaiting = !isCancelled && !isHoliday && !responsesLocked && i.status === "waiting";
     const canDeclineAccepted =
-      !isHoliday && !responsesLocked && i.status === "accepted" && withinCancelWindow;
+      !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && withinCancelWindow;
     const canDecline = canDeclineWaiting || canDeclineAccepted;
     const declineLockedByTime =
-      !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
+      !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
+
+    const memberTypeLabel = member?.memberType === "junior" ? "Child" : "Player";
+
+    // For holiday sessions: hide all member-specific actions and details.
+    // Only show the holiday notice once (rendered at the card level).
+    if (isHoliday) {
+      return null;
+    }
 
     return (
-      <div key={i.id} className="pt-2 border-t border-white/[0.04] space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 flex items-center gap-2 flex-wrap">
-            <span className="text-[13px] font-medium text-[#F1F0EE]">
+      <div key={i.id} className="pt-2.5 border-t border-white/[0.04] space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="min-w-0">
+            <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
+              <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">{memberTypeLabel}:</span>
               {name(i.memberId)}
-            </span>
-            <span className="text-xs font-mono font-medium text-[#34D399]">
-              {fmtMoney(estimatedFee)}
-            </span>
+            </div>
+            <div className="text-[11px] text-[#8A8A98] mt-0.5">
+              Session Fee:{" "}
+              <span className="font-semibold font-mono text-[#3B82F6]">
+                {fmtMoney(estimatedFee)}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
             <StatusBadge kind="invitation" status={i.status === "declined" ? "open" : i.status} />
             {canAccept && (
               <Button
                 size="sm"
-                className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer"
+                className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                 onClick={async () => {
                   if (hasInsufficientCredits && member) {
                     setCreditGap({
@@ -511,8 +605,8 @@ function Events() {
             {canDecline && (
               <Button
                 size="sm"
-                variant="destructive"
-                className="btn-premium-danger h-7 px-3 text-[11px] font-semibold cursor-pointer"
+                variant="outline"
+                className="btn-premium-danger h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                 onClick={async () => {
                   try {
                     await s.respondPlay(i.id, "declined");
@@ -532,7 +626,7 @@ function Events() {
           </div>
         </div>
         {canAccept && hasInsufficientCredits && (
-          <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5 font-light">
+          <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
               <span className="font-semibold">Alert:</span> Insufficient credits (
@@ -540,23 +634,23 @@ function Events() {
             </span>
           </div>
         )}
-        {isHoliday && (
-          <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
-            <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-            <span>
-              <span className="font-semibold">{holidayName}:</span> Accept and decline are closed for
-              this session.
-            </span>
+        {isCancelled && (
+          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+            <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
+            <div className="space-y-0.5">
+              <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
+              <div className="text-[#EF4444]/90 font-light">{sch.cancelReason || "No reason specified."}</div>
+            </div>
           </div>
         )}
         {responsesLocked && (
-          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-lg px-2.5 py-1.5 flex items-start gap-1.5">
+          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5 flex items-start gap-1.5">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#8A8A98]" />
             <span>Court rotation is locked — accept and decline are closed for all members.</span>
           </div>
         )}
         {declineLockedByTime && (
-          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
+          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
             <span>
               <span className="font-semibold">Cancellation closed:</span> You cannot cancel within{" "}
@@ -612,7 +706,7 @@ function Events() {
               {
                 key: "accepted" as const,
                 label: "Accepted",
-                color: "text-[#2DD4BF]",
+                color: "text-[#3B82F6]",
                 countLabel: `(${lists.accepted.length} / ${maxPlayers})`,
                 items: lists.accepted,
               },
@@ -629,7 +723,7 @@ function Events() {
                 {columns.map((col) => (
                   <div
                     key={col.key}
-                    className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 overflow-hidden"
+                    className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 overflow-hidden"
                   >
                     <div className="px-3 py-2.5 border-b border-white/[0.04] flex items-center justify-between gap-2">
                       <span className="text-[11px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
@@ -639,7 +733,7 @@ function Events() {
                     </div>
                     <div className="px-3 py-2 max-h-[320px] overflow-y-auto space-y-0.5">
                       {col.items.length === 0 ? (
-                        <p className="text-[13px] font-light text-[#4A5E58] py-3 text-center">
+                        <p className="text-[13px] font-light text-[#8A8A98] py-3 text-center">
                           No members listed.
                         </p>
                       ) : (
@@ -649,7 +743,7 @@ function Events() {
                           return (
                             <div
                               key={inv.id}
-                              className="text-[13px] text-[#EEF2F0] py-2 border-b border-white/[0.03] last:border-0 font-semibold flex items-center gap-2"
+                              className="text-[13px] text-[#F1F0EE] py-2 border-b border-white/[0.03] last:border-0 font-medium flex items-center gap-2"
                             >
                               <span className="font-mono text-[10px] text-[#8A8A98] shrink-0">
                                 {idx + 1}.
@@ -712,8 +806,106 @@ function Events() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {bulkAcceptPopup && (() => {
+        const { member, training, monthSessions, invitedMonthSessions, invites } = bulkAcceptPopup;
+        const isAdult = training.targetType === "adult";
+        
+        // Fee per week = total monthly fee / number of weeks in this month
+        // monthSessions.length = number of weekly sessions in this monthly invitation
+        const weeksInThisMonth = Math.max(1, monthSessions.length);
+        const basePerWeekFee = (training.fees || 0) / weeksInThisMonth;
+        
+        const feePerWeek = applyMemberFee(basePerWeekFee, member, discountsFromStore(s));
+        // Only charge for weeks the member was actually invited to
+        const invitedWeeksCount = invitedMonthSessions.length;
+        const totalFee = feePerWeek * invitedWeeksCount;
+        const balanceAfter = member.credit - totalFee;
+
+        return (
+          <AlertDialog open={!!bulkAcceptPopup} onOpenChange={(open) => !open && setBulkAcceptPopup(null)}>
+            <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-[#F1F0EE]">
+                  Accept Training Program
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-[#8A8A98] text-left space-y-4 pt-2">
+                  <div className="space-y-1">
+                    <div className="text-sm font-semibold text-[#F1F0EE]">{training.name}</div>
+                    <div className="text-xs">Coach {training.coach} · {training.location}</div>
+                    <div className="text-xs">{isAdult ? "Adult" : "Junior"} Training</div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-[#F1F0EE]">Invited Dates (This Month):</div>
+                    <ul className="list-disc pl-4 text-xs space-y-0.5 text-[#8A8A98]">
+                      {invitedMonthSessions.map(ct => (
+                        <li key={ct.id}>{fmtDate(ct.startDate)}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="space-y-2 border-t border-[rgba(255,255,255,0.1)] pt-3">
+                    <div className="flex justify-between text-xs text-[#8A8A98]">
+                      <span>Monthly fee ({weeksInThisMonth} week{weeksInThisMonth !== 1 ? "s" : ""})</span>
+                      <span className="font-mono">{fmtMoney(training.fees)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span>Fee per week</span>
+                      <span className="font-mono text-[#3B82F6]">{fmtMoney(feePerWeek)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-semibold text-[#F1F0EE]">
+                      <span>Total deduction ({invitedWeeksCount} invited week{invitedWeeksCount !== 1 ? "s" : ""})</span>
+                      <span className="font-mono">{fmtMoney(totalFee)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-[#8A8A98]">
+                      <span>Current Wallet Balance</span>
+                      <span className="font-mono">{fmtMoney(member.credit)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>Balance After Deduction</span>
+                      <span className={cn("font-mono", balanceAfter < 0 ? "text-red-400" : "text-green-400")}>
+                        {fmtMoney(balanceAfter)}
+                      </span>
+                    </div>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="btn-premium-outline cursor-pointer mt-0">
+                  Cancel
+                </AlertDialogCancel>
+                <Button
+                  className="btn-premium-solid cursor-pointer"
+                  onClick={async () => {
+                    if (balanceAfter < 0 && !member.skipCreditConsumption) {
+                      setBulkAcceptPopup(null);
+                      setCreditGap({
+                        memberId: member.id,
+                        balance: member.credit,
+                        required: totalFee,
+                      });
+                      return;
+                    }
+                    
+                    try {
+                      await s.respondTrainingBulk(invites.map(i => i.id), "accepted");
+                      toast.success("Training program accepted successfully!");
+                      setBulkAcceptPopup(null);
+                    } catch (error: any) {
+                      toast.error(error.message || "Failed to accept training program.");
+                    }
+                  }}
+                >
+                  Confirm Accept
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        );
+      })()}
+
       <PageHeader
-        title="Play Sessions"
+        title="Events"
         description={`Enroll in released play sessions and training programs. Play cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before the match starts.`}
       />
 
@@ -736,8 +928,8 @@ function Events() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-2">
-              <CalendarDays className="size-4 text-[#10B981]" /> Play Sessions
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
+              <CalendarDays className="size-4 text-[#3B82F6]" /> Play Sessions
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
@@ -761,7 +953,7 @@ function Events() {
             </div>
             {filteredPlaySessions.length === 0 && (
               <div className="py-4 space-y-3">
-                <p className="text-[13px] font-light text-[#4A5E58] text-center">
+                <p className="text-[13px] font-light text-[#8A8A98] text-center">
                   {uniquePlaySessions.length === 0
                     ? "No play sessions are open yet."
                     : "No play sessions match your filters."}
@@ -787,12 +979,9 @@ function Events() {
               const scheduleInvites = invitesForSchedule(sch.id);
               const canEnroll = sch.status === "released";
               const waitingForInvite = canEnroll && available.length > 0 && (autoInviting || scheduleInvites.length === 0);
-              const acceptedCount = s.playInvites.filter(
-                (i) => i.scheduleId === sch.id && i.status === "accepted",
-              ).length;
-              const maxPlayers = Math.max(sch.players || 0, 1);
               const holidayName = getHolidayName(sch.date);
               const isHoliday = !!holidayName;
+              const isCancelled = sch.status === "cancelled";
 
               return (
                 <div
@@ -800,7 +989,7 @@ function Events() {
                   className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 rounded-lg p-4 space-y-3"
                 >
                   <div className="flex justify-between items-start gap-3">
-                    <div className="min-w-0">
+                    <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="font-semibold text-[#F1F0EE] text-[14px]">{sch.name}</div>
                         {sch.isLeagueMatch && (
@@ -809,29 +998,47 @@ function Events() {
                             League
                           </span>
                         )}
-                        {holidayName && (
-                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24]">
-                            {holidayName}
+                        {sch.status === "cancelled" ? (
+                          <span className="inline-flex items-center rounded-md border border-[#EF4444]/35 bg-[#EF4444]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#EF4444] uppercase">
+                            Cancelled
                           </span>
-                        )}
+                        ) : holidayName ? (
+                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
+                            Holiday
+                          </span>
+                        ) : null}
                       </div>
-                      <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
+                      <div className="text-[11px] text-[#8A8A98] font-mono font-light">
                         {fmtDateTime(sch.date)} · {sch.location}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                      <span className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-[#0C0F0E] px-2.5 py-1 font-mono text-[11px] text-[#F1F0EE]">
-                        <Users className="size-3.5 text-[#8A8A98]" />
-                        {acceptedCount}/{maxPlayers}
-                      </span>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
                       <StatusBadge status={sch.status} />
-                      {(sch.status === "published" || sch.status === "closed") &&
+                      {!isHoliday &&
+                        (sch.status === "released" ||
+                          sch.status === "rotated" ||
+                          sch.status === "published" ||
+                          sch.status === "closed" ||
+                          sch.status === "cancelled") && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer"
+                            onClick={() => openPlayersPopup(sch)}
+                          >
+                            <Users className="size-3.5 mr-1" />
+                            View players
+                          </Button>
+                        )}
+                      {!isHoliday &&
+                        (sch.status === "published" || sch.status === "closed") &&
                         s.rotations.some((r) => r.scheduleId === sch.id) && (
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="btn-premium-outline h-7 px-2.5 text-[11px] cursor-pointer"
+                            className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer"
                             onClick={() => openCourtsPopup(sch)}
                           >
                             <LayoutGrid className="size-3.5 mr-1" />
@@ -841,8 +1048,18 @@ function Events() {
                     </div>
                   </div>
 
+                  {sch.status === "cancelled" && scheduleInvites.length === 0 && (
+                    <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+                      <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
+                      <div className="space-y-0.5">
+                        <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
+                        <div className="text-[#EF4444]/90 font-light">{sch.cancelReason || "No reason specified."}</div>
+                      </div>
+                    </div>
+                  )}
+
                   {canEnroll && adultPlayers.length === 0 && playEligibleJuniors.length === 0 && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.03]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.04]">
                       <p className="text-[12px] text-muted-foreground">
                         Add an eligible family member to join this session.
                       </p>
@@ -864,26 +1081,36 @@ function Events() {
                     available.length === 0 &&
                     availableJuniors.length === 0 &&
                     scheduleInvites.length === 0 && (
-                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.03]">
+                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.04]">
                         No eligible members for this session.
                       </p>
                     )}
 
                   {waitingForInvite && scheduleInvites.length === 0 && (
-                    <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.03]">
+                    <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.04]">
                       Preparing invitation…
                     </p>
                   )}
 
                   {canEnroll && !sch.isLeagueMatch && availableJuniors.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-white/[0.03]">
-                      {isHoliday ? (
-                        <div className="text-[11px] text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/25 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5">
-                          <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-                          <span>
-                            <span className="font-semibold">{holidayName}:</span> Accept and decline are closed for
-                            this session.
-                          </span>
+                    <div className="space-y-2 pt-2 border-t border-white/[0.04]">
+                      {isCancelled ? (
+                        <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+                          <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
+                            <div className="text-[#EF4444]/90 font-light">{sch.cancelReason || "No reason specified."}</div>
+                          </div>
+                        </div>
+                      ) : isHoliday ? (
+                        <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
+                          <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#FBBF24]" />
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-[#FBBF24]">Holiday: {holidayName}</div>
+                            <div className="text-[#FBBF24]/90 font-light">
+                              Accept and decline are closed for this session.
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         <div className="grid gap-2">
@@ -901,20 +1128,24 @@ function Events() {
                             return (
                               <div
                                 key={child.id}
-                                className="flex items-center justify-between gap-3 p-2 bg-[#0C0F0E]/50 border border-white/[0.04] rounded-lg"
+                                className="flex items-center justify-between gap-3 px-4 py-3 bg-[#F0F5FF] border border-[#D6E4FF] rounded-lg shadow-sm"
                               >
-                                <div className="min-w-0 flex items-center gap-2">
-                                  <span className="text-[13px] font-medium text-[#F1F0EE] truncate">
-                                    {child.firstName} {child.lastName}
-                                  </span>
-                                  <span className="text-xs font-mono text-[#34D399] font-medium">
-                                    {fmtMoney(estimatedFee)}
-                                  </span>
+                                <div className="min-w-0 space-y-0.5">
+                                  <div className="flex items-center gap-1.5 font-bold text-slate-900 text-[13.5px] truncate">
+                                    <User className="size-3.5 text-[#2563EB] shrink-0" />
+                                    <span className="truncate">{child.firstName} {child.lastName}</span>
+                                  </div>
+                                  <div className="text-[11.5px] text-slate-700 font-medium">
+                                    Grade {child.grade} · Session Fee:{" "}
+                                    <span className="font-mono font-bold text-[#2563EB]">
+                                      {fmtMoney(estimatedFee)}
+                                    </span>
+                                  </div>
                                 </div>
                                 <Button
                                   size="sm"
                                   disabled={enrollingId === acceptingKey}
-                                  className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer shrink-0"
+                                  className="btn-premium-solid h-7.5 px-3.5 text-[11px] font-semibold cursor-pointer shrink-0"
                                   onClick={async () => {
                                     if (hasInsufficientCredits) {
                                       setCreditGap({
@@ -956,8 +1187,26 @@ function Events() {
                     </div>
                   )}
 
-                  {scheduleInvites.map((i) =>
-                    renderPlayInviteActions(i, sch),
+                  {isHoliday && (
+                    <div className="pt-2.5 border-t border-white/[0.04]">
+                      <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
+                        <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#FBBF24]" />
+                        <div className="space-y-0.5">
+                          <div className="font-semibold text-[#FBBF24]">Holiday: {holidayName}</div>
+                          <div className="text-[#FBBF24]/90 font-light">
+                            This session is closed for this public holiday. No actions are available.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!isHoliday && scheduleInvites.length > 0 && (
+                    <div className="space-y-1">
+                      {scheduleInvites.map((i) =>
+                        renderPlayInviteActions(i, sch),
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -967,14 +1216,14 @@ function Events() {
 
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
-            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-2">
-              <GraduationCap className="size-4 text-[#10B981]" /> Training Programs
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
+              <GraduationCap className="size-4 text-[#3B82F6]" /> Training Programs
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
-            {uniquePrograms.length === 0 && (
+            {monthlyTrainingCards.length === 0 && (
               <div className="py-4 space-y-3">
-                <p className="text-[13px] font-light text-[#4A5E58] text-center">
+                <p className="text-[13px] font-light text-[#8A8A98] text-center">
                   No training programs are open yet.
                 </p>
                 {juniorChildren.length === 0 && (
@@ -992,39 +1241,82 @@ function Events() {
               </div>
             )}
 
-            {uniquePrograms.map((t) => {
-              const children = availableChildren(t.id);
-              const programInvites = invitesForTraining(t.id);
+            {monthlyTrainingCards.map((card) => {
+              const t = card.primarySession;
+              const targetType = t.targetType || "junior";
+              const parentId = card.parentId;
+              // monthSessions = only the sessions belonging to THIS monthly invitation
+              const monthSessions = card.monthSessions;
+              const monthSessionIds = new Set(monthSessions.map(ms => ms.id));
+
+              // Only invites that belong to this month's sessions
+              const familyMonthInvites = trainInvs.filter(i => monthSessionIds.has(i.trainingId));
+
+              // Members who are NOT yet invited to any session in this month
+              const invitedMemberIdsThisMonth = new Set(familyMonthInvites.map(i => i.memberId));
+              const candidateMembers = (() => {
+                const pool = targetType === "adult" ? adultPlayers : juniorChildren;
+                return pool.filter(m => !invitedMemberIdsThisMonth.has(m.id));
+              })();
+
+              // Group this month's invites by member
+              const memberInvitesMap = new Map<string, typeof familyMonthInvites>();
+              for (const inv of familyMonthInvites) {
+                if (!memberInvitesMap.has(inv.memberId)) memberInvitesMap.set(inv.memberId, []);
+                memberInvitesMap.get(inv.memberId)!.push(inv);
+              }
+
               const canEnroll = t.status === "open" || t.status === "released";
               const holidayName = getHolidayName(t.startDate);
+              const familyMatchingMembers = targetType === "adult" ? adultPlayers : juniorChildren;
+
+              // Month label for display
+              const monthDate = new Date(t.startDate);
+              const monthLabel = Number.isNaN(monthDate.getTime())
+                ? ""
+                : monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
               return (
                 <div
-                  key={t.id}
+                  key={card.key}
                   className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 rounded-lg p-4 space-y-3"
                 >
                   <div className="flex justify-between items-start gap-3">
-                    <div className="min-w-0">
+                    <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="font-semibold text-[#F1F0EE] text-[14px]">{t.name}</div>
-                        {holidayName && (
-                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24]">
-                            {holidayName}
+                        {monthLabel && (
+                          <span className="inline-flex items-center rounded-md border border-[#34D399]/30 bg-[#34D399]/10 px-2 py-0.5 text-[11px] font-semibold text-[#34D399]">
+                            {monthLabel}
                           </span>
                         )}
+                        {holidayName && (
+                          <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
+                            Holiday
+                          </span>
+                        )}
+                        <span className="inline-flex items-center rounded-md border border-[#10B981]/30 bg-[#10B981]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#10B981] uppercase">
+                          {targetType === "adult" ? "Adult" : "Junior"}
+                        </span>
                       </div>
-                      <div className="text-[11px] text-[#8A8A98] mt-1 font-light font-mono">
-                        Coach {t.coach} · {fmtDate(t.startDate)} → {fmtDate(t.endDate)} · {t.sessions}{" "}
-                        sessions
+                      <div className="text-[11px] text-[#8A8A98] font-mono font-light">
+                        Coach {t.coach} · {t.location}
+                        {monthSessions.length > 0 && (
+                          <span className="ml-1">
+                            · {monthSessions.map(ms => new Date(ms.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })).join(", ")}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <StatusBadge status={t.status} />
                   </div>
 
-                  {canEnroll && juniorChildren.length === 0 && (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.03]">
+                  {canEnroll && familyMatchingMembers.length === 0 && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.04]">
                       <p className="text-[12px] text-muted-foreground">
-                        Add a junior family member to enroll.
+                        {targetType === "adult"
+                          ? "Add an adult family member to enroll."
+                          : "Add a junior family member to enroll."}
                       </p>
                       <Button
                         asChild
@@ -1039,101 +1331,137 @@ function Events() {
                     </div>
                   )}
 
-                  {canEnroll && children.length > 0 && (
-                    <div className="grid gap-2 pt-2 border-t border-white/[0.03]">
-                      {children.map((child) => {
-                        const childFee = applyMemberFee(t.fees, child, discountsFromStore(s));
-                        const acceptingKey = `${t.id}:${child.id}`;
-                        return (
-                          <div
-                            key={child.id}
-                            className="flex items-center justify-between gap-3 p-2 bg-[#0C0F0E]/50 border border-white/[0.04] rounded-lg"
-                          >
-                            <div className="min-w-0 flex items-center gap-2">
-                              <span className="text-[13px] font-medium text-[#F1F0EE] truncate">
-                                {child.firstName} {child.lastName}
-                              </span>
-                              <span className="text-xs font-mono text-[#34D399] font-medium">
-                                {fmtMoney(childFee)}
-                              </span>
-                            </div>
-                            <Button
-                              size="sm"
-                              disabled={enrollingId === acceptingKey}
-                              className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer shrink-0"
-                              onClick={async () => {
-                                setEnrollingId(acceptingKey);
-                                try {
-                                  await enrollTraining(t.id, [child.id]);
-                                  toast.success(`Accepted ${child.firstName} into training`);
-                                } catch (error: any) {
-                                  toast.error(error.message || "Failed to accept child.");
-                                } finally {
-                                  setEnrollingId(null);
-                                }
-                              }}
+                  {canEnroll && candidateMembers.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-white/[0.04]">
+                      <p className="text-[11px] font-medium tracking-[0.08em] text-[#8A8A98] uppercase">
+                        {targetType === "adult" ? "Accept into this program" : "Accept children into this program"}
+                      </p>
+                      <div className="grid gap-2">
+                        {candidateMembers.map((mem) => {
+                          // For self-enrollment: charge the full monthly fee
+                          const memFee = applyMemberFee(t.fees, mem, discountsFromStore(s));
+                          const acceptingKey = `${card.key}:${mem.id}`;
+                          return (
+                            <div
+                              key={mem.id}
+                              className="flex items-center justify-between gap-3 p-2.5 bg-[#1A2120]/60 border border-[rgba(255,255,255,0.04)] rounded-lg"
                             >
-                              Accept
-                            </Button>
-                          </div>
-                        );
-                      })}
+                              <div className="min-w-0">
+                                <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
+                                  {mem.firstName} {mem.lastName}
+                                </div>
+                                <div className="text-[11px] text-[#8A8A98]">
+                                  Grade {mem.grade} · Fee{" "}
+                                  <span className="font-mono font-semibold text-[#3B82F6]">
+                                    {fmtMoney(memFee)}
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                disabled={enrollingId === acceptingKey}
+                                className="btn-premium-solid h-7.5 px-3.5 text-[11px] font-semibold cursor-pointer shrink-0"
+                                onClick={async () => {
+                                  setEnrollingId(acceptingKey);
+                                  try {
+                                    await enrollTraining(t.id, [mem.id]);
+                                    toast.success(`Accepted ${mem.firstName} into training`);
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to accept member.");
+                                  } finally {
+                                    setEnrollingId(null);
+                                  }
+                                }}
+                              >
+                                Accept
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
-                  {programInvites.map((i) => (
-                    <div key={i.id} className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.03]">
-                      <div className="min-w-0 flex items-center gap-2">
-                        <span className="text-[13px] font-medium text-[#F1F0EE] truncate">
-                          {name(i.memberId)}
-                        </span>
-                        <StatusBadge kind="invitation" status={i.status} />
-                      </div>
-                      {i.status === "open" && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            size="sm"
-                            className="btn-premium-solid h-7 px-3 text-[11px] font-semibold cursor-pointer"
-                            onClick={async () => {
-                              try {
-                                await s.respondTraining(i.id, "accepted");
-                                toast.success("Accepted invitation");
-                              } catch (error: any) {
-                                toast.error(error.message || "Failed to respond to invitation.");
-                              }
-                            }}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="btn-premium-outline h-7 px-3 text-[11px] cursor-pointer"
-                            onClick={async () => {
-                              try {
-                                await s.respondTraining(i.id, "declined");
-                                toast.success("Declined invitation");
-                              } catch (error: any) {
-                                toast.error(error.message || "Failed to respond to invitation.");
-                              }
-                            }}
-                          >
-                            Decline
-                          </Button>
+                  {Array.from(memberInvitesMap.entries()).map(([memberId, mInvites]) => {
+                    const member = s.members.find(m => m.id === memberId);
+                    if (!member) return null;
+                    
+                    const hasOpen = mInvites.some(i => i.status === "open");
+                    const isAllAccepted = mInvites.every(i => i.status === "accepted");
+                    const displayStatus = isAllAccepted ? "accepted" : hasOpen ? "open" : mInvites[0].status;
+                    
+                    // Only the sessions within this month that the member was invited to
+                    const invitedMonthSessions = monthSessions.filter(ms =>
+                      mInvites.some(i => i.trainingId === ms.id)
+                    );
+                    
+                    return (
+                      <div key={memberId} className="flex items-center justify-between gap-3 pt-2.5 border-t border-white/[0.04]">
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
+                            <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">
+                              {targetType === "adult" ? "Member:" : "Child:"}
+                            </span>
+                            {name(memberId)}
+                          </div>
+                          <div className="text-[11px] text-[#8A8A98]">
+                            {invitedMonthSessions.length} invited session{invitedMonthSessions.length !== 1 ? "s" : ""} this month
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <StatusBadge kind="invitation" status={displayStatus} />
+                          {hasOpen && (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
+                                onClick={() => {
+                                  setBulkAcceptPopup({
+                                    member,
+                                    training: t,
+                                    // Pass the full month sessions so we can calculate per-week fee correctly
+                                    monthSessions,
+                                    // Only the sessions this member was invited to in this month
+                                    invitedMonthSessions,
+                                    invites: mInvites.filter(i => i.status !== "accepted")
+                                  });
+                                }}
+                              >
+                                Accept
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
+                                onClick={async () => {
+                                  try {
+                                    await s.respondTrainingBulk(mInvites.map(i => i.id), "declined");
+                                    toast.success("Declined invitation");
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to decline invitation.");
+                                  }
+                                }}
+                              >
+                                Decline
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
 
                   {canEnroll &&
-                    juniorChildren.length > 0 &&
-                    children.length === 0 &&
-                    programInvites.length === 0 && (
-                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.03]">
-                        No eligible children left to accept for this program.
+                    familyMatchingMembers.length > 0 &&
+                    candidateMembers.length === 0 &&
+                    familyMonthInvites.length === 0 && (
+                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.04]">
+                        {targetType === "adult"
+                          ? "No eligible adult members left to accept for this program."
+                          : "No eligible children left to accept for this program."}
                       </p>
                     )}
-                </div>
+              </div>
               );
             })}
           </CardContent>

@@ -124,7 +124,8 @@ export interface PlaySchedule {
   sessionRate: number;
   hallRate: number;
   location: string;
-  status: "open" | "released" | "rotated" | "published" | "closed";
+  status: "open" | "released" | "rotated" | "published" | "closed" | "cancelled";
+  cancelReason?: string | null;
   isLeagueMatch?: boolean;
   leagueGroupIds?: string[];
 }
@@ -157,9 +158,12 @@ export interface Rotation {
 
 export interface Training {
   id: string;
+  parentId?: string;
   name: string;
   startDate: string;
   endDate: string;
+  repeatWeeks?: number;
+  repeatMonths?: number;
   sessions: number;
   slots: number;
   duration: string;
@@ -167,6 +171,7 @@ export interface Training {
   coach: string;
   location: string;
   status: "open" | "released" | "closed";
+  targetType?: "adult" | "junior";
 }
 
 export interface TrainingInvitation {

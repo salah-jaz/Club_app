@@ -109,8 +109,8 @@ class MemberController extends Controller
                         'nickname' => $request->nickname,
                         'status' => $request->status,
                         'credit' => 0.00,
-                        'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
-                        'apply_discount' => $request->boolean('applyDiscount'),
+                        'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
+                        'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
                     ]);
                 }
 
@@ -138,7 +138,7 @@ class MemberController extends Controller
                     'email' => $request->email,
                     'sex' => $request->sex,
                     'member_type' => $request->memberType,
-                    'membership' => $request->membership,
+                    'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
                     'training_eligible' => $this->resolveTrainingEligible($request),
                     'play_eligible' => $this->resolvePlayEligible($request),
                     'grade' => $request->grade,
@@ -146,14 +146,19 @@ class MemberController extends Controller
                     'nickname' => $request->nickname,
                     'status' => $request->status,
                     'credit' => 0.00,
-                    'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
-                    'apply_discount' => $request->boolean('applyDiscount'),
+                    'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
+                    'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
                 ]);
             });
         } else {
             $request->validate(array_merge($memberRules, [
-                'userId' => $isAdmin ? 'required|string' : 'sometimes|string',
+                'userId' => ($isAdmin && $request->memberType !== 'junior') ? 'required|string' : 'nullable|string',
             ]));
+
+            $biMemberId = $request->biMemberId;
+            if (empty($biMemberId)) {
+                $biMemberId = $this->nextBiMemberId()->getData()->nextBiMemberId ?? null;
+            }
 
             // Members may only add juniors under their own account (pending approval).
             if (!$isAdmin) {
@@ -182,7 +187,7 @@ class MemberController extends Controller
                     'training_eligible' => false,
                     'play_eligible' => false,
                     'grade' => $request->grade,
-                    'bi_member_id' => $request->biMemberId,
+                    'bi_member_id' => $biMemberId,
                     'nickname' => $request->nickname,
                     'status' => 'pending',
                     'credit' => 0.00,
@@ -195,10 +200,14 @@ class MemberController extends Controller
 
             $parentId = $request->input('parentMemberId');
             $parent = $parentId ? Member::find($parentId) : null;
+            $userId = $request->userId;
+            if ($request->memberType === 'junior' && $parent && $parent->user_id) {
+                $userId = $parent->user_id;
+            }
 
             $member = Member::create([
                 'id' => 'm_' . Str::random(8),
-                'user_id' => $request->userId,
+                'user_id' => $userId,
                 'parent_member_id' => $request->memberType === 'junior' ? ($parentId ?: null) : null,
                 'first_name' => $request->firstName,
                 'last_name' => $request->lastName,
@@ -206,16 +215,16 @@ class MemberController extends Controller
                 'email' => $request->email,
                 'sex' => $request->sex,
                 'member_type' => $request->memberType,
-                'membership' => $request->membership,
+                'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
                 'training_eligible' => $this->resolveTrainingEligible($request),
                 'play_eligible' => $this->resolvePlayEligible($request),
                 'grade' => $request->grade,
-                'bi_member_id' => $request->biMemberId,
+                'bi_member_id' => $biMemberId,
                 'nickname' => $request->nickname,
                 'status' => $request->status,
                 'credit' => 0.00,
-                'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
-                'apply_discount' => $request->boolean('applyDiscount'),
+                'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
+                'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
             ]);
         }
 
@@ -243,10 +252,9 @@ class MemberController extends Controller
         if ($request->has('nickname')) $data['nickname'] = $request->nickname;
 
         if ($isAdmin) {
-            if ($request->has('memberType')) $data['member_type'] = $request->memberType;
-            if ($request->has('membership')) $data['membership'] = $request->membership;
-            if ($request->has('trainingEligible')) $data['training_eligible'] = $request->trainingEligible;
-            if ($request->has('playEligible')) $data['play_eligible'] = $request->playEligible;
+            if ($request->has('membership')) $data['membership'] = $request->boolean('membership');
+            if ($request->has('trainingEligible')) $data['training_eligible'] = $request->boolean('trainingEligible');
+            if ($request->has('playEligible')) $data['play_eligible'] = $request->boolean('playEligible');
             if ($request->has('status')) {
                 if (!in_array($request->status, ['active', 'disabled', 'pending', 'rejected'], true)) {
                     return response()->json(['message' => 'Invalid status.'], 422);
@@ -254,8 +262,8 @@ class MemberController extends Controller
                 $data['status'] = $request->status;
             }
             if ($request->has('credit')) $data['credit'] = $request->credit;
-            if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->skipCreditConsumption;
-            if ($request->has('applyDiscount')) $data['apply_discount'] = $request->applyDiscount;
+            if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->boolean('skipCreditConsumption');
+            if ($request->has('applyDiscount')) $data['apply_discount'] = $request->boolean('applyDiscount');
             if ($request->has('parentMemberId')) {
                 $parentId = $request->input('parentMemberId') ?: null;
                 if ($parentId) {
@@ -484,7 +492,7 @@ class MemberController extends Controller
         ]);
     }
 
-    private function formatMember(Member $m)
+    private function formatMember(Member|\stdClass $m)
     {
         return [
             'id' => $m->id,

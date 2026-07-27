@@ -22,13 +22,14 @@ function NewTraining() {
     name: "",
     startDate: "",
     endDate: "",
-    sessions: 3,
+    repeatWeeks: 3,
     repeatMonths: 1,
     slots: 12,
     duration: "1 hour",
     fees: 120,
     coach: coaches[0] || "Coach Lee",
     location: locations[0] || "",
+    targetType: "junior" as "adult" | "junior",
   });
 
   const [nameTouched, setNameTouched] = useState(false);
@@ -51,27 +52,33 @@ function NewTraining() {
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.startDate), [f.startDate]);
 
   const repeatPreview = useMemo(() => {
+    const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
     const months = Math.max(1, Math.min(24, Number(f.repeatMonths) || 1));
-    const perMonth = Math.max(1, Number(f.sessions) || 1);
     if (!f.startDate) return null;
     const start = new Date(f.startDate);
     if (Number.isNaN(start.getTime())) return null;
 
-    const lastSessionStart = new Date(start);
-    lastSessionStart.setMonth(lastSessionStart.getMonth() + (months - 1));
-    lastSessionStart.setDate(lastSessionStart.getDate() + (perMonth - 1) * 7);
+    const dates: Date[] = [];
+    for (let m = 0; m < months; m++) {
+      for (let w = 0; w < weeks; w++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + (m * 4 + w) * 7);
+        dates.push(d);
+      }
+    }
 
-    const endIso = `${lastSessionStart.getFullYear()}-${String(lastSessionStart.getMonth() + 1).padStart(2, "0")}-${String(lastSessionStart.getDate()).padStart(2, "0")}`;
-    const endLabel = parseScheduleDateTime(`${endIso}T${String(lastSessionStart.getHours()).padStart(2, "0")}:${String(lastSessionStart.getMinutes()).padStart(2, "0")}`);
+    const lastSession = dates[dates.length - 1];
+    const endIso = `${lastSession.getFullYear()}-${String(lastSession.getMonth() + 1).padStart(2, "0")}-${String(lastSession.getDate()).padStart(2, "0")}`;
+    const endLabel = parseScheduleDateTime(`${endIso}T${String(lastSession.getHours()).padStart(2, "0")}:${String(lastSession.getMinutes()).padStart(2, "0")}`);
 
     return {
+      weeks,
       months,
-      perMonth,
-      totalSessions: perMonth * months,
-      endDate: endLabel?.date ?? lastSessionStart.toLocaleDateString(),
+      totalSessions: dates.length,
+      endDate: endLabel?.date ?? lastSession.toLocaleDateString(),
       endIso,
     };
-  }, [f.startDate, f.sessions, f.repeatMonths]);
+  }, [f.startDate, f.repeatWeeks, f.repeatMonths]);
 
   const onDateChange = (value: string) => {
     const parsed = parseScheduleDateTime(value);
@@ -84,28 +91,35 @@ function NewTraining() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="New training program" description="Set up a weekly coaching program for juniors." backTo="/trainings" />
+      <PageHeader title="New training program" description="Set up a weekly coaching program." backTo="/trainings" />
       <form onSubmit={async (e) => {
         e.preventDefault();
+        if (!f.targetType) {
+          toast.error("Please select Training For (Adult or Junior).");
+          return;
+        }
         setSubmitting(true);
         try {
-          const totalSessions = Math.max(1, Number(f.sessions) || 1) * Math.max(1, Number(f.repeatMonths) || 1);
+          const totalSessions = Math.max(1, Number(f.repeatWeeks) || 1) * Math.max(1, Number(f.repeatMonths) || 1);
           const computedEndDate = repeatPreview?.endIso || f.endDate || f.startDate.split("T")[0];
 
           const payload = {
             name: f.name,
             startDate: f.startDate,
             endDate: computedEndDate,
+            repeatWeeks: Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1)),
+            repeatMonths: Math.max(1, Math.min(24, Number(f.repeatMonths) || 1)),
             sessions: totalSessions,
             slots: f.slots,
             duration: f.duration,
             fees: f.fees,
             coach: f.coach,
             location: f.location,
+            targetType: f.targetType,
           };
 
           await create(payload as any);
-          toast.success("Training created and opened for family enrollment");
+          toast.success("Training program created successfully");
           navigate({ to: "/trainings" });
         } catch (error: any) {
           toast.error(error.message || "Failed to create training.");
@@ -165,16 +179,17 @@ function NewTraining() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">No. of Sessions</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Repeat for Weeks</Label>
               <Input
                 required
                 type="number"
                 min={1}
-                value={f.sessions}
-                onChange={(e) => set("sessions", Math.max(1, +e.target.value || 1))}
+                max={52}
+                value={f.repeatWeeks}
+                onChange={(e) => set("repeatWeeks", Math.max(1, Math.min(52, +e.target.value || 1)))}
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
               />
-              <p className="text-[11px] text-[#8A8A98]">Number of sessions per month.</p>
+              <p className="text-[11px] text-[#8A8A98]">Number of weekly sessions to create per month.</p>
             </div>
 
             <div className="space-y-1.5">
@@ -190,7 +205,7 @@ function NewTraining() {
               />
               <p className="text-[11px] text-[#8A8A98]">
                 {repeatPreview
-                  ? `Creates ${repeatPreview.totalSessions} total sessions (${repeatPreview.perMonth} per month) through ${repeatPreview.endDate}.`
+                  ? `Creates ${repeatPreview.totalSessions} total sessions (${repeatPreview.weeks} per month) through ${repeatPreview.endDate}.`
                   : "Defines how many months the training program should repeat."}
               </p>
             </div>
@@ -208,6 +223,21 @@ function NewTraining() {
             <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Training Fees</Label>
               <Input required type="number" min={0} step={0.01} value={f.fees} onChange={(e) => set("fees", +e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Training For <span className="text-[#EF4444]">*</span>
+              </Label>
+              <Select value={f.targetType} onValueChange={(v: "adult" | "junior") => set("targetType", v)}>
+                <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
+                  <SelectValue placeholder="Select Target Type" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="adult">Adult</SelectItem>
+                  <SelectItem value="junior">Junior</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">

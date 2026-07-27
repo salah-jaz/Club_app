@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -105,8 +106,8 @@ function EditSchedule() {
 
   if (!sch) return <Navigate to="/schedules" />;
 
-  // Lock editing once rotation has been generated (or session closed)
-  if (sch.status === "rotated" || sch.status === "published" || sch.status === "closed") {
+  // Lock editing once rotation has been generated (or session closed/cancelled)
+  if (sch.status === "rotated" || sch.status === "published" || sch.status === "closed" || sch.status === "cancelled") {
     return <Navigate to="/schedules/$id" params={{ id: sch.id }} />;
   }
 
@@ -198,12 +199,10 @@ function EditSchedule() {
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date & Time</Label>
-              <Input
-                required
-                type="datetime-local"
+              <DateTimePicker
                 value={f.date}
-                onChange={(e) => onDateChange(e.target.value)}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg w-full min-w-0"
+                onChange={onDateChange}
+                placeholder="Select Date & Time..."
               />
               {scheduleWhen && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">

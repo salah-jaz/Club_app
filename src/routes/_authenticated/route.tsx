@@ -39,7 +39,10 @@ function Layout() {
   useEffect(() => {
     async function init() {
       if (userId) {
-        const u = await syncCurrentUser();
+        let u = useStore.getState().currentUser;
+        if (!u) {
+          u = await syncCurrentUser();
+        }
         if (u) {
           await syncData();
         }

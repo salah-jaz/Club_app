@@ -130,6 +130,7 @@ interface State {
   updateSchedule: (id: string, patch: Partial<PlaySchedule>) => Promise<void>;
   releaseSchedule: (id: string) => Promise<{ message?: string; inviteCount?: number }>;
   closeSchedule: (id: string) => Promise<void>;
+  cancelSchedule: (id: string, reason: string) => Promise<void>;
   deleteSchedule: (id: string) => Promise<void>;
   publishSchedule: (id: string) => Promise<void>;
   respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<PlayInvitation>;
@@ -147,6 +148,7 @@ interface State {
   enrollTraining: (trainingId: string, memberIds: string[]) => Promise<void>;
   registerTrainingJunior: (trainingId: string, memberId: string, status: "accepted" | "declined") => Promise<void>;
   respondTraining: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
+  respondTrainingBulk: (inviteIds: string[], status: "accepted" | "declined") => Promise<void>;
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
   updateSettings: (settings: {
     appName?: string;
@@ -375,28 +377,13 @@ export const useStore = create<State>((set, get) => ({
 
   syncData: async () => {
     try {
-      const [
-        members,
-        schedules,
-        playInvites,
-        rotations,
-        trainings,
-        trainingInvites,
-        trainingDates,
-        transactions,
-        settings,
-        creditRequests,
-        leagueGroups,
-      ] = await Promise.all([
-        api.get<Member[]>("/members"),
-        api.get<PlaySchedule[]>("/schedules"),
-        api.get<PlayInvitation[]>("/play-invitations"),
-        api.get<Rotation[]>("/rotations"),
-        api.get<Training[]>("/trainings"),
-        api.get<TrainingInvitation[]>("/training-invitations"),
-        api.get<TrainingDate[]>("/training-dates"),
-        api.get<Transaction[]>("/transactions"),
-        api.get<{
+      const syncRes = await api.get<{
+        members: Member[];
+        schedules: PlaySchedule[];
+        playInvites: PlayInvitation[];
+        trainings: Training[];
+        trainingInvites: TrainingInvitation[];
+        settings: {
           locations: string[];
           coaches?: string[];
           grades: string[];
@@ -433,28 +420,30 @@ export const useStore = create<State>((set, get) => ({
           juniorDiscountPercent?: number;
           juniorDiscountAmount?: number;
           juniorDiscountMode?: "percent" | "amount";
-        }>("/settings"),
-        api.get<CreditRequest[]>("/credit-requests"),
-        api.get<LeagueGroup[]>("/league-groups"),
-      ]);
+        };
+        creditRequests: CreditRequest[];
+        leagueGroups: LeagueGroup[];
+        users: User[];
+      }>("/sync-data");
 
-      let users: User[] = [];
-      try {
-        users = await api.get<User[]>("/users");
-      } catch {
-        // Fallback for non-admin users who cannot list all users
-        users = [];
-      }
+      const {
+        members,
+        schedules,
+        playInvites,
+        trainings,
+        trainingInvites,
+        settings,
+        creditRequests,
+        leagueGroups,
+        users,
+      } = syncRes;
 
       set({
         members,
         schedules,
         playInvites,
-        rotations,
         trainings,
         trainingInvites,
-        trainingDates,
-        transactions,
         locations: settings.locations,
         coaches: settings.coaches || ["Coach Lee", "Coach Alex", "Coach Sarah"],
         grades: settings.grades,
@@ -506,6 +495,15 @@ export const useStore = create<State>((set, get) => ({
         users,
         creditRequests,
         leagueGroups,
+      });
+
+      // Fetch non-critical secondary data asynchronously in background
+      void Promise.all([
+        api.get<Rotation[]>("/rotations").catch(() => [] as Rotation[]),
+        api.get<TrainingDate[]>("/training-dates").catch(() => [] as TrainingDate[]),
+        api.get<Transaction[]>("/transactions").catch(() => [] as Transaction[]),
+      ]).then(([rotations, trainingDates, transactions]) => {
+        set({ rotations, trainingDates, transactions });
       });
     } catch (e) {
       console.error("Failed to sync backend data:", e);
@@ -670,6 +668,11 @@ export const useStore = create<State>((set, get) => ({
     await get().syncData();
   },
 
+  cancelSchedule: async (id, reason) => {
+    await api.post<{ schedule: PlaySchedule }>(`/schedules/${id}/cancel`, { reason });
+    await get().syncData();
+  },
+
   deleteSchedule: async (id) => {
     await api.delete(`/schedules/${id}`);
     await get().syncData();
@@ -755,8 +758,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   createTraining: async (t) => {
-    const tr = await api.post<Training>("/trainings", t);
-    await api.post<{ training: Training }>(`/trainings/${tr.id}/release`, { memberIds: [] });
+    await api.post<Training>("/trainings", t);
     await get().syncData();
   },
 
@@ -795,6 +797,14 @@ export const useStore = create<State>((set, get) => ({
     await api.post<TrainingInvitation>(
       `/training-invitations/${inviteId}/respond`,
       { status }
+    );
+    await get().syncData();
+  },
+
+  respondTrainingBulk: async (inviteIds, status) => {
+    await api.post(
+      `/training-invitations/respond-bulk`,
+      { inviteIds, status }
     );
     await get().syncData();
   },

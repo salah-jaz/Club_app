@@ -289,12 +289,29 @@ function Dashboard() {
     [s.schedules],
   );
 
+  const myMemberIds = useMemo(() => new Set(myMembers.map((m) => m.id)), [myMembers]);
+  const myTrainingInviteIds = useMemo(
+    () =>
+      new Set(
+        s.trainingInvites
+          .filter((i) => myMemberIds.has(i.memberId))
+          .map((i) => i.trainingId),
+      ),
+    [s.trainingInvites, myMemberIds],
+  );
+
   const upcomingTrainings = useMemo(
     () =>
       [...s.trainings]
-        .filter((x) => x.status !== "closed")
+        .filter(
+          (x) =>
+            x.status !== "closed" &&
+            (user.role === "admin" || user.role === "volunteer"
+              ? true
+              : myTrainingInviteIds.has(x.id)),
+        )
         .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
-    [s.trainings],
+    [s.trainings, user.role, myTrainingInviteIds],
   );
 
   const myInvites = [
@@ -386,7 +403,7 @@ function Dashboard() {
               isNumeric={false}
             />
             <Stat label="Open invitations" value={myInvites.length} icon={Inbox} index={2} />
-            <Stat label="Trainings" value={s.trainings.length} icon={GraduationCap} index={3} />
+            <Stat label="Trainings" value={s.trainings.filter((t) => myTrainingInviteIds.has(t.id)).length} icon={GraduationCap} index={3} />
           </>
         )}
         {user.role === "volunteer" && (

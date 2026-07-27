@@ -245,6 +245,7 @@ export function ScheduleFilters({
     { value: "rotated", label: "Rotated" },
     { value: "published", label: "Published" },
     { value: "closed", label: "Closed" },
+    { value: "cancelled", label: "Cancelled" },
   ];
 
   const advancedCount = useMemo(
@@ -266,6 +267,7 @@ export function ScheduleFilters({
         rotated: "Rotated",
         published: "Published",
         closed: "Closed",
+        cancelled: "Cancelled",
       },
       date: {
         upcoming: "Upcoming",

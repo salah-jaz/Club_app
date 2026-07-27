@@ -69,7 +69,7 @@ function AddMember() {
           email: "",
           sex: "male",
           memberType: isAdmin ? "adult" : "junior",
-          membership: false,
+          membership: isAdmin,
           trainingEligible: false,
           playEligible: false,
           skipCreditConsumption: false,
