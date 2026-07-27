@@ -77,3 +77,30 @@ export function generateWeeklyDates(
   }
   return result;
 }
+
+export function generateTrainingProgramDates(
+  start: string,
+  repeatWeeks: number,
+  repeatMonths: number,
+  holidays: string[] = [],
+): string[] {
+  const result: string[] = [];
+  const base = new Date(start);
+  if (Number.isNaN(base.getTime())) return result;
+
+  const weeks = Math.max(1, Number(repeatWeeks) || 1);
+  const months = Math.max(1, Number(repeatMonths) || 1);
+
+  for (let m = 0; m < months; m++) {
+    for (let w = 0; w < weeks; w++) {
+      const cur = new Date(base);
+      cur.setDate(cur.getDate() + (m * 4 + w) * 7);
+      const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+      if (!holidays.includes(iso)) {
+        result.push(iso);
+      }
+    }
+  }
+  return result;
+}
+

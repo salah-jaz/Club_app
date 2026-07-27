@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDateTime, fmtMoney } from "@/lib/format";
-import { generateWeeklyDates } from "@/lib/rotation";
+import { generateWeeklyDates, generateTrainingProgramDates } from "@/lib/rotation";
 import { Plus, LayoutGrid, List, Search, X, Calendar, MapPin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -40,17 +40,20 @@ function TrainingsLayout() {
   return <TrainingsList />;
 }
 
-interface TrainingSessionItem {
+interface MonthlyCardItem {
   id: string;
-  trainingId: string;
-  sessionIndex: number;
-  totalSessions: number;
+  parentId: string;
+  monthIndex: number;
+  monthTitle: string;
   name: string;
-  date: string;
+  startDate: string;
+  weeklySessions: Training[];
+  weeklyDatesFormatted: string[];
   location: string;
   coach: string;
   slots: number;
   fees: number;
+  targetType: "adult" | "junior";
   status: "open" | "released" | "closed" | "created";
   acceptedCount: number;
   training: Training;
@@ -70,169 +73,106 @@ function fillRate(accepted: number, slots: number) {
 
 function TrainingsList() {
   const s = useStore();
-  const releaseTraining = useStore((st) => st.releaseTraining);
   const user = useCurrentUser()!;
   const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-trainings", "list");
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
   const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
-  const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const visibleIds = filteredSessions.map((session) => session.id);
-      setSelectedSessionIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
-    } else {
-      const visibleSet = new Set(filteredSessions.map((session) => session.id));
-      setSelectedSessionIds((prev) => prev.filter((id) => !visibleSet.has(id)));
-    }
-  };
-
-  const handleToggleSelect = (id: string) => {
-    setSelectedSessionIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
-  const handleBulkDeleteClick = () => {
-    if (selectedSessionIds.length === 0) return;
-    setActionRequest({
-      title: "Delete selected training sessions?",
-      description: "Are you sure you want to delete the selected training sessions?",
-      confirmLabel: "Delete",
-      destructive: true,
-      onConfirm: async () => {
-        try {
-          const selectedSessionsList = filteredSessions.filter((s) =>
-            selectedSessionIds.includes(s.id)
-          );
-          const uniqueTrainingIds = Array.from(
-             new Set(selectedSessionsList.map((s) => s.trainingId))
-          );
-          for (const id of uniqueTrainingIds) {
-            await s.deleteTraining(id);
-          }
-          setSelectedSessionIds([]);
-          toast.success("Selected training sessions deleted successfully");
-        } catch (error: unknown) {
-          toast.error(
-            error instanceof Error ? error.message : "Failed to delete selected training sessions."
-          );
-          throw error;
-        }
-      },
-    });
-  };
-
-  const requestDeleteTraining = (t: Training) => {
-    const memberCount = new Set(
-      (s.trainingInvites ?? []).filter((i) => i.trainingId === t.id).map((i) => i.memberId),
-    ).size;
-    const sessionCount = (s.trainingDates ?? []).filter((d) => d.trainingId === t.id).length;
-    setDeleteRequest({
-      title: "Delete training program",
-      entityName: t.name,
-      related: [
-        { label: memberCount === 1 ? "member" : "members", count: memberCount },
-        { label: sessionCount === 1 ? "session date" : "session dates", count: sessionCount },
-      ],
-      warning:
-        memberCount > 0 || sessionCount > 0
-          ? "Enrollments and training dates linked to this program will be deleted (cascade)."
-          : undefined,
-      onConfirm: async () => {
-        try {
-          await s.deleteTraining(t.id);
-          toast.success("Training program deleted");
-        } catch (error: unknown) {
-          toast.error(error instanceof Error ? error.message : "Failed to delete training program.");
-          throw error;
-        }
-      },
-    });
-  };
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
 
-  const resetFilters = () => {
-    setSearchTerm("");
-    setStatusFilter("all");
-    setSortBy("newest");
-  };
-
-  const hasActiveFilters = searchTerm !== "" || statusFilter !== "all";
-
-  // Expand training programs into individual training sessions
-  const allSessions = useMemo(() => {
-    const holidayDates = s.holidays ?? [];
-    const items: TrainingSessionItem[] = [];
-
+  // Group training sessions by series and month -> Monthly Cards
+  const allMonthCards = useMemo(() => {
+    const groups: Record<string, Training[]> = {};
     for (const t of s.trainings) {
-      const existingDates = Array.from(
-        new Set((s.trainingDates ?? []).filter((d) => d.trainingId === t.id).map((d) => d.date))
-      ).sort();
+      const pid = t.parentId || t.id;
+      if (!groups[pid]) groups[pid] = [];
+      groups[pid].push(t);
+    }
 
-      const datesToUse =
-        existingDates.length > 0
-          ? existingDates
-          : generateWeeklyDates(t.startDate, t.sessions, holidayDates);
+    const cards: MonthlyCardItem[] = [];
 
-      const hasTime = t.startDate.includes("T");
-      const timePart = hasTime ? t.startDate.split("T")[1] : "";
+    for (const pid of Object.keys(groups)) {
+      const series = [...groups[pid]].sort(
+        (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+      );
+      if (series.length === 0) continue;
 
-      const acceptedCount = (s.trainingInvites ?? []).filter(
-        (i) => i.trainingId === t.id && i.status === "accepted"
-      ).length;
+      const first = series[0];
+      const repeatWeeks = Math.max(1, first.repeatWeeks || 3);
+      const repeatMonths = Math.max(1, first.repeatMonths || 1);
 
-      const totalCount = Math.max(t.sessions, datesToUse.length);
-      for (let i = 0; i < totalCount; i++) {
-        const isoDate = datesToUse[i] || t.startDate;
-        const fullDateIso =
-          isoDate && !isoDate.includes("T") && timePart
-            ? `${isoDate}T${timePart}`
-            : isoDate;
+      for (let m = 0; m < repeatMonths; m++) {
+        const monthSessions = series.slice(m * repeatWeeks, (m + 1) * repeatWeeks);
+        if (monthSessions.length === 0) break;
 
-        items.push({
-          id: `${t.id}-s${i + 1}`,
-          trainingId: t.id,
-          sessionIndex: i + 1,
-          totalSessions: totalCount,
-          name: totalCount > 1 ? `${t.name} (Session ${i + 1} of ${totalCount})` : t.name,
-          date: fullDateIso,
-          location: t.location,
-          coach: t.coach,
-          slots: t.slots,
-          fees: t.fees,
-          status: t.status,
-          acceptedCount,
-          training: t,
+        const primarySession = monthSessions[0];
+        const monthDate = new Date(primarySession.startDate);
+        const monthName = Number.isNaN(monthDate.getTime())
+          ? `Month ${m + 1}`
+          : monthDate.toLocaleString("en-US", { month: "long", year: "numeric" });
+        const monthTitle = `Month ${m + 1} (${monthName})`;
+
+        const sessionIds = new Set(monthSessions.map((ms) => ms.id));
+        const acceptedMembers = new Set(
+          (s.trainingInvites ?? [])
+            .filter((i) => sessionIds.has(i.trainingId) && i.status === "accepted")
+            .map((i) => i.memberId)
+        );
+
+        const datesFormatted = monthSessions.map((ms) => {
+          const d = new Date(ms.startDate);
+          return Number.isNaN(d.getTime())
+            ? ms.startDate
+            : d.toLocaleString("en-US", { month: "short", day: "numeric" });
+        });
+
+        cards.push({
+          id: primarySession.id,
+          parentId: pid,
+          monthIndex: m + 1,
+          monthTitle,
+          name: primarySession.name,
+          startDate: primarySession.startDate,
+          weeklySessions: monthSessions,
+          weeklyDatesFormatted: datesFormatted,
+          location: primarySession.location,
+          coach: primarySession.coach,
+          slots: primarySession.slots,
+          fees: primarySession.fees,
+          targetType: primarySession.targetType || "junior",
+          status: primarySession.status,
+          acceptedCount: acceptedMembers.size,
+          training: primarySession,
         });
       }
     }
 
-    return items;
-  }, [s.trainings, s.trainingDates, s.trainingInvites, s.holidays]);
+    return cards;
+  }, [s.trainings, s.trainingInvites]);
 
-  const filteredSessions = useMemo(() => {
-    let result = [...allSessions];
+  const filteredCards = useMemo(() => {
+    let result = [...allMonthCards];
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter(
-        (item) =>
-          item.name.toLowerCase().includes(term) ||
-          item.coach.toLowerCase().includes(term) ||
-          item.location.toLowerCase().includes(term)
+        (card) =>
+          card.name.toLowerCase().includes(term) ||
+          card.monthTitle.toLowerCase().includes(term) ||
+          card.coach.toLowerCase().includes(term) ||
+          card.location.toLowerCase().includes(term)
       );
     }
     if (statusFilter !== "all") {
-      result = result.filter((item) => item.status === statusFilter);
+      result = result.filter((card) => card.status === statusFilter);
     }
     return result.sort((a, b) => {
       if (sortBy === "newest") {
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
+        return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
       }
       if (sortBy === "oldest") {
-        return new Date(a.date).getTime() - new Date(b.date).getTime();
+        return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
       }
       if (sortBy === "fees_high") {
         return b.fees - a.fees;
@@ -242,7 +182,79 @@ function TrainingsList() {
       }
       return 0;
     });
-  }, [allSessions, searchTerm, statusFilter, sortBy]);
+  }, [allMonthCards, searchTerm, statusFilter, sortBy]);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const visibleIds = filteredCards.map((card) => card.id);
+      setSelectedCardIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    } else {
+      const visibleSet = new Set(filteredCards.map((card) => card.id));
+      setSelectedCardIds((prev) => prev.filter((id) => !visibleSet.has(id)));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedCardIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDeleteClick = () => {
+    if (selectedCardIds.length === 0) return;
+    setDeleteRequest({
+      title: "Delete Monthly Training Program",
+      entityName: `${selectedCardIds.length} monthly training program(s)`,
+      description:
+        "This will permanently delete this monthly training program and all its weekly sessions, invitations, attendance records, and related data. This action cannot be undone.",
+      confirmLabel: "Delete",
+      onConfirm: async () => {
+        try {
+          const selectedCardsList = filteredCards.filter((c) => selectedCardIds.includes(c.id));
+          const uniqueTrainingIds = Array.from(new Set(selectedCardsList.map((c) => c.id)));
+          for (const id of uniqueTrainingIds) {
+            await s.deleteTraining(id);
+          }
+          setSelectedCardIds([]);
+          toast.success("Selected monthly training programs deleted successfully");
+        } catch (error: unknown) {
+          toast.error(
+            error instanceof Error ? error.message : "Failed to delete selected monthly training programs."
+          );
+          throw error;
+        }
+      },
+    });
+  };
+
+  const requestDeleteTraining = (card: MonthlyCardItem) => {
+    setDeleteRequest({
+      title: "Delete Monthly Training Program",
+      entityName: card.name,
+      description:
+        "This will permanently delete this monthly training program and all its weekly sessions, invitations, attendance records, and related data. This action cannot be undone.",
+      confirmLabel: "Delete",
+      onConfirm: async () => {
+        try {
+          await s.deleteTraining(card.id);
+          toast.success("Monthly training program deleted");
+        } catch (error: unknown) {
+          toast.error(
+            error instanceof Error ? error.message : "Failed to delete monthly training program."
+          );
+          throw error;
+        }
+      },
+    });
+  };
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setSortBy("newest");
+  };
+
+  const hasActiveFilters = searchTerm !== "" || statusFilter !== "all";
 
   return (
     <div>
@@ -256,7 +268,7 @@ function TrainingsList() {
       />
       <PageHeader
         title="Training programs"
-        description="Coach-led programs for junior members."
+        description="Coach-led monthly training programs."
         actions={user.role === "admin" && <Button asChild><Link to="/trainings/new"><Plus /> New training</Link></Button>}
       />
 
@@ -307,8 +319,8 @@ function TrainingsList() {
                   <SelectValue placeholder="Sort By" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="newest" className="text-xs">Newest Session Date</SelectItem>
-                  <SelectItem value="oldest" className="text-xs">Oldest Session Date</SelectItem>
+                  <SelectItem value="newest" className="text-xs">Newest Date</SelectItem>
+                  <SelectItem value="oldest" className="text-xs">Oldest Date</SelectItem>
                   <SelectItem value="fees_high" className="text-xs">Fees (High-Low)</SelectItem>
                   <SelectItem value="fees_low" className="text-xs">Fees (Low-High)</SelectItem>
                 </SelectContent>
@@ -379,16 +391,16 @@ function TrainingsList() {
         <EmptyIllustration
           icon="training"
           title="No training programs yet"
-          description="Create a coach-led program for junior members to enroll in."
+          description="Create a coach-led program to manage monthly sessions."
           ctaLabel={user.role === "admin" ? "New training" : undefined}
           ctaTo={user.role === "admin" ? "/trainings/new" : undefined}
         />
-      ) : filteredSessions.length === 0 ? (
+      ) : filteredCards.length === 0 ? (
         <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916]">
           <CardContent className="p-10 text-center text-[#8A8A98]">
             <div className="flex flex-col items-center justify-center gap-3">
               <Plus className="size-12 text-[#4A4A5A] transform rotate-45" />
-              <h3 className="text-[14px] font-normal text-[#8A8A98]">No matching training sessions found.</h3>
+              <h3 className="text-[14px] font-normal text-[#8A8A98]">No matching training cards found.</h3>
               <p className="text-[12px] font-light text-[#4A4A5A] max-w-[280px]">
                 Try adjusting your search terms or status filters.
               </p>
@@ -409,10 +421,10 @@ function TrainingsList() {
               <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium text-[#EEF2F0] hover:text-white transition-colors">
                 <Checkbox
                   checked={
-                    filteredSessions.length > 0 &&
-                    filteredSessions.every((session) => selectedSessionIds.includes(session.id))
+                    filteredCards.length > 0 &&
+                    filteredCards.every((card) => selectedCardIds.includes(card.id))
                       ? true
-                      : filteredSessions.some((session) => selectedSessionIds.includes(session.id))
+                      : filteredCards.some((card) => selectedCardIds.includes(card.id))
                       ? "indeterminate"
                       : false
                   }
@@ -421,12 +433,12 @@ function TrainingsList() {
                 <span>Select All</span>
               </label>
               <span className="type-helper text-xs text-[#8FA89F]">
-                {selectedSessionIds.length > 0 ? (
+                {selectedCardIds.length > 0 ? (
                   <span className="text-[#2FD9A0] font-medium">
-                    {selectedSessionIds.length} of {filteredSessions.length} selected
+                    {selectedCardIds.length} of {filteredCards.length} selected
                   </span>
                 ) : (
-                  `${filteredSessions.length} training sessions found`
+                  `${filteredCards.length} monthly training cards`
                 )}
               </span>
             </div>
@@ -435,12 +447,12 @@ function TrainingsList() {
               <Button
                 variant="destructive"
                 size="sm"
-                disabled={selectedSessionIds.length === 0}
+                disabled={selectedCardIds.length === 0}
                 onClick={handleBulkDeleteClick}
                 className="btn-premium-danger h-8 px-3 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Trash2 className="size-3.5" />
-                <span>Delete Selected{selectedSessionIds.length > 0 ? ` (${selectedSessionIds.length})` : ""}</span>
+                <span>Delete Selected{selectedCardIds.length > 0 ? ` (${selectedCardIds.length})` : ""}</span>
               </Button>
 
               <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0">
@@ -479,49 +491,50 @@ function TrainingsList() {
               animate="show"
               className="flex flex-col gap-4"
             >
-              {filteredSessions.map((session) => {
-                const accepted = session.acceptedCount;
-                const maxPlayers = session.slots || 12;
+              {filteredCards.map((card) => {
+                const accepted = card.acceptedCount;
+                const maxPlayers = card.slots || 12;
                 const pct = fillRate(accepted, maxPlayers);
-                const t = session.training;
-                const iso = sessionDateIso(session.date);
-                const isHoliday = iso ? (s.holidays ?? []).includes(iso) : false;
+                const t = card.training;
 
                 return (
                   <motion.div
-                    key={session.id}
+                    key={card.id}
                     variants={staggerItem}
                     whileHover={{ y: -2, boxShadow: "0 8px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(16,185,129,0.08)" }}
                     transition={{ duration: 0.18 }}
                   >
                     <Card className={cn(
                       "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200",
-                      selectedSessionIds.includes(session.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
+                      selectedCardIds.includes(card.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
                     )}>
                       <CardContent className="p-4 px-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center pr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
-                            checked={selectedSessionIds.includes(session.id)}
-                            onCheckedChange={() => handleToggleSelect(session.id)}
-                            aria-label={`Select ${session.name}`}
+                            checked={selectedCardIds.includes(card.id)}
+                            onCheckedChange={() => handleToggleSelect(card.id)}
+                            aria-label={`Select ${card.name}`}
                           />
                         </div>
                         <div className="flex-[2] space-y-1.5 min-w-[200px]">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <div className="font-bold text-[16px] text-[#EEF2F0]">{session.name}</div>
-                            {isHoliday && (
-                              <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
-                                Holiday
-                              </span>
-                            )}
+                            <div className="font-bold text-[16px] text-[#EEF2F0]">{card.name}</div>
+                            <span className="inline-flex items-center rounded-md border border-[#34D399]/30 bg-[#34D399]/10 px-2 py-0.5 text-[11px] font-semibold text-[#34D399]">
+                              {card.monthTitle}
+                            </span>
+                            <span className="inline-flex items-center rounded-md border border-[#10B981]/30 bg-[#10B981]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#10B981] uppercase">
+                              {card.targetType === "adult" ? "Adult" : "Junior"}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-1.5 type-helper">
+                          <div className="flex items-center gap-1.5 type-helper flex-wrap text-xs">
                             <Calendar className="size-3.5 text-[#5A7068]" />
-                            <span className="text-[#C4D4CF] font-medium">{fmtDateTime(session.date)}</span>
+                            <span className="text-[#C4D4CF] font-medium">
+                              Contains: {card.weeklyDatesFormatted.join(" · ")}
+                            </span>
                           </div>
                           <div className="flex items-center gap-1.5 text-xs text-[#8FA89F]">
                             <MapPin className="size-3.5 text-[#5A7068]" />
-                            <span>{session.location}</span>
+                            <span>{card.location}</span>
                           </div>
                         </div>
 
@@ -529,7 +542,7 @@ function TrainingsList() {
 
                         <div className="flex-1 space-y-1.5">
                           <span className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Coach</span>
-                          <span className="text-[14px] font-bold text-[#EEF2F0]">{session.coach}</span>
+                          <span className="text-[14px] font-bold text-[#EEF2F0]">{card.coach}</span>
                         </div>
 
                         <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
@@ -550,24 +563,8 @@ function TrainingsList() {
                         <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
                         <div className="flex-1 flex flex-col md:items-end gap-2">
-                          <StatusBadge status={session.status} />
+                          <StatusBadge status={card.status} />
                           <div className="flex items-center gap-1.5 mt-1 md:mt-0 flex-wrap justify-end">
-                            {user.role === "admin" && session.status === "open" && (
-                              <Button
-                                size="sm"
-                                className="btn-premium-solid h-8 text-[11px] cursor-pointer"
-                                onClick={async () => {
-                                  try {
-                                    const res = await releaseTraining(t.id);
-                                    toast.success(res.message ?? "Training opened for family enrollment");
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to open training.");
-                                  }
-                                }}
-                              >
-                                Open enrollment
-                              </Button>
-                            )}
                             {user.role === "admin" && (
                               <>
                                 <Button asChild size="sm" variant="outline" className="btn-premium-outline h-8 px-2.5 cursor-pointer text-xs">
@@ -577,7 +574,7 @@ function TrainingsList() {
                                   size="sm"
                                   variant="destructive"
                                   className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs"
-                                  onClick={() => requestDeleteTraining(t)}
+                                  onClick={() => requestDeleteTraining(card)}
                                 >
                                   Delete
                                 </Button>
@@ -601,24 +598,22 @@ function TrainingsList() {
               animate="show"
               className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5"
             >
-              {filteredSessions.map((session) => {
-                const accepted = session.acceptedCount;
-                const maxPlayers = session.slots || 12;
+              {filteredCards.map((card) => {
+                const accepted = card.acceptedCount;
+                const maxPlayers = card.slots || 12;
                 const pct = fillRate(accepted, maxPlayers);
-                const t = session.training;
-                const iso = sessionDateIso(session.date);
-                const isHoliday = iso ? (s.holidays ?? []).includes(iso) : false;
+                const t = card.training;
 
                 return (
                   <motion.div
-                    key={session.id}
+                    key={card.id}
                     variants={staggerItem}
                     whileHover={{ y: -4, boxShadow: "0 14px 36px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.10)" }}
                     transition={{ duration: 0.18 }}
                   >
                     <Card className={cn(
                       "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200 h-full flex flex-col justify-between",
-                      selectedSessionIds.includes(session.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
+                      selectedCardIds.includes(card.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
                     )}>
                       <CardContent className="p-5 flex flex-col justify-between h-full space-y-4">
                         <div>
@@ -626,35 +621,36 @@ function TrainingsList() {
                             <div className="flex items-start gap-3 min-w-0 flex-1">
                               <div className="pt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                                 <Checkbox
-                                  checked={selectedSessionIds.includes(session.id)}
-                                  onCheckedChange={() => handleToggleSelect(session.id)}
-                                  aria-label={`Select ${session.name}`}
+                                  checked={selectedCardIds.includes(card.id)}
+                                  onCheckedChange={() => handleToggleSelect(card.id)}
+                                  aria-label={`Select ${card.name}`}
                                 />
                               </div>
                               <div className="min-w-0 space-y-1.5 flex-1">
-                                <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">{session.name}</div>
+                                <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">{card.name}</div>
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <div className="size-1.5 rounded-full bg-[#34D399]" />
-                                  <span className="text-[12px] font-semibold text-[#8FA89F]">{session.coach}</span>
-                                  {isHoliday && (
-                                    <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
-                                      Holiday
-                                    </span>
-                                  )}
+                                  <span className="inline-flex items-center rounded-md border border-[#34D399]/30 bg-[#34D399]/10 px-2 py-0.5 text-[11px] font-semibold text-[#34D399]">
+                                    {card.monthTitle}
+                                  </span>
+                                  <span className="inline-flex items-center rounded-md border border-[#10B981]/30 bg-[#10B981]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#10B981] uppercase">
+                                    {card.targetType === "adult" ? "Adult" : "Junior"}
+                                  </span>
                                 </div>
                               </div>
                             </div>
-                            <StatusBadge status={session.status} />
+                            <StatusBadge status={card.status} />
                           </div>
 
                           <div className="mt-3 space-y-1.5">
                             <div className="flex items-center gap-1.5 text-xs text-[#C4D4CF]">
                               <Calendar className="size-3.5 text-[#5A7068]" />
-                              <span className="font-medium">{fmtDateTime(session.date)}</span>
+                              <span className="font-medium">
+                                Contains: {card.weeklyDatesFormatted.join(" · ")}
+                              </span>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-[#8FA89F]">
                               <MapPin className="size-3.5 text-[#5A7068]" />
-                              <span className="truncate">{session.location}</span>
+                              <span className="truncate">{card.location}</span>
                             </div>
                           </div>
 
@@ -663,7 +659,7 @@ function TrainingsList() {
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
                               <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Coach</span>
-                              <span className="text-[14px] font-bold text-[#EEF2F0] truncate block">{session.coach}</span>
+                              <span className="text-[14px] font-bold text-[#EEF2F0] truncate block">{card.coach}</span>
                             </div>
                             <div className="space-y-1">
                               <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Capacity / Players</span>
@@ -680,22 +676,6 @@ function TrainingsList() {
                         </div>
 
                         <div className="flex items-center justify-between gap-1.5 pt-2 w-full flex-wrap">
-                          {user.role === "admin" && session.status === "open" && (
-                            <Button
-                              size="sm"
-                              className="btn-premium-solid h-8 text-[11px] cursor-pointer"
-                              onClick={async () => {
-                                try {
-                                  const res = await releaseTraining(t.id);
-                                  toast.success(res.message ?? "Training opened for family enrollment");
-                                } catch (error: any) {
-                                  toast.error(error.message || "Failed to open training.");
-                                }
-                              }}
-                            >
-                              Open enrollment
-                            </Button>
-                          )}
                           <div className="flex items-center gap-1.5 ml-auto">
                             {user.role === "admin" && (
                               <>
@@ -706,7 +686,7 @@ function TrainingsList() {
                                   size="sm"
                                   variant="destructive"
                                   className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs"
-                                  onClick={() => requestDeleteTraining(t)}
+                                  onClick={() => requestDeleteTraining(card)}
                                 >
                                   Delete
                                 </Button>

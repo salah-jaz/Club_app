@@ -148,6 +148,7 @@ interface State {
   enrollTraining: (trainingId: string, memberIds: string[]) => Promise<void>;
   registerTrainingJunior: (trainingId: string, memberId: string, status: "accepted" | "declined") => Promise<void>;
   respondTraining: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
+  respondTrainingBulk: (inviteIds: string[], status: "accepted" | "declined") => Promise<void>;
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
   updateSettings: (settings: {
     appName?: string;
@@ -757,8 +758,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   createTraining: async (t) => {
-    const tr = await api.post<Training>("/trainings", t);
-    await api.post<{ training: Training }>(`/trainings/${tr.id}/release`, { memberIds: [] });
+    await api.post<Training>("/trainings", t);
     await get().syncData();
   },
 
@@ -797,6 +797,14 @@ export const useStore = create<State>((set, get) => ({
     await api.post<TrainingInvitation>(
       `/training-invitations/${inviteId}/respond`,
       { status }
+    );
+    await get().syncData();
+  },
+
+  respondTrainingBulk: async (inviteIds, status) => {
+    await api.post(
+      `/training-invitations/respond-bulk`,
+      { inviteIds, status }
     );
     await get().syncData();
   },

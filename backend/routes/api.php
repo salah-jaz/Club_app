@@ -87,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Training Invitations & Dates
     Route::get('/training-invitations', [TrainingController::class, 'listInvitations']);
+    Route::post('/training-invitations/respond-bulk', [TrainingController::class, 'respondBulk']);
     Route::post('/training-invitations/{id}/respond', [TrainingController::class, 'respondInvitation']);
     Route::get('/training-dates', [TrainingController::class, 'listDates']);
     Route::patch('/training-dates/{id}/attendance', [TrainingController::class, 'markAttendance']);

@@ -109,8 +109,8 @@ class MemberController extends Controller
                         'nickname' => $request->nickname,
                         'status' => $request->status,
                         'credit' => 0.00,
-                        'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
-                        'apply_discount' => $request->boolean('applyDiscount'),
+                        'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
+                        'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
                     ]);
                 }
 
@@ -146,14 +146,19 @@ class MemberController extends Controller
                     'nickname' => $request->nickname,
                     'status' => $request->status,
                     'credit' => 0.00,
-                    'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
-                    'apply_discount' => $request->boolean('applyDiscount'),
+                    'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
+                    'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
                 ]);
             });
         } else {
             $request->validate(array_merge($memberRules, [
-                'userId' => $isAdmin ? 'required|string' : 'sometimes|string',
+                'userId' => ($isAdmin && $request->memberType !== 'junior') ? 'required|string' : 'nullable|string',
             ]));
+
+            $biMemberId = $request->biMemberId;
+            if (empty($biMemberId)) {
+                $biMemberId = $this->nextBiMemberId()->getData()->nextBiMemberId ?? null;
+            }
 
             // Members may only add juniors under their own account (pending approval).
             if (!$isAdmin) {
@@ -182,7 +187,7 @@ class MemberController extends Controller
                     'training_eligible' => false,
                     'play_eligible' => false,
                     'grade' => $request->grade,
-                    'bi_member_id' => $request->biMemberId,
+                    'bi_member_id' => $biMemberId,
                     'nickname' => $request->nickname,
                     'status' => 'pending',
                     'credit' => 0.00,
@@ -195,10 +200,14 @@ class MemberController extends Controller
 
             $parentId = $request->input('parentMemberId');
             $parent = $parentId ? Member::find($parentId) : null;
+            $userId = $request->userId;
+            if ($request->memberType === 'junior' && $parent && $parent->user_id) {
+                $userId = $parent->user_id;
+            }
 
             $member = Member::create([
                 'id' => 'm_' . Str::random(8),
-                'user_id' => $request->userId,
+                'user_id' => $userId,
                 'parent_member_id' => $request->memberType === 'junior' ? ($parentId ?: null) : null,
                 'first_name' => $request->firstName,
                 'last_name' => $request->lastName,
@@ -210,12 +219,12 @@ class MemberController extends Controller
                 'training_eligible' => $this->resolveTrainingEligible($request),
                 'play_eligible' => $this->resolvePlayEligible($request),
                 'grade' => $request->grade,
-                'bi_member_id' => $request->biMemberId,
+                'bi_member_id' => $biMemberId,
                 'nickname' => $request->nickname,
                 'status' => $request->status,
                 'credit' => 0.00,
-                'skip_credit_consumption' => $request->boolean('skipCreditConsumption'),
-                'apply_discount' => $request->boolean('applyDiscount'),
+                'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
+                'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
             ]);
         }
 
@@ -483,7 +492,7 @@ class MemberController extends Controller
         ]);
     }
 
-    private function formatMember(Member $m)
+    private function formatMember(Member|\stdClass $m)
     {
         return [
             'id' => $m->id,

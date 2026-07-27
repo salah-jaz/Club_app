@@ -403,6 +403,7 @@ function SettingsPage() {
   const [newJuniorGrade, setNewJuniorGrade] = useState("");
   const [newHolidayName, setNewHolidayName] = useState("");
   const [newHolidayDate, setNewHolidayDate] = useState("");
+  const [editingHolidayDate, setEditingHolidayDate] = useState<string | null>(null);
   const [newPlayerPosition, setNewPlayerPosition] = useState("");
   const [editingList, setEditingList] = useState<EditableListKey | null>(null);
   const [editingOriginal, setEditingOriginal] = useState("");
@@ -780,6 +781,34 @@ function SettingsPage() {
     setHolidayItems(updatedItems);
     setHolidays(updatedDates);
     saveUpdatedList({ holidayItems: updatedItems, holidays: updatedDates }, "Holiday removed");
+  };
+
+  const handleEditHoliday = (h: HolidayItem) => {
+    setEditingHolidayDate(h.date);
+    setNewHolidayName(h.name || "");
+    setNewHolidayDate("");
+  };
+
+  const handleUpdateHoliday = () => {
+    const trimmedName = newHolidayName.trim();
+    if (!trimmedName) {
+      toast.error("Holiday name is required");
+      return;
+    }
+    const updatedItems = holidayItems.map((h) =>
+      h.date === editingHolidayDate ? { ...h, name: trimmedName } : h,
+    );
+    const updatedDates = updatedItems.map((h) => h.date);
+    setHolidayItems(updatedItems);
+    setHolidays(updatedDates);
+    setEditingHolidayDate(null);
+    setNewHolidayName("");
+    saveUpdatedList({ holidayItems: updatedItems, holidays: updatedDates }, "Holiday updated successfully");
+  };
+
+  const handleCancelEditHoliday = () => {
+    setEditingHolidayDate(null);
+    setNewHolidayName("");
   };
 
   const handleAddPlayerPosition = () => {
@@ -1697,34 +1726,72 @@ function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1">
-                <div className="grid sm:grid-cols-1 md:grid-cols-5 gap-3 mb-4 items-end">
-                  <div className="space-y-1 md:col-span-2">
-                    <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Name</Label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. Christmas Day"
-                      value={newHolidayName}
-                      onChange={(e) => setNewHolidayName(e.target.value)}
-                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-                    />
+                {editingHolidayDate ? (
+                  <div className="grid sm:grid-cols-1 md:grid-cols-5 gap-3 mb-4 items-end">
+                    <div className="space-y-1 md:col-span-2">
+                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Name</Label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Christmas Day"
+                        value={newHolidayName}
+                        onChange={(e) => setNewHolidayName(e.target.value)}
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Date</Label>
+                      <div className="bg-[#1A2120]/60 border border-[rgba(255,255,255,0.06)] rounded-lg h-9 flex items-center px-3">
+                        <span className="text-[#8A8A98] font-mono text-xs">{editingHolidayDate}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 md:col-span-1">
+                      <Button
+                        type="button"
+                        onClick={handleUpdateHoliday}
+                        className="flex-1 h-9 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer font-semibold text-xs shrink-0"
+                      >
+                        <Check className="size-3.5 mr-1 inline" /> Update
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleCancelEditHoliday}
+                        className="flex-1 h-9 bg-[#1A2120] hover:bg-[#263230] text-[#8A8A98] hover:text-[#F1F0EE] border border-white/[0.06] rounded-lg cursor-pointer font-semibold text-xs shrink-0"
+                      >
+                        <X className="size-3.5 mr-1 inline" /> Cancel
+                      </Button>
+                    </div>
                   </div>
-                  <div className="space-y-1 md:col-span-2">
-                    <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Date</Label>
-                    <Input
-                      type="date"
-                      value={newHolidayDate}
-                      onChange={(e) => setNewHolidayDate(e.target.value)}
-                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
-                    />
+                ) : (
+                  <div className="grid sm:grid-cols-1 md:grid-cols-5 gap-3 mb-4 items-end">
+                    <div className="space-y-1 md:col-span-2">
+                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Name</Label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Christmas Day"
+                        value={newHolidayName}
+                        onChange={(e) => setNewHolidayName(e.target.value)}
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Date</Label>
+                      <Input
+                        type="date"
+                        value={newHolidayDate}
+                        onChange={(e) => setNewHolidayDate(e.target.value)}
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleAddHoliday}
+                      className="h-9 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer w-full md:col-span-1 font-semibold text-xs shrink-0"
+                    >
+                      <Plus className="size-4 mr-1.5 inline" /> Add Holiday
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    onClick={handleAddHoliday}
-                    className="h-9 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer w-full md:col-span-1 font-semibold text-xs shrink-0"
-                  >
-                    <Plus className="size-4 mr-1.5 inline" /> Add Holiday
-                  </Button>
-                </div>
+                )}
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 overflow-y-auto max-h-[300px] pr-1">
                   {holidayItems.length === 0 ? (
                     <div className="text-center py-8 text-xs text-muted-foreground/60 sm:col-span-2 lg:col-span-3">
@@ -1734,19 +1801,32 @@ function SettingsPage() {
                     holidayItems.map((h) => (
                       <div
                         key={h.date}
-                        className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs"
+                        className={`flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border rounded-lg text-xs transition-colors ${
+                          editingHolidayDate === h.date
+                            ? "border-[#10B981]/40 bg-[#10B981]/5"
+                            : "border-white/[0.02]"
+                        }`}
                       >
                         <div className="flex flex-col min-w-0 pr-2">
                           <span className="text-[#F1F0EE] font-medium truncate">{h.name || "Club Holiday"}</span>
                           <span className="text-[#8A8A98] font-mono text-[11px]">{h.date}</span>
                         </div>
-                        <button
-                          onClick={() => handleDeleteHoliday(h.date)}
-                          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1 shrink-0"
-                          title="Delete holiday"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <button
+                            onClick={() => handleEditHoliday(h)}
+                            className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1"
+                            title="Edit holiday"
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteHoliday(h.date)}
+                            className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+                            title="Delete holiday"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}

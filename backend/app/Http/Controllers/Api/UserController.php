@@ -133,7 +133,7 @@ class UserController extends Controller
         ]);
     }
 
-    private function formatUser(User $u)
+    private function formatUser(User|\stdClass $u)
     {
         return [
              'id' => $u->id,
@@ -151,7 +151,7 @@ class UserController extends Controller
         ];
     }
 
-    private function formatMember(Member $m)
+    private function formatMember(Member|\stdClass $m)
     {
         return [
             'id' => $m->id,

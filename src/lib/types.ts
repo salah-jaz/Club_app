@@ -158,9 +158,12 @@ export interface Rotation {
 
 export interface Training {
   id: string;
+  parentId?: string;
   name: string;
   startDate: string;
   endDate: string;
+  repeatWeeks?: number;
+  repeatMonths?: number;
   sessions: number;
   slots: number;
   duration: string;
@@ -168,6 +171,7 @@ export interface Training {
   coach: string;
   location: string;
   status: "open" | "released" | "closed";
+  targetType?: "adult" | "junior";
 }
 
 export interface TrainingInvitation {
