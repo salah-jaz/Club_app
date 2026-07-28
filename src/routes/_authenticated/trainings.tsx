@@ -54,7 +54,7 @@ interface MonthlyCardItem {
   slots: number;
   fees: number;
   targetType: "adult" | "junior";
-  status: "open" | "released" | "closed" | "created";
+  status: "open" | "released" | "closed" | "created" | "cancelled";
   acceptedCount: number;
   training: Training;
 }
@@ -69,6 +69,11 @@ function sessionDateIso(dateStr: string): string | null {
 function fillRate(accepted: number, slots: number) {
   const max = slots || 12;
   return max > 0 ? Math.min((accepted / max) * 100, 100) : 0;
+}
+
+export function isTrainingCardDeletable(card: MonthlyCardItem): boolean {
+  if (card.status === "cancelled") return true;
+  return card.acceptedCount === 0;
 }
 
 function TrainingsList() {
@@ -100,12 +105,22 @@ function TrainingsList() {
       if (series.length === 0) continue;
 
       const first = series[0];
-      const repeatWeeks = Math.max(1, first.repeatWeeks || 3);
+      const repeatWeeks = Math.max(1, Math.min(5, first.repeatWeeks || 3));
       const repeatMonths = Math.max(1, first.repeatMonths || 1);
 
-      for (let m = 0; m < repeatMonths; m++) {
-        const monthSessions = series.slice(m * repeatWeeks, (m + 1) * repeatWeeks);
-        if (monthSessions.length === 0) break;
+      const monthGroups: Record<string, typeof series> = {};
+      for (const session of series) {
+        const d = new Date(session.startDate);
+        if (Number.isNaN(d.getTime())) continue;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        if (!monthGroups[key]) monthGroups[key] = [];
+        monthGroups[key].push(session);
+      }
+
+      const monthKeys = Object.keys(monthGroups).sort();
+      monthKeys.forEach((key, m) => {
+        const monthSessions = monthGroups[key];
+        if (monthSessions.length === 0) return;
 
         const primarySession = monthSessions[0];
         const monthDate = new Date(primarySession.startDate);
@@ -146,7 +161,7 @@ function TrainingsList() {
           acceptedCount: acceptedMembers.size,
           training: primarySession,
         });
-      }
+      });
     }
 
     return cards;
@@ -186,7 +201,9 @@ function TrainingsList() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const visibleIds = filteredCards.map((card) => card.id);
+      const visibleIds = filteredCards
+        .filter((card) => isTrainingCardDeletable(card))
+        .map((card) => card.id);
       setSelectedCardIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
     } else {
       const visibleSet = new Set(filteredCards.map((card) => card.id));
@@ -202,16 +219,22 @@ function TrainingsList() {
 
   const handleBulkDeleteClick = () => {
     if (selectedCardIds.length === 0) return;
+    const deletableCards = filteredCards.filter(
+      (c) => selectedCardIds.includes(c.id) && isTrainingCardDeletable(c)
+    );
+    if (deletableCards.length === 0) {
+      toast.error("None of the selected training programs can be deleted. Cancel them first.");
+      return;
+    }
     setDeleteRequest({
       title: "Delete Monthly Training Program",
-      entityName: `${selectedCardIds.length} monthly training program(s)`,
+      entityName: `${deletableCards.length} monthly training program(s)`,
       description:
         "This will permanently delete this monthly training program and all its weekly sessions, invitations, attendance records, and related data. This action cannot be undone.",
       confirmLabel: "Delete",
       onConfirm: async () => {
         try {
-          const selectedCardsList = filteredCards.filter((c) => selectedCardIds.includes(c.id));
-          const uniqueTrainingIds = Array.from(new Set(selectedCardsList.map((c) => c.id)));
+          const uniqueTrainingIds = Array.from(new Set(deletableCards.map((c) => c.id)));
           for (const id of uniqueTrainingIds) {
             await s.deleteTraining(id);
           }
@@ -228,6 +251,10 @@ function TrainingsList() {
   };
 
   const requestDeleteTraining = (card: MonthlyCardItem) => {
+    if (!isTrainingCardDeletable(card)) {
+      toast.error("Cannot delete training program with accepted invitations. Cancel the training first.");
+      return;
+    }
     setDeleteRequest({
       title: "Delete Monthly Training Program",
       entityName: card.name,
@@ -496,6 +523,7 @@ function TrainingsList() {
                 const maxPlayers = card.slots || 12;
                 const pct = fillRate(accepted, maxPlayers);
                 const t = card.training;
+                const isDeletable = isTrainingCardDeletable(card);
 
                 return (
                   <motion.div
@@ -513,7 +541,9 @@ function TrainingsList() {
                           <Checkbox
                             checked={selectedCardIds.includes(card.id)}
                             onCheckedChange={() => handleToggleSelect(card.id)}
+                            disabled={!isDeletable}
                             aria-label={`Select ${card.name}`}
+                            title={!isDeletable ? "Cannot select training program with accepted invitations for deletion" : undefined}
                           />
                         </div>
                         <div className="flex-[2] space-y-1.5 min-w-[200px]">
@@ -573,7 +603,9 @@ function TrainingsList() {
                                 <Button
                                   size="sm"
                                   variant="destructive"
-                                  className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs"
+                                  className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                                  disabled={!isDeletable}
+                                  title={isDeletable ? "Delete" : "Cannot delete training program with accepted invitations (cancel training first)"}
                                   onClick={() => requestDeleteTraining(card)}
                                 >
                                   Delete
@@ -603,6 +635,7 @@ function TrainingsList() {
                 const maxPlayers = card.slots || 12;
                 const pct = fillRate(accepted, maxPlayers);
                 const t = card.training;
+                const isDeletable = isTrainingCardDeletable(card);
 
                 return (
                   <motion.div
@@ -623,7 +656,9 @@ function TrainingsList() {
                                 <Checkbox
                                   checked={selectedCardIds.includes(card.id)}
                                   onCheckedChange={() => handleToggleSelect(card.id)}
+                                  disabled={!isDeletable}
                                   aria-label={`Select ${card.name}`}
+                                  title={!isDeletable ? "Cannot select training program with accepted invitations for deletion" : undefined}
                                 />
                               </div>
                               <div className="min-w-0 space-y-1.5 flex-1">
@@ -685,7 +720,9 @@ function TrainingsList() {
                                 <Button
                                   size="sm"
                                   variant="destructive"
-                                  className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs"
+                                  className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                                  disabled={!isDeletable}
+                                  title={isDeletable ? "Delete" : "Cannot delete training program with accepted invitations (cancel training first)"}
                                   onClick={() => requestDeleteTraining(card)}
                                 >
                                   Delete

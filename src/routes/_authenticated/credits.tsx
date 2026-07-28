@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { Search, X, SlidersHorizontal, Calendar, Plus, Wallet, Clock3, CheckCircle2, CircleDollarSign, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Search, X, SlidersHorizontal, Calendar, Plus, Wallet, Clock3, CheckCircle2, CircleDollarSign, ArrowDownLeft, ArrowUpRight, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
@@ -31,6 +31,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type CreditsSearch = {
   memberId?: string;
@@ -131,6 +141,8 @@ function CreditsPage() {
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [selectedDebitDetail, setSelectedDebitDetail] = useState<CreditRequest | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CreditRequest | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
 
@@ -928,49 +940,59 @@ function CreditsPage() {
                       </TableCell>
                       {isAdmin && (
                         <TableCell className="py-3 px-6">
-                          {canApprove ? (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await s.approveCredit(r.id);
-                                    toast.success("Request approved successfully");
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to approve request.");
-                                  }
-                                }}
-                                className="px-3 py-1 text-[11.5px] font-medium rounded border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer transition-all"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await s.rejectCredit(r.id);
-                                    toast.success("Request rejected successfully");
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to reject request.");
-                                  }
-                                }}
-                                className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[12px] text-[#4A5E58]">Processed</span>
-                              {r.reason && (
+                          <div className="flex items-center gap-2">
+                            {canApprove ? (
+                              <>
                                 <button
-                                  type="button"
-                                  onClick={() => setSelectedDebitDetail(r)}
-                                  className="text-xs text-[#10B981] hover:underline cursor-pointer ml-1"
+                                  onClick={async () => {
+                                    try {
+                                      await s.approveCredit(r.id);
+                                      toast.success("Request approved successfully");
+                                    } catch (error: any) {
+                                      toast.error(error.message || "Failed to approve request.");
+                                    }
+                                  }}
+                                  className="px-3 py-1 text-[11.5px] font-medium rounded border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer transition-all"
                                 >
-                                  Details
+                                  Approve
                                 </button>
-                              )}
-                            </div>
-                          )}
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await s.rejectCredit(r.id);
+                                      toast.success("Request rejected successfully");
+                                    } catch (error: any) {
+                                      toast.error(error.message || "Failed to reject request.");
+                                    }
+                                  }}
+                                  className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-[12px] text-[#4A5E58]">Processed</span>
+                                {r.reason && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedDebitDetail(r)}
+                                    className="text-xs text-[#10B981] hover:underline cursor-pointer ml-1"
+                                  >
+                                    Details
+                                  </button>
+                                )}
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(r)}
+                              className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded cursor-pointer transition-all"
+                              title="Delete transaction"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
                         </TableCell>
                       )}
                     </motion.tr>
@@ -1032,6 +1054,45 @@ function CreditsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#F1F0EE]">Delete this wallet transaction?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#8A8A98]">
+              This action will permanently delete the transaction and reverse its wallet effect.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel
+              className="btn-premium-outline cursor-pointer"
+              disabled={deleting}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#EF4444] hover:bg-[#DC2626] text-white cursor-pointer"
+              disabled={deleting}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deleteTarget) return;
+                setDeleting(true);
+                try {
+                  await s.deleteCreditRequest(deleteTarget.id);
+                  toast.success("Wallet transaction deleted and reversed successfully");
+                  setDeleteTarget(null);
+                } catch (error: any) {
+                  toast.error(error.message || "Failed to delete wallet transaction.");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

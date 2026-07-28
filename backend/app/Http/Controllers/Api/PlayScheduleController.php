@@ -1176,6 +1176,19 @@ class PlayScheduleController extends Controller
     public function destroy($id)
     {
         $sch = PlaySchedule::findOrFail($id);
+
+        if ($sch->status !== 'cancelled') {
+            $hasAccepted = PlayInvitation::where('schedule_id', $id)
+                ->where('status', 'accepted')
+                ->exists();
+
+            if ($hasAccepted) {
+                return response()->json([
+                    'message' => 'Cannot delete a play schedule with accepted invitations unless it is cancelled.'
+                ], 422);
+            }
+        }
+
         $sch->delete();
 
         return response()->json(['message' => 'Play schedule deleted successfully.']);

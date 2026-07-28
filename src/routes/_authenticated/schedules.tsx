@@ -93,6 +93,17 @@ function scheduleDateIso(dateStr: string): string | null {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+export function isScheduleDeletable(
+  sch: PlaySchedule,
+  playInvites: { scheduleId: string; status: string }[],
+): boolean {
+  if (sch.status === "cancelled") return true;
+  const hasAccepted = playInvites.some(
+    (i) => i.scheduleId === sch.id && i.status === "accepted",
+  );
+  return !hasAccepted;
+}
+
 function SchedulesList() {
   const s = useStore();
   const locations = useStore((st) => st.locations);
@@ -104,7 +115,9 @@ function SchedulesList() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const visibleIds = processed.map((sch) => sch.id);
+      const visibleIds = processed
+        .filter((sch) => isScheduleDeletable(sch, s.playInvites))
+        .map((sch) => sch.id);
       setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
     } else {
       const visibleSet = new Set(processed.map((sch) => sch.id));
@@ -120,6 +133,14 @@ function SchedulesList() {
 
   const handleBulkDeleteClick = () => {
     if (selectedIds.length === 0) return;
+    const deletableIds = selectedIds.filter((id) => {
+      const sch = s.schedules.find((item) => item.id === id);
+      return sch && isScheduleDeletable(sch, s.playInvites);
+    });
+    if (deletableIds.length === 0) {
+      toast.error("None of the selected schedules can be deleted. Cancel them first.");
+      return;
+    }
     setActionRequest({
       title: "Delete selected schedules?",
       description: "Are you sure you want to delete the selected schedules?",
@@ -127,7 +148,7 @@ function SchedulesList() {
       destructive: true,
       onConfirm: async () => {
         try {
-          for (const id of selectedIds) {
+          for (const id of deletableIds) {
             await s.deleteSchedule(id);
           }
           setSelectedIds([]);
@@ -198,6 +219,10 @@ function SchedulesList() {
   };
 
   const requestDeleteSchedule = (sch: PlaySchedule) => {
+    if (!isScheduleDeletable(sch, s.playInvites)) {
+      toast.error("Cannot delete schedule with accepted invitations. Cancel the schedule first.");
+      return;
+    }
     const memberCount = new Set(
       s.playInvites.filter((i) => i.scheduleId === sch.id).map((i) => i.memberId),
     ).size;
@@ -457,6 +482,7 @@ function SchedulesList() {
                 const accepted = inviteStats.get(sch.id) ?? 0;
                 const maxPlayers = sch.players || 12;
                 const pct = Math.min(getFillRate(sch, accepted), 100);
+                const isDeletable = isScheduleDeletable(sch, s.playInvites);
 
                 return (
                   <motion.div
@@ -474,7 +500,9 @@ function SchedulesList() {
                           <Checkbox
                             checked={selectedIds.includes(sch.id)}
                             onCheckedChange={() => handleToggleSelect(sch.id)}
+                            disabled={!isDeletable}
                             aria-label={`Select ${sch.name}`}
+                            title={!isDeletable ? "Cannot select schedule with accepted invitations for deletion" : undefined}
                           />
                         </div>
                         <div className="flex-[2] space-y-1.5 min-w-[200px]">
@@ -547,8 +575,9 @@ function SchedulesList() {
                             <Button
                               size="icon"
                               variant="destructive"
-                              className="btn-premium-danger h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer"
-                              title="Delete Schedule"
+                              className="btn-premium-danger h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={isDeletable ? "Delete Schedule" : "Cannot delete schedule with accepted invitations (cancel schedule first)"}
+                              disabled={!isDeletable}
                               onClick={() => requestDeleteSchedule(sch)}
                             >
                               <Trash2 className="size-4" />
@@ -592,6 +621,7 @@ function SchedulesList() {
                 const accepted = inviteStats.get(sch.id) ?? 0;
                 const maxPlayers = sch.players || 12;
                 const pct = Math.min(getFillRate(sch, accepted), 100);
+                const isDeletable = isScheduleDeletable(sch, s.playInvites);
 
                 return (
                   <motion.div
@@ -612,7 +642,9 @@ function SchedulesList() {
                                 <Checkbox
                                   checked={selectedIds.includes(sch.id)}
                                   onCheckedChange={() => handleToggleSelect(sch.id)}
+                                  disabled={!isDeletable}
                                   aria-label={`Select ${sch.name}`}
+                                  title={!isDeletable ? "Cannot select schedule with accepted invitations for deletion" : undefined}
                                 />
                               </div>
                               <div className="min-w-0 space-y-1.5 flex-1">
@@ -686,8 +718,9 @@ function SchedulesList() {
                           <Button
                             size="icon"
                             variant="destructive"
-                            className="btn-premium-danger h-8 w-8 p-0 cursor-pointer"
-                            title="Delete Schedule"
+                            className="btn-premium-danger h-8 w-8 p-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={isDeletable ? "Delete Schedule" : "Cannot delete schedule with accepted invitations (cancel schedule first)"}
+                            disabled={!isDeletable}
                             onClick={() => requestDeleteSchedule(sch)}
                           >
                             <Trash2 className="size-4" />

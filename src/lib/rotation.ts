@@ -88,16 +88,30 @@ export function generateTrainingProgramDates(
   const base = new Date(start);
   if (Number.isNaN(base.getTime())) return result;
 
-  const weeks = Math.max(1, Number(repeatWeeks) || 1);
+  const weeks = Math.max(1, Math.min(5, Number(repeatWeeks) || 1));
   const months = Math.max(1, Number(repeatMonths) || 1);
+  const targetDayOfWeek = base.getDay();
+  const startYear = base.getFullYear();
+  const startMonth = base.getMonth();
 
   for (let m = 0; m < months; m++) {
-    for (let w = 0; w < weeks; w++) {
-      const cur = new Date(base);
-      cur.setDate(cur.getDate() + (m * 4 + w) * 7);
-      const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
-      if (!holidays.includes(iso)) {
-        result.push(iso);
+    const monthDate = new Date(startYear, startMonth + m, 1);
+    const yr = monthDate.getFullYear();
+    const mo = monthDate.getMonth();
+
+    const startDay = m === 0 ? base.getDate() : 1;
+    const daysInMonth = new Date(yr, mo + 1, 0).getDate();
+
+    let createdForMonth = 0;
+    for (let day = startDay; day <= daysInMonth; day++) {
+      if (createdForMonth >= weeks) break;
+      const d = new Date(yr, mo, day);
+      if (d.getDay() === targetDayOfWeek) {
+        const iso = `${yr}-${String(mo + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        if (!holidays.includes(iso)) {
+          result.push(iso);
+        }
+        createdForMonth++;
       }
     }
   }

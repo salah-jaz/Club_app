@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtDateTime, fmtMoney, fmtDate, formatTxnDescription } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -15,6 +16,7 @@ import {
   Receipt,
   ArrowDownRight,
   ArrowUpLeft,
+  Trash2,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
@@ -34,6 +36,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 
 type TransactionsSearch = {
@@ -111,6 +123,7 @@ function Txns() {
     : undefined;
   const isMemberScoped = Boolean(focusMember);
 
+  const isAdmin = user.role === "admin";
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
@@ -119,6 +132,8 @@ function Txns() {
   const [sortBy, setSortBy] = useState("newest");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTxnDetail, setSelectedTxnDetail] = useState<import("@/lib/types").Transaction | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<import("@/lib/types").Transaction | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -594,12 +609,15 @@ function Txns() {
                 <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Description</TableHead>
                 <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Type</TableHead>
                 <TableHead className="type-table-head py-3.5 px-4 sm:px-6 text-right">Amount</TableHead>
+                {isAdmin && (
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Actions</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredTxns.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={5} className="p-0">
+                  <TableCell colSpan={isAdmin ? 6 : 5} className="p-0">
                     <EmptyIllustration
                       icon="wallet"
                       title={hasActiveFilters ? "No transactions found" : "No transactions recorded"}
@@ -682,6 +700,18 @@ function Txns() {
                         {isCredit ? "+" : "−"}
                         {fmtMoney(t.amount)}
                       </TableCell>
+                      {isAdmin && (
+                        <TableCell className="py-3 px-6">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(t)}
+                            className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded cursor-pointer transition-all"
+                            title="Delete transaction"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </TableCell>
+                      )}
                     </motion.tr>
                   );
                 })
@@ -750,6 +780,45 @@ function Txns() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#F1F0EE]">Delete this wallet transaction?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#8A8A98]">
+              This action will permanently delete the transaction and reverse its wallet effect.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel
+              className="btn-premium-outline cursor-pointer"
+              disabled={deleting}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#EF4444] hover:bg-[#DC2626] text-white cursor-pointer"
+              disabled={deleting}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deleteTarget) return;
+                setDeleting(true);
+                try {
+                  await s.deleteTransaction(deleteTarget.id);
+                  toast.success("Wallet transaction deleted and reversed successfully");
+                  setDeleteTarget(null);
+                } catch (error: any) {
+                  toast.error(error.message || "Failed to delete transaction.");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

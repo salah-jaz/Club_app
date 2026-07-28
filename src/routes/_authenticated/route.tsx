@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { Bell, Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MotionWrapper } from "@/components/MotionWrapper";
+import { ModuleLoadingSpinner } from "@/components/ModuleLoadingSpinner";
 import { formatClockTime } from "@/lib/timezones";
 
 export const Route = createFileRoute("/_authenticated")({ component: Layout });
@@ -20,7 +21,16 @@ function Layout() {
   const pendingCredits = useStore((s) => s.creditRequests.filter((cr) => (cr.type || "credit") === "credit" && cr.status === "created").length);
   const notifCount = pendingUsers + pendingCredits;
 
-  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const { pathname, isNavigating } = useRouterState({
+    select: (r) => ({
+      pathname: r.location.pathname,
+      isNavigating:
+        r.status === "pending" ||
+        r.isLoading ||
+        r.isTransitioning ||
+        (!!r.resolvedLocation && r.location.pathname !== r.resolvedLocation.pathname),
+    }),
+  });
   const moduleKey = pathname.split("/").filter(Boolean)[0] || "dashboard";
 
   const [timeStr, setTimeStr] = useState("");
@@ -34,6 +44,7 @@ function Layout() {
   const syncCurrentUser = useStore((s) => s.syncCurrentUser);
   const syncData = useStore((s) => s.syncData);
   const [loading, setLoading] = useState(true);
+  const [isModuleSyncing, setIsModuleSyncing] = useState(false);
   const skipNextModuleSync = useRef(true);
 
   useEffect(() => {
@@ -59,7 +70,16 @@ function Layout() {
       skipNextModuleSync.current = false;
       return;
     }
-    void syncData();
+    let isMounted = true;
+    setIsModuleSyncing(true);
+    syncData().finally(() => {
+      if (isMounted) {
+        setIsModuleSyncing(false);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
   }, [moduleKey, loading, userId, syncData]);
 
   // Move focus to main on route change (WCAG SPA pattern)
@@ -179,6 +199,8 @@ function Layout() {
   };
   const screenName = routeNames[pathPart] || (pathPart.charAt(0).toUpperCase() + pathPart.slice(1));
 
+  const isPageLoading = isNavigating || isModuleSyncing;
+
   return (
     <SidebarProvider>
       <div className="min-h-dvh min-h-screen flex w-full bg-background text-foreground">
@@ -187,7 +209,7 @@ function Layout() {
 
           {/* Route-level top progress bar — slim 2px bar at absolute top */}
           <AnimatePresence>
-            {loading && (
+            {(loading || isPageLoading) && (
               <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden z-50">
                 <div className="progress-bar-indeterminate" />
               </div>
@@ -257,13 +279,19 @@ function Layout() {
             className="flex-1 w-full min-w-0 px-4 py-6 sm:px-6 lg:px-8 outline-none"
           >
             <AnimatePresence mode="wait">
-              <MotionWrapper key={pathname}>
-                <Outlet />
-              </MotionWrapper>
+              {isPageLoading ? (
+                <MotionWrapper key="page-loading">
+                  <ModuleLoadingSpinner />
+                </MotionWrapper>
+              ) : (
+                <MotionWrapper key={pathname}>
+                  <Outlet />
+                </MotionWrapper>
+              )}
             </AnimatePresence>
           </main>
         </SidebarInset>
       </div>
     </SidebarProvider>
   );
-}
+}

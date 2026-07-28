@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useMemo, useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { parseScheduleDateTime } from "@/lib/format";
+import { generateTrainingProgramDates } from "@/lib/rotation";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,21 +53,18 @@ function NewTraining() {
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.startDate), [f.startDate]);
 
   const repeatPreview = useMemo(() => {
-    const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
+    const weeks = Number(f.repeatWeeks);
     const months = Math.max(1, Math.min(24, Number(f.repeatMonths) || 1));
-    if (!f.startDate) return null;
+    if (!f.startDate || isNaN(weeks) || weeks < 1 || weeks > 5) return null;
     const start = new Date(f.startDate);
     if (Number.isNaN(start.getTime())) return null;
 
-    const dates: Date[] = [];
-    for (let m = 0; m < months; m++) {
-      for (let w = 0; w < weeks; w++) {
-        const d = new Date(start);
-        d.setDate(d.getDate() + (m * 4 + w) * 7);
-        dates.push(d);
-      }
-    }
+    const isoDates = generateTrainingProgramDates(f.startDate, weeks, months);
+    if (isoDates.length === 0) return null;
 
+    const dates = isoDates.map(
+      (iso: string) => new Date(`${iso}T${f.startDate.split("T")[1] || "00:00"}`)
+    );
     const lastSession = dates[dates.length - 1];
     const endIso = `${lastSession.getFullYear()}-${String(lastSession.getMonth() + 1).padStart(2, "0")}-${String(lastSession.getDate()).padStart(2, "0")}`;
     const endLabel = parseScheduleDateTime(`${endIso}T${String(lastSession.getHours()).padStart(2, "0")}:${String(lastSession.getMinutes()).padStart(2, "0")}`);
@@ -94,20 +92,25 @@ function NewTraining() {
       <PageHeader title="New training program" description="Set up a weekly coaching program." backTo="/trainings" />
       <form onSubmit={async (e) => {
         e.preventDefault();
+        const weeks = Number(f.repeatWeeks);
+        if (isNaN(weeks) || weeks < 1 || weeks > 5) {
+          toast.error("Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.");
+          return;
+        }
         if (!f.targetType) {
           toast.error("Please select Training For (Adult or Junior).");
           return;
         }
         setSubmitting(true);
         try {
-          const totalSessions = Math.max(1, Number(f.repeatWeeks) || 1) * Math.max(1, Number(f.repeatMonths) || 1);
+          const totalSessions = repeatPreview?.totalSessions || weeks * Math.max(1, Number(f.repeatMonths) || 1);
           const computedEndDate = repeatPreview?.endIso || f.endDate || f.startDate.split("T")[0];
 
           const payload = {
             name: f.name,
             startDate: f.startDate,
             endDate: computedEndDate,
-            repeatWeeks: Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1)),
+            repeatWeeks: weeks,
             repeatMonths: Math.max(1, Math.min(24, Number(f.repeatMonths) || 1)),
             sessions: totalSessions,
             slots: f.slots,
@@ -184,12 +187,17 @@ function NewTraining() {
                 required
                 type="number"
                 min={1}
-                max={52}
+                max={5}
                 value={f.repeatWeeks}
-                onChange={(e) => set("repeatWeeks", Math.max(1, Math.min(52, +e.target.value || 1)))}
+                onChange={(e) => set("repeatWeeks", e.target.value === "" ? "" : Number(e.target.value))}
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
               />
-              <p className="text-[11px] text-[#8A8A98]">Number of weekly sessions to create per month.</p>
+              <p className="text-[11px] text-[#8A8A98]">Number of weekly sessions to create per month (1–5).</p>
+              {Number(f.repeatWeeks) > 5 && (
+                <p className="text-[11px] text-[#EF4444] font-medium">
+                  Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -205,7 +213,7 @@ function NewTraining() {
               />
               <p className="text-[11px] text-[#8A8A98]">
                 {repeatPreview
-                  ? `Creates ${repeatPreview.totalSessions} total sessions (${repeatPreview.weeks} per month) through ${repeatPreview.endDate}.`
+                  ? `Creates ${repeatPreview.totalSessions} total sessions (up to ${repeatPreview.weeks} per month) through ${repeatPreview.endDate}.`
                   : "Defines how many months the training program should repeat."}
               </p>
             </div>

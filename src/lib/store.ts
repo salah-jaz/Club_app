@@ -124,6 +124,8 @@ interface State {
   approveCredit: (id: string) => Promise<void>;
   approveAllCredits: () => Promise<void>;
   rejectCredit: (id: string) => Promise<void>;
+  deleteCreditRequest: (id: string) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
 
   // schedules
   createSchedule: (s: Omit<PlaySchedule, "id" | "status"> & { repeatWeeks?: number }) => Promise<void>;
@@ -144,12 +146,15 @@ interface State {
   createTraining: (t: Omit<Training, "id" | "status">) => Promise<void>;
   updateTraining: (id: string, patch: Partial<Training>) => Promise<void>;
   releaseTraining: (id: string, memberIds?: string[]) => Promise<{ message?: string }>;
+  cancelTraining: (id: string, reason: string) => Promise<void>;
   deleteTraining: (id: string) => Promise<void>;
   enrollTraining: (trainingId: string, memberIds: string[]) => Promise<void>;
   registerTrainingJunior: (trainingId: string, memberId: string, status: "accepted" | "declined") => Promise<void>;
   respondTraining: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
   respondTrainingBulk: (inviteIds: string[], status: "accepted" | "declined") => Promise<void>;
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
+  updateMemberTrainingInvitation: (trainingId: string, memberId: string, sessionIds: string[], forceAccept?: boolean) => Promise<{ message?: string }>;
+  processTrainingRefund: (dateId: string, refundType: "none" | "half" | "full") => Promise<void>;
   updateSettings: (settings: {
     appName?: string;
     appLogoText?: string;
@@ -383,6 +388,7 @@ export const useStore = create<State>((set, get) => ({
         playInvites: PlayInvitation[];
         trainings: Training[];
         trainingInvites: TrainingInvitation[];
+        trainingDates?: TrainingDate[];
         settings: {
           locations: string[];
           coaches?: string[];
@@ -432,6 +438,7 @@ export const useStore = create<State>((set, get) => ({
         playInvites,
         trainings,
         trainingInvites,
+        trainingDates,
         settings,
         creditRequests,
         leagueGroups,
@@ -444,6 +451,7 @@ export const useStore = create<State>((set, get) => ({
         playInvites,
         trainings,
         trainingInvites,
+        trainingDates: trainingDates || [],
         locations: settings.locations,
         coaches: settings.coaches || ["Coach Lee", "Coach Alex", "Coach Sarah"],
         grades: settings.grades,
@@ -642,6 +650,20 @@ export const useStore = create<State>((set, get) => ({
     await get().syncData();
   },
 
+  deleteCreditRequest: async (id) => {
+    await api.delete(`/credit-requests/${id}`);
+    await get().syncData();
+    const transactions = await api.get<Transaction[]>("/transactions").catch(() => [] as Transaction[]);
+    set({ transactions });
+  },
+
+  deleteTransaction: async (id) => {
+    await api.delete(`/transactions/${id}`);
+    await get().syncData();
+    const transactions = await api.get<Transaction[]>("/transactions").catch(() => [] as Transaction[]);
+    set({ transactions });
+  },
+
   createSchedule: async (sc) => {
     await api.post<PlaySchedule>("/schedules", sc);
     await get().syncData();
@@ -674,6 +696,15 @@ export const useStore = create<State>((set, get) => ({
   },
 
   deleteSchedule: async (id) => {
+    const sch = get().schedules.find((item) => item.id === id);
+    if (sch && sch.status !== "cancelled") {
+      const hasAccepted = get().playInvites.some(
+        (i) => i.scheduleId === id && i.status === "accepted",
+      );
+      if (hasAccepted) {
+        throw new Error("Cannot delete schedule with accepted invitations. Cancel the schedule first.");
+      }
+    }
     await api.delete(`/schedules/${id}`);
     await get().syncData();
   },
@@ -768,7 +799,24 @@ export const useStore = create<State>((set, get) => ({
   },
 
   deleteTraining: async (id) => {
+    const t = get().trainings.find((item) => item.id === id);
+    if (t && t.status !== "cancelled") {
+      const parentId = t.parentId || t.id;
+      const series = get().trainings.filter((item) => (item.parentId || item.id) === parentId);
+      const sessionIds = new Set(series.map((item) => item.id));
+      const hasAccepted = (get().trainingInvites ?? []).some(
+        (i) => sessionIds.has(i.trainingId) && i.status === "accepted",
+      );
+      if (hasAccepted) {
+        throw new Error("Cannot delete training program with accepted invitations. Cancel the training first.");
+      }
+    }
     await api.delete(`/trainings/${id}`);
+    await get().syncData();
+  },
+
+  cancelTraining: async (id, reason) => {
+    await api.post<{ training: Training }>(`/trainings/${id}/cancel`, { reason });
     await get().syncData();
   },
 
@@ -813,6 +861,21 @@ export const useStore = create<State>((set, get) => ({
     await api.patch<TrainingDate>(`/training-dates/${dateId}/attendance`, {
       attended,
     });
+    await get().syncData();
+  },
+
+  updateMemberTrainingInvitation: async (trainingId, memberId, sessionIds, forceAccept = false) => {
+    const res = await api.post<{ message?: string }>(`/trainings/${trainingId}/update-member-invitation`, {
+      memberId,
+      sessionIds,
+      forceAccept,
+    });
+    await get().syncData();
+    return { message: res.message };
+  },
+
+  processTrainingRefund: async (dateId, refundType) => {
+    await api.post(`/training-dates/${dateId}/process-refund`, { refundType });
     await get().syncData();
   },
 
