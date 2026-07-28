@@ -16,10 +16,13 @@ class TrainingDate extends Model
         'member_id',
         'date',
         'attended',
+        'refund_status',
+        'refund_amount',
     ];
 
     protected $casts = [
         'attended' => 'boolean',
+        'refund_amount' => 'float',
     ];
 
     public function training(): BelongsTo

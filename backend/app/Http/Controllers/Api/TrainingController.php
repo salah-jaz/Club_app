@@ -25,11 +25,11 @@ class TrainingController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'startDate' => 'required|date',
             'endDate' => 'required|date',
-            'repeatWeeks' => 'sometimes|integer|min:1|max:52',
+            'repeatWeeks' => 'sometimes|integer|min:1|max:5',
             'repeatMonths' => 'sometimes|integer|min:1|max:24',
             'sessions' => 'sometimes|integer|min:1',
             'slots' => 'required|integer|min:1',
@@ -38,51 +38,83 @@ class TrainingController extends Controller
             'coach' => 'required|string',
             'location' => 'required|string',
             'targetType' => 'required|in:adult,junior,Adult,Junior',
+        ], [
+            'repeatWeeks.max' => 'Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.',
+            'repeatWeeks.min' => 'Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.',
         ]);
 
-        $repeatWeeks = max(1, min(52, (int) $request->input('repeatWeeks', 3)));
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => $validator->errors()->first('repeatWeeks') ?: $validator->errors()->first()
+            ], 422);
+        }
+
+        $repeatWeeks = (int) $request->input('repeatWeeks', 3);
+        if ($repeatWeeks > 5 || $repeatWeeks < 1) {
+            return response()->json([
+                'message' => 'Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.'
+            ], 422);
+        }
         $repeatMonths = max(1, min(24, (int) $request->input('repeatMonths', 1)));
         $targetType = strtolower($request->targetType) === 'adult' ? 'adult' : 'junior';
 
         $baseStart = \Carbon\Carbon::parse($request->startDate);
         $baseEnd = \Carbon\Carbon::parse($request->endDate);
         $durationMins = max(15, $baseStart->diffInMinutes($baseEnd));
+        $dayOfWeek = $baseStart->dayOfWeek;
 
         $parentId = 'tr_' . Str::random(8);
-        $created = [];
-        $totalSessions = $repeatWeeks * $repeatMonths;
+        $sessionDates = [];
 
         for ($m = 0; $m < $repeatMonths; $m++) {
-            for ($w = 0; $w < $repeatWeeks; $w++) {
-                $isParent = ($m === 0 && $w === 0);
-                $schId = $isParent ? $parentId : ('tr_' . Str::random(8));
+            $monthStart = $baseStart->copy()->startOfMonth()->addMonths($m);
+            $rangeStart = ($m === 0) ? $baseStart->copy() : $monthStart->copy();
+            $rangeEnd = $monthStart->copy()->endOfMonth();
 
-                $sessionStart = $baseStart->copy()->addWeeks($w)->addMonths($m);
-                $sessionEnd = $sessionStart->copy()->addMinutes($durationMins);
-
-                $rawName = $isParent ? $request->name : $this->trainingNameFromDate($sessionStart);
-                $name = $this->uniqueTrainingName($rawName);
-
-                $tr = Training::create([
-                    'id' => $schId,
-                    'parent_id' => $parentId,
-                    'name' => $name,
-                    'start_date' => $sessionStart,
-                    'end_date' => $sessionEnd,
-                    'repeat_weeks' => $repeatWeeks,
-                    'repeat_months' => $repeatMonths,
-                    'sessions' => $totalSessions,
-                    'slots' => $request->slots,
-                    'duration' => $request->duration,
-                    'fees' => $request->fees,
-                    'coach' => $request->coach,
-                    'location' => $request->location,
-                    'status' => 'created',
-                    'target_type' => $targetType,
-                ]);
-
-                $created[] = $tr;
+            $countInMonth = 0;
+            $curr = $rangeStart->copy();
+            while ($curr->lte($rangeEnd)) {
+                if ($curr->dayOfWeek === $dayOfWeek) {
+                    $sessionDates[] = $curr->copy();
+                    $countInMonth++;
+                    if ($countInMonth >= $repeatWeeks) {
+                        break;
+                    }
+                }
+                $curr->addDay();
             }
+        }
+
+        $totalSessions = count($sessionDates);
+        $created = [];
+
+        foreach ($sessionDates as $index => $sStart) {
+            $isParent = ($index === 0);
+            $schId = $isParent ? $parentId : ('tr_' . Str::random(8));
+            $sEnd = $sStart->copy()->addMinutes($durationMins);
+
+            $rawName = $isParent ? $request->name : $this->trainingNameFromDate($sStart);
+            $name = $this->uniqueTrainingName($rawName);
+
+            $tr = Training::create([
+                'id' => $schId,
+                'parent_id' => $parentId,
+                'name' => $name,
+                'start_date' => $sStart,
+                'end_date' => $sEnd,
+                'repeat_weeks' => $repeatWeeks,
+                'repeat_months' => $repeatMonths,
+                'sessions' => $totalSessions,
+                'slots' => $request->slots,
+                'duration' => $request->duration,
+                'fees' => $request->fees,
+                'coach' => $request->coach,
+                'location' => $request->location,
+                'status' => 'created',
+                'target_type' => $targetType,
+            ]);
+
+            $created[] = $tr;
         }
 
         return response()->json($this->formatTraining($created[0]), 201);
@@ -122,6 +154,15 @@ class TrainingController extends Controller
     {
         $tr = Training::findOrFail($id);
 
+        if ($request->has('repeatWeeks')) {
+            $reqWeeks = (int) $request->input('repeatWeeks');
+            if ($reqWeeks > 5 || $reqWeeks < 1) {
+                return response()->json([
+                    'message' => 'Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.'
+                ], 422);
+            }
+        }
+
         if (empty($tr->parent_id)) {
             $tr->parent_id = $tr->id;
             $tr->save();
@@ -142,203 +183,97 @@ class TrainingController extends Controller
             }
         }
 
-        $schIndex = $series->search(fn($item) => $item->id === $tr->id);
-        if ($schIndex === false) {
-            $schIndex = 0;
+        $firstSession = $series->first();
+        $oldWeeks = (int)($tr->repeat_weeks ?? 3);
+        $oldMonths = (int)($firstSession->repeat_months ?? $tr->repeat_months ?? 1);
+
+        $parentStart = \Carbon\Carbon::parse($firstSession->start_date);
+        $trStart = \Carbon\Carbon::parse($tr->start_date);
+        $mIdx = ($trStart->year - $parentStart->year) * 12 + ($trStart->month - $parentStart->month);
+        if ($mIdx < 0) {
+            $mIdx = 0;
         }
 
-        $oldWeeks = (int)($tr->repeat_weeks ?? 3);
-        $oldMonths = (int)($tr->repeat_months ?? 1);
+        $newWeeks = $request->has('repeatWeeks') ? max(1, min(5, (int) $request->input('repeatWeeks'))) : $oldWeeks;
 
-        $newWeeks = $request->has('repeatWeeks') ? max(1, min(52, (int) $request->input('repeatWeeks'))) : $oldWeeks;
-        $newMonths = $request->has('repeatMonths') ? max(1, min(24, (int) $request->input('repeatMonths'))) : $oldMonths;
+        if ($request->has('repeatMonths')) {
+            $inputRFM = max(1, min(24, (int) $request->input('repeatMonths')));
+            $newMonths = max(1, min(24, $inputRFM + $mIdx));
+        } else {
+            $newMonths = $oldMonths;
+        }
 
-        if ($request->has('repeatWeeks') || $request->has('repeatMonths')) {
-            if ($oldMonths <= 1 && $newMonths <= 1) {
-                if ($request->has('repeatWeeks')) {
-                    $requestedWeeks = max(1, min(52, (int) $request->input('repeatWeeks')));
-                    $targetTotalWeeks = $schIndex + $requestedWeeks;
-                    $currentTotal = $series->count();
+        if ($tr->id === $firstSession->id) {
+            $baseStart = $request->has('startDate') ? \Carbon\Carbon::parse($request->startDate) : $parentStart;
+        } else {
+            $baseStart = $parentStart;
+        }
+        $baseEnd = \Carbon\Carbon::parse($firstSession->end_date);
+        $durationMins = max(15, $baseStart->diffInMinutes($baseEnd));
+        $dayOfWeek = $baseStart->dayOfWeek;
 
-                    if ($targetTotalWeeks < $currentTotal) {
-                        for ($i = $targetTotalWeeks; $i < $currentTotal; $i++) {
-                            if (isset($series[$i])) {
-                                $sToDelete = $series[$i];
-                                TrainingInvitation::where('training_id', $sToDelete->id)->delete();
-                                TrainingDate::where('training_id', $sToDelete->id)->delete();
-                                $sToDelete->delete();
-                            }
-                        }
-                    } else if ($targetTotalWeeks > $currentTotal) {
-                        $toAddCount = $targetTotalWeeks - $currentTotal;
-                        $lastSession = $series->last();
-                        $baseStart = \Carbon\Carbon::parse($lastSession->start_date);
-                        $baseEnd = \Carbon\Carbon::parse($lastSession->end_date);
-                        $durMins = max(15, $baseStart->diffInMinutes($baseEnd));
+        if ($request->has('repeatWeeks') || $request->has('repeatMonths') || $request->has('startDate')) {
+            $targetDates = [];
+            for ($m = 0; $m < $newMonths; $m++) {
+                $monthStart = $baseStart->copy()->startOfMonth()->addMonths($m);
+                $rangeStart = ($m === 0) ? $baseStart->copy() : $monthStart->copy();
+                $rangeEnd = $monthStart->copy()->endOfMonth();
 
-                        for ($i = 1; $i <= $toAddCount; $i++) {
-                            $nextStart = $baseStart->copy()->addWeeks($i);
-                            $exists = Training::where('parent_id', $parentId)
-                                ->whereDate('start_date', $nextStart->toDateString())
-                                ->exists();
-
-                            if (!$exists) {
-                                $nextEnd = $nextStart->copy()->addMinutes($durMins);
-                                $rawName = $this->trainingNameFromDate($nextStart);
-                                $name = $this->uniqueTrainingName($rawName);
-
-                                Training::create([
-                                    'id' => 'tr_' . Str::random(8),
-                                    'parent_id' => $parentId,
-                                    'name' => $name,
-                                    'start_date' => $nextStart,
-                                    'end_date' => $nextEnd,
-                                    'repeat_weeks' => $targetTotalWeeks,
-                                    'repeat_months' => 1,
-                                    'sessions' => $targetTotalWeeks,
-                                    'slots' => $request->input('slots', $tr->slots),
-                                    'duration' => $request->input('duration', $tr->duration),
-                                    'fees' => $request->input('fees', $tr->fees),
-                                    'coach' => $request->input('coach', $tr->coach),
-                                    'location' => $request->input('location', $tr->location),
-                                    'status' => 'open',
-                                    'target_type' => $tr->target_type ?? 'junior',
-                                ]);
-                            }
+                $countInMonth = 0;
+                $curr = $rangeStart->copy();
+                while ($curr->lte($rangeEnd)) {
+                    if ($curr->dayOfWeek === $dayOfWeek) {
+                        $targetDates[] = $curr->format('Y-m-d');
+                        $countInMonth++;
+                        if ($countInMonth >= $newWeeks) {
+                            break;
                         }
                     }
-                    $newWeeks = $targetTotalWeeks;
+                    $curr->addDay();
                 }
-            } else {
-                $mIdx = intdiv($schIndex, max(1, $oldWeeks));
-                $wIdx = $schIndex % max(1, $oldWeeks);
+            }
 
-                if ($request->has('repeatWeeks')) {
-                    $requestedWeeks = max(1, min(52, (int) $request->input('repeatWeeks')));
-                    $targetWeeksPerMonth = $wIdx + $requestedWeeks;
+            $targetDatesSet = array_flip($targetDates);
 
-                    if ($targetWeeksPerMonth < $oldWeeks) {
-                        for ($m = 0; $m < $oldMonths; $m++) {
-                            for ($w = $targetWeeksPerMonth; $w < $oldWeeks; $w++) {
-                                $idxToDelete = $m * $oldWeeks + $w;
-                                if (isset($series[$idxToDelete])) {
-                                    $sToDelete = $series[$idxToDelete];
-                                    TrainingInvitation::where('training_id', $sToDelete->id)->delete();
-                                    TrainingDate::where('training_id', $sToDelete->id)->delete();
-                                    $sToDelete->delete();
-                                }
-                            }
-                        }
-                    } else if ($targetWeeksPerMonth > $oldWeeks) {
-                        $toAddW = $targetWeeksPerMonth - $oldWeeks;
-                        for ($m = 0; $m < $oldMonths; $m++) {
-                            $mLastIdx = min($series->count() - 1, $m * $oldWeeks + ($oldWeeks - 1));
-                            $mLastSession = $series[$mLastIdx] ?? $series->last();
-                            $mBaseStart = \Carbon\Carbon::parse($mLastSession->start_date);
-                            $mBaseEnd = \Carbon\Carbon::parse($mLastSession->end_date);
-                            $durMins = max(15, $mBaseStart->diffInMinutes($mBaseEnd));
-
-                            for ($w = 1; $w <= $toAddW; $w++) {
-                                $nextStart = $mBaseStart->copy()->addWeeks($w);
-                                $exists = Training::where('parent_id', $parentId)
-                                    ->whereDate('start_date', $nextStart->toDateString())
-                                    ->exists();
-                                if (!$exists) {
-                                    $nextEnd = $nextStart->copy()->addMinutes($durMins);
-                                    $rawName = $this->trainingNameFromDate($nextStart);
-                                    $name = $this->uniqueTrainingName($rawName);
-
-                                    Training::create([
-                                        'id' => 'tr_' . Str::random(8),
-                                        'parent_id' => $parentId,
-                                        'name' => $name,
-                                        'start_date' => $nextStart,
-                                        'end_date' => $nextEnd,
-                                        'repeat_weeks' => $targetWeeksPerMonth,
-                                        'repeat_months' => $newMonths,
-                                        'sessions' => $targetWeeksPerMonth * $newMonths,
-                                        'slots' => $request->input('slots', $tr->slots),
-                                        'duration' => $request->input('duration', $tr->duration),
-                                        'fees' => $request->input('fees', $tr->fees),
-                                        'coach' => $request->input('coach', $tr->coach),
-                                        'location' => $request->input('location', $tr->location),
-                                        'status' => 'open',
-                                        'target_type' => $tr->target_type ?? 'junior',
-                                    ]);
-                                }
-                            }
-                        }
-                    }
-                    $newWeeks = $targetWeeksPerMonth;
+            foreach ($series as $sItem) {
+                $sDateStr = \Carbon\Carbon::parse($sItem->start_date)->format('Y-m-d');
+                if (!isset($targetDatesSet[$sDateStr])) {
+                    TrainingInvitation::where('training_id', $sItem->id)->delete();
+                    TrainingDate::where('training_id', $sItem->id)->delete();
+                    $sItem->delete();
                 }
+            }
 
-                $series = Training::where('parent_id', $parentId)
-                    ->orWhere('id', $parentId)
-                    ->orderBy('start_date', 'asc')
-                    ->get();
+            $existingSeries = Training::where('parent_id', $parentId)
+                ->orWhere('id', $parentId)
+                ->orderBy('start_date', 'asc')
+                ->get();
+            $existingDateStrings = $existingSeries->map(fn($item) => \Carbon\Carbon::parse($item->start_date)->format('Y-m-d'))->toArray();
 
-                if ($request->has('repeatMonths')) {
-                    $requestedMonths = max(1, min(24, (int) $request->input('repeatMonths')));
-                    $currentRemainingMonths = max(1, $oldMonths - $mIdx);
+            foreach ($targetDates as $tDateStr) {
+                if (!in_array($tDateStr, $existingDateStrings)) {
+                    $sStart = \Carbon\Carbon::parse($tDateStr . ' ' . $baseStart->format('H:i:s'));
+                    $sEnd = $sStart->copy()->addMinutes($durationMins);
+                    $rawName = $this->trainingNameFromDate($sStart);
+                    $name = $this->uniqueTrainingName($rawName);
 
-                    if ($requestedMonths < $currentRemainingMonths) {
-                        $keepMonthsCount = $mIdx + $requestedMonths;
-                        for ($m = $keepMonthsCount; $m < $oldMonths; $m++) {
-                            for ($w = 0; $w < $newWeeks; $w++) {
-                                $idxToDelete = $m * $newWeeks + $w;
-                                if (isset($series[$idxToDelete])) {
-                                    $sToDelete = $series[$idxToDelete];
-                                    TrainingInvitation::where('training_id', $sToDelete->id)->delete();
-                                    TrainingDate::where('training_id', $sToDelete->id)->delete();
-                                    $sToDelete->delete();
-                                }
-                            }
-                        }
-                        $newMonths = $keepMonthsCount;
-                    } else if ($requestedMonths > $currentRemainingMonths) {
-                        $targetTotalMonths = $mIdx + $requestedMonths;
-                        $firstSession = $series->first();
-                        $baseStart = \Carbon\Carbon::parse($firstSession->start_date);
-                        $baseEnd = \Carbon\Carbon::parse($firstSession->end_date);
-                        $durMins = max(15, $baseStart->diffInMinutes($baseEnd));
-
-                        for ($m = $oldMonths; $m < $targetTotalMonths; $m++) {
-                            for ($w = 0; $w < $newWeeks; $w++) {
-                                $wBaseSession = $series[$w] ?? $series->first();
-                                $wStart = \Carbon\Carbon::parse($wBaseSession->start_date);
-                                $nextStart = $wStart->copy()->addMonths($m);
-
-                                $exists = Training::where('parent_id', $parentId)
-                                    ->whereDate('start_date', $nextStart->toDateString())
-                                    ->exists();
-
-                                if (!$exists) {
-                                    $nextEnd = $nextStart->copy()->addMinutes($durMins);
-                                    $rawName = $this->trainingNameFromDate($nextStart);
-                                    $name = $this->uniqueTrainingName($rawName);
-
-                                    Training::create([
-                                        'id' => 'tr_' . Str::random(8),
-                                        'parent_id' => $parentId,
-                                        'name' => $name,
-                                        'start_date' => $nextStart,
-                                        'end_date' => $nextEnd,
-                                        'repeat_weeks' => $newWeeks,
-                                        'repeat_months' => $targetTotalMonths,
-                                        'sessions' => $newWeeks * $targetTotalMonths,
-                                        'slots' => $request->input('slots', $tr->slots),
-                                        'duration' => $request->input('duration', $tr->duration),
-                                        'fees' => $request->input('fees', $tr->fees),
-                                        'coach' => $request->input('coach', $tr->coach),
-                                        'location' => $request->input('location', $tr->location),
-                                        'status' => 'open',
-                                        'target_type' => $tr->target_type ?? 'junior',
-                                    ]);
-                                }
-                            }
-                        }
-                        $newMonths = $targetTotalMonths;
-                    }
+                    Training::create([
+                        'id' => 'tr_' . Str::random(8),
+                        'parent_id' => $parentId,
+                        'name' => $name,
+                        'start_date' => $sStart,
+                        'end_date' => $sEnd,
+                        'repeat_weeks' => $newWeeks,
+                        'repeat_months' => $newMonths,
+                        'sessions' => count($targetDates),
+                        'slots' => $request->input('slots', $tr->slots),
+                        'duration' => $request->input('duration', $tr->duration),
+                        'fees' => $request->input('fees', $tr->fees),
+                        'coach' => $request->input('coach', $tr->coach),
+                        'location' => $request->input('location', $tr->location),
+                        'status' => 'open',
+                        'target_type' => $tr->target_type ?? 'junior',
+                    ]);
                 }
             }
         }
@@ -361,17 +296,19 @@ class TrainingController extends Controller
 
         $tr->update($data);
 
-        // Synchronize repeat_weeks and repeat_months on remaining series items
+        // Synchronize repeat_weeks, repeat_months, sessions, and fees on remaining series items
         $updatedSeries = Training::where('parent_id', $parentId)
             ->orWhere('id', $parentId)
             ->orderBy('start_date', 'asc')
             ->get();
         $totalCount = $updatedSeries->count();
+        $newFees = $request->has('fees') ? $request->fees : $tr->fees;
         foreach ($updatedSeries as $sItem) {
             $sItem->update([
                 'repeat_weeks' => $newWeeks,
                 'repeat_months' => $newMonths,
                 'sessions' => $totalCount,
+                'fees' => $newFees,
             ]);
         }
 
@@ -426,6 +363,166 @@ class TrainingController extends Controller
             'training' => $this->formatTraining($tr),
             'invitations' => $invites,
             'dates' => $trainingDates,
+        ]);
+    }
+
+    public function updateMemberInvitation(Request $request, $id)
+    {
+        $request->validate([
+            'memberId' => 'required|string',
+            'sessionIds' => 'present|array',
+            'sessionIds.*' => 'string',
+            'forceAccept' => 'sometimes|boolean',
+        ]);
+
+        $tr = Training::findOrFail($id);
+        $parentId = $tr->parent_id ?: $tr->id;
+
+        $series = Training::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('start_date', 'asc')
+            ->get();
+
+        $idx = $series->search(fn($item) => $item->id === $tr->id);
+        if ($idx === false) $idx = 0;
+
+        $repeatWeeks = max(1, (int)($tr->repeat_weeks ?? 3));
+        $monthIndex = intdiv($idx, $repeatWeeks);
+        $monthSessions = $series->slice($monthIndex * $repeatWeeks, $repeatWeeks);
+        $monthSessionIds = $monthSessions->pluck('id')->all();
+
+        $memberId = $request->memberId;
+        $selectedSids = array_values(array_intersect($request->input('sessionIds', []), $monthSessionIds));
+        $forceAccept = (bool) $request->input('forceAccept', false);
+
+        $member = Member::findOrFail($memberId);
+
+        $existingInvs = TrainingInvitation::whereIn('training_id', $monthSessionIds)
+            ->where('member_id', $memberId)
+            ->get();
+
+        $hasAccepted = $existingInvs->contains(fn($i) => $i->status === 'accepted');
+
+        if ($hasAccepted && !$forceAccept) {
+            return response()->json([
+                'message' => 'Invitation has already been accepted and cannot be modified.',
+            ], 422);
+        }
+
+        if ($forceAccept) {
+            if (count($selectedSids) === 0) {
+                return response()->json([
+                    'message' => 'Please select at least one session date to force accept.',
+                ], 422);
+            }
+
+            $repeatWeeks = max(1, (int)($tr->repeat_weeks ?? 3));
+            $basePerWeekFee = (float) $tr->fees / $repeatWeeks;
+            $totalFeeToDeduct = FeeHelper::forMember($basePerWeekFee * count($selectedSids), $member);
+
+            return DB::transaction(function () use ($tr, $monthSessions, $selectedSids, $member, $totalFeeToDeduct, $existingInvs) {
+                if ($totalFeeToDeduct > 0) {
+                    $walletMember = $this->getWalletMember($member, $totalFeeToDeduct);
+                    if (!$walletMember->skip_credit_consumption) {
+                        $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                        if ($freshWallet->credit < $totalFeeToDeduct) {
+                            return response()->json([
+                                'message' => 'Insufficient wallet balance to accept this training program.',
+                            ], 422);
+                        }
+
+                        $freshWallet->credit = round($freshWallet->credit - $totalFeeToDeduct, 2);
+                        $freshWallet->save();
+
+                        $transaction = Transaction::create([
+                            'id' => 't_' . Str::random(8),
+                            'member_id' => $freshWallet->id,
+                            'type' => 'debit',
+                            'amount' => $totalFeeToDeduct,
+                            'description' => 'Training program invitation force accepted: ' . $tr->name,
+                            'date' => now(),
+                        ]);
+
+                        try {
+                            MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                        } catch (\Exception $e) {
+                            logger()->error("Transaction email failed: " . $e->getMessage());
+                        }
+                    }
+                }
+
+                foreach ($existingInvs as $inv) {
+                    if (!in_array($inv->training_id, $selectedSids) && $inv->status !== 'accepted') {
+                        $inv->delete();
+                    }
+                }
+
+                $holidayDates = Holiday::pluck('date')->toArray();
+                foreach ($selectedSids as $sid) {
+                    $inv = TrainingInvitation::where('training_id', $sid)->where('member_id', $member->id)->first();
+                    if (!$inv) {
+                        $inv = TrainingInvitation::create([
+                            'id' => 'ti_' . Str::random(8),
+                            'training_id' => $sid,
+                            'member_id' => $member->id,
+                            'status' => 'accepted',
+                        ]);
+                    } else {
+                        $inv->status = 'accepted';
+                        $inv->save();
+                    }
+
+                    $sessionObj = Training::find($sid);
+                    if ($sessionObj) {
+                        $sIso = \Carbon\Carbon::parse($sessionObj->start_date)->toDateString();
+                        if (!in_array($sIso, $holidayDates)) {
+                            TrainingDate::firstOrCreate([
+                                'training_id' => $sid,
+                                'member_id' => $member->id,
+                            ], [
+                                'id' => 'td_' . Str::random(8),
+                                'date' => $sessionObj->start_date,
+                                'attended' => null,
+                            ]);
+                        }
+                    }
+                }
+
+                return response()->json([
+                    'message' => 'Training invitation force accepted successfully.',
+                ]);
+            });
+        }
+
+        foreach ($existingInvs as $inv) {
+            if (!in_array($inv->training_id, $selectedSids) && $inv->status !== 'accepted') {
+                $inv->delete();
+            }
+        }
+
+        foreach ($selectedSids as $sid) {
+            $inv = TrainingInvitation::where('training_id', $sid)->where('member_id', $member->id)->first();
+            if (!$inv) {
+                $inv = TrainingInvitation::create([
+                    'id' => 'ti_' . Str::random(8),
+                    'training_id' => $sid,
+                    'member_id' => $member->id,
+                    'status' => 'open',
+                ]);
+
+                try {
+                    $sessionObj = Training::find($sid);
+                    if ($sessionObj) {
+                        MailHelper::sendTrainingNotification($member, $sessionObj, 'open', 'release');
+                    }
+                } catch (\Exception $e) {
+                    logger()->error("Training invite email error: " . $e->getMessage());
+                }
+            }
+        }
+
+        return response()->json([
+            'message' => 'Invitation updated successfully.',
         ]);
     }
 
@@ -610,7 +707,9 @@ class TrainingController extends Controller
             return null;
         }
 
-        $feeToDeduct = FeeHelper::forMember((float) $tr->fees, $member);
+        $repeatWeeks = max(1, (int)($tr->repeat_weeks ?? 1));
+        $basePerWeekFee = (float) $tr->fees / $repeatWeeks;
+        $feeToDeduct = FeeHelper::forMember($basePerWeekFee, $member);
 
         return DB::transaction(function () use ($invite, $tr, $member, $feeToDeduct) {
             // Re-fetch invitation with lock to prevent concurrent acceptance
@@ -651,6 +750,19 @@ class TrainingController extends Controller
             $freshInvite->save();
 
             $invite->status = 'accepted';
+
+            $holidayDates = Holiday::pluck('date')->toArray();
+            $sIso = \Carbon\Carbon::parse($tr->start_date)->toDateString();
+            if (!in_array($sIso, $holidayDates)) {
+                TrainingDate::firstOrCreate([
+                    'training_id' => $tr->id,
+                    'member_id' => $member->id,
+                ], [
+                    'id' => 'td_' . Str::random(8),
+                    'date' => $tr->start_date,
+                    'attended' => null,
+                ]);
+            }
 
             return null;
         });
@@ -697,30 +809,7 @@ class TrainingController extends Controller
                         // Determine the number of weekly sessions in this session's monthly group.
                         // This is the correct denominator for the per-week fee calculation.
                         $parentId = $tr->parent_id ?: $tr->id;
-                        $storedRepeatWeeks = max(1, (int)($tr->repeat_weeks ?? 1));
-                        $storedRepeatMonths = max(1, (int)($tr->repeat_months ?? 1));
-
-                        $weeksPerMonth = $storedRepeatWeeks;
-
-                        if ($storedRepeatMonths > 1) {
-                            // Multi-month series: determine which month this session belongs to
-                            // and count the actual sessions in that month's slice.
-                            $series = Training::where('parent_id', $parentId)
-                                ->orWhere('id', $parentId)
-                                ->orderBy('start_date', 'asc')
-                                ->pluck('id')
-                                ->values();
-
-                            $sessionIndex = $series->search($tr->id);
-                            if ($sessionIndex !== false && $storedRepeatWeeks > 0) {
-                                $monthIndex = intdiv($sessionIndex, $storedRepeatWeeks);
-                                $monthStart = $monthIndex * $storedRepeatWeeks;
-                                $monthEnd = $monthStart + $storedRepeatWeeks;
-                                $weeksPerMonth = $series->slice($monthStart, $storedRepeatWeeks)->count();
-                            }
-                        }
-
-                        $basePerWeekFee = (float) $tr->fees / max(1, $weeksPerMonth);
+                        $basePerWeekFee = (float) $tr->fees / $storedRepeatWeeks;
                         $totalFeeToDeduct += FeeHelper::forMember($basePerWeekFee, $member);
                         if (!in_array($tr->name, $trainingNames)) {
                             $trainingNames[] = $tr->name;
@@ -764,9 +853,25 @@ class TrainingController extends Controller
                     }
                 }
 
+                $holidayDates = Holiday::pluck('date')->toArray();
                 foreach ($mInvites as $inv) {
                     $inv->status = 'accepted';
                     $inv->save();
+
+                    $trSession = Training::find($inv->training_id);
+                    if ($trSession) {
+                        $sIso = \Carbon\Carbon::parse($trSession->start_date)->toDateString();
+                        if (!in_array($sIso, $holidayDates)) {
+                            TrainingDate::firstOrCreate([
+                                'training_id' => $trSession->id,
+                                'member_id' => $memberId,
+                            ], [
+                                'id' => 'td_' . Str::random(8),
+                                'date' => $trSession->start_date,
+                                'attended' => null,
+                            ]);
+                        }
+                    }
                 }
             }
 
@@ -783,6 +888,8 @@ class TrainingController extends Controller
             'memberId' => $d->member_id,
             'date' => $d->date,
             'attended' => $d->attended === null ? null : (bool)$d->attended,
+            'refundStatus' => $d->refund_status,
+            'refundAmount' => $d->refund_amount !== null ? (float)$d->refund_amount : null,
         ]));
     }
 
@@ -802,7 +909,103 @@ class TrainingController extends Controller
             'memberId' => $tDate->member_id,
             'date' => $tDate->date,
             'attended' => (bool)$tDate->attended,
+            'refundStatus' => $tDate->refund_status,
+            'refundAmount' => $tDate->refund_amount !== null ? (float)$tDate->refund_amount : null,
         ]);
+    }
+
+    public function processRefund(Request $request, $id)
+    {
+        $request->validate([
+            'refundType' => 'required|in:none,half,full',
+        ]);
+
+        $tDate = TrainingDate::findOrFail($id);
+
+        if ($tDate->refund_status !== null) {
+            return response()->json([
+                'message' => 'This attendance session has already been refunded or processed and cannot be changed.',
+            ], 422);
+        }
+
+        if ($tDate->attended !== false) {
+            return response()->json([
+                'message' => 'Refund can only be processed for absent attendance sessions.',
+            ], 422);
+        }
+
+        $tr = Training::find($tDate->training_id);
+        if (!$tr) {
+            return response()->json(['message' => 'Training program session not found.'], 404);
+        }
+
+        $member = Member::find($tDate->member_id);
+        if (!$member) {
+            return response()->json(['message' => 'Member not found.'], 404);
+        }
+
+        $parentId = $tr->parent_id ?: $tr->id;
+        $series = Training::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('start_date', 'asc')
+            ->get();
+
+        $idx = $series->search(fn($item) => $item->id === $tr->id);
+        if ($idx === false) $idx = 0;
+
+        $basePerWeekFee = (float) $tr->fees / $storedRepeatWeeks;
+        $weeklyFee = FeeHelper::forMember($basePerWeekFee, $member);
+
+        $refundType = $request->refundType;
+        $refundAmount = 0.0;
+
+        if ($refundType === 'half') {
+            $refundAmount = round($weeklyFee * 0.5, 2);
+        } else if ($refundType === 'full') {
+            $refundAmount = round($weeklyFee, 2);
+        }
+
+        return DB::transaction(function () use ($tDate, $tr, $member, $refundType, $refundAmount) {
+            $tDate->refund_status = $refundType;
+            $tDate->refund_amount = $refundAmount;
+            $tDate->save();
+
+            if ($refundAmount > 0 && !$member->skip_credit_consumption) {
+                $walletMember = $this->getWalletMember($member, 0);
+                $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                $freshWallet->credit = round($freshWallet->credit + $refundAmount, 2);
+                $freshWallet->save();
+
+                $refundLabel = $refundType === 'half' ? '50% Refund' : 'Full Refund';
+                $transaction = Transaction::create([
+                    'id' => 't_' . Str::random(8),
+                    'member_id' => $freshWallet->id,
+                    'type' => 'credit',
+                    'amount' => $refundAmount,
+                    'description' => "Training session absent ({$refundLabel}): {$tr->name}",
+                    'date' => now(),
+                ]);
+
+                try {
+                    MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                } catch (\Exception $e) {
+                    logger()->error("Transaction refund email error: " . $e->getMessage());
+                }
+            }
+
+            return response()->json([
+                'message' => 'Refund processed successfully.',
+                'date' => [
+                    'id' => $tDate->id,
+                    'trainingId' => $tDate->training_id,
+                    'memberId' => $tDate->member_id,
+                    'date' => $tDate->date,
+                    'attended' => (bool)$tDate->attended,
+                    'refundStatus' => $tDate->refund_status,
+                    'refundAmount' => (float)$tDate->refund_amount,
+                ],
+            ]);
+        });
     }
 
     private function createInvitationsForMembers(
@@ -869,34 +1072,41 @@ class TrainingController extends Controller
 
         $trainingDates = [];
         foreach ($memberIds as $mid) {
-            foreach ($dates as $d) {
-                $existingDate = TrainingDate::where('training_id', $tr->id)
-                    ->where('member_id', $mid)
-                    ->first();
+            $invStatus = TrainingInvitation::where('training_id', $tr->id)->where('member_id', $mid)->value('status');
+            if ($invStatus === 'accepted' || $invStatus === 'open') {
+                foreach ($dates as $d) {
+                    $existingDate = TrainingDate::where('training_id', $tr->id)
+                        ->where('member_id', $mid)
+                        ->first();
 
-                if (!$existingDate) {
-                    $tDate = TrainingDate::create([
-                        'id' => 'td_' . Str::random(8),
-                        'training_id' => $tr->id,
-                        'member_id' => $mid,
-                        'date' => $d,
-                        'attended' => null,
-                    ]);
-                    $trainingDates[] = [
-                        'id' => $tDate->id,
-                        'trainingId' => $tDate->training_id,
-                        'memberId' => $tDate->member_id,
-                        'date' => $tDate->date,
-                        'attended' => null,
-                    ];
-                } else {
-                    $trainingDates[] = [
-                        'id' => $existingDate->id,
-                        'trainingId' => $existingDate->training_id,
-                        'memberId' => $existingDate->member_id,
-                        'date' => $existingDate->date,
-                        'attended' => $existingDate->attended === null ? null : (bool)$existingDate->attended,
-                    ];
+                    if (!$existingDate) {
+                        $tDate = TrainingDate::create([
+                            'id' => 'td_' . Str::random(8),
+                            'training_id' => $tr->id,
+                            'member_id' => $mid,
+                            'date' => $d,
+                            'attended' => null,
+                        ]);
+                        $trainingDates[] = [
+                            'id' => $tDate->id,
+                            'trainingId' => $tDate->training_id,
+                            'memberId' => $tDate->member_id,
+                            'date' => $tDate->date,
+                            'attended' => null,
+                            'refundStatus' => null,
+                            'refundAmount' => null,
+                        ];
+                    } else {
+                        $trainingDates[] = [
+                            'id' => $existingDate->id,
+                            'trainingId' => $existingDate->training_id,
+                            'memberId' => $existingDate->member_id,
+                            'date' => $existingDate->date,
+                            'attended' => $existingDate->attended === null ? null : (bool)$existingDate->attended,
+                            'refundStatus' => $existingDate->refund_status,
+                            'refundAmount' => $existingDate->refund_amount !== null ? (float)$existingDate->refund_amount : null,
+                        ];
+                    }
                 }
             }
         }
@@ -925,7 +1135,20 @@ class TrainingController extends Controller
         $monthSessions = $series->slice($monthIndex * $repeatWeeks, $repeatWeeks);
         $sessionIds = $monthSessions->pluck('id')->all();
 
-        $this->refundTrainingSessions($sessionIds);
+        if ($t->status !== 'cancelled') {
+            $hasAccepted = TrainingInvitation::whereIn('training_id', $sessionIds)
+                ->where('status', 'accepted')
+                ->exists();
+
+            if ($hasAccepted) {
+                return response()->json([
+                    'message' => 'Cannot delete a training program with accepted invitations unless it is cancelled.'
+                ], 422);
+            }
+        }
+
+        // The Delete operation must only remove the training program and its related records.
+        // It must never execute refund logic.
 
         TrainingInvitation::whereIn('training_id', $sessionIds)->delete();
         TrainingDate::whereIn('training_id', $sessionIds)->delete();
@@ -953,13 +1176,61 @@ class TrainingController extends Controller
         return response()->json(['message' => 'Monthly training program deleted successfully.']);
     }
 
-    private function refundTrainingSessions(array $sessionIds): void
+    public function cancel(Request $request, $id)
     {
+        $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        $tr = Training::findOrFail($id);
+        if ($tr->status === 'cancelled') {
+            return response()->json([
+                'message' => 'Training program is already cancelled.',
+                'training' => $this->formatTraining($tr),
+            ]);
+        }
+
+        $tr->status = 'cancelled';
+        $tr->cancel_reason = trim($request->reason);
+        $tr->save();
+
+        // Process refunds for members who have paid for this training program session (refund happens only once upon cancellation)
+        $this->refundTrainingSessions([$tr->id], false);
+
+        return response()->json([
+            'message' => 'Training program cancelled successfully and eligible fees refunded.',
+            'training' => $this->formatTraining($tr),
+        ]);
+    }
+
+    private function refundTrainingSessions(array $sessionIds, bool $isDeletion = false): void
+    {
+        if ($isDeletion) {
+            return;
+        }
+
         $sessions = Training::whereIn('id', $sessionIds)->get();
+        $processedMemberParents = [];
+
         foreach ($sessions as $session) {
+            if ($session->status === 'cancelled' && !$isDeletion) {
+                // Cancellation refund is handled when status changes to cancelled
+            }
+
+            $parentId = $session->parent_id ?: $session->id;
+
+            // Find all session IDs belonging to this training program series
+            $seriesSessionIds = Training::where('parent_id', $parentId)
+                ->orWhere('id', $parentId)
+                ->pluck('id')
+                ->all();
+
             $invitations = TrainingInvitation::where('training_id', $session->id)
                 ->where('status', 'accepted')
                 ->get();
+
+            $baseName = trim(explode(' - Week', $session->name)[0]);
+            $cleanBaseName = trim(preg_replace('/ \(\d+\)$/', '', $baseName));
 
             foreach ($invitations as $invite) {
                 $member = Member::find($invite->member_id);
@@ -967,43 +1238,98 @@ class TrainingController extends Controller
                     continue;
                 }
 
-                $debitTxn = Transaction::where('member_id', $member->id)
-                    ->where('type', 'debit')
-                    ->where(function ($q) use ($session) {
-                        $q->where('description', 'like', '%' . $session->name . '%')
-                          ->orWhere('description', 'like', 'Training%');
-                    })
-                    ->latest()
-                    ->first();
+                if (isset($processedMemberParents[$parentId][$member->id])) {
+                    continue;
+                }
 
-                if ($debitTxn) {
-                    $refundAmount = (float) $debitTxn->amount;
+                // 1. Total Amount Deducted at Acceptance for this member for this training program
+                $acceptedSeriesInvites = TrainingInvitation::whereIn('training_id', $seriesSessionIds)
+                    ->where('member_id', $member->id)
+                    ->where('status', 'accepted')
+                    ->get();
 
-                    $alreadyRefunded = Transaction::where('member_id', $member->id)
-                        ->where('type', 'credit')
-                        ->where('description', 'like', '%' . $session->name . '%')
-                        ->exists();
-
-                    if (!$alreadyRefunded && $refundAmount > 0) {
-                        $member->credit += $refundAmount;
-                        $member->save();
-
-                        $transaction = Transaction::create([
-                            'id' => 't_' . Str::random(8),
-                            'member_id' => $member->id,
-                            'type' => 'credit',
-                            'amount' => $refundAmount,
-                            'description' => 'Refund — cancelled training session: ' . $session->name,
-                            'date' => now(),
-                        ]);
-
-                        try {
-                            MailHelper::sendTransactionEmail($member, $transaction);
-                        } catch (\Exception $e) {
-                            logger()->error("Transaction refund email failed for member {$member->id}: " . $e->getMessage());
-                        }
+                $calculatedDeducted = 0.0;
+                foreach ($acceptedSeriesInvites as $accInv) {
+                    $trSession = Training::find($accInv->training_id);
+                    if ($trSession) {
+                        $repeatWeeks = max(1, (int)($trSession->repeat_weeks ?? 1));
+                        $basePerWeekFee = (float) $trSession->fees / $repeatWeeks;
+                        $calculatedDeducted += FeeHelper::forMember($basePerWeekFee, $member);
                     }
                 }
+
+                $debitSum = (float) Transaction::where('member_id', $member->id)
+                    ->where('type', 'debit')
+                    ->where(function ($q) use ($session, $cleanBaseName) {
+                        $q->where('description', 'like', '%' . $session->name . '%')
+                          ->orWhere('description', 'like', '%' . $cleanBaseName . '%')
+                          ->orWhere('description', 'like', 'Training%');
+                    })
+                    ->sum('amount');
+
+                $totalDeducted = max($calculatedDeducted, $debitSum);
+
+                if ($totalDeducted <= 0) {
+                    continue;
+                }
+
+                // 2. Total Attendance Refunds Already Approved for this member across this training series
+                $tdAttendanceRefunds = TrainingDate::whereIn('training_id', $seriesSessionIds)
+                    ->where('member_id', $member->id)
+                    ->whereNotNull('refund_amount')
+                    ->sum('refund_amount');
+
+                $txnAttendanceRefunds = Transaction::where('member_id', $member->id)
+                    ->where('type', 'credit')
+                    ->where('description', 'like', 'Training session absent%')
+                    ->where(function ($q) use ($session, $cleanBaseName) {
+                        $q->where('description', 'like', '%' . $session->name . '%')
+                          ->orWhere('description', 'like', '%' . $cleanBaseName . '%');
+                    })
+                    ->sum('amount');
+
+                $alreadyRefundedAttendance = max((float)$tdAttendanceRefunds, (float)$txnAttendanceRefunds);
+
+                // 3. Previous Cancellation / Deletion Refunds Already Issued for this member for this training program
+                $alreadyRefundedCancellation = (float) Transaction::where('member_id', $member->id)
+                    ->where('type', 'credit')
+                    ->where(function ($q) {
+                        $q->where('description', 'like', 'Refund — cancelled training session%')
+                          ->orWhere('description', 'like', 'Refund — deleted training session%');
+                    })
+                    ->where(function ($q) use ($session, $cleanBaseName) {
+                        $q->where('description', 'like', '%' . $session->name . '%')
+                          ->orWhere('description', 'like', '%' . $cleanBaseName . '%');
+                    })
+                    ->sum('amount');
+
+                // 4. Calculate Remaining Refund
+                // Remaining Refund = Total Deducted − Total Attendance Refunds Already Approved − Previous Cancellation Refunds Already Issued
+                $remainingRefund = round($totalDeducted - $alreadyRefundedAttendance - $alreadyRefundedCancellation, 2);
+
+                if ($remainingRefund > 0) {
+                    $member->credit = round($member->credit + $remainingRefund, 2);
+                    $member->save();
+
+                    $transaction = Transaction::create([
+                        'id' => 't_' . Str::random(8),
+                        'member_id' => $member->id,
+                        'type' => 'credit',
+                        'amount' => $remainingRefund,
+                        'description' => $isDeletion
+                            ? 'Refund — deleted training session: ' . $session->name
+                            : 'Refund — cancelled training session: ' . $session->name,
+                        'date' => now(),
+                    ]);
+
+                    try {
+                        MailHelper::sendTransactionEmail($member, $transaction);
+                    } catch (\Exception $e) {
+                        logger()->error("Transaction refund email failed for member {$member->id}: " . $e->getMessage());
+                    }
+                }
+
+                $processedMemberParents[$parentId][$member->id] = true;
             }
         }
     }
@@ -1033,8 +1359,14 @@ class TrainingController extends Controller
                 $remainingWeeks = $remainingCount;
                 $remainingMonths = 1;
             } else {
+                $firstSession = $series->first();
+                $storeMonths = (int)($firstSession->repeat_months ?? $t->repeat_months ?? 1);
+                $parentStart = \Carbon\Carbon::parse($firstSession->start_date);
+                $trStart = \Carbon\Carbon::parse($t->start_date);
+                $mIdx = ($trStart->year - $parentStart->year) * 12 + ($trStart->month - $parentStart->month);
+                if ($mIdx < 0) $mIdx = 0;
+
                 $weeksPerMonth = max(1, $storeWeeks);
-                $mIdx = intdiv($schIndex, $weeksPerMonth);
                 $wIdx = $schIndex % $weeksPerMonth;
 
                 $remainingWeeks = max(1, $weeksPerMonth - $wIdx);
@@ -1048,7 +1380,7 @@ class TrainingController extends Controller
             'name' => $t->name,
             'startDate' => $t->start_date,
             'endDate' => $t->end_date,
-            'repeatWeeks' => $remainingWeeks,
+            'repeatWeeks' => $storeWeeks,
             'repeatMonths' => $remainingMonths,
             'sessions' => (int)($t->sessions ?? $totalSessions),
             'slots' => (int)$t->slots,
@@ -1057,6 +1389,7 @@ class TrainingController extends Controller
             'coach' => $t->coach,
             'location' => $t->location,
             'status' => $t->status,
+            'cancelReason' => $t->cancel_reason,
             'targetType' => $t->target_type ?? 'junior',
         ];
     }

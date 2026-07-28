@@ -267,20 +267,7 @@ function Events() {
     };
   };
 
-  const invitedMemberIds = (trainingId: string) =>
-    s.trainingInvites.filter((i) => i.trainingId === trainingId).map((i) => i.memberId);
 
-  const isMemberInvitedToParent = (parentId: string, memberId: string) => {
-    const childIds = s.trainings.filter(x => (x.parentId || x.id) === parentId).map(x => x.id);
-    return s.trainingInvites.some(i => i.memberId === memberId && childIds.includes(i.trainingId));
-  };
-
-  const availableMembersForParent = (parentId: string, targetType: string) => {
-    if (targetType === "adult") {
-      return adultPlayers.filter((m) => !isMemberInvitedToParent(parentId, m.id));
-    }
-    return juniorChildren.filter((c) => !isMemberInvitedToParent(parentId, c.id));
-  };
 
   const availablePlayMembers = (sch: PlaySchedule) => {
     const invited = new Set(
@@ -300,9 +287,7 @@ function Events() {
     );
   };
 
-  const trainingPrograms = s.trainings.filter((t) => 
-    invitedTrainingIds.has(t.id) || t.status === "open" || t.status === "released"
-  );
+  const trainingPrograms = s.trainings.filter((t) => invitedTrainingIds.has(t.id));
 
   // Build monthly cards: one entry per (parentId, monthIndex) group
   // This ensures each monthly invitation is shown independently
@@ -333,24 +318,32 @@ function Events() {
 
       const first = sorted[0];
       // Use repeat_weeks stored on the session to chunk into monthly groups
-      const rw = Math.max(1, first.repeatWeeks || 1);
+      const rw = Math.max(1, first.repeatWeeks || 3);
 
-      // Determine the total number of months from the full series in the store
       const allSeriesSessions = s.trainings
         .filter(x => (x.parentId || x.id) === pid)
         .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-      const totalMonths = Math.max(1, Math.ceil(allSeriesSessions.length / rw));
 
-      for (let m = 0; m < totalMonths; m++) {
-        // Full month sessions from the complete series
-        const fullMonthSessions = allSeriesSessions.slice(m * rw, (m + 1) * rw);
-        if (fullMonthSessions.length === 0) continue;
+      // Group allSeriesSessions by Calendar Month (YYYY-MM)
+      const monthGroups: Record<string, Training[]> = {};
+      for (const session of allSeriesSessions) {
+        const d = new Date(session.startDate);
+        if (Number.isNaN(d.getTime())) continue;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        if (!monthGroups[key]) monthGroups[key] = [];
+        monthGroups[key].push(session);
+      }
+
+      const monthKeys = Object.keys(monthGroups).sort();
+      const relevantIds = new Set(sorted.map(sess => sess.id));
+
+      monthKeys.forEach((key, m) => {
+        const fullMonthSessions = monthGroups[key];
+        if (fullMonthSessions.length === 0) return;
 
         const primary = fullMonthSessions[0];
-        // Only show this monthly card if at least one session is in trainingPrograms
-        const relevantIds = new Set(sorted.map(sess => sess.id));
         const hasRelevantSession = fullMonthSessions.some(sess => relevantIds.has(sess.id));
-        if (!hasRelevantSession) continue;
+        if (!hasRelevantSession) return;
 
         cards.push({
           key: `${pid}_m${m}`,
@@ -360,7 +353,7 @@ function Events() {
           monthSessions: fullMonthSessions,
           repeatWeeks: rw,
         });
-      }
+      });
     }
 
     // Sort by primary session start date
@@ -810,10 +803,8 @@ function Events() {
         const { member, training, monthSessions, invitedMonthSessions, invites } = bulkAcceptPopup;
         const isAdult = training.targetType === "adult";
         
-        // Fee per week = total monthly fee / number of weeks in this month
-        // monthSessions.length = number of weekly sessions in this monthly invitation
-        const weeksInThisMonth = Math.max(1, monthSessions.length);
-        const basePerWeekFee = (training.fees || 0) / weeksInThisMonth;
+        const repeatWeeks = Math.max(1, training.repeatWeeks || 3);
+        const basePerWeekFee = (training.fees || 0) / repeatWeeks;
         
         const feePerWeek = applyMemberFee(basePerWeekFee, member, discountsFromStore(s));
         // Only charge for weeks the member was actually invited to
@@ -846,7 +837,7 @@ function Events() {
 
                   <div className="space-y-2 border-t border-[rgba(255,255,255,0.1)] pt-3">
                     <div className="flex justify-between text-xs text-[#8A8A98]">
-                      <span>Monthly fee ({weeksInThisMonth} week{weeksInThisMonth !== 1 ? "s" : ""})</span>
+                      <span>Monthly fee ({repeatWeeks} week{repeatWeeks !== 1 ? "s" : ""})</span>
                       <span className="font-mono">{fmtMoney(training.fees)}</span>
                     </div>
                     <div className="flex justify-between text-xs">
@@ -1249,15 +1240,13 @@ function Events() {
               const monthSessions = card.monthSessions;
               const monthSessionIds = new Set(monthSessions.map(ms => ms.id));
 
+              const isCancelled = t.status === "cancelled" || monthSessions.some(ms => ms.status === "cancelled");
+              const cancelReason = t.cancelReason || monthSessions.find(ms => ms.cancelReason)?.cancelReason || "No reason specified.";
+
               // Only invites that belong to this month's sessions
               const familyMonthInvites = trainInvs.filter(i => monthSessionIds.has(i.trainingId));
 
-              // Members who are NOT yet invited to any session in this month
-              const invitedMemberIdsThisMonth = new Set(familyMonthInvites.map(i => i.memberId));
-              const candidateMembers = (() => {
-                const pool = targetType === "adult" ? adultPlayers : juniorChildren;
-                return pool.filter(m => !invitedMemberIdsThisMonth.has(m.id));
-              })();
+
 
               // Group this month's invites by member
               const memberInvitesMap = new Map<string, typeof familyMonthInvites>();
@@ -1266,7 +1255,7 @@ function Events() {
                 memberInvitesMap.get(inv.memberId)!.push(inv);
               }
 
-              const canEnroll = t.status === "open" || t.status === "released";
+              const canEnroll = !isCancelled && (t.status === "open" || t.status === "released");
               const holidayName = getHolidayName(t.startDate);
               const familyMatchingMembers = targetType === "adult" ? adultPlayers : juniorChildren;
 
@@ -1290,11 +1279,15 @@ function Events() {
                             {monthLabel}
                           </span>
                         )}
-                        {holidayName && (
+                        {isCancelled ? (
+                          <span className="inline-flex items-center rounded-md border border-[#EF4444]/35 bg-[#EF4444]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#EF4444] uppercase">
+                            Cancelled
+                          </span>
+                        ) : holidayName ? (
                           <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
                             Holiday
                           </span>
-                        )}
+                        ) : null}
                         <span className="inline-flex items-center rounded-md border border-[#10B981]/30 bg-[#10B981]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#10B981] uppercase">
                           {targetType === "adult" ? "Adult" : "Junior"}
                         </span>
@@ -1308,8 +1301,18 @@ function Events() {
                         )}
                       </div>
                     </div>
-                    <StatusBadge status={t.status} />
+                    <StatusBadge status={isCancelled ? "cancelled" : t.status} />
                   </div>
+
+                  {isCancelled && familyMonthInvites.length === 0 && (
+                    <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+                      <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
+                      <div className="space-y-0.5">
+                        <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
+                        <div className="text-[#EF4444]/90 font-light">{cancelReason}</div>
+                      </div>
+                    </div>
+                  )}
 
                   {canEnroll && familyMatchingMembers.length === 0 && (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.04]">
@@ -1331,64 +1334,15 @@ function Events() {
                     </div>
                   )}
 
-                  {canEnroll && candidateMembers.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-white/[0.04]">
-                      <p className="text-[11px] font-medium tracking-[0.08em] text-[#8A8A98] uppercase">
-                        {targetType === "adult" ? "Accept into this program" : "Accept children into this program"}
-                      </p>
-                      <div className="grid gap-2">
-                        {candidateMembers.map((mem) => {
-                          // For self-enrollment: charge the full monthly fee
-                          const memFee = applyMemberFee(t.fees, mem, discountsFromStore(s));
-                          const acceptingKey = `${card.key}:${mem.id}`;
-                          return (
-                            <div
-                              key={mem.id}
-                              className="flex items-center justify-between gap-3 p-2.5 bg-[#1A2120]/60 border border-[rgba(255,255,255,0.04)] rounded-lg"
-                            >
-                              <div className="min-w-0">
-                                <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
-                                  {mem.firstName} {mem.lastName}
-                                </div>
-                                <div className="text-[11px] text-[#8A8A98]">
-                                  Grade {mem.grade} · Fee{" "}
-                                  <span className="font-mono font-semibold text-[#3B82F6]">
-                                    {fmtMoney(memFee)}
-                                  </span>
-                                </div>
-                              </div>
-                              <Button
-                                size="sm"
-                                disabled={enrollingId === acceptingKey}
-                                className="btn-premium-solid h-7.5 px-3.5 text-[11px] font-semibold cursor-pointer shrink-0"
-                                onClick={async () => {
-                                  setEnrollingId(acceptingKey);
-                                  try {
-                                    await enrollTraining(t.id, [mem.id]);
-                                    toast.success(`Accepted ${mem.firstName} into training`);
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to accept member.");
-                                  } finally {
-                                    setEnrollingId(null);
-                                  }
-                                }}
-                              >
-                                Accept
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+
 
                   {Array.from(memberInvitesMap.entries()).map(([memberId, mInvites]) => {
                     const member = s.members.find(m => m.id === memberId);
                     if (!member) return null;
                     
-                    const hasOpen = mInvites.some(i => i.status === "open");
+                    const hasOpen = !isCancelled && mInvites.some(i => i.status === "open");
                     const isAllAccepted = mInvites.every(i => i.status === "accepted");
-                    const displayStatus = isAllAccepted ? "accepted" : hasOpen ? "open" : mInvites[0].status;
+                    const displayStatus = isCancelled ? "cancelled" : isAllAccepted ? "accepted" : hasOpen ? "open" : mInvites[0].status;
                     
                     // Only the sessions within this month that the member was invited to
                     const invitedMonthSessions = monthSessions.filter(ms =>
@@ -1396,71 +1350,113 @@ function Events() {
                     );
                     
                     return (
-                      <div key={memberId} className="flex items-center justify-between gap-3 pt-2.5 border-t border-white/[0.04]">
-                        <div className="min-w-0">
-                          <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
-                            <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">
-                              {targetType === "adult" ? "Member:" : "Child:"}
-                            </span>
-                            {name(memberId)}
-                          </div>
-                          <div className="text-[11px] text-[#8A8A98]">
-                            {invitedMonthSessions.length} invited session{invitedMonthSessions.length !== 1 ? "s" : ""} this month
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <StatusBadge kind="invitation" status={displayStatus} />
-                          {hasOpen && (
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
-                                onClick={() => {
-                                  setBulkAcceptPopup({
-                                    member,
-                                    training: t,
-                                    // Pass the full month sessions so we can calculate per-week fee correctly
-                                    monthSessions,
-                                    // Only the sessions this member was invited to in this month
-                                    invitedMonthSessions,
-                                    invites: mInvites.filter(i => i.status !== "accepted")
-                                  });
-                                }}
-                              >
-                                Accept
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
-                                onClick={async () => {
-                                  try {
-                                    await s.respondTrainingBulk(mInvites.map(i => i.id), "declined");
-                                    toast.success("Declined invitation");
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to decline invitation.");
-                                  }
-                                }}
-                              >
-                                Decline
-                              </Button>
+                      <div key={memberId} className="pt-2.5 border-t border-white/[0.04] space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
+                              <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">
+                                {targetType === "adult" ? "Member:" : "Child:"}
+                              </span>
+                              {name(memberId)}
                             </div>
-                          )}
+                            <div className="text-[11px] text-[#8A8A98]">
+                              {invitedMonthSessions.length} invited session{invitedMonthSessions.length !== 1 ? "s" : ""} this month
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <StatusBadge kind="invitation" status={displayStatus} />
+                            {hasOpen && (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
+                                  onClick={() => {
+                                    setBulkAcceptPopup({
+                                      member,
+                                      training: t,
+                                      // Pass the full month sessions so we can calculate per-week fee correctly
+                                      monthSessions,
+                                      // Only the sessions this member was invited to in this month
+                                      invitedMonthSessions,
+                                      invites: mInvites.filter(i => i.status !== "accepted")
+                                    });
+                                  }}
+                                >
+                                  Accept
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
+                                  onClick={async () => {
+                                    try {
+                                      await s.respondTrainingBulk(mInvites.map(i => i.id), "declined");
+                                      toast.success("Declined invitation");
+                                    } catch (error: any) {
+                                      toast.error(error.message || "Failed to decline invitation.");
+                                    }
+                                  }}
+                                >
+                                  Decline
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Read-Only Attendance Status for Accepted Members */}
+                        {isAllAccepted && !isCancelled && (
+                          <div className="mt-2 p-2.5 rounded-lg bg-[#0C0F0E]/80 border border-white/5 space-y-1">
+                            <div className="text-[10px] font-semibold tracking-wider text-[#34D399] uppercase">
+                              Attendance Status
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                              {invitedMonthSessions.map((ms) => {
+                                const dateRec = s.trainingDates.find(
+                                  (d) => d.trainingId === ms.id && d.memberId === memberId
+                                );
+                                const dateLabel = new Date(ms.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                                const isPresent = dateRec?.attended === true;
+                                const isAbsent = dateRec?.attended === false;
+                                const refundStatus = dateRec?.refundStatus;
+
+                                return (
+                                  <div key={ms.id} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-white/[0.02]">
+                                    <span className="text-[#8A8A98] font-mono">{dateLabel}:</span>
+                                    {isPresent ? (
+                                      <span className="text-emerald-400 font-semibold">Present</span>
+                                    ) : isAbsent ? (
+                                      refundStatus === "half" ? (
+                                        <span className="text-purple-400 font-semibold">Absent (50% Refunded)</span>
+                                      ) : refundStatus === "full" ? (
+                                        <span className="text-emerald-400 font-semibold">Absent (Refunded)</span>
+                                      ) : (
+                                        <span className="text-rose-400 font-semibold">Absent</span>
+                                      )
+                                    ) : (
+                                      <span className="text-gray-400 font-light">Scheduled</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {isCancelled && (
+                          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+                            <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
+                            <div className="space-y-0.5">
+                              <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
+                              <div className="text-[#EF4444]/90 font-light">{cancelReason}</div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
 
-                  {canEnroll &&
-                    familyMatchingMembers.length > 0 &&
-                    candidateMembers.length === 0 &&
-                    familyMonthInvites.length === 0 && (
-                      <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.04]">
-                        {targetType === "adult"
-                          ? "No eligible adult members left to accept for this program."
-                          : "No eligible children left to accept for this program."}
-                      </p>
-                    )}
+
               </div>
               );
             })}

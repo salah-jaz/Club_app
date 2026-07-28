@@ -54,6 +54,7 @@ class CreditRequestController extends Controller
             $transaction = Transaction::create([
                 'id' => 't_' . Str::random(8),
                 'member_id' => $request->memberId,
+                'credit_request_id' => $cr->id,
                 'type' => 'credit',
                 'amount' => $request->amount,
                 'description' => 'Credit top-up (Admin direct)',
@@ -125,6 +126,7 @@ class CreditRequestController extends Controller
         $debitTxn = Transaction::create([
             'id' => 't_' . Str::random(8),
             'member_id' => $member->id,
+            'credit_request_id' => $cr->id,
             'type' => 'debit',
             'amount' => $request->amount,
             'description' => $reason,
@@ -165,6 +167,7 @@ class CreditRequestController extends Controller
         $transaction = Transaction::create([
             'id' => 't_' . Str::random(8),
             'member_id' => $cr->member_id,
+            'credit_request_id' => $cr->id,
             'type' => 'credit',
             'amount' => $cr->amount,
             'description' => 'Credit top-up approved',
@@ -205,7 +208,53 @@ class CreditRequestController extends Controller
         ]);
     }
 
-    private function formatRequest(CreditRequest $r)
+    public function destroy(Request $request, $id)
+    {
+        $user = $request->user();
+        if (!$user || $user->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can delete transactions.'], 403);
+        }
+
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($id) {
+            $cr = CreditRequest::findOrFail($id);
+            $member = Member::lockForUpdate()->find($cr->member_id);
+
+            if ($cr->status === 'approved') {
+                if ($member) {
+                    $type = $cr->type ?? 'credit';
+                    if ($type === 'credit') {
+                        $member->credit -= (float) $cr->amount;
+                    } else if ($type === 'debit') {
+                        $member->credit += (float) $cr->amount;
+                    }
+                    $member->save();
+                }
+
+                // Delete corresponding transaction record
+                $txn = Transaction::where('credit_request_id', $cr->id)->first();
+                if (!$txn) {
+                    $type = $cr->type ?? 'credit';
+                    $txn = Transaction::where('member_id', $cr->member_id)
+                        ->where('type', $type)
+                        ->where('amount', $cr->amount)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                }
+                if ($txn) {
+                    $txn->delete();
+                }
+            }
+
+            $cr->delete();
+
+            return response()->json([
+                'message' => 'Wallet transaction deleted and reversed successfully.',
+                'memberCredit' => $member ? (float) $member->credit : 0,
+            ]);
+        });
+    }
+
+    private function formatRequest(CreditRequest|\stdClass $r)
     {
         return [
             'id' => $r->id,
@@ -215,7 +264,7 @@ class CreditRequestController extends Controller
             'type' => $r->type ?? 'credit',
             'status' => $r->status,
             'reason' => $r->reason,
-            'createdAt' => $r->created_at->toISOString(),
+            'createdAt' => $r->created_at instanceof \DateTimeInterface ? $r->created_at->format('c') : (string) $r->created_at,
         ];
     }
 }

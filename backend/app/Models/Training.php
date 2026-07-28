@@ -25,6 +25,7 @@ class Training extends Model
         'coach',
         'location',
         'status',
+        'cancel_reason',
         'target_type',
     ];
 

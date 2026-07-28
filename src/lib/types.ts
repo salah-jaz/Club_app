@@ -170,7 +170,8 @@ export interface Training {
   fees: number;
   coach: string;
   location: string;
-  status: "open" | "released" | "closed";
+  status: "open" | "released" | "closed" | "cancelled";
+  cancelReason?: string;
   targetType?: "adult" | "junior";
 }
 
@@ -187,4 +188,6 @@ export interface TrainingDate {
   memberId: string;
   date: string;
   attended: boolean | null;
+  refundStatus?: "none" | "half" | "full" | null;
+  refundAmount?: number | null;
 }

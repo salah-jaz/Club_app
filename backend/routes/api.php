@@ -53,9 +53,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/credit-requests', [CreditRequestController::class, 'store']);
     Route::post('/credit-requests/{id}/approve', [CreditRequestController::class, 'approve']);
     Route::post('/credit-requests/{id}/reject', [CreditRequestController::class, 'reject']);
+    Route::delete('/credit-requests/{id}', [CreditRequestController::class, 'destroy']);
 
     // Transactions
     Route::get('/transactions', [TransactionController::class, 'index']);
+    Route::delete('/transactions/{id}', [TransactionController::class, 'destroy']);
 
     // Play Schedules & Rotations
     Route::get('/schedules', [PlayScheduleController::class, 'index']);
@@ -83,7 +85,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/trainings/{id}', [TrainingController::class, 'update']);
     Route::delete('/trainings/{id}', [TrainingController::class, 'destroy']);
     Route::post('/trainings/{id}/release', [TrainingController::class, 'release']);
+    Route::post('/trainings/{id}/update-member-invitation', [TrainingController::class, 'updateMemberInvitation']);
     Route::post('/trainings/{id}/enroll', [TrainingController::class, 'enroll']);
+    Route::post('/trainings/{id}/cancel', [TrainingController::class, 'cancel']);
     
     // Training Invitations & Dates
     Route::get('/training-invitations', [TrainingController::class, 'listInvitations']);
@@ -91,6 +95,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/training-invitations/{id}/respond', [TrainingController::class, 'respondInvitation']);
     Route::get('/training-dates', [TrainingController::class, 'listDates']);
     Route::patch('/training-dates/{id}/attendance', [TrainingController::class, 'markAttendance']);
+    Route::post('/training-dates/{id}/process-refund', [TrainingController::class, 'processRefund']);
     // League Groups
     Route::get('/league-groups', [LeagueGroupController::class, 'index']);
     Route::post('/league-groups', [LeagueGroupController::class, 'store']);
