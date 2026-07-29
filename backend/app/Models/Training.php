@@ -46,4 +46,9 @@ class Training extends Model
     {
         return $this->hasMany(TrainingDate::class);
     }
+
+    public function trainingUpdateRequests(): HasMany
+    {
+        return $this->hasMany(TrainingUpdateRequest::class);
+    }
 }

@@ -16,6 +16,7 @@ import { Send, UserCheck, AlertTriangle, Lock, RefreshCw, CheckCircle2, XCircle 
 import { cn } from "@/lib/utils";
 import { fmtMoney } from "@/lib/format";
 import { applyMemberFee, discountsFromStore } from "@/lib/fees";
+import type { Member, Training } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/trainings/$id/")({ component: TrainingPage });
 
@@ -40,6 +41,18 @@ function TrainingPage() {
     refundType: "none" | "half" | "full";
   } | null>(null);
   const [processingRefund, setProcessingRefund] = useState(false);
+
+  // Send Update Request Dialog state
+  const [sendUpdateDialog, setSendUpdateDialog] = useState<{
+    member: Member;
+    existingSessions: Training[];
+    newSessions: Training[];
+    previouslyPaidAmount: number;
+    updatedMonthlyFee: number;
+    newPerSessionFee: number;
+    additionalAmount: number;
+  } | null>(null);
+  const [sendingUpdate, setSendingUpdate] = useState(false);
 
   const handleCancelTraining = async () => {
     if (!cancelReason.trim()) return;
@@ -199,6 +212,31 @@ function TrainingPage() {
     }
   };
 
+  const handleSendUpdateRequestSubmit = async () => {
+    if (!sendUpdateDialog) return;
+    setSendingUpdate(true);
+    try {
+      await s.sendTrainingUpdateRequest(
+        t.id,
+        sendUpdateDialog.member.id,
+        sendUpdateDialog.existingSessions.map((x) => x.id),
+        sendUpdateDialog.newSessions.map((x) => x.id),
+        sendUpdateDialog.additionalAmount,
+        sendUpdateDialog.previouslyPaidAmount,
+        sendUpdateDialog.updatedMonthlyFee,
+        sendUpdateDialog.newPerSessionFee,
+      );
+      toast.success(
+        `Training update request sent to ${sendUpdateDialog.member.firstName} ${sendUpdateDialog.member.lastName}.`
+      );
+      setSendUpdateDialog(null);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send training update request.");
+    } finally {
+      setSendingUpdate(false);
+    }
+  };
+
   const formattedDatePill = (startDateStr: string) => {
     const d = new Date(startDateStr);
     return Number.isNaN(d.getTime())
@@ -345,6 +383,126 @@ function TrainingPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Send Update Request Dialog */}
+      <Dialog open={!!sendUpdateDialog} onOpenChange={(open) => !open && setSendUpdateDialog(null)}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE]">Send Training Update Request</DialogTitle>
+            <DialogDescription className="text-[#C4D4CF] text-xs">
+              Send an update request to <strong className="text-white">{sendUpdateDialog?.member.firstName} {sendUpdateDialog?.member.lastName}</strong> for modified sessions in <strong className="text-white">{t.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          {sendUpdateDialog && (
+            <div className="space-y-4 py-2 text-xs">
+              {/* Existing Accepted Sessions */}
+              <div className="p-3 rounded-lg bg-[#1A2120] border border-white/5 space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8A8A98]">
+                  Existing Accepted Sessions
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {sendUpdateDialog.existingSessions.map((sItem) => (
+                    <span key={sItem.id} className="inline-flex items-center gap-1 text-[11px] font-medium bg-[#10B981]/10 text-[#34D399] px-2 py-0.5 rounded border border-[#10B981]/20">
+                      <CheckCircle2 className="size-3" /> {formattedDatePill(sItem.startDate)}
+                    </span>
+                  ))}
+                  {sendUpdateDialog.existingSessions.length === 0 && (
+                    <span className="text-[11px] text-[#8A8A98]">None</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Newly Added Sessions */}
+              <div className="p-3 rounded-lg bg-[#1A2120] border border-white/5 space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#3B82F6]">
+                  Newly Added Sessions
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {sendUpdateDialog.newSessions.map((sItem) => (
+                    <span key={sItem.id} className="inline-flex items-center gap-1 text-[11px] font-medium bg-[#3B82F6]/10 text-[#60A5FA] px-2 py-0.5 rounded border border-[#3B82F6]/20">
+                      + {formattedDatePill(sItem.startDate)} (${sendUpdateDialog.newPerSessionFee.toFixed(2)})
+                    </span>
+                  ))}
+                  {sendUpdateDialog.newSessions.length === 0 && (
+                    <span className="text-[11px] text-[#8A8A98]">No additional session dates</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Payment Summary */}
+              <div className="p-3.5 rounded-lg bg-[#1A2120] border border-white/10 space-y-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#34D399]">
+                  Payment Summary
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between text-[#8A8A98]">
+                    <span>Previously Paid Amount</span>
+                    <span className="font-mono text-[#F1F0EE]">{fmtMoney(sendUpdateDialog.previouslyPaidAmount)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-[#8A8A98]">
+                    <span>Updated Monthly Fee</span>
+                    <span className="font-mono text-[#F1F0EE]">{fmtMoney(sendUpdateDialog.updatedMonthlyFee)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-[#8A8A98]">
+                    <span>New Per Session Fee</span>
+                    <span className="font-mono text-[#F1F0EE]">{fmtMoney(sendUpdateDialog.newPerSessionFee)}</span>
+                  </div>
+
+                  <div className="pt-2 border-t border-white/10 flex justify-between items-center font-semibold">
+                    <span>
+                      {sendUpdateDialog.additionalAmount < 0
+                        ? "Refund Amount (To Member Wallet)"
+                        : "Additional Payable Amount"}
+                    </span>
+                    <span className={cn(
+                      "font-mono text-base font-bold",
+                      sendUpdateDialog.additionalAmount > 0
+                        ? "text-[#34D399]"
+                        : sendUpdateDialog.additionalAmount < 0
+                        ? "text-[#A78BFA]"
+                        : "text-[#8A8A98]"
+                    )}>
+                      {sendUpdateDialog.additionalAmount < 0
+                        ? `-${fmtMoney(Math.abs(sendUpdateDialog.additionalAmount))}`
+                        : fmtMoney(sendUpdateDialog.additionalAmount)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-[#8A8A98] font-light leading-relaxed">
+                {sendUpdateDialog.additionalAmount < 0
+                  ? "Sending this update request will notify the member. When accepted, the refund amount will be credited back to their wallet."
+                  : sendUpdateDialog.additionalAmount > 0
+                  ? "Sending this update request will notify the member. The new sessions will be added and the additional amount will be debited from their wallet only if the member accepts."
+                  : "Sending this update request will notify the member. The new sessions will be added with no additional payment required."}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              className="btn-premium-outline cursor-pointer text-xs"
+              disabled={sendingUpdate}
+              onClick={() => setSendUpdateDialog(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="btn-premium-solid cursor-pointer text-xs font-semibold"
+              disabled={sendingUpdate}
+              onClick={handleSendUpdateRequestSubmit}
+            >
+              {sendingUpdate ? "Sending…" : "Send Update"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {t.status === "cancelled" && (
         <div className="rounded-lg border border-[#EF4444]/30 bg-[#EF4444]/10 p-4 text-[#EF4444] flex items-start gap-2.5">
           <AlertTriangle className="size-4 shrink-0 mt-0.5" />
@@ -426,12 +584,59 @@ function TrainingPage() {
                     const isAccepted = statusInfo.isAccepted;
                     const isSentYetToAccept = !isAccepted && memberInvs.length > 0;
                     
+                    const acceptedInvs = memberInvs.filter((i) => i.status === "accepted");
+                    const acceptedSessionIds = acceptedInvs.map((i) => i.trainingId);
+                    const existingAcceptedSessions = monthSessions.filter((ms) => acceptedSessionIds.includes(ms.id));
+                    const unacceptedMonthSessions = monthSessions.filter((ms) => !acceptedSessionIds.includes(ms.id));
+                    const hasUnacceptedSessions = isAccepted && unacceptedMonthSessions.length > 0;
+
+                    const memberUpdateReq = (s.trainingUpdateRequests ?? []).find(
+                      (ur) => (ur.trainingId === t.id || ur.trainingId === parentId) && ur.memberId === m.id
+                    );
+                    const isUpdatePending = memberUpdateReq?.status === "pending";
+                    const isUpdateDeclined = memberUpdateReq?.status === "declined";
+
                     const selectedSids = getSelectedDatesForMember(m.id);
                     const memberName = `${m.firstName} ${m.lastName}`;
 
                     // Fee for member after member discount if applicable
                     const baseMemberWeekFee = applyMemberFee(sessionFee, m, discountsFromStore(s));
-                    const totalPayable = selectedSids.length * baseMemberWeekFee;
+
+                    const getInvPaidAmount = (inv: (typeof acceptedInvs)[number]) => {
+                      if (inv.acceptedAmount !== undefined && inv.acceptedAmount !== null) {
+                        return inv.acceptedAmount;
+                      }
+                      if (inv.acceptedPerSessionFee !== undefined && inv.acceptedPerSessionFee !== null) {
+                        return inv.acceptedPerSessionFee;
+                      }
+                      if (inv.acceptedMonthlyFee && inv.acceptedRepeatWeeks) {
+                        return inv.acceptedMonthlyFee / inv.acceptedRepeatWeeks;
+                      }
+                      return baseMemberWeekFee;
+                    };
+
+                    const initialOrPreviousPaid = acceptedInvs.reduce(
+                      (acc, i) => acc + getInvPaidAmount(i),
+                      0
+                    );
+
+                    const acceptedUpdateReq = (s.trainingUpdateRequests ?? [])
+                      .filter((ur) => (ur.trainingId === t.id || ur.trainingId === parentId) && ur.memberId === m.id && ur.status === "accepted")
+                      .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0];
+
+                    const totalAlreadyPaid = acceptedUpdateReq
+                      ? (acceptedUpdateReq.updatedMonthlyFee ?? ((acceptedUpdateReq.previouslyPaidAmount ?? 0) + (acceptedUpdateReq.additionalAmount ?? 0)))
+                      : initialOrPreviousPaid;
+
+                    const updatedMonthlyFeeVal = applyMemberFee(t.fees, m, discountsFromStore(s));
+                    const remainingPayable = updatedMonthlyFeeVal - totalAlreadyPaid;
+
+                    const totalPayable = isAccepted
+                      ? remainingPayable
+                      : selectedSids.length * baseMemberWeekFee;
+                    const countWeeksDisplay = isAccepted ? acceptedInvs.length : selectedSids.length;
+
+                    const additionalAmountForUpdate = unacceptedMonthSessions.length * baseMemberWeekFee;
 
                     return (
                       <TableRow
@@ -451,13 +656,23 @@ function TrainingPage() {
                           )}
                         </TableCell>
 
-                        {/* Weekly session checkbox columns */}
+                        {/* Weekly session checkbox / status columns */}
                         {monthSessions.map((ms) => {
                           const inv = memberInvs.find((i) => i.trainingId === ms.id);
-                          const isInvited = inv !== undefined;
+                          const isSessionAccepted = inv?.status === "accepted";
                           const isChecked = isAccepted
-                            ? isInvited
+                            ? isSessionAccepted
                             : selectedSids.includes(ms.id);
+
+                          if (isAccepted && !isSessionAccepted) {
+                            return (
+                              <TableCell key={ms.id} className="text-center py-4 px-3">
+                                <span className="inline-flex items-center gap-1 text-[11px] text-[#8A8A98] font-medium bg-[#1A2120]/80 px-2 py-1 rounded border border-white/5" title="Not Included in Accepted Invitation">
+                                  <Lock className="size-3 text-[#8A8A98]" /> Not Included
+                                </span>
+                              </TableCell>
+                            );
+                          }
 
                           return (
                             <TableCell key={ms.id} className="text-center py-4 px-3">
@@ -472,9 +687,23 @@ function TrainingPage() {
                         })}
 
                         {/* Payable Amount Badge */}
-                        <TableCell className="text-center px-4 py-4 font-mono text-xs font-semibold text-[#3B82F6]">
-                          {selectedSids.length > 0 ? (
-                            <span>{fmtMoney(totalPayable)} ({selectedSids.length} wk{selectedSids.length !== 1 ? "s" : ""})</span>
+                        <TableCell className="text-center px-4 py-4 font-mono text-xs font-semibold">
+                          {isAccepted ? (
+                            remainingPayable > 0.009 ? (
+                              <span className="text-[#3B82F6]">{fmtMoney(remainingPayable)}</span>
+                            ) : Math.abs(remainingPayable) <= 0.009 ? (
+                              <span className="text-[#34D399]">
+                                $0.00 <span className="text-[10px] text-[#8A8A98] font-normal">(Paid in Full)</span>
+                              </span>
+                            ) : (
+                              <span className="text-[#A78BFA]">
+                                $0.00 <span className="text-[10px] text-[#A78BFA]/80 font-normal">(Refund {fmtMoney(Math.abs(remainingPayable))})</span>
+                              </span>
+                            )
+                          ) : countWeeksDisplay > 0 ? (
+                            <span className="text-[#3B82F6]">
+                              {fmtMoney(totalPayable)} ({countWeeksDisplay} wk{countWeeksDisplay !== 1 ? "s" : ""})
+                            </span>
                           ) : (
                             <span className="text-[#8A8A98] font-normal">$0.00</span>
                           )}
@@ -482,15 +711,60 @@ function TrainingPage() {
 
                         {/* Status Column */}
                         <TableCell className="text-center px-4 py-4">
-                          <StatusBadge kind={statusInfo.kind} status={statusInfo.statusValue as any} />
+                          {isAccepted && isUpdatePending ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20">
+                              Update Sent
+                            </span>
+                          ) : isAccepted && isUpdateDeclined ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20">
+                              Update Declined
+                            </span>
+                          ) : (
+                            <StatusBadge kind={statusInfo.kind} status={statusInfo.statusValue as any} />
+                          )}
                         </TableCell>
 
                         {/* Action Column - Send / Update Invitation Button */}
                         <TableCell className="text-center px-4 py-4">
                           {isAccepted ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-[#10B981] font-semibold">
-                              <Lock className="size-3" /> Locked
-                            </span>
+                            hasUnacceptedSessions ? (
+                              <Button
+                                size="sm"
+                                disabled={t.status === "cancelled"}
+                                className={cn(
+                                  "h-8 text-[11px] px-3 font-semibold cursor-pointer",
+                                  isUpdatePending
+                                    ? "bg-[#3B82F6]/20 text-[#3B82F6] hover:bg-[#3B82F6]/30 border border-[#3B82F6]/30"
+                                    : "bg-[#3B82F6] hover:bg-[#2563EB] text-white"
+                                )}
+                                onClick={() => {
+                                  const previouslyPaid = totalAlreadyPaid;
+                                  const updatedMonthlyFeeVal = applyMemberFee(t.fees, m, discountsFromStore(s));
+                                  const newPerSessionFeeVal = updatedMonthlyFeeVal / repeatWeeks;
+                                  const remainingPayableVal = updatedMonthlyFeeVal - previouslyPaid;
+
+                                  setSendUpdateDialog({
+                                    member: m,
+                                    existingSessions: existingAcceptedSessions,
+                                    newSessions: unacceptedMonthSessions,
+                                    previouslyPaidAmount: previouslyPaid,
+                                    updatedMonthlyFee: updatedMonthlyFeeVal,
+                                    newPerSessionFee: newPerSessionFeeVal,
+                                    additionalAmount: remainingPayableVal,
+                                  });
+                                }}
+                              >
+                                {isUpdatePending ? (
+                                  <><RefreshCw className="size-3 mr-1" /> Update Sent</>
+                                ) : (
+                                  <><Send className="size-3 mr-1" /> Send Update</>
+                                )}
+                              </Button>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-[#10B981] font-semibold">
+                                <Lock className="size-3" /> Locked
+                              </span>
+                            )
                           ) : (
                             <Button
                               size="sm"
@@ -515,7 +789,7 @@ function TrainingPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={isAccepted || t.status === "cancelled" || selectedSids.length === 0}
+                            disabled={(isAccepted && !hasUnacceptedSessions) || t.status === "cancelled" || selectedSids.length === 0}
                             className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer border-[#10B981]/30 hover:bg-[#10B981]/10 text-[#34D399] disabled:opacity-40 disabled:cursor-not-allowed"
                             onClick={() => handleForceAccept(m.id, memberName)}
                           >
@@ -595,6 +869,16 @@ function TrainingPage() {
                           );
 
                           if (!isAccepted) {
+                            const statusInfo = getMemberStatus(m.id);
+                            if (statusInfo.isAccepted) {
+                              return (
+                                <TableCell key={ms.id} className="text-center py-4 px-4 text-[#8A8A98] text-[11px] font-medium">
+                                  <span className="inline-flex items-center gap-1 bg-[#1A2120]/80 px-2 py-1 rounded border border-white/5">
+                                    <Lock className="size-3 text-[#8A8A98]" /> Not Included
+                                  </span>
+                                </TableCell>
+                              );
+                            }
                             return (
                               <TableCell key={ms.id} className="text-center py-4 px-4 text-[#8A8A98] text-[12px] font-light">
                                 Not Enrolled

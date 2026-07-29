@@ -339,5 +339,50 @@ class RecurringTrainingTest extends TestCase
         // Started with $500.00 credit, deducted $25.00 -> remaining $475.00
         $this->assertEquals(475.00, (float)$member->credit);
     }
+
+    public function test_edit_training_repeat_weeks_with_null_or_missing_coach_succeeds()
+    {
+        $resStore = $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Wednesday Training',
+            'startDate' => '2026-07-15 05:30:00',
+            'endDate' => '2026-08-26 00:00:00',
+            'repeatWeeks' => 2,
+            'repeatMonths' => 2,
+            'slots' => 5,
+            'duration' => '1 hour',
+            'fees' => 100,
+            'coach' => 'Coach Lee',
+            'location' => 'Main Hall',
+            'targetType' => 'adult',
+        ]);
+        $resStore->assertStatus(201);
+        $trainingId = $resStore->json('id');
+
+        // Update repeatWeeks to 4, sending coach as null (simulating form payload with null/missing coach)
+        $resUpdate = $this->actingAs($this->admin)->patchJson("/api/trainings/{$trainingId}", [
+            'name' => 'Wednesday Training Updated',
+            'startDate' => '2026-07-15 05:30:00',
+            'endDate' => '2026-08-26 00:00:00',
+            'repeatWeeks' => 4,
+            'repeatMonths' => 2,
+            'slots' => 5,
+            'duration' => '1 hour',
+            'fees' => 100,
+            'coach' => null,
+            'location' => 'Main Hall',
+            'targetType' => 'adult',
+        ]);
+
+        $resUpdate->assertStatus(200);
+        $this->assertEquals(4, $resUpdate->json('repeatWeeks'));
+
+        $trainings = Training::all();
+        foreach ($trainings as $tr) {
+            $this->assertNotNull($tr->coach);
+            $this->assertNotEmpty($tr->coach);
+            $this->assertEquals('Coach Lee', $tr->coach);
+        }
+    }
 }
+
 

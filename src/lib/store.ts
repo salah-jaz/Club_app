@@ -11,6 +11,7 @@ import type {
   Training,
   TrainingDate,
   TrainingInvitation,
+  TrainingUpdateRequest,
   Transaction,
   User,
   LeagueGroup,
@@ -33,6 +34,7 @@ interface State {
   trainings: Training[];
   trainingInvites: TrainingInvitation[];
   trainingDates: TrainingDate[];
+  trainingUpdateRequests: TrainingUpdateRequest[];
   locations: string[];
   coaches: string[];
   grades: string[];
@@ -155,6 +157,20 @@ interface State {
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
   updateMemberTrainingInvitation: (trainingId: string, memberId: string, sessionIds: string[], forceAccept?: boolean) => Promise<{ message?: string }>;
   processTrainingRefund: (dateId: string, refundType: "none" | "half" | "full") => Promise<void>;
+  sendTrainingUpdateRequest: (
+    trainingId: string,
+    memberId: string,
+    existingSessionIds: string[],
+    newSessionIds: string[],
+    additionalAmount: number,
+    previouslyPaidAmount?: number,
+    updatedMonthlyFee?: number,
+    newPerSessionFee?: number,
+  ) => Promise<{ message?: string; updateRequest?: TrainingUpdateRequest }>;
+  respondTrainingUpdateRequest: (
+    requestId: string,
+    status: "accepted" | "declined",
+  ) => Promise<{ message?: string; updateRequest?: TrainingUpdateRequest }>;
   updateSettings: (settings: {
     appName?: string;
     appLogoText?: string;
@@ -264,6 +280,7 @@ export const useStore = create<State>((set, get) => ({
   trainings: [],
   trainingInvites: [],
   trainingDates: [],
+  trainingUpdateRequests: [],
   locations: [],
   coaches: ["Coach Lee", "Coach Alex", "Coach Sarah"],
   grades: [],
@@ -389,6 +406,7 @@ export const useStore = create<State>((set, get) => ({
         trainings: Training[];
         trainingInvites: TrainingInvitation[];
         trainingDates?: TrainingDate[];
+        trainingUpdateRequests?: TrainingUpdateRequest[];
         settings: {
           locations: string[];
           coaches?: string[];
@@ -439,6 +457,7 @@ export const useStore = create<State>((set, get) => ({
         trainings,
         trainingInvites,
         trainingDates,
+        trainingUpdateRequests,
         settings,
         creditRequests,
         leagueGroups,
@@ -452,6 +471,7 @@ export const useStore = create<State>((set, get) => ({
         trainings,
         trainingInvites,
         trainingDates: trainingDates || [],
+        trainingUpdateRequests: trainingUpdateRequests || [],
         locations: settings.locations,
         coaches: settings.coaches || ["Coach Lee", "Coach Alex", "Coach Sarah"],
         grades: settings.grades,
@@ -877,6 +897,37 @@ export const useStore = create<State>((set, get) => ({
   processTrainingRefund: async (dateId, refundType) => {
     await api.post(`/training-dates/${dateId}/process-refund`, { refundType });
     await get().syncData();
+  },
+
+  sendTrainingUpdateRequest: async (
+    trainingId,
+    memberId,
+    existingSessionIds,
+    newSessionIds,
+    additionalAmount,
+    previouslyPaidAmount,
+    updatedMonthlyFee,
+    newPerSessionFee,
+  ) => {
+    const res = await api.post<{ message?: string; updateRequest?: TrainingUpdateRequest }>(`/trainings/${trainingId}/send-update-request`, {
+      memberId,
+      existingSessionIds,
+      newSessionIds,
+      additionalAmount,
+      previouslyPaidAmount,
+      updatedMonthlyFee,
+      newPerSessionFee,
+    });
+    await get().syncData();
+    return { message: res.message, updateRequest: res.updateRequest };
+  },
+
+  respondTrainingUpdateRequest: async (requestId, status) => {
+    const res = await api.post<{ message?: string; updateRequest?: TrainingUpdateRequest }>(`/training-update-requests/${requestId}/respond`, {
+      status,
+    });
+    await get().syncData();
+    return { message: res.message, updateRequest: res.updateRequest };
   },
 
   updateSettings: async (settings) => {
