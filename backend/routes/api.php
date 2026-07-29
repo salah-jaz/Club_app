@@ -96,6 +96,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/training-dates', [TrainingController::class, 'listDates']);
     Route::patch('/training-dates/{id}/attendance', [TrainingController::class, 'markAttendance']);
     Route::post('/training-dates/{id}/process-refund', [TrainingController::class, 'processRefund']);
+
+    // Training Update Requests
+    Route::get('/training-update-requests', [TrainingController::class, 'listUpdateRequests']);
+    Route::post('/trainings/{id}/send-update-request', [TrainingController::class, 'sendUpdateRequest']);
+    Route::post('/training-update-requests/{id}/respond', [TrainingController::class, 'respondUpdateRequest']);
     // League Groups
     Route::get('/league-groups', [LeagueGroupController::class, 'index']);
     Route::post('/league-groups', [LeagueGroupController::class, 'store']);

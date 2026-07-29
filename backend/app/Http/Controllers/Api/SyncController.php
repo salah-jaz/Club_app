@@ -32,6 +32,7 @@ class SyncController extends Controller
             'trainings'         => $trainingCtrl->index()->getData(true),
             'trainingInvites'   => $trainingCtrl->listInvitations()->getData(true),
             'trainingDates'     => $trainingCtrl->listDates()->getData(true),
+            'trainingUpdateRequests' => $trainingCtrl->listUpdateRequests()->getData(true),
             'settings'          => $settingCtrl->index()->getData(true),
             'creditRequests'    => $creditCtrl->index()->getData(true),
             'leagueGroups'      => $leagueCtrl->index($request)->getData(true),

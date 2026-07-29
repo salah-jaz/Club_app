@@ -230,4 +230,89 @@ class TrainingWalletDeductionTest extends TestCase
         $txn = Transaction::where('member_id', $this->juniorMember->id)->count();
         $this->assertEquals(1, $txn);
     }
+
+    public function test_bulk_accept_training_invitations_succeeds_without_division_by_zero()
+    {
+        $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Summer Camp Training',
+            'startDate' => '2026-08-01 10:00:00',
+            'endDate' => '2026-08-01 11:00:00',
+            'repeatWeeks' => 4,
+            'repeatMonths' => 1,
+            'slots' => 10,
+            'duration' => '1 hour',
+            'fees' => 120,
+            'coach' => 'Coach Smith',
+            'location' => 'Main Hall',
+            'targetType' => 'junior',
+        ]);
+
+        $parent = Training::where('name', 'Summer Camp Training')->firstOrFail();
+        $sessions = Training::where('parent_id', $parent->id)->orWhere('id', $parent->id)->orderBy('start_date', 'asc')->get();
+        $aug1 = $sessions[0];
+        $aug8 = $sessions[1];
+
+        $this->actingAs($this->admin)->postJson("/api/trainings/{$aug1->id}/release", [
+            'memberIds' => [$this->juniorMember->id],
+        ]);
+        $this->actingAs($this->admin)->postJson("/api/trainings/{$aug8->id}/release", [
+            'memberIds' => [$this->juniorMember->id],
+        ]);
+
+        $inv1 = TrainingInvitation::where('training_id', $aug1->id)->where('member_id', $this->juniorMember->id)->firstOrFail();
+        $inv2 = TrainingInvitation::where('training_id', $aug8->id)->where('member_id', $this->juniorMember->id)->firstOrFail();
+
+        $res = $this->actingAs($this->memberUser)->postJson('/api/training-invitations/respond-bulk', [
+            'inviteIds' => [$inv1->id, $inv2->id],
+            'status' => 'accepted',
+        ]);
+
+        $res->assertStatus(200);
+        $res->assertJsonFragment(['message' => 'Invitations accepted successfully.']);
+
+        $inv1->refresh();
+        $inv2->refresh();
+        $this->assertEquals('accepted', $inv1->status);
+        $this->assertEquals('accepted', $inv2->status);
+
+        // Balance 100 - (30 * 2) = 40
+        $this->juniorMember->refresh();
+        $this->assertEquals(40.0, $this->juniorMember->credit);
+    }
+
+    public function test_invalid_repeat_weeks_returns_validation_error_instead_of_crashing()
+    {
+        $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Zero Week Training',
+            'startDate' => '2026-09-01 10:00:00',
+            'endDate' => '2026-09-01 11:00:00',
+            'repeatWeeks' => 4,
+            'repeatMonths' => 1,
+            'slots' => 10,
+            'duration' => '1 hour',
+            'fees' => 120,
+            'coach' => 'Coach Alex',
+            'location' => 'Main Hall',
+            'targetType' => 'junior',
+        ]);
+
+        $tr = Training::where('name', 'Zero Week Training')->firstOrFail();
+        // Manually set repeat_weeks to 0 to simulate corrupted data or invalid configuration
+        $tr->repeat_weeks = 0;
+        $tr->save();
+
+        $this->actingAs($this->admin)->postJson("/api/trainings/{$tr->id}/release", [
+            'memberIds' => [$this->juniorMember->id],
+        ]);
+
+        $inv = TrainingInvitation::where('training_id', $tr->id)->where('member_id', $this->juniorMember->id)->firstOrFail();
+
+        $res = $this->actingAs($this->memberUser)->postJson('/api/training-invitations/respond-bulk', [
+            'inviteIds' => [$inv->id],
+            'status' => 'accepted',
+        ]);
+
+        $res->assertStatus(422);
+        $res->assertJsonFragment(['message' => 'Invalid or missing Repeat for Weeks configured for training program: Zero Week Training']);
+    }
 }

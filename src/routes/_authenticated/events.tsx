@@ -27,8 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
 import { toast } from "sonner";
-import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users, User } from "lucide-react";
-import type { Member, PlayInvitation, PlaySchedule, Rotation, Training, TrainingInvitation } from "@/lib/types";
+import { CalendarDays, GraduationCap, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users, User, RefreshCw, CheckCircle2 } from "lucide-react";
+import type { Member, PlayInvitation, PlaySchedule, Rotation, Training, TrainingInvitation, TrainingUpdateRequest } from "@/lib/types";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { cn } from "@/lib/utils";
 
@@ -140,6 +140,11 @@ function Events() {
   const playInvs = s.playInvites.filter((i) => myIds.includes(i.memberId));
   const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId));
   const invitedTrainingIds = new Set(trainInvs.map((i) => i.trainingId));
+  const pendingTrainingUpdateRequests = useMemo(() => {
+    return (s.trainingUpdateRequests ?? []).filter(
+      (ur) => myIds.includes(ur.memberId) && ur.status === "pending"
+    );
+  }, [s.trainingUpdateRequests, myIds]);
   const releasedSchedules = s.schedules.filter((sch) => sch.status === "released");
   const [courtsPopup, setCourtsPopup] = useState<{
     schedule: PlaySchedule;
@@ -1212,7 +1217,141 @@ function Events() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
-            {monthlyTrainingCards.length === 0 && (
+            {/* Pending Training Update Requests Banner */}
+            {pendingTrainingUpdateRequests.map((ur) => {
+              const member = s.members.find((m) => m.id === ur.memberId);
+              if (!member) return null;
+
+              const tr = s.trainings.find((x) => x.id === ur.trainingId) || s.trainings.find((x) => (x.parentId || x.id) === ur.trainingId);
+              const trName = tr ? tr.name : "Training Program";
+
+              const existingSessions = (ur.existingSessionIds ?? [])
+                .map((sid) => s.trainings.find((x) => x.id === sid))
+                .filter((x): x is Training => !!x);
+              const newSessions = (ur.newSessionIds ?? [])
+                .map((sid) => s.trainings.find((x) => x.id === sid))
+                .filter((x): x is Training => !!x);
+
+              return (
+                <div key={ur.id} className="p-4 rounded-xl bg-[#131916] border border-[#3B82F6]/40 space-y-3 signature-card-top shadow-lg">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30 mb-1">
+                        <RefreshCw className="size-3" /> Training Program Updated
+                      </div>
+                      <h4 className="font-semibold text-sm text-[#F1F0EE]">{trName}</h4>
+                      <p className="text-xs text-[#8A8A98]">
+                        Update request for <strong className="text-white">{member.firstName} {member.lastName}</strong>
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-[#8A8A98] uppercase tracking-wider font-medium">
+                        {ur.additionalAmount < 0 ? "Wallet Refund" : "Additional Fee"}
+                      </div>
+                      <div className={cn(
+                        "font-mono font-bold text-sm",
+                        ur.additionalAmount > 0 ? "text-[#34D399]" : ur.additionalAmount < 0 ? "text-[#A78BFA]" : "text-[#8A8A98]"
+                      )}>
+                        {ur.additionalAmount < 0 ? `-${fmtMoney(Math.abs(ur.additionalAmount))}` : fmtMoney(ur.additionalAmount)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                    <div className="p-2.5 rounded-lg bg-[#1A2120] border border-white/5 space-y-1">
+                      <div className="text-[10px] font-semibold text-[#8A8A98] uppercase tracking-wider">Previously Accepted Sessions</div>
+                      <div className="flex flex-wrap gap-1">
+                        {existingSessions.map((sItem) => (
+                          <span key={sItem.id} className="text-[11px] font-medium bg-[#10B981]/10 text-[#34D399] px-2 py-0.5 rounded">
+                            ✓ {fmtDate(sItem.startDate)}
+                          </span>
+                        ))}
+                        {existingSessions.length === 0 && <span className="text-[11px] text-[#8A8A98]">None</span>}
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-[#1A2120] border border-white/5 space-y-1">
+                      <div className="text-[10px] font-semibold text-[#3B82F6] uppercase tracking-wider">New Sessions Added</div>
+                      <div className="flex flex-wrap gap-1">
+                        {newSessions.map((sItem) => (
+                          <span key={sItem.id} className="text-[11px] font-medium bg-[#3B82F6]/10 text-[#60A5FA] px-2 py-0.5 rounded">
+                            + {fmtDate(sItem.startDate)}
+                          </span>
+                        ))}
+                        {newSessions.length === 0 && <span className="text-[11px] text-[#8A8A98]">None</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Summary */}
+                  <div className="p-3 rounded-lg bg-[#1A2120] border border-white/10 space-y-1.5 text-xs">
+                    <div className="text-[10px] font-semibold text-[#34D399] uppercase tracking-wider">Payment Summary</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-[#8A8A98]">
+                      <div>
+                        <span>Previously Paid: </span>
+                        <strong className="text-white font-mono">{fmtMoney(ur.previouslyPaidAmount ?? 0)}</strong>
+                      </div>
+                      <div>
+                        <span>Updated Fee: </span>
+                        <strong className="text-white font-mono">{fmtMoney(ur.updatedMonthlyFee ?? 0)}</strong>
+                      </div>
+                      <div>
+                        <span>New Per Session: </span>
+                        <strong className="text-white font-mono">{fmtMoney(ur.newPerSessionFee ?? 0)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.04]">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="btn-premium-outline h-8 text-xs cursor-pointer"
+                      onClick={async () => {
+                        try {
+                          await s.respondTrainingUpdateRequest(ur.id, "declined");
+                          toast.success("Training update request declined. Original invitation remains unchanged.");
+                        } catch (error: any) {
+                          toast.error(error.message || "Failed to decline update request.");
+                        }
+                      }}
+                    >
+                      Decline Update
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="btn-premium-solid h-8 text-xs font-semibold cursor-pointer"
+                      onClick={async () => {
+                        if (ur.additionalAmount > 0 && ur.additionalAmount > member.credit && !member.skipCreditConsumption) {
+                          setCreditGap({
+                            memberId: member.id,
+                            balance: member.credit,
+                            required: ur.additionalAmount,
+                          });
+                          return;
+                        }
+                        try {
+                          await s.respondTrainingUpdateRequest(ur.id, "accepted");
+                          if (ur.additionalAmount > 0) {
+                            toast.success(`Training update accepted! ${fmtMoney(ur.additionalAmount)} debited from wallet.`);
+                          } else if (ur.additionalAmount < 0) {
+                            toast.success(`Training update accepted! ${fmtMoney(Math.abs(ur.additionalAmount))} credited to wallet.`);
+                          } else {
+                            toast.success("Training update accepted!");
+                          }
+                        } catch (error: any) {
+                          toast.error(error.message || "Failed to accept update request.");
+                        }
+                      }}
+                    >
+                      Accept Update
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {monthlyTrainingCards.length === 0 && pendingTrainingUpdateRequests.length === 0 && (
               <div className="py-4 space-y-3">
                 <p className="text-[13px] font-light text-[#8A8A98] text-center">
                   No training programs are open yet.

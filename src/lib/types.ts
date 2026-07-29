@@ -180,6 +180,10 @@ export interface TrainingInvitation {
   trainingId: string;
   memberId: string;
   status: InviteStatus;
+  acceptedMonthlyFee?: number | null;
+  acceptedRepeatWeeks?: number | null;
+  acceptedPerSessionFee?: number | null;
+  acceptedAmount?: number | null;
 }
 
 export interface TrainingDate {
@@ -190,4 +194,19 @@ export interface TrainingDate {
   attended: boolean | null;
   refundStatus?: "none" | "half" | "full" | null;
   refundAmount?: number | null;
+}
+
+export interface TrainingUpdateRequest {
+  id: string;
+  trainingId: string;
+  memberId: string;
+  existingSessionIds: string[];
+  newSessionIds: string[];
+  previouslyPaidAmount?: number;
+  updatedMonthlyFee?: number;
+  newPerSessionFee?: number;
+  additionalAmount: number;
+  status: "pending" | "accepted" | "declined";
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
