@@ -6,10 +6,25 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+use App\Services\InvitationSyncService;
+
 class Member extends Model
 {
     public $incrementing = false;
     protected $keyType = 'string';
+
+    protected static function booted(): void
+    {
+        static::saved(function (Member $member) {
+            InvitationSyncService::syncMemberInvitations($member);
+        });
+
+        static::deleted(function (Member $member) {
+            TrainingInvitation::where('member_id', $member->id)->delete();
+            TrainingDate::where('member_id', $member->id)->delete();
+            TrainingUpdateRequest::where('member_id', $member->id)->delete();
+        });
+    }
 
     protected $fillable = [
         'id',
@@ -101,7 +116,8 @@ class Member extends Model
     {
         if (strtolower($targetType) === 'adult') {
             return $query->where('member_type', 'adult')
-                ->where('status', 'active');
+                ->where('status', 'active')
+                ->where('training_eligible', true);
         }
 
         return $query->where('member_type', 'junior')

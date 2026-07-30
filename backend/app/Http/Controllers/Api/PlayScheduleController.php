@@ -23,7 +23,7 @@ class PlayScheduleController extends Controller
     public function index()
     {
         $schedules = PlaySchedule::orderBy('date', 'desc')->get();
-        return response()->json($schedules->map(fn($s) => $this->formatSchedule($s)));
+        return response()->json($schedules->map(fn(PlaySchedule $s) => $this->formatSchedule($s)));
     }
 
     public function store(Request $request)
@@ -251,16 +251,23 @@ class PlayScheduleController extends Controller
         $sch->status = 'released';
         $sch->save();
 
-        // Get active adult league participants
-        $eligible = Member::eligibleForPlay();
+        // Get active adult league participants and eligible juniors (non-league)
+        $eligibleAdults = Member::eligibleForPlay();
         if ($sch->is_league_match && !empty($sch->league_group_ids)) {
             $memberIds = DB::table('league_group_member')
                 ->whereIn('league_group_id', $sch->league_group_ids)
                 ->pluck('member_id')
                 ->toArray();
-            $eligible = $eligible->whereIn('id', $memberIds);
+            $eligibleAdults = $eligibleAdults->whereIn('id', $memberIds);
         }
-        $eligible = $eligible->get();
+        $eligibleAdultsList = $eligibleAdults->get();
+
+        $eligibleJuniorsList = collect();
+        if (!$sch->is_league_match) {
+            $eligibleJuniorsList = Member::eligibleForPlayAsJunior()->get();
+        }
+
+        $eligible = $eligibleAdultsList->concat($eligibleJuniorsList);
 
         // Delete old invitations for this schedule (if any)
         PlayInvitation::where('schedule_id', $id)->delete();
@@ -849,7 +856,7 @@ class PlayScheduleController extends Controller
     public function listInvitations()
     {
         $invites = PlayInvitation::orderBy('updated_at')->get();
-        $payload = $invites->map(fn($i) => $this->formatInvitation($i))->values()->all();
+        $payload = $invites->map(fn(PlayInvitation $i) => $this->formatInvitation($i))->values()->all();
 
         // Guests appear in Accepted only after rotation has been generated.
         $schedules = PlaySchedule::all()->keyBy('id');

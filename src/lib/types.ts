@@ -130,7 +130,7 @@ export interface PlaySchedule {
   leagueGroupIds?: string[];
 }
 
-export type InviteStatus = "open" | "accepted" | "declined" | "waiting";
+export type InviteStatus = "pending" | "open" | "accepted" | "declined" | "waiting";
 export interface PlayInvitation {
   id: string;
   scheduleId: string;

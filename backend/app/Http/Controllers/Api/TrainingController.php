@@ -21,7 +21,7 @@ class TrainingController extends Controller
     public function index()
     {
         $trainings = Training::orderBy('start_date', 'desc')->get();
-        return response()->json($trainings->map(fn($t) => $this->formatTraining($t)));
+        return response()->json($trainings->map(fn(Training $t) => $this->formatTraining($t)));
     }
 
     public function store(Request $request)
@@ -569,6 +569,20 @@ class TrainingController extends Controller
                 } catch (\Exception $e) {
                     logger()->error("Training invite email error: " . $e->getMessage());
                 }
+            } else {
+                if ($inv->status === 'pending') {
+                    $inv->status = 'open';
+                    $inv->save();
+
+                    try {
+                        $sessionObj = Training::find($sid);
+                        if ($sessionObj) {
+                            MailHelper::sendTrainingNotification($member, $sessionObj, 'open', 'release');
+                        }
+                    } catch (\Exception $e) {
+                        logger()->error("Training invite email error: " . $e->getMessage());
+                    }
+                }
             }
         }
 
@@ -712,6 +726,7 @@ class TrainingController extends Controller
 
     public function listInvitations()
     {
+        \App\Services\InvitationSyncService::syncAllTrainingInvitations();
         $invites = TrainingInvitation::all();
         return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
     }
@@ -977,7 +992,7 @@ class TrainingController extends Controller
     public function listUpdateRequests()
     {
         $requests = TrainingUpdateRequest::orderBy('created_at', 'desc')->get();
-        return response()->json($requests->map(fn($r) => $this->formatUpdateRequest($r)));
+        return response()->json($requests->map(fn(TrainingUpdateRequest $r) => $this->formatUpdateRequest($r)));
     }
 
     private function formatUpdateRequest(TrainingUpdateRequest $ur): array
@@ -1370,6 +1385,17 @@ class TrainingController extends Controller
                 if ($inviteStatus === 'accepted' && $existingInv->status !== 'accepted') {
                     $this->processTrainingAcceptance($existingInv);
                     $existingInv->refresh();
+                } elseif ($inviteStatus === 'open' && $existingInv->status === 'pending') {
+                    $existingInv->status = 'open';
+                    $existingInv->save();
+                    $member = Member::find($mid);
+                    if ($member) {
+                        try {
+                            MailHelper::sendTrainingNotification($member, $tr, 'open', 'release');
+                        } catch (\Exception $e) {
+                            logger()->error("Training release email failed for member {$mid}: " . $e->getMessage());
+                        }
+                    }
                 }
                 $invites[] = $this->formatInvitation($existingInv);
             } else {

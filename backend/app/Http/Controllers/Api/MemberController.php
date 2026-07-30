@@ -168,6 +168,22 @@ class MemberController extends Controller
                     ], 422);
                 }
 
+                $dobFormatted = \Carbon\Carbon::parse($request->dob)->format('Y-m-d');
+                $firstNameTrimmed = mb_strtolower(trim($request->firstName));
+                $lastNameTrimmed = mb_strtolower(trim($request->lastName));
+
+                $duplicateExists = Member::where('member_type', 'junior')
+                    ->whereRaw('LOWER(TRIM(first_name)) = ?', [$firstNameTrimmed])
+                    ->whereRaw('LOWER(TRIM(last_name)) = ?', [$lastNameTrimmed])
+                    ->whereDate('dob', $dobFormatted)
+                    ->exists();
+
+                if ($duplicateExists) {
+                    return response()->json([
+                        'message' => 'This junior is already registered under another member. Duplicate registration is not allowed.',
+                    ], 422);
+                }
+
                 $parent = Member::where('user_id', $user->id)
                     ->where('member_type', 'adult')
                     ->orderBy('created_at')
