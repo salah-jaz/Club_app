@@ -48,6 +48,7 @@ export interface Member {
   lastName: string;
   dob: string;
   email: string;
+  mobile?: string;
   sex: "male" | "female";
   memberType: MemberType;
   membership: boolean;
@@ -130,7 +131,7 @@ export interface PlaySchedule {
   leagueGroupIds?: string[];
 }
 
-export type InviteStatus = "open" | "accepted" | "declined" | "waiting";
+export type InviteStatus = "pending" | "open" | "accepted" | "declined" | "waiting";
 export interface PlayInvitation {
   id: string;
   scheduleId: string;
@@ -180,6 +181,9 @@ export interface TrainingInvitation {
   trainingId: string;
   memberId: string;
   status: InviteStatus;
+  applyDiscount?: boolean | null;
+  calculatedMonthlyFee?: number | null;
+  calculatedPerSessionFee?: number | null;
   acceptedMonthlyFee?: number | null;
   acceptedRepeatWeeks?: number | null;
   acceptedPerSessionFee?: number | null;

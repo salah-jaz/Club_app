@@ -612,9 +612,9 @@ export const useStore = create<State>((set, get) => ({
   },
 
   addMember: async (m, createLogin = false) => {
-    const { mobile, address, password, ...member } = m;
+    const { address, password, ...member } = m;
     const payload = createLogin
-      ? { ...member, createLogin: true, mobile, address, password }
+      ? { ...member, createLogin: true, address, password }
       : member;
     await api.post<Member>("/members", payload);
     await get().syncData();

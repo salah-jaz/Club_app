@@ -115,7 +115,7 @@ function TrainingPage() {
       (m) =>
         m.memberType === targetType &&
         m.status === "active" &&
-        (targetType === "adult" ? true : (m.trainingEligible ?? true)),
+        Boolean(m.trainingEligible),
     );
   }, [s.members, targetType]);
 
@@ -145,21 +145,21 @@ function TrainingPage() {
   };
 
   // Compute status for member across month sessions
-  const getMemberStatus = (memberId: string): { statusLabel: string; kind: "default" | "invitation"; statusValue: string; isAccepted: boolean } => {
+  const getMemberStatus = (memberId: string): { statusLabel: string; kind: "default" | "invitation"; statusValue: string; isAccepted: boolean; isSentYetToAccept: boolean } => {
     const sessionIds = monthSessions.map((ms) => ms.id);
     const memberInvs = s.trainingInvites.filter(
       (i) => sessionIds.includes(i.trainingId) && i.memberId === memberId
     );
-    if (memberInvs.length === 0) {
-      return { statusLabel: "Not Sent", kind: "default", statusValue: "created", isAccepted: false };
+    if (memberInvs.length === 0 || memberInvs.every((i) => i.status === "pending")) {
+      return { statusLabel: "Pending", kind: "invitation", statusValue: "pending", isAccepted: false, isSentYetToAccept: false };
     }
     if (memberInvs.some((i) => i.status === "accepted")) {
-      return { statusLabel: "Accepted", kind: "invitation", statusValue: "accepted", isAccepted: true };
+      return { statusLabel: "Accepted", kind: "invitation", statusValue: "accepted", isAccepted: true, isSentYetToAccept: false };
     }
     if (memberInvs.some((i) => i.status === "open" || i.status === "waiting")) {
-      return { statusLabel: "Yet to Accept", kind: "invitation", statusValue: "open", isAccepted: false };
+      return { statusLabel: "Yet to Accept", kind: "invitation", statusValue: "open", isAccepted: false, isSentYetToAccept: true };
     }
-    return { statusLabel: "Sent", kind: "invitation", statusValue: "open", isAccepted: false };
+    return { statusLabel: "Pending", kind: "invitation", statusValue: "pending", isAccepted: false, isSentYetToAccept: false };
   };
 
   // Send or Update invitation action for member
@@ -169,9 +169,12 @@ function TrainingPage() {
       toast.error("Please select at least one weekly session date.");
       return;
     }
+    const m = s.members.find((x) => x.id === memberId);
+    const memberDiscountedMonthlyFee = applyMemberFee(t.fees, m, discountsFromStore(s));
+    const memberPerWeekFee = memberDiscountedMonthlyFee / repeatWeeks;
+    const totalCharge = selectedSids.length * memberPerWeekFee;
     try {
       await s.updateMemberTrainingInvitation(t.id, memberId, selectedSids);
-      const totalCharge = selectedSids.length * sessionFee;
       toast.success(
         isUpdate
           ? `Invitation updated for ${memberName} (${selectedSids.length} week(s), $${totalCharge.toFixed(2)})`
@@ -582,7 +585,7 @@ function TrainingPage() {
                     );
                     const statusInfo = getMemberStatus(m.id);
                     const isAccepted = statusInfo.isAccepted;
-                    const isSentYetToAccept = !isAccepted && memberInvs.length > 0;
+                    const isSentYetToAccept = statusInfo.isSentYetToAccept;
                     
                     const acceptedInvs = memberInvs.filter((i) => i.status === "accepted");
                     const acceptedSessionIds = acceptedInvs.map((i) => i.trainingId);
@@ -600,7 +603,7 @@ function TrainingPage() {
                     const memberName = `${m.firstName} ${m.lastName}`;
 
                     // Fee for member after member discount if applicable
-                    const baseMemberWeekFee = applyMemberFee(sessionFee, m, discountsFromStore(s));
+                    const baseMemberWeekFee = applyMemberFee(t.fees, m, discountsFromStore(s)) / repeatWeeks;
 
                     const getInvPaidAmount = (inv: (typeof acceptedInvs)[number]) => {
                       if (inv.acceptedAmount !== undefined && inv.acceptedAmount !== null) {
@@ -846,7 +849,7 @@ function TrainingPage() {
                 <TableBody>
                   {eligibleMembers.map((m) => {
                     const memberName = `${m.firstName} ${m.lastName}`;
-                    const baseMemberWeekFee = applyMemberFee(sessionFee, m, discountsFromStore(s));
+                    const baseMemberWeekFee = applyMemberFee(t.fees, m, discountsFromStore(s)) / repeatWeeks;
 
                     return (
                       <TableRow

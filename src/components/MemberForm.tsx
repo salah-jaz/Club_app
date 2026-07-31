@@ -187,6 +187,15 @@ export function MemberForm({
                 />
               </FormField>
             )}
+            {v.memberType !== "junior" && (
+              <FormField label="Mobile number">
+                <Input
+                  value={v.mobile ?? ""}
+                  onChange={(e) => set("mobile", e.target.value)}
+                  className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
+                />
+              </FormField>
+            )}
             <FormField label="Sex">
               <Select value={v.sex} onValueChange={(x) => set("sex", x as any)}>
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
@@ -223,14 +232,6 @@ export function MemberForm({
               </CardTitle>
             </CardHeader>
             <CardContent className="grid sm:grid-cols-2 gap-4">
-              <FormField label="Mobile">
-                <Input
-                  required
-                  value={v.mobile ?? ""}
-                  onChange={(e) => set("mobile", e.target.value)}
-                  className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
-                />
-              </FormField>
               <FormField label="Password">
                 <Input
                   required
@@ -438,15 +439,15 @@ export function MemberForm({
         </Card>
       </motion.div>
 
-      <div className="flex gap-2 justify-end">
-        <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+      <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 justify-end pt-2">
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
           <Button
             type="submit"
             disabled={submitting}
-            className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer min-w-[130px] relative"
+            className="btn-premium-solid h-11 sm:h-10 w-full sm:w-auto px-6 font-semibold cursor-pointer min-w-[130px] text-sm"
           >
             {submitting ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center justify-center gap-2">
                 <svg
                   className="animate-spin size-4"
                   viewBox="0 0 24 24"

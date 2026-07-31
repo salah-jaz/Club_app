@@ -137,4 +137,50 @@ class TrainingVisibilityAndInvitationTest extends TestCase
         $this->assertFalse(TrainingDate::where('training_id', $jul15->id)->where('member_id', $this->juniorMember->id)->exists());
         $this->assertFalse(TrainingDate::where('training_id', $jul22->id)->where('member_id', $this->juniorMember->id)->exists());
     }
+
+    public function test_update_member_invitation_persists_selected_weeks_and_prevents_restoring_unselected_weeks()
+    {
+        $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Monthly Pro Training',
+            'startDate' => '2026-08-01 10:00:00',
+            'endDate' => '2026-08-01 11:00:00',
+            'repeatWeeks' => 4,
+            'repeatMonths' => 1,
+            'slots' => 10,
+            'duration' => '1 hour',
+            'fees' => 100,
+            'coach' => 'Coach Lee',
+            'location' => 'Main Hall',
+            'targetType' => 'junior',
+        ]);
+
+        $sessions = Training::orderBy('start_date', 'asc')->get();
+        $this->assertCount(4, $sessions);
+
+        // Member initially has 4 pending invitations created by auto-sync
+        \App\Services\InvitationSyncService::syncAllTrainingInvitations();
+        $this->assertEquals(4, TrainingInvitation::where('member_id', $this->juniorMember->id)->count());
+
+        // Admin selects ONLY 3 weeks (Jul 1, Jul 8, Jul 15) and sends invitation
+        $threeSessionIds = [$sessions[0]->id, $sessions[1]->id, $sessions[2]->id];
+        $unselectedId = $sessions[3]->id;
+
+        $res = $this->actingAs($this->admin)->postJson("/api/trainings/{$sessions[0]->id}/update-member-invitation", [
+            'memberId' => $this->juniorMember->id,
+            'sessionIds' => $threeSessionIds,
+        ]);
+        $res->assertStatus(200);
+
+        // Verify ONLY 3 invitations exist now (open status)
+        $this->assertEquals(3, TrainingInvitation::where('member_id', $this->juniorMember->id)->count());
+        $this->assertFalse(TrainingInvitation::where('training_id', $unselectedId)->where('member_id', $this->juniorMember->id)->exists());
+
+        // Simulate page refresh / sync by calling GET /api/training-invitations
+        $listRes = $this->actingAs($this->admin)->getJson('/api/training-invitations');
+        $listRes->assertStatus(200);
+
+        // Verify auto-sync DOES NOT restore the 4th week
+        $this->assertEquals(3, TrainingInvitation::where('member_id', $this->juniorMember->id)->count());
+        $this->assertFalse(TrainingInvitation::where('training_id', $unselectedId)->where('member_id', $this->juniorMember->id)->exists());
+    }
 }

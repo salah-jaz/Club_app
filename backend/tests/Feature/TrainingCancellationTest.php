@@ -72,6 +72,7 @@ class TrainingCancellationTest extends TestCase
                 'member_type' => 'junior',
                 'grade' => 'Grade A',
                 'status' => 'active',
+                'training_eligible' => true,
                 'credit' => 100.0,
                 'skip_credit_consumption' => false,
             ]

@@ -67,6 +67,7 @@ function AddMember() {
           lastName: "",
           dob: "",
           email: "",
+          mobile: "",
           sex: "male",
           memberType: isAdmin ? "adult" : "junior",
           membership: isAdmin,

@@ -600,124 +600,223 @@ function Txns() {
         )}
 
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-[#0C0F0E]/30">
-              <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Date & Time</TableHead>
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Member</TableHead>
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Description</TableHead>
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Type</TableHead>
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6 text-right">Amount</TableHead>
-                {isAdmin && (
-                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Actions</TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredTxns.length === 0 ? (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={isAdmin ? 6 : 5} className="p-0">
-                    <EmptyIllustration
-                      icon="wallet"
-                      title={hasActiveFilters ? "No transactions found" : "No transactions recorded"}
-                      description={
-                        hasActiveFilters
-                          ? "Try adjusting your filters or search terms."
-                          : focusMember
-                            ? "Credits and debits for this member will appear here."
-                            : "Session debits and credit top-ups will show up in this ledger."
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredTxns.map((t, i) => {
-                  const m = s.members.find((x) => x.id === t.memberId);
-                  const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
-                  const avatarBgClass =
-                    m?.memberType.toLowerCase() === "junior"
-                      ? "bg-[#1A1A0A] text-[#F59E0B]"
-                      : "bg-[#0D2E22] text-[#10B981]";
-                  const isCredit = t.type === "credit";
+          {/* Mobile Cards View (< md) */}
+          <div className="block md:hidden p-4 space-y-3">
+            {filteredTxns.length === 0 ? (
+              <EmptyIllustration
+                icon="wallet"
+                title={hasActiveFilters ? "No transactions found" : "No transactions recorded"}
+                description={
+                  hasActiveFilters
+                    ? "Try adjusting your filters or search terms."
+                    : focusMember
+                      ? "Credits and debits for this member will appear here."
+                      : "Session debits and credit top-ups will show up in this ledger."
+                }
+              />
+            ) : (
+              filteredTxns.map((t, i) => {
+                const m = s.members.find((x) => x.id === t.memberId);
+                const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                const avatarBgClass =
+                  m?.memberType.toLowerCase() === "junior"
+                    ? "bg-[#1A1A0A] text-[#F59E0B]"
+                    : "bg-[#0D2E22] text-[#10B981]";
+                const isCredit = t.type === "credit";
 
-                  return (
-                    <motion.tr
-                      key={t.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.03, duration: 0.18, ease: "easeOut" }}
-                      className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/40 transition-colors"
-                    >
-                      <TableCell className="py-3 px-6 type-mono-value text-[#8A8A98]">
-                        {fmtDateTime(t.date)}
-                      </TableCell>
-                      <TableCell className="py-3 px-6">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="size-7.5 border border-white/5">
-                            <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
-                              {initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="font-bold text-[14px] text-[#EEF2F0]">
+                return (
+                  <motion.div
+                    key={t.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03, duration: 0.18 }}
+                    className="p-4 rounded-xl bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Avatar className="size-8 border border-white/5 shrink-0">
+                          <AvatarFallback className={`${avatarBgClass} font-semibold text-xs`}>
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <span className="font-bold text-sm text-[#EEF2F0] block truncate">
                             {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
                           </span>
+                          <span className="text-[11px] text-[#8A8A98] font-mono block">
+                            {fmtDateTime(t.date)}
+                          </span>
                         </div>
-                      </TableCell>
-                      <TableCell className="py-3 px-6 text-[13px] text-[#C4D4CF] font-light max-w-[280px] truncate">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedTxnDetail(t)}
-                          className="text-left hover:text-[#EEF2F0] hover:underline cursor-pointer transition-colors"
-                          title={formatTxnDescription(t)}
-                        >
-                          {formatTxnDescription(t)}
-                        </button>
-                      </TableCell>
-                      <TableCell className="py-3 px-6">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tracking-wider uppercase",
-                            isCredit
-                              ? "static-financial-credit-bg-dim static-financial-credit-text border static-financial-credit-border-dim"
-                              : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20",
-                          )}
-                        >
-                          {isCredit ? (
-                            <ArrowUpLeft className="size-3" />
-                          ) : (
-                            <ArrowDownRight className="size-3" />
-                          )}
-                          {t.type}
-                        </span>
-                      </TableCell>
-                      <TableCell
+                      </div>
+                      <span
                         className={cn(
-                          "py-3 px-6 text-right type-mono-value text-[14px] font-medium",
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tracking-wider uppercase shrink-0",
+                          isCredit
+                            ? "static-financial-credit-bg-dim static-financial-credit-text border static-financial-credit-border-dim"
+                            : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20",
+                        )}
+                      >
+                        {isCredit ? <ArrowUpLeft className="size-3" /> : <ArrowDownRight className="size-3" />}
+                        {t.type}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTxnDetail(t)}
+                        className="text-left text-xs text-[#C4D4CF] hover:text-[#EEF2F0] hover:underline cursor-pointer truncate max-w-[200px]"
+                      >
+                        {formatTxnDescription(t)}
+                      </button>
+                      <span
+                        className={cn(
+                          "type-mono-value text-base font-semibold shrink-0 ml-2",
                           isCredit ? "static-financial-credit-text" : "text-[#EF4444]",
                         )}
                       >
                         {isCredit ? "+" : "−"}
                         {fmtMoney(t.amount)}
-                      </TableCell>
-                      {isAdmin && (
+                      </span>
+                    </div>
+
+                    {isAdmin && (
+                      <div className="flex items-center justify-end pt-2 border-t border-white/[0.04]">
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(t)}
+                          className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded-lg cursor-pointer transition-all"
+                          title="Delete transaction"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Table View (>= md) */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-[#0C0F0E]/30">
+                <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Date & Time</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Member</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Description</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Type</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6 text-right">Amount</TableHead>
+                  {isAdmin && (
+                    <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Actions</TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredTxns.length === 0 ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={isAdmin ? 6 : 5} className="p-0">
+                      <EmptyIllustration
+                        icon="wallet"
+                        title={hasActiveFilters ? "No transactions found" : "No transactions recorded"}
+                        description={
+                          hasActiveFilters
+                            ? "Try adjusting your filters or search terms."
+                            : focusMember
+                              ? "Credits and debits for this member will appear here."
+                              : "Session debits and credit top-ups will show up in this ledger."
+                        }
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredTxns.map((t, i) => {
+                    const m = s.members.find((x) => x.id === t.memberId);
+                    const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                    const avatarBgClass =
+                      m?.memberType.toLowerCase() === "junior"
+                        ? "bg-[#1A1A0A] text-[#F59E0B]"
+                        : "bg-[#0D2E22] text-[#10B981]";
+                    const isCredit = t.type === "credit";
+
+                    return (
+                      <motion.tr
+                        key={t.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03, duration: 0.18, ease: "easeOut" }}
+                        className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/40 transition-colors"
+                      >
+                        <TableCell className="py-3 px-6 type-mono-value text-[#8A8A98]">
+                          {fmtDateTime(t.date)}
+                        </TableCell>
                         <TableCell className="py-3 px-6">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="size-7.5 border border-white/5">
+                              <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-bold text-[14px] text-[#EEF2F0]">
+                              {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 px-6 text-[13px] text-[#C4D4CF] font-light max-w-[280px] truncate">
                           <button
                             type="button"
-                            onClick={() => setDeleteTarget(t)}
-                            className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded cursor-pointer transition-all"
-                            title="Delete transaction"
+                            onClick={() => setSelectedTxnDetail(t)}
+                            className="text-left hover:text-[#EEF2F0] hover:underline cursor-pointer transition-colors"
+                            title={formatTxnDescription(t)}
                           >
-                            <Trash2 className="size-4" />
+                            {formatTxnDescription(t)}
                           </button>
                         </TableCell>
-                      )}
-                    </motion.tr>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+                        <TableCell className="py-3 px-6">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tracking-wider uppercase",
+                              isCredit
+                                ? "static-financial-credit-bg-dim static-financial-credit-text border static-financial-credit-border-dim"
+                                : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20",
+                            )}
+                          >
+                            {isCredit ? (
+                              <ArrowUpLeft className="size-3" />
+                            ) : (
+                              <ArrowDownRight className="size-3" />
+                            )}
+                            {t.type}
+                          </span>
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "py-3 px-6 text-right type-mono-value text-[14px] font-medium",
+                            isCredit ? "static-financial-credit-text" : "text-[#EF4444]",
+                          )}
+                        >
+                          {isCredit ? "+" : "−"}
+                          {fmtMoney(t.amount)}
+                        </TableCell>
+                        {isAdmin && (
+                          <TableCell className="py-3 px-6">
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(t)}
+                              className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded cursor-pointer transition-all"
+                              title="Delete transaction"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </TableCell>
+                        )}
+                      </motion.tr>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>

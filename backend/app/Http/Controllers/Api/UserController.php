@@ -73,6 +73,7 @@ class UserController extends Controller
             'last_name' => $user->last_name,
             'dob' => $user->dob,
             'email' => $user->email,
+            'mobile' => $user->mobile,
             'sex' => $user->sex,
             'member_type' => $memberType,
             'membership' => $membership,
@@ -135,24 +136,58 @@ class UserController extends Controller
 
     private function formatUser(User|\stdClass $u)
     {
+        $firstName = $u->first_name;
+        $lastName = $u->last_name;
+        $nickname = $u->nickname;
+        $sex = $u->sex;
+        $dob = $u->dob;
+        $mobile = $u->mobile;
+
+        if ($u instanceof User) {
+            $member = Member::where('user_id', $u->id)
+                ->orderByRaw("CASE WHEN member_type = 'adult' THEN 0 WHEN parent_member_id IS NULL THEN 1 ELSE 2 END")
+                ->orderBy('created_at')
+                ->first();
+
+            if ($member && ($member->member_type === 'adult' || is_null($member->parent_member_id))) {
+                $firstName = $member->first_name ?: $u->first_name;
+                $lastName = $member->last_name ?: $u->last_name;
+                $nickname = $member->nickname ?? $u->nickname;
+                $sex = $member->sex ?? $u->sex;
+                $dob = $member->dob ?? $u->dob;
+                $mobile = $member->mobile ?? $u->mobile;
+
+                if (($u->first_name !== $firstName || $u->last_name !== $lastName) && !empty($firstName)) {
+                    $u->first_name = $firstName;
+                    $u->last_name = $lastName;
+                    $u->save();
+                }
+            }
+        }
+
         return [
              'id' => $u->id,
-             'firstName' => $u->first_name,
-             'lastName' => $u->last_name,
-             'nickname' => $u->nickname,
-             'sex' => $u->sex,
-            'dob' => $u->dob,
+             'firstName' => $firstName,
+             'lastName' => $lastName,
+             'nickname' => $nickname,
+             'sex' => $sex,
+            'dob' => $dob,
             'email' => $u->email,
-            'mobile' => $u->mobile,
+            'mobile' => $mobile,
             'address' => $u->address,
             'role' => $u->role,
             'status' => $u->status,
-            'createdAt' => $u->created_at->toISOString(),
+            'createdAt' => $u->created_at instanceof \DateTimeInterface ? $u->created_at->toISOString() : (string) $u->created_at,
         ];
     }
 
     private function formatMember(Member|\stdClass $m)
     {
+        $mobile = $m->mobile ?? null;
+        if (empty($mobile) && $m instanceof Member && $m->user_id) {
+            $mobile = User::where('id', $m->user_id)->value('mobile') ?? '';
+        }
+
         return [
             'id' => $m->id,
             'userId' => $m->user_id,
@@ -160,6 +195,7 @@ class UserController extends Controller
             'lastName' => $m->last_name,
             'dob' => $m->dob,
             'email' => $m->email,
+            'mobile' => $mobile ?? '',
             'sex' => $m->sex,
             'memberType' => $m->member_type,
             'membership' => (bool) $m->membership,

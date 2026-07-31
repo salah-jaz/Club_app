@@ -216,12 +216,12 @@ function Layout() {
             )}
           </AnimatePresence>
 
-          <header className="h-12 flex items-center justify-between px-3 sm:px-6 border-b border-border bg-background sticky top-0 z-10 gap-2">
+          <header className="h-14 sm:h-12 flex items-center justify-between px-3 sm:px-6 border-b border-border bg-background sticky top-0 z-10 gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <SidebarTrigger className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0" />
+              <SidebarTrigger className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0 size-9 sm:size-7" />
               <Separator orientation="vertical" className="h-4 bg-border hidden sm:block" />
               <div className="breadcrumbs text-[13px] font-normal text-muted-foreground/60 flex items-center gap-2 min-w-0 truncate">
-                <span className="hidden xs:inline sm:inline">Connect App</span>
+                <span className="hidden sm:inline">Connect App</span>
                 <span className="breadcrumbs-separator opacity-40 hidden sm:inline">/</span>
                 <span className="breadcrumbs-current text-muted-foreground truncate">{screenName}</span>
               </div>
@@ -250,8 +250,8 @@ function Layout() {
                 </AnimatePresence>
               </motion.button>
 
-              {/* Live clock — hidden on very small screens to reduce chrome crowding */}
-              <div className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight hidden sm:block" aria-hidden="true">
+              {/* Live clock — hidden on small screens to reduce chrome crowding */}
+              <div className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight hidden md:block" aria-hidden="true">
                 {timeStr}
               </div>
 
@@ -259,14 +259,14 @@ function Layout() {
               <motion.div
                 whileHover={{ scale: 1.12 }}
                 whileTap={{ scale: 0.9 }}
-                className="relative cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+                className="relative cursor-pointer text-muted-foreground hover:text-foreground transition-colors p-1.5"
               >
                 <Bell className="size-[18px]" />
                 {notifCount > 0 && (
                   <motion.span
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className="badge-pulse absolute top-[1px] right-[1px] w-1.5 h-1.5 bg-[#F59E0B] rounded-full border border-background"
+                    className="badge-pulse absolute top-1 right-1 w-1.5 h-1.5 bg-[#F59E0B] rounded-full border border-background"
                   />
                 )}
               </motion.div>
@@ -276,7 +276,7 @@ function Layout() {
           <main
             id="main-content"
             tabIndex={-1}
-            className="flex-1 w-full min-w-0 px-4 py-6 sm:px-6 lg:px-8 outline-none"
+            className="flex-1 w-full min-w-0 px-3 py-4 sm:px-6 sm:py-6 lg:px-8 outline-none"
           >
             <AnimatePresence mode="wait">
               {isPageLoading ? (

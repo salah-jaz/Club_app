@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Member;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -98,15 +99,34 @@ class AuthController extends Controller
 
     private function formatUser(User $user): array
     {
+        $member = Member::where('user_id', $user->id)
+            ->orderByRaw("CASE WHEN member_type = 'adult' THEN 0 WHEN parent_member_id IS NULL THEN 1 ELSE 2 END")
+            ->orderBy('created_at')
+            ->first();
+
+        $firstName = $user->first_name;
+        $lastName = $user->last_name;
+
+        if ($member && ($member->member_type === 'adult' || is_null($member->parent_member_id))) {
+            $firstName = $member->first_name ?: $user->first_name;
+            $lastName = $member->last_name ?: $user->last_name;
+
+            if (($user->first_name !== $firstName || $user->last_name !== $lastName) && !empty($firstName)) {
+                $user->first_name = $firstName;
+                $user->last_name = $lastName;
+                $user->save();
+            }
+        }
+
         return [
             'id' => $user->id,
-            'firstName' => $user->first_name,
-            'lastName' => $user->last_name,
-            'nickname' => $user->nickname,
-            'sex' => $user->sex,
-            'dob' => $user->dob,
+            'firstName' => $firstName,
+            'lastName' => $lastName,
+            'nickname' => $member?->nickname ?? $user->nickname,
+            'sex' => $member?->sex ?? $user->sex,
+            'dob' => $member?->dob ?? $user->dob,
             'email' => $user->email,
-            'mobile' => $user->mobile,
+            'mobile' => $member?->mobile ?? $user->mobile,
             'address' => $user->address,
             'role' => $user->role,
             'status' => $user->status,

@@ -12,7 +12,7 @@ class FeeHelper
      * Uses either percentage or fixed amount based on discount mode — never both.
      * Returns 0 when the member bypasses credit consumption.
      */
-    public static function forMember(float $baseFee, ?Member $member): float
+    public static function forMember(float $baseFee, ?Member $member, ?bool $applyDiscountOverride = null): float
     {
         if (!$member) {
             return round(max(0, $baseFee), 2);
@@ -22,7 +22,9 @@ class FeeHelper
             return 0.0;
         }
 
-        if (!$member->apply_discount) {
+        $shouldApplyDiscount = $applyDiscountOverride !== null ? $applyDiscountOverride : (bool) $member->apply_discount;
+
+        if (!$shouldApplyDiscount) {
             return round(max(0, $baseFee), 2);
         }
 

@@ -844,163 +844,297 @@ function CreditsPage() {
           </div>
         )}
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-[#0C0F0E]/30">
-              <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Member</TableHead>
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Type</TableHead>
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Amount</TableHead>
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Date</TableHead>
-                <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Status</TableHead>
-                {isAdmin && (
-                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Actions</TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredReqs.length === 0 ? (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={colSpan} className="p-0">
-                    <EmptyIllustration
-                      icon="wallet"
-                      title={
-                        hasActiveFilters
-                          ? "No entries found"
-                          : focusMember
-                            ? "No wallet history for this member"
-                            : typeTab === "debit"
-                              ? "No debit entries yet"
-                              : typeTab === "credit"
-                                ? "No credit requests yet"
-                                : "No wallet entries yet"
-                      }
-                      description={
-                        hasActiveFilters
-                          ? "Try adjusting your filters or search terms."
-                          : focusMember
-                            ? "Use Add credit or Add debit for this member."
-                            : typeTab === "debit"
-                              ? "Click Add debit to deduct from a member's balance."
-                              : "Click Add credit to submit a top-up request."
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredReqs.map((r, i) => {
-                  const m = s.members.find((x) => x.id === r.memberId);
-                  const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
-                  const avatarBgClass =
-                    m?.memberType.toLowerCase() === "junior"
-                      ? "bg-[#1A1A0A] text-[#F59E0B]"
-                      : "bg-[#0D2E22] text-[#10B981]";
-                  const reqType: EntryType = (r.type || "credit") as EntryType;
-                  const canApprove = reqType === "credit" && r.status === "created";
+          {/* Mobile / Tablet Cards View (< md) */}
+          <div className="block md:hidden p-4 space-y-3">
+            {filteredReqs.length === 0 ? (
+              <EmptyIllustration
+                icon="wallet"
+                title={
+                  hasActiveFilters
+                    ? "No entries found"
+                    : focusMember
+                      ? "No wallet history for this member"
+                      : typeTab === "debit"
+                        ? "No debit entries yet"
+                        : typeTab === "credit"
+                          ? "No credit requests yet"
+                          : "No wallet entries yet"
+                }
+                description={
+                  hasActiveFilters
+                    ? "Try adjusting your filters or search terms."
+                    : focusMember
+                      ? "Use Add credit or Add debit for this member."
+                      : typeTab === "debit"
+                        ? "Click Add debit to deduct from a member's balance."
+                        : "Click Add credit to submit a top-up request."
+                }
+              />
+            ) : (
+              filteredReqs.map((r, i) => {
+                const m = s.members.find((x) => x.id === r.memberId);
+                const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                const avatarBgClass =
+                  m?.memberType.toLowerCase() === "junior"
+                    ? "bg-[#1A1A0A] text-[#F59E0B]"
+                    : "bg-[#0D2E22] text-[#10B981]";
+                const reqType: EntryType = (r.type || "credit") as EntryType;
+                const canApprove = reqType === "credit" && r.status === "created";
 
-                  return (
-                    <motion.tr
-                      key={r.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05, duration: 0.18, ease: "easeOut" }}
-                      className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/40 transition-colors"
-                    >
-                      <TableCell className="py-3 px-6">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="size-7.5 border border-white/5">
-                            <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
-                              {initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <span className="font-bold text-[14px] text-[#EEF2F0] block">
-                              {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
-                            </span>
-                            {r.reason && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedDebitDetail(r)}
-                                className="text-left text-xs text-[#8A8A98] hover:text-[#34D399] font-normal block mt-0.5 max-w-[240px] truncate cursor-pointer transition-colors"
-                                title={`Reason: ${r.reason} (Click to view details)`}
-                              >
-                                Reason: {r.reason}
-                              </button>
-                            )}
-                          </div>
+                return (
+                  <motion.div
+                    key={r.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04, duration: 0.18 }}
+                    className="p-4 rounded-xl bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Avatar className="size-8 border border-white/5 shrink-0">
+                          <AvatarFallback className={`${avatarBgClass} font-semibold text-xs`}>
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <span className="font-bold text-sm text-[#EEF2F0] block truncate">
+                            {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                          </span>
+                          <span className="text-[11px] text-[#8A8A98] block">
+                            {fmtDate(r.date)}
+                          </span>
                         </div>
-                      </TableCell>
-                      <TableCell className="py-3 px-6">
-                        <TypeBadge type={reqType} />
-                      </TableCell>
-                      <TableCell className="py-3 px-6 type-mono-value">{fmtMoney(r.amount)}</TableCell>
-                      <TableCell className="py-3 px-6 type-mono-value text-[#EEF2F0]">{fmtDate(r.date)}</TableCell>
-                      <TableCell className="py-3 px-6">
-                        <StatusBadge status={r.status} />
-                      </TableCell>
-                      {isAdmin && (
+                      </div>
+                      <StatusBadge status={r.status} />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
+                      <TypeBadge type={reqType} />
+                      <span className="type-mono-value text-base font-semibold text-[#EEF2F0]">
+                        {fmtMoney(r.amount)}
+                      </span>
+                    </div>
+
+                    {r.reason && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDebitDetail(r)}
+                        className="text-left text-xs text-[#8A8A98] hover:text-[#34D399] bg-white/[0.02] p-2 rounded-lg border border-white/[0.04] w-full block cursor-pointer transition-colors"
+                      >
+                        <span className="font-semibold text-[#34D399]">Reason:</span> {r.reason}
+                      </button>
+                    )}
+
+                    {isAdmin && (
+                      <div className="flex items-center justify-between pt-2 border-t border-white/[0.04] gap-2">
+                        <div className="flex items-center gap-2">
+                          {canApprove ? (
+                            <>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await s.approveCredit(r.id);
+                                    toast.success("Request approved successfully");
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to approve request.");
+                                  }
+                                }}
+                                className="px-3 py-1.5 text-xs font-semibold rounded-md border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await s.rejectCredit(r.id);
+                                    toast.success("Request rejected successfully");
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to reject request.");
+                                  }
+                                }}
+                                className="px-3 py-1.5 text-xs font-semibold rounded-md border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-[#4A5E58]">Processed</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(r)}
+                          className="p-2 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded-lg cursor-pointer transition-all"
+                          title="Delete transaction"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Table View (>= md) */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-[#0C0F0E]/30">
+                <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Member</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Type</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Amount</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Date</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Status</TableHead>
+                  {isAdmin && (
+                    <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Actions</TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredReqs.length === 0 ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={colSpan} className="p-0">
+                      <EmptyIllustration
+                        icon="wallet"
+                        title={
+                          hasActiveFilters
+                            ? "No entries found"
+                            : focusMember
+                              ? "No wallet history for this member"
+                              : typeTab === "debit"
+                                ? "No debit entries yet"
+                                : typeTab === "credit"
+                                  ? "No credit requests yet"
+                                  : "No wallet entries yet"
+                        }
+                        description={
+                          hasActiveFilters
+                            ? "Try adjusting your filters or search terms."
+                            : focusMember
+                              ? "Use Add credit or Add debit for this member."
+                              : typeTab === "debit"
+                                ? "Click Add debit to deduct from a member's balance."
+                                : "Click Add credit to submit a top-up request."
+                        }
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredReqs.map((r, i) => {
+                    const m = s.members.find((x) => x.id === r.memberId);
+                    const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                    const avatarBgClass =
+                      m?.memberType.toLowerCase() === "junior"
+                        ? "bg-[#1A1A0A] text-[#F59E0B]"
+                        : "bg-[#0D2E22] text-[#10B981]";
+                    const reqType: EntryType = (r.type || "credit") as EntryType;
+                    const canApprove = reqType === "credit" && r.status === "created";
+
+                    return (
+                      <motion.tr
+                        key={r.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05, duration: 0.18, ease: "easeOut" }}
+                        className="border-b border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120]/40 transition-colors"
+                      >
                         <TableCell className="py-3 px-6">
-                          <div className="flex items-center gap-2">
-                            {canApprove ? (
-                              <>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="size-7.5 border border-white/5">
+                              <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <span className="font-bold text-[14px] text-[#EEF2F0] block">
+                                {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                              </span>
+                              {r.reason && (
                                 <button
-                                  onClick={async () => {
-                                    try {
-                                      await s.approveCredit(r.id);
-                                      toast.success("Request approved successfully");
-                                    } catch (error: any) {
-                                      toast.error(error.message || "Failed to approve request.");
-                                    }
-                                  }}
-                                  className="px-3 py-1 text-[11.5px] font-medium rounded border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer transition-all"
+                                  type="button"
+                                  onClick={() => setSelectedDebitDetail(r)}
+                                  className="text-left text-xs text-[#8A8A98] hover:text-[#34D399] font-normal block mt-0.5 max-w-[240px] truncate cursor-pointer transition-colors"
+                                  title={`Reason: ${r.reason} (Click to view details)`}
                                 >
-                                  Approve
+                                  Reason: {r.reason}
                                 </button>
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      await s.rejectCredit(r.id);
-                                      toast.success("Request rejected successfully");
-                                    } catch (error: any) {
-                                      toast.error(error.message || "Failed to reject request.");
-                                    }
-                                  }}
-                                  className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-[12px] text-[#4A5E58]">Processed</span>
-                                {r.reason && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedDebitDetail(r)}
-                                    className="text-xs text-[#10B981] hover:underline cursor-pointer ml-1"
-                                  >
-                                    Details
-                                  </button>
-                                )}
-                              </>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(r)}
-                              className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded cursor-pointer transition-all"
-                              title="Delete transaction"
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
-                      )}
-                    </motion.tr>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+                        <TableCell className="py-3 px-6">
+                          <TypeBadge type={reqType} />
+                        </TableCell>
+                        <TableCell className="py-3 px-6 type-mono-value">{fmtMoney(r.amount)}</TableCell>
+                        <TableCell className="py-3 px-6 type-mono-value text-[#EEF2F0]">{fmtDate(r.date)}</TableCell>
+                        <TableCell className="py-3 px-6">
+                          <StatusBadge status={r.status} />
+                        </TableCell>
+                        {isAdmin && (
+                          <TableCell className="py-3 px-6">
+                            <div className="flex items-center gap-2">
+                              {canApprove ? (
+                                <>
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await s.approveCredit(r.id);
+                                        toast.success("Request approved successfully");
+                                      } catch (error: any) {
+                                        toast.error(error.message || "Failed to approve request.");
+                                      }
+                                    }}
+                                    className="px-3 py-1 text-[11.5px] font-medium rounded border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer transition-all"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await s.rejectCredit(r.id);
+                                        toast.success("Request rejected successfully");
+                                      } catch (error: any) {
+                                        toast.error(error.message || "Failed to reject request.");
+                                      }
+                                    }}
+                                    className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-[12px] text-[#4A5E58]">Processed</span>
+                                  {r.reason && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedDebitDetail(r)}
+                                      className="text-xs text-[#10B981] hover:underline cursor-pointer ml-1"
+                                    >
+                                      Details
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(r)}
+                                className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded cursor-pointer transition-all"
+                                title="Delete transaction"
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </motion.tr>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
