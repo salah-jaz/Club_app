@@ -35,6 +35,7 @@ class Member extends Model
         'nickname',
         'dob',
         'email',
+        'mobile',
         'sex',
         'member_type',
         'membership',

@@ -130,12 +130,34 @@ class InvitationSyncService
 
             if ($isEligible) {
                 if (!$invite) {
-                    TrainingInvitation::create([
-                        'id' => 'ti_' . Str::random(8),
-                        'training_id' => $tr->id,
-                        'member_id' => $member->id,
-                        'status' => 'pending',
-                    ]);
+                    $parentId = $tr->parent_id ?: $tr->id;
+                    $series = Training::where('parent_id', $parentId)
+                        ->orWhere('id', $parentId)
+                        ->orderBy('start_date', 'asc')
+                        ->get();
+
+                    $idx = $series->search(fn($item) => $item->id === $tr->id);
+                    if ($idx === false) $idx = 0;
+
+                    $repeatWeeks = max(1, (int)($tr->repeat_weeks ?? 3));
+                    $monthIndex = intdiv($idx, $repeatWeeks);
+                    $monthSessions = $series->slice($monthIndex * $repeatWeeks, $repeatWeeks);
+                    $monthSessionIds = $monthSessions->pluck('id')->all();
+
+                    $hasConfiguredInvites = TrainingInvitation::whereIn('training_id', $monthSessionIds)
+                        ->where('member_id', $member->id)
+                        ->whereIn('status', ['open', 'accepted', 'waiting', 'declined'])
+                        ->exists();
+
+                    if (!$hasConfiguredInvites) {
+                        $snapshot = TrainingInvitation::getSnapshotData($tr, $member);
+                        TrainingInvitation::create(array_merge([
+                            'id' => 'ti_' . Str::random(8),
+                            'training_id' => $tr->id,
+                            'member_id' => $member->id,
+                            'status' => 'pending',
+                        ], $snapshot));
+                    }
                 }
             } else {
                 if ($invite) {
@@ -166,18 +188,40 @@ class InvitationSyncService
             ->where('training_eligible', true)
             ->get();
 
+        $parentId = $tr->parent_id ?: $tr->id;
+        $series = Training::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('start_date', 'asc')
+            ->get();
+
+        $idx = $series->search(fn($item) => $item->id === $tr->id);
+        if ($idx === false) $idx = 0;
+
+        $repeatWeeks = max(1, (int)($tr->repeat_weeks ?? 3));
+        $monthIndex = intdiv($idx, $repeatWeeks);
+        $monthSessions = $series->slice($monthIndex * $repeatWeeks, $repeatWeeks);
+        $monthSessionIds = $monthSessions->pluck('id')->all();
+
         foreach ($eligibleMembers as $member) {
             $invite = TrainingInvitation::where('training_id', $tr->id)
                 ->where('member_id', $member->id)
                 ->first();
 
             if (!$invite) {
-                TrainingInvitation::create([
-                    'id' => 'ti_' . Str::random(8),
-                    'training_id' => $tr->id,
-                    'member_id' => $member->id,
-                    'status' => 'pending',
-                ]);
+                $hasConfiguredInvites = TrainingInvitation::whereIn('training_id', $monthSessionIds)
+                    ->where('member_id', $member->id)
+                    ->whereIn('status', ['open', 'accepted', 'waiting', 'declined'])
+                    ->exists();
+
+                if (!$hasConfiguredInvites) {
+                    $snapshot = TrainingInvitation::getSnapshotData($tr, $member);
+                    TrainingInvitation::create(array_merge([
+                        'id' => 'ti_' . Str::random(8),
+                        'training_id' => $tr->id,
+                        'member_id' => $member->id,
+                        'status' => 'pending',
+                    ], $snapshot));
+                }
             }
         }
 
@@ -365,11 +409,15 @@ class InvitationSyncService
 
         $calculatedDeducted = 0.0;
         foreach ($acceptedSeriesInvites as $accInv) {
-            $trSession = Training::find($accInv->training_id);
-            if ($trSession) {
-                $repeatWeeks = max(1, (int) ($trSession->repeat_weeks ?? 1));
-                $basePerWeekFee = (float) $trSession->fees / $repeatWeeks;
-                $calculatedDeducted += FeeHelper::forMember($basePerWeekFee, $member);
+            if ($accInv->accepted_amount !== null) {
+                $calculatedDeducted += (float) $accInv->accepted_amount;
+            } else {
+                $trSession = Training::find($accInv->training_id);
+                if ($trSession) {
+                    $repeatWeeks = max(1, (int) ($trSession->repeat_weeks ?? 1));
+                    $discountedMonthlyFee = FeeHelper::forMember((float) $trSession->fees, $member);
+                    $calculatedDeducted += round($discountedMonthlyFee / $repeatWeeks, 2);
+                }
             }
         }
 

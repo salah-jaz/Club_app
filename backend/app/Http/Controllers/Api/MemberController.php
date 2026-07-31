@@ -67,6 +67,7 @@ class MemberController extends Controller
                 })
             ],
             'biMemberId' => 'nullable|string',
+            'mobile' => 'nullable|string|max:20',
             'nickname' => 'nullable|string|max:255',
             'status' => $isAdmin
                 ? 'required|in:active,disabled,pending,rejected'
@@ -99,6 +100,7 @@ class MemberController extends Controller
                         'last_name' => $request->lastName,
                         'dob' => $request->dob,
                         'email' => $request->email,
+                        'mobile' => $request->mobile ?? '',
                         'sex' => $request->sex,
                         'member_type' => 'junior',
                         'membership' => $request->membership,
@@ -136,6 +138,7 @@ class MemberController extends Controller
                     'last_name' => $request->lastName,
                     'dob' => $request->dob,
                     'email' => $request->email,
+                    'mobile' => $request->mobile ?? '',
                     'sex' => $request->sex,
                     'member_type' => $request->memberType,
                     'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
@@ -197,6 +200,7 @@ class MemberController extends Controller
                     'last_name' => $request->lastName,
                     'dob' => $request->dob,
                     'email' => $request->email ?: ($user->email ?? ''),
+                    'mobile' => $request->mobile ?? ($user->mobile ?? ''),
                     'sex' => $request->sex,
                     'member_type' => 'junior',
                     'membership' => false,
@@ -229,6 +233,7 @@ class MemberController extends Controller
                 'last_name' => $request->lastName,
                 'dob' => $request->dob,
                 'email' => $request->email,
+                'mobile' => $request->mobile ?? '',
                 'sex' => $request->sex,
                 'member_type' => $request->memberType,
                 'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
@@ -262,6 +267,7 @@ class MemberController extends Controller
         if ($request->has('lastName')) $data['last_name'] = $request->lastName;
         if ($request->has('dob')) $data['dob'] = $request->dob;
         if ($request->has('email')) $data['email'] = $request->email;
+        if ($request->has('mobile')) $data['mobile'] = $request->mobile;
         if ($request->has('sex')) $data['sex'] = $request->sex;
         if ($request->has('grade')) $data['grade'] = $request->grade;
         if ($request->has('biMemberId')) $data['bi_member_id'] = $request->biMemberId;
@@ -302,7 +308,7 @@ class MemberController extends Controller
 
         $member->update($data);
 
-        if ($isAdmin && $member->user_id) {
+        if ($isAdmin && $member->user_id && $member->member_type === 'adult') {
             $account = User::find($member->user_id);
             if ($account) {
                 $userUpdates = [];
@@ -310,6 +316,7 @@ class MemberController extends Controller
                 if ($request->has('lastName')) $userUpdates['last_name'] = $request->lastName;
                 if ($request->has('dob')) $userUpdates['dob'] = $request->dob;
                 if ($request->has('email')) $userUpdates['email'] = $request->email;
+                if ($request->has('mobile')) $userUpdates['mobile'] = $request->mobile;
                 if ($request->has('sex')) $userUpdates['sex'] = $request->sex;
                 if ($request->has('password') && !empty($request->password)) {
                     $userUpdates['password'] = Hash::make($request->password);
@@ -510,6 +517,13 @@ class MemberController extends Controller
 
     private function formatMember(Member|\stdClass $m)
     {
+        $mobile = $m->mobile ?? null;
+        if (empty($mobile) && $m instanceof Member && $m->relationLoaded('user') && $m->user) {
+            $mobile = $m->user->mobile;
+        } elseif (empty($mobile) && $m instanceof Member && $m->user_id) {
+            $mobile = User::where('id', $m->user_id)->value('mobile') ?? '';
+        }
+
         return [
             'id' => $m->id,
             'userId' => $m->user_id,
@@ -518,6 +532,7 @@ class MemberController extends Controller
             'lastName' => $m->last_name,
             'dob' => $m->dob,
             'email' => $m->email,
+            'mobile' => $mobile ?? '',
             'sex' => $m->sex,
             'memberType' => $m->member_type,
             'membership' => (bool)$m->membership,
@@ -577,45 +592,126 @@ class MemberController extends Controller
         $allowExamples = filter_var($request->input('allow_examples', false), FILTER_VALIDATE_BOOLEAN);
 
         DB::transaction(function () use ($rows, &$createdCount, $allowExamples) {
+            $validRows = [];
             foreach ($rows as $row) {
                 $firstName = trim((string) ($row['first_name'] ?? $row['firstname'] ?? ''));
-                $lastName = trim((string) ($row['last_name'] ?? $row['lastname'] ?? ''));
                 $email = trim((string) ($row['email'] ?? ''));
 
-                // Skip blank rows and the template reference footer
                 if ($firstName === '' || $email === '') {
                     continue;
                 }
                 if (preg_match('/^(REFERENCE_DO_NOT_IMPORT|AVAILABLE_|NOTES)/i', $firstName)) {
                     continue;
                 }
-                // Skip unchanged template example placeholders unless explicitly importing examples
                 if (!$allowExamples && str_ends_with(strtolower($email), '@example.com')) {
                     continue;
                 }
+                $validRows[] = $row;
+            }
 
+            $adultRows = [];
+            $juniorRows = [];
+            foreach ($validRows as $row) {
                 $memberType = strtolower(trim((string) ($row['member_type'] ?? $row['membertype'] ?? 'adult')));
+                if ($memberType === 'junior') {
+                    $juniorRows[] = $row;
+                } else {
+                    $adultRows[] = $row;
+                }
+            }
+
+            // PASS 1: Adults
+            foreach ($adultRows as $row) {
+                $firstName = trim((string) ($row['first_name'] ?? $row['firstname'] ?? ''));
+                $lastName = trim((string) ($row['last_name'] ?? $row['lastname'] ?? ''));
+                $email = trim((string) ($row['email'] ?? ''));
+
+                $user = User::where('email', $email)->first();
+                if (!$user) {
+                    $user = User::create([
+                        'id' => 'u_' . Str::random(8),
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'email' => $email,
+                        'sex' => $row['sex'] ?? 'male',
+                        'dob' => $row['dob'] ?? '1990-01-01',
+                        'mobile' => $row['mobile'] ?? $row['phone'] ?? '',
+                        'address' => $row['address'] ?? '',
+                        'password' => Hash::make('password123'),
+                        'role' => 'member',
+                        'status' => 'active',
+                    ]);
+                } else {
+                    $userUpdates = [];
+                    if (!empty($firstName) && $user->first_name !== $firstName) $userUpdates['first_name'] = $firstName;
+                    if (!empty($lastName) && $user->last_name !== $lastName) $userUpdates['last_name'] = $lastName;
+                    if (!empty($row['dob']) && $user->dob !== $row['dob']) $userUpdates['dob'] = $row['dob'];
+                    if (!empty($row['sex']) && $user->sex !== $row['sex']) $userUpdates['sex'] = $row['sex'];
+                    if (!empty($userUpdates)) {
+                        $user->update($userUpdates);
+                    }
+                }
+
+                $member = Member::where('email', $email)->first();
+                if (!$member) {
+                    Member::create([
+                        'id' => 'm_' . Str::random(8),
+                        'user_id' => $user->id,
+                        'parent_member_id' => null,
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'dob' => $row['dob'] ?? '1990-01-01',
+                        'email' => $email,
+                        'mobile' => $row['mobile'] ?? $row['phone'] ?? $user->mobile ?? '',
+                        'sex' => $row['sex'] ?? 'male',
+                        'member_type' => 'adult',
+                        'membership' => filter_var($row['membership'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                        'training_eligible' => filter_var($row['training_eligible'] ?? $row['trainingeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'play_eligible' => filter_var($row['play_eligible'] ?? $row['playeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'grade' => $row['grade'] ?? 'B',
+                        'bi_member_id' => $row['bi_member_id'] ?? $row['bimemberid'] ?? null,
+                        'nickname' => $row['nickname'] ?? $row['alias'] ?? null,
+                        'status' => $row['status'] ?? 'active',
+                        'credit' => 0.00,
+                    ]);
+                    $createdCount++;
+                } else {
+                    $memberUpdates = [];
+                    if (!$member->user_id) $memberUpdates['user_id'] = $user->id;
+                    if ($member->member_type !== 'adult') $memberUpdates['member_type'] = 'adult';
+                    if (!empty($firstName) && $member->first_name !== $firstName) $memberUpdates['first_name'] = $firstName;
+                    if (!empty($lastName) && $member->last_name !== $lastName) $memberUpdates['last_name'] = $lastName;
+                    if (!empty($memberUpdates)) {
+                        $member->update($memberUpdates);
+                    }
+                }
+            }
+
+            // PASS 2: Juniors
+            foreach ($juniorRows as $row) {
+                $firstName = trim((string) ($row['first_name'] ?? $row['firstname'] ?? ''));
+                $lastName = trim((string) ($row['last_name'] ?? $row['lastname'] ?? ''));
+                $email = trim((string) ($row['email'] ?? ''));
                 $parentBi = trim((string) ($row['parent_bi_member_id'] ?? $row['parent_bi'] ?? ''));
                 $parentEmail = trim((string) ($row['parent_email'] ?? ''));
+
                 $parent = null;
-                if ($memberType === 'junior') {
-                    if ($parentBi !== '') {
-                        $parent = Member::where('bi_member_id', $parentBi)
-                            ->where('member_type', 'adult')
-                            ->first();
-                    }
-                    if (!$parent && $parentEmail !== '') {
-                        $parent = Member::where('email', $parentEmail)
-                            ->where('member_type', 'adult')
-                            ->first();
-                    }
+                if ($parentBi !== '') {
+                    $parent = Member::where('bi_member_id', $parentBi)
+                        ->where('member_type', 'adult')
+                        ->first();
+                }
+                if (!$parent && $parentEmail !== '') {
+                    $parent = Member::where('email', $parentEmail)
+                        ->where('member_type', 'adult')
+                        ->first();
                 }
 
                 $user = null;
                 if ($parent && $parent->user_id) {
                     $user = User::find($parent->user_id);
                 }
-                if (!$user) {
+                if (!$user && $email !== '') {
                     $user = User::where('email', $email)->first();
                 }
                 if (!$user) {
@@ -634,7 +730,14 @@ class MemberController extends Controller
                     ]);
                 }
 
-                $member = Member::where('email', $email)->first();
+                $member = Member::where('email', $email)
+                    ->where('first_name', $firstName)
+                    ->where('last_name', $lastName)
+                    ->first();
+                if (!$member && $email !== '') {
+                    $member = Member::where('email', $email)->where('member_type', 'junior')->first();
+                }
+
                 if (!$member) {
                     Member::create([
                         'id' => 'm_' . Str::random(8),
@@ -644,10 +747,11 @@ class MemberController extends Controller
                         'last_name' => $lastName,
                         'dob' => $row['dob'] ?? '1990-01-01',
                         'email' => $email,
+                        'mobile' => $row['mobile'] ?? $row['phone'] ?? $parent?->mobile ?? '',
                         'sex' => $row['sex'] ?? 'male',
-                        'member_type' => $memberType ?: 'adult',
-                        'membership' => filter_var($row['membership'] ?? true, FILTER_VALIDATE_BOOLEAN),
-                        'training_eligible' => filter_var($row['training_eligible'] ?? $row['trainingeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'member_type' => 'junior',
+                        'membership' => filter_var($row['membership'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'training_eligible' => filter_var($row['training_eligible'] ?? $row['trainingeligible'] ?? true, FILTER_VALIDATE_BOOLEAN),
                         'play_eligible' => filter_var($row['play_eligible'] ?? $row['playeligible'] ?? false, FILTER_VALIDATE_BOOLEAN),
                         'grade' => $row['grade'] ?? 'Beginner',
                         'bi_member_id' => $row['bi_member_id'] ?? $row['bimemberid'] ?? null,

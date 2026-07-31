@@ -43,6 +43,7 @@ function EditMember() {
           lastName: member.lastName,
           dob: member.dob,
           email: member.email,
+          mobile: member.mobile ?? "",
           sex: member.sex,
           memberType: member.memberType,
           membership: member.membership,

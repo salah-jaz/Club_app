@@ -811,7 +811,8 @@ function Events() {
         const repeatWeeks = Math.max(1, training.repeatWeeks || 3);
         const basePerWeekFee = (training.fees || 0) / repeatWeeks;
         
-        const feePerWeek = applyMemberFee(basePerWeekFee, member, discountsFromStore(s));
+        const discountedMonthlyFee = applyMemberFee(training.fees || 0, member, discountsFromStore(s));
+        const feePerWeek = discountedMonthlyFee / repeatWeeks;
         // Only charge for weeks the member was actually invited to
         const invitedWeeksCount = invitedMonthSessions.length;
         const totalFee = feePerWeek * invitedWeeksCount;
@@ -842,22 +843,26 @@ function Events() {
 
                   <div className="space-y-2 border-t border-[rgba(255,255,255,0.1)] pt-3">
                     <div className="flex justify-between text-xs text-[#8A8A98]">
-                      <span>Monthly fee ({repeatWeeks} week{repeatWeeks !== 1 ? "s" : ""})</span>
-                      <span className="font-mono">{fmtMoney(training.fees)}</span>
+                      <span>Monthly Fee ({repeatWeeks} week{repeatWeeks !== 1 ? "s" : ""})</span>
+                      <span className="font-mono">{fmtMoney(discountedMonthlyFee)}</span>
                     </div>
-                    <div className="flex justify-between text-xs">
-                      <span>Fee per week</span>
+                    <div className="flex justify-between text-xs text-[#8A8A98]">
+                      <span>Fee Per Week</span>
                       <span className="font-mono text-[#3B82F6]">{fmtMoney(feePerWeek)}</span>
                     </div>
                     <div className="flex justify-between text-xs font-semibold text-[#F1F0EE]">
-                      <span>Total deduction ({invitedWeeksCount} invited week{invitedWeeksCount !== 1 ? "s" : ""})</span>
+                      <span>Total Deduction ({invitedWeeksCount} invited week{invitedWeeksCount !== 1 ? "s" : ""})</span>
                       <span className="font-mono">{fmtMoney(totalFee)}</span>
                     </div>
                     <div className="flex justify-between text-xs text-[#8A8A98]">
                       <span>Current Wallet Balance</span>
                       <span className="font-mono">{fmtMoney(member.credit)}</span>
                     </div>
-                    <div className="flex justify-between text-xs font-semibold">
+                    <div className="flex justify-between text-xs font-semibold text-[#F1F0EE]">
+                      <span>Wallet Deduction</span>
+                      <span className="font-mono">{fmtMoney(totalFee)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-semibold pt-1 border-t border-white/5">
                       <span>Balance After Deduction</span>
                       <span className={cn("font-mono", balanceAfter < 0 ? "text-red-400" : "text-green-400")}>
                         {fmtMoney(balanceAfter)}

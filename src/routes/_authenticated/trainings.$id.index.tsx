@@ -169,9 +169,12 @@ function TrainingPage() {
       toast.error("Please select at least one weekly session date.");
       return;
     }
+    const m = s.members.find((x) => x.id === memberId);
+    const memberDiscountedMonthlyFee = applyMemberFee(t.fees, m, discountsFromStore(s));
+    const memberPerWeekFee = memberDiscountedMonthlyFee / repeatWeeks;
+    const totalCharge = selectedSids.length * memberPerWeekFee;
     try {
       await s.updateMemberTrainingInvitation(t.id, memberId, selectedSids);
-      const totalCharge = selectedSids.length * sessionFee;
       toast.success(
         isUpdate
           ? `Invitation updated for ${memberName} (${selectedSids.length} week(s), $${totalCharge.toFixed(2)})`
@@ -600,7 +603,7 @@ function TrainingPage() {
                     const memberName = `${m.firstName} ${m.lastName}`;
 
                     // Fee for member after member discount if applicable
-                    const baseMemberWeekFee = applyMemberFee(sessionFee, m, discountsFromStore(s));
+                    const baseMemberWeekFee = applyMemberFee(t.fees, m, discountsFromStore(s)) / repeatWeeks;
 
                     const getInvPaidAmount = (inv: (typeof acceptedInvs)[number]) => {
                       if (inv.acceptedAmount !== undefined && inv.acceptedAmount !== null) {
@@ -846,7 +849,7 @@ function TrainingPage() {
                 <TableBody>
                   {eligibleMembers.map((m) => {
                     const memberName = `${m.firstName} ${m.lastName}`;
-                    const baseMemberWeekFee = applyMemberFee(sessionFee, m, discountsFromStore(s));
+                    const baseMemberWeekFee = applyMemberFee(t.fees, m, discountsFromStore(s)) / repeatWeeks;
 
                     return (
                       <TableRow
