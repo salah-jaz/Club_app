@@ -1,6 +1,6 @@
 import type { Member } from "./types";
 
-export type DiscountMode = "percent" | "amount";
+export type DiscountMode = "percent" | "amount" | "off";
 
 export type DiscountSettings = {
   adultDiscountPercent: number;
@@ -16,7 +16,7 @@ function resolveMode(
   percent: number,
   amount: number,
 ): DiscountMode {
-  if (mode === "percent" || mode === "amount") return mode;
+  if (mode === "off" || mode === "percent" || mode === "amount") return mode;
   return amount > 0 && percent <= 0 ? "amount" : "percent";
 }
 
@@ -42,6 +42,10 @@ export function applyMemberFee(
     percent,
     amount,
   );
+
+  if (mode === "off") {
+    return roundFee(baseFee);
+  }
 
   let fee = baseFee;
   if (mode === "percent" && percent > 0) {

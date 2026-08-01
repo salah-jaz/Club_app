@@ -247,4 +247,169 @@ class TrainingDiscountSnapshotTest extends TestCase
         $txn = Transaction::where('member_id', $this->regularMember->id)->where('type', 'debit')->firstOrFail();
         $this->assertEquals(22.50, $txn->amount);
     }
+
+    public function test_toggling_member_discount_off_does_not_affect_existing_training()
+    {
+        // 1. Create Training P1 when Member A has apply_discount = true
+        $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Snapshot Program P1',
+            'startDate' => '2026-08-01 10:00:00',
+            'endDate' => '2026-08-01 11:00:00',
+            'repeatWeeks' => 4,
+            'repeatMonths' => 1,
+            'slots' => 10,
+            'duration' => '1 hour',
+            'fees' => 100,
+            'coach' => 'Coach Alpha',
+            'location' => 'Court 1',
+            'targetType' => 'adult',
+        ]);
+        $parentP1 = Training::where('name', 'Snapshot Program P1')->firstOrFail();
+        $this->actingAs($this->admin)->postJson("/api/trainings/{$parentP1->id}/release");
+
+        $invABefore = TrainingInvitation::where('training_id', $parentP1->id)
+            ->where('member_id', $this->discountedMember->id)
+            ->firstOrFail();
+        $this->assertTrue((bool)$invABefore->apply_discount);
+        $this->assertEquals(90.00, $invABefore->calculated_monthly_fee);
+        $this->assertEquals(22.50, $invABefore->calculated_per_session_fee);
+
+        // 2. Admin edits Member A and disables apply_discount = false
+        $this->actingAs($this->admin)->patchJson("/api/members/{$this->discountedMember->id}", [
+            'applyDiscount' => false,
+        ]);
+        $this->assertFalse((bool)$this->discountedMember->fresh()->apply_discount);
+
+        // 3. Existing Training P1 invitation for Member A MUST REMAIN $90 ($22.50/session)
+        $invAAfter = TrainingInvitation::where('training_id', $parentP1->id)
+            ->where('member_id', $this->discountedMember->id)
+            ->firstOrFail();
+        $this->assertTrue((bool)$invAAfter->apply_discount);
+        $this->assertEquals(90.00, $invAAfter->calculated_monthly_fee);
+        $this->assertEquals(22.50, $invAAfter->calculated_per_session_fee);
+
+        // 4. Member A accepts invitation -> Wallet debited snapshotted $22.50
+        $creditBefore = $this->discountedMember->fresh()->credit;
+        $respondRes = $this->actingAs($this->memberUser)->postJson("/api/training-invitations/{$invAAfter->id}/respond", [
+            'status' => 'accepted',
+        ]);
+        $respondRes->assertStatus(200);
+
+        $creditAfter = $this->discountedMember->fresh()->credit;
+        $this->assertEquals(round($creditBefore - 22.50, 2), $creditAfter);
+    }
+
+    public function test_changing_global_discount_mode_to_off_does_not_affect_existing_training()
+    {
+        // 1. Create Training P1 when Adult Discount Mode = amount ($10 off $100)
+        $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Snapshot Program P1',
+            'startDate' => '2026-08-01 10:00:00',
+            'endDate' => '2026-08-01 11:00:00',
+            'repeatWeeks' => 4,
+            'repeatMonths' => 1,
+            'slots' => 10,
+            'duration' => '1 hour',
+            'fees' => 100,
+            'coach' => 'Coach Alpha',
+            'location' => 'Court 1',
+            'targetType' => 'adult',
+        ]);
+        $parentP1 = Training::where('name', 'Snapshot Program P1')->firstOrFail();
+        $this->actingAs($this->admin)->postJson("/api/trainings/{$parentP1->id}/release");
+
+        $invA = TrainingInvitation::where('training_id', $parentP1->id)
+            ->where('member_id', $this->discountedMember->id)
+            ->firstOrFail();
+        $this->assertEquals(90.00, $invA->calculated_monthly_fee);
+        $this->assertEquals(22.50, $invA->calculated_per_session_fee);
+
+        // 2. Admin changes Global Settings: adultDiscountMode = 'off'
+        $settingRes = $this->actingAs($this->admin)->postJson('/api/settings', [
+            'adultDiscountMode' => 'off',
+        ]);
+        $settingRes->assertStatus(200);
+
+        // 3. Existing Training P1 invitation for Member A STILL HAS $90 ($22.50/session)
+        $invAExisting = TrainingInvitation::where('training_id', $parentP1->id)
+            ->where('member_id', $this->discountedMember->id)
+            ->firstOrFail();
+        $this->assertEquals(90.00, $invAExisting->calculated_monthly_fee);
+        $this->assertEquals(22.50, $invAExisting->calculated_per_session_fee);
+
+        // 4. Admin creates NEW Training P2 AFTER setting discount mode to 'off'
+        $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Snapshot Program P2',
+            'startDate' => '2026-09-01 10:00:00',
+            'endDate' => '2026-09-01 11:00:00',
+            'repeatWeeks' => 4,
+            'repeatMonths' => 1,
+            'slots' => 10,
+            'duration' => '1 hour',
+            'fees' => 100,
+            'coach' => 'Coach Alpha',
+            'location' => 'Court 1',
+            'targetType' => 'adult',
+        ]);
+        $parentP2 = Training::where('name', 'Snapshot Program P2')->firstOrFail();
+        $this->actingAs($this->admin)->postJson("/api/trainings/{$parentP2->id}/release");
+
+        // 5. Member A invitation for NEW P2 gets full price $100 ($25.00/session)
+        $invAP2 = TrainingInvitation::where('training_id', $parentP2->id)
+            ->where('member_id', $this->discountedMember->id)
+            ->firstOrFail();
+        $this->assertEquals(100.00, $invAP2->calculated_monthly_fee);
+        $this->assertEquals(25.00, $invAP2->calculated_per_session_fee);
+    }
+
+    public function test_attendance_refund_uses_snapshotted_fee_after_discount_settings_change()
+    {
+        // 1. Create Training P1 when Adult Discount Mode = amount ($10 off $100)
+        $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Snapshot Program P1',
+            'startDate' => '2026-08-01 10:00:00',
+            'endDate' => '2026-08-01 11:00:00',
+            'repeatWeeks' => 4,
+            'repeatMonths' => 1,
+            'slots' => 10,
+            'duration' => '1 hour',
+            'fees' => 100,
+            'coach' => 'Coach Alpha',
+            'location' => 'Court 1',
+            'targetType' => 'adult',
+        ]);
+        $parentP1 = Training::where('name', 'Snapshot Program P1')->firstOrFail();
+        $this->actingAs($this->admin)->postJson("/api/trainings/{$parentP1->id}/release");
+
+        $invA = TrainingInvitation::where('training_id', $parentP1->id)
+            ->where('member_id', $this->discountedMember->id)
+            ->firstOrFail();
+
+        // 2. Member A accepts invitation
+        $this->actingAs($this->memberUser)->postJson("/api/training-invitations/{$invA->id}/respond", [
+            'status' => 'accepted',
+        ]);
+
+        $tDate = \App\Models\TrainingDate::where('training_id', $parentP1->id)
+            ->where('member_id', $this->discountedMember->id)
+            ->firstOrFail();
+
+        // 3. Admin changes Global Settings: adultDiscountMode = 'off' and Member A apply_discount = false
+        Setting::where('key', 'adult_discount_mode')->update(['value' => 'off']);
+        $this->discountedMember->update(['apply_discount' => false]);
+
+        $tDate->update(['attended' => false]);
+
+        // 4. Admin processes Full Attendance Refund for Member A
+        $creditBeforeRefund = $this->discountedMember->fresh()->credit;
+        $refundRes = $this->actingAs($this->admin)->postJson("/api/training-dates/{$tDate->id}/process-refund", [
+            'memberId' => $this->discountedMember->id,
+            'refundType' => 'full',
+        ]);
+        $refundRes->assertStatus(200);
+
+        // Refund must be $22.50 (snapshotted per-session fee), NOT $25.00
+        $creditAfterRefund = $this->discountedMember->fresh()->credit;
+        $this->assertEquals(round($creditBeforeRefund + 22.50, 2), $creditAfterRefund);
+    }
 }

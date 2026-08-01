@@ -411,11 +411,14 @@ class InvitationSyncService
         foreach ($acceptedSeriesInvites as $accInv) {
             if ($accInv->accepted_amount !== null) {
                 $calculatedDeducted += (float) $accInv->accepted_amount;
+            } elseif ($accInv->calculated_per_session_fee !== null) {
+                $calculatedDeducted += (float) $accInv->calculated_per_session_fee;
             } else {
                 $trSession = Training::find($accInv->training_id);
                 if ($trSession) {
                     $repeatWeeks = max(1, (int) ($trSession->repeat_weeks ?? 1));
-                    $discountedMonthlyFee = FeeHelper::forMember((float) $trSession->fees, $member);
+                    $appDisc = $accInv->apply_discount !== null ? (bool) $accInv->apply_discount : (bool) $member->apply_discount;
+                    $discountedMonthlyFee = $accInv->calculated_monthly_fee !== null ? (float) $accInv->calculated_monthly_fee : FeeHelper::forMember((float) $trSession->fees, $member, $appDisc);
                     $calculatedDeducted += round($discountedMonthlyFee / $repeatWeeks, 2);
                 }
             }

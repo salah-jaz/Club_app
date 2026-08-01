@@ -811,8 +811,14 @@ function Events() {
         const repeatWeeks = Math.max(1, training.repeatWeeks || 3);
         const basePerWeekFee = (training.fees || 0) / repeatWeeks;
         
-        const discountedMonthlyFee = applyMemberFee(training.fees || 0, member, discountsFromStore(s));
-        const feePerWeek = discountedMonthlyFee / repeatWeeks;
+        const firstInv = invites.find((i) => i.calculatedMonthlyFee !== undefined && i.calculatedMonthlyFee !== null) || invites[0];
+        const effectiveApplyDiscount = firstInv?.applyDiscount !== undefined && firstInv?.applyDiscount !== null ? Boolean(firstInv.applyDiscount) : Boolean(member.applyDiscount);
+        const discountedMonthlyFee = firstInv?.calculatedMonthlyFee !== undefined && firstInv?.calculatedMonthlyFee !== null
+          ? firstInv.calculatedMonthlyFee
+          : applyMemberFee(training.fees || 0, { ...member, applyDiscount: effectiveApplyDiscount }, discountsFromStore(s));
+        const feePerWeek = firstInv?.calculatedPerSessionFee !== undefined && firstInv?.calculatedPerSessionFee !== null
+          ? firstInv.calculatedPerSessionFee
+          : discountedMonthlyFee / repeatWeeks;
         // Only charge for weeks the member was actually invited to
         const invitedWeeksCount = invitedMonthSessions.length;
         const totalFee = feePerWeek * invitedWeeksCount;

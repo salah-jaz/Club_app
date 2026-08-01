@@ -5,9 +5,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { fmtDateTime, fmtMoney } from "@/lib/format";
+import { fmtDateTime, fmtMoney, parseScheduleDateTime } from "@/lib/format";
 import { generateWeeklyDates, generateTrainingProgramDates } from "@/lib/rotation";
-import { Plus, LayoutGrid, List, Search, X, Calendar, MapPin, Trash2 } from "lucide-react";
+import { Plus, LayoutGrid, List, Search, X, Calendar, MapPin, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useState, useMemo } from "react";
@@ -18,6 +18,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   ConfirmDeleteDialog,
   type ConfirmDeleteRequest,
@@ -83,6 +92,7 @@ function TrainingsList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
   const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
+  const [viewingCard, setViewingCard] = useState<MonthlyCardItem | null>(null);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
@@ -293,6 +303,193 @@ function TrainingsList() {
         request={actionRequest}
         onOpenChange={(open) => !open && setActionRequest(null)}
       />
+
+      {/* View Training Session Details Dialog */}
+      <Dialog open={!!viewingCard} onOpenChange={(open) => !open && setViewingCard(null)}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-2 pr-6">
+              <DialogTitle className="text-[#F1F0EE] text-lg font-bold">
+                Training Program Details
+              </DialogTitle>
+              {viewingCard && <StatusBadge status={viewingCard.status} />}
+            </div>
+            <DialogDescription className="text-[#8A8A98] text-xs">
+              Read-only program parameters and session specifications.
+            </DialogDescription>
+          </DialogHeader>
+
+          {viewingCard && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/80 p-4 space-y-4">
+                <div className="text-[11px] font-semibold tracking-[0.12em] text-[#34D399] uppercase border-b border-white/[0.04] pb-2">
+                  Program Parameters (Non-Editable)
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Start Date & Time */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Start Date &amp; Time</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={viewingCard.startDate ? viewingCard.startDate.replace("T", " ") : ""}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg font-mono opacity-100 select-text cursor-default"
+                    />
+                    {(() => {
+                      const parsed = parseScheduleDateTime(viewingCard.startDate);
+                      if (!parsed) return null;
+                      return (
+                        <div className="grid grid-cols-3 gap-2 pt-1">
+                          <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#131916] px-2.5 py-1.5">
+                            <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Day</p>
+                            <p className="text-[12px] font-semibold text-[#F1F0EE]">{parsed.day}</p>
+                          </div>
+                          <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#131916] px-2.5 py-1.5">
+                            <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date</p>
+                            <p className="text-[12px] font-semibold text-[#F1F0EE]">{parsed.date}</p>
+                          </div>
+                          <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#131916] px-2.5 py-1.5">
+                            <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Time</p>
+                            <p className="text-[12px] font-semibold text-[#F1F0EE]">{parsed.time}</p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Program Name */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Program Name</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={viewingCard.name}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg font-medium opacity-100 select-text cursor-default"
+                    />
+                  </div>
+
+                  {/* Repeat for Weeks */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Repeat for Weeks</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={`${viewingCard.training.repeatWeeks ?? 3} week(s) per month`}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg font-mono opacity-100 cursor-default"
+                    />
+                  </div>
+
+                  {/* Repeat for Months */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Repeat for Months</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={`${viewingCard.training.repeatMonths ?? 1} month(s)`}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg font-mono opacity-100 cursor-default"
+                    />
+                  </div>
+
+                  {/* Maximum Slots */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Maximum Slots (Capacity)</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={`${viewingCard.slots} players (${viewingCard.acceptedCount} enrolled)`}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg font-mono opacity-100 cursor-default"
+                    />
+                  </div>
+
+                  {/* Session Duration */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Duration</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={viewingCard.training.duration || "1 hour"}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg opacity-100 cursor-default"
+                    />
+                  </div>
+
+                  {/* Training Fees */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Training Fees</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={`$${viewingCard.fees.toFixed(2)} ($${(viewingCard.fees / (viewingCard.training.repeatWeeks || 3)).toFixed(2)}/session)`}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg font-mono opacity-100 cursor-default"
+                    />
+                  </div>
+
+                  {/* Training For */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Training For</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={viewingCard.targetType === "adult" ? "Adult" : "Junior"}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg opacity-100 cursor-default capitalize font-semibold"
+                    />
+                  </div>
+
+                  {/* Coach Name */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Coach Name</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={viewingCard.coach}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg opacity-100 cursor-default"
+                    />
+                  </div>
+
+                  {/* Location */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Location</Label>
+                    <Input
+                      readOnly
+                      disabled
+                      value={viewingCard.location}
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg opacity-100 cursor-default"
+                    />
+                  </div>
+                </div>
+
+                {/* Weekly Sessions List */}
+                <div className="pt-2 space-y-1.5">
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Weekly Sessions in {viewingCard.monthTitle}</Label>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {viewingCard.weeklySessions.map((ms) => {
+                      const d = new Date(ms.startDate);
+                      const formatted = Number.isNaN(d.getTime())
+                        ? ms.startDate
+                        : d.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+                      return (
+                        <span key={ms.id} className="inline-flex items-center gap-1 text-[11px] font-medium bg-[#10B981]/10 text-[#34D399] px-2 py-1 rounded-md border border-[#10B981]/20">
+                          <Calendar className="size-3" /> {formatted}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setViewingCard(null)}
+              className="btn-premium-outline h-9 px-4 text-xs cursor-pointer"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <PageHeader
         title="Training programs"
         description="Coach-led monthly training programs."
@@ -595,10 +792,25 @@ function TrainingsList() {
                         <div className="flex-1 flex flex-col md:items-end gap-2">
                           <StatusBadge status={card.status} />
                           <div className="flex items-center gap-1.5 mt-1 md:mt-0 flex-wrap justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="btn-premium-outline h-8 px-2.5 text-xs cursor-pointer flex items-center gap-1"
+                              onClick={() => setViewingCard(card)}
+                            >
+                              <Eye className="size-3.5" />
+                              <span>View</span>
+                            </Button>
                             {user.role === "admin" && (
                               <>
-                                <Button asChild size="sm" variant="outline" className="btn-premium-outline h-8 px-2.5 cursor-pointer text-xs">
-                                  <Link to="/trainings/$id/edit" params={{ id: t.id }}>Edit</Link>
+                                <Button
+                                  disabled
+                                  size="sm"
+                                  variant="outline"
+                                  className="btn-premium-outline h-8 px-2.5 text-xs disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+                                  title="Training session cannot be edited once created"
+                                >
+                                  Edit
                                 </Button>
                                 <Button
                                   size="sm"
@@ -712,10 +924,25 @@ function TrainingsList() {
 
                         <div className="flex items-center justify-between gap-1.5 pt-2 w-full flex-wrap">
                           <div className="flex items-center gap-1.5 ml-auto">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="btn-premium-outline h-8 px-2.5 text-xs cursor-pointer flex items-center gap-1"
+                              onClick={() => setViewingCard(card)}
+                            >
+                              <Eye className="size-3.5" />
+                              <span>View</span>
+                            </Button>
                             {user.role === "admin" && (
                               <>
-                                <Button asChild size="sm" variant="outline" className="btn-premium-outline h-8 px-2.5 cursor-pointer text-xs">
-                                  <Link to="/trainings/$id/edit" params={{ id: t.id }}>Edit</Link>
+                                <Button
+                                  disabled
+                                  size="sm"
+                                  variant="outline"
+                                  className="btn-premium-outline h-8 px-2.5 text-xs disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+                                  title="Training session cannot be edited once created"
+                                >
+                                  Edit
                                 </Button>
                                 <Button
                                   size="sm"

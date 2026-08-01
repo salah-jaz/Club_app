@@ -169,9 +169,16 @@ function TrainingPage() {
       toast.error("Please select at least one weekly session date.");
       return;
     }
+    const sessionIds = monthSessions.map((ms) => ms.id);
+    const existingInv = s.trainingInvites.find((i) => sessionIds.includes(i.trainingId) && i.memberId === memberId);
     const m = s.members.find((x) => x.id === memberId);
-    const memberDiscountedMonthlyFee = applyMemberFee(t.fees, m, discountsFromStore(s));
-    const memberPerWeekFee = memberDiscountedMonthlyFee / repeatWeeks;
+    const effectiveApplyDiscount = existingInv?.applyDiscount !== undefined && existingInv?.applyDiscount !== null ? Boolean(existingInv.applyDiscount) : Boolean(m?.applyDiscount);
+    const memberDiscountedMonthlyFee = existingInv?.calculatedMonthlyFee !== undefined && existingInv?.calculatedMonthlyFee !== null
+      ? existingInv.calculatedMonthlyFee
+      : applyMemberFee(t.fees, m ? { ...m, applyDiscount: effectiveApplyDiscount } : null, discountsFromStore(s));
+    const memberPerWeekFee = existingInv?.calculatedPerSessionFee !== undefined && existingInv?.calculatedPerSessionFee !== null
+      ? existingInv.calculatedPerSessionFee
+      : memberDiscountedMonthlyFee / repeatWeeks;
     const totalCharge = selectedSids.length * memberPerWeekFee;
     try {
       await s.updateMemberTrainingInvitation(t.id, memberId, selectedSids);
@@ -602,8 +609,19 @@ function TrainingPage() {
                     const selectedSids = getSelectedDatesForMember(m.id);
                     const memberName = `${m.firstName} ${m.lastName}`;
 
-                    // Fee for member after member discount if applicable
-                    const baseMemberWeekFee = applyMemberFee(t.fees, m, discountsFromStore(s)) / repeatWeeks;
+                    // Fee for member after member discount if applicable (prioritize snapshotted invitation fees)
+                    const existingInvWithFee = memberInvs.find(
+                      (i) => i.calculatedMonthlyFee !== undefined && i.calculatedMonthlyFee !== null
+                    ) || memberInvs[0];
+                    const effectiveApplyDiscount = existingInvWithFee?.applyDiscount !== undefined && existingInvWithFee?.applyDiscount !== null
+                      ? Boolean(existingInvWithFee.applyDiscount)
+                      : Boolean(m.applyDiscount);
+                    const memberDiscountedMonthlyFee = existingInvWithFee?.calculatedMonthlyFee !== undefined && existingInvWithFee?.calculatedMonthlyFee !== null
+                      ? existingInvWithFee.calculatedMonthlyFee
+                      : applyMemberFee(t.fees, { ...m, applyDiscount: effectiveApplyDiscount }, discountsFromStore(s));
+                    const baseMemberWeekFee = existingInvWithFee?.calculatedPerSessionFee !== undefined && existingInvWithFee?.calculatedPerSessionFee !== null
+                      ? existingInvWithFee.calculatedPerSessionFee
+                      : memberDiscountedMonthlyFee / repeatWeeks;
 
                     const getInvPaidAmount = (inv: (typeof acceptedInvs)[number]) => {
                       if (inv.acceptedAmount !== undefined && inv.acceptedAmount !== null) {
@@ -631,7 +649,7 @@ function TrainingPage() {
                       ? (acceptedUpdateReq.updatedMonthlyFee ?? ((acceptedUpdateReq.previouslyPaidAmount ?? 0) + (acceptedUpdateReq.additionalAmount ?? 0)))
                       : initialOrPreviousPaid;
 
-                    const updatedMonthlyFeeVal = applyMemberFee(t.fees, m, discountsFromStore(s));
+                    const updatedMonthlyFeeVal = memberDiscountedMonthlyFee;
                     const remainingPayable = updatedMonthlyFeeVal - totalAlreadyPaid;
 
                     const totalPayable = isAccepted
@@ -742,7 +760,7 @@ function TrainingPage() {
                                 )}
                                 onClick={() => {
                                   const previouslyPaid = totalAlreadyPaid;
-                                  const updatedMonthlyFeeVal = applyMemberFee(t.fees, m, discountsFromStore(s));
+                                  const updatedMonthlyFeeVal = memberDiscountedMonthlyFee;
                                   const newPerSessionFeeVal = updatedMonthlyFeeVal / repeatWeeks;
                                   const remainingPayableVal = updatedMonthlyFeeVal - previouslyPaid;
 
@@ -849,7 +867,22 @@ function TrainingPage() {
                 <TableBody>
                   {eligibleMembers.map((m) => {
                     const memberName = `${m.firstName} ${m.lastName}`;
-                    const baseMemberWeekFee = applyMemberFee(t.fees, m, discountsFromStore(s)) / repeatWeeks;
+                    const sessionIds = monthSessions.map((ms) => ms.id);
+                    const memberInvs = s.trainingInvites.filter(
+                      (i) => sessionIds.includes(i.trainingId) && i.memberId === m.id
+                    );
+                    const existingInvWithFee = memberInvs.find(
+                      (i) => i.calculatedMonthlyFee !== undefined && i.calculatedMonthlyFee !== null
+                    ) || memberInvs[0];
+                    const effectiveApplyDiscount = existingInvWithFee?.applyDiscount !== undefined && existingInvWithFee?.applyDiscount !== null
+                      ? Boolean(existingInvWithFee.applyDiscount)
+                      : Boolean(m.applyDiscount);
+                    const memberDiscountedMonthlyFee = existingInvWithFee?.calculatedMonthlyFee !== undefined && existingInvWithFee?.calculatedMonthlyFee !== null
+                      ? existingInvWithFee.calculatedMonthlyFee
+                      : applyMemberFee(t.fees, { ...m, applyDiscount: effectiveApplyDiscount }, discountsFromStore(s));
+                    const baseMemberWeekFee = existingInvWithFee?.calculatedPerSessionFee !== undefined && existingInvWithFee?.calculatedPerSessionFee !== null
+                      ? existingInvWithFee.calculatedPerSessionFee
+                      : memberDiscountedMonthlyFee / repeatWeeks;
 
                     return (
                       <TableRow

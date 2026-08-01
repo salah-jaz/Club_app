@@ -72,10 +72,10 @@ interface State {
   showGradeInCourtRotation: boolean;
   adultDiscountPercent: number;
   adultDiscountAmount: number;
-  adultDiscountMode: "percent" | "amount";
+  adultDiscountMode: "percent" | "amount" | "off";
   juniorDiscountPercent: number;
   juniorDiscountAmount: number;
-  juniorDiscountMode: "percent" | "amount";
+  juniorDiscountMode: "percent" | "amount" | "off";
 
   // sync
   fetchSettings: () => Promise<void>;
@@ -357,7 +357,7 @@ export const useStore = create<State>((set, get) => ({
         adultDiscountPercent: settings.adultDiscountPercent ?? 0,
         adultDiscountAmount: settings.adultDiscountAmount ?? 0,
         adultDiscountMode:
-          settings.adultDiscountMode === "amount" || settings.adultDiscountMode === "percent"
+          settings.adultDiscountMode === "amount" || settings.adultDiscountMode === "percent" || settings.adultDiscountMode === "off"
             ? settings.adultDiscountMode
             : (settings.adultDiscountAmount ?? 0) > 0 && (settings.adultDiscountPercent ?? 0) <= 0
               ? "amount"
@@ -365,7 +365,7 @@ export const useStore = create<State>((set, get) => ({
         juniorDiscountPercent: settings.juniorDiscountPercent ?? 0,
         juniorDiscountAmount: settings.juniorDiscountAmount ?? 0,
         juniorDiscountMode:
-          settings.juniorDiscountMode === "amount" || settings.juniorDiscountMode === "percent"
+          settings.juniorDiscountMode === "amount" || settings.juniorDiscountMode === "percent" || settings.juniorDiscountMode === "off"
             ? settings.juniorDiscountMode
             : (settings.juniorDiscountAmount ?? 0) > 0 && (settings.juniorDiscountPercent ?? 0) <= 0
               ? "amount"
@@ -507,7 +507,7 @@ export const useStore = create<State>((set, get) => ({
         adultDiscountPercent: settings.adultDiscountPercent ?? 0,
         adultDiscountAmount: settings.adultDiscountAmount ?? 0,
         adultDiscountMode:
-          settings.adultDiscountMode === "amount" || settings.adultDiscountMode === "percent"
+          settings.adultDiscountMode === "amount" || settings.adultDiscountMode === "percent" || settings.adultDiscountMode === "off"
             ? settings.adultDiscountMode
             : (settings.adultDiscountAmount ?? 0) > 0 && (settings.adultDiscountPercent ?? 0) <= 0
               ? "amount"
@@ -515,7 +515,7 @@ export const useStore = create<State>((set, get) => ({
         juniorDiscountPercent: settings.juniorDiscountPercent ?? 0,
         juniorDiscountAmount: settings.juniorDiscountAmount ?? 0,
         juniorDiscountMode:
-          settings.juniorDiscountMode === "amount" || settings.juniorDiscountMode === "percent"
+          settings.juniorDiscountMode === "amount" || settings.juniorDiscountMode === "percent" || settings.juniorDiscountMode === "off"
             ? settings.juniorDiscountMode
             : (settings.juniorDiscountAmount ?? 0) > 0 && (settings.juniorDiscountPercent ?? 0) <= 0
               ? "amount"
@@ -964,10 +964,10 @@ export const useStore = create<State>((set, get) => ({
       showGradeInCourtRotation: boolean;
       adultDiscountPercent: number;
       adultDiscountAmount: number;
-      adultDiscountMode: "percent" | "amount";
+      adultDiscountMode: "percent" | "amount" | "off";
       juniorDiscountPercent: number;
       juniorDiscountAmount: number;
-      juniorDiscountMode: "percent" | "amount";
+      juniorDiscountMode: "percent" | "amount" | "off";
     }>("/settings", settings);
     set({
       locations: updated.locations,
@@ -1005,13 +1005,13 @@ export const useStore = create<State>((set, get) => ({
       adultDiscountPercent: updated.adultDiscountPercent ?? 0,
       adultDiscountAmount: updated.adultDiscountAmount ?? 0,
       adultDiscountMode:
-        updated.adultDiscountMode === "amount" || updated.adultDiscountMode === "percent"
+        updated.adultDiscountMode === "amount" || updated.adultDiscountMode === "percent" || updated.adultDiscountMode === "off"
           ? updated.adultDiscountMode
           : "percent",
       juniorDiscountPercent: updated.juniorDiscountPercent ?? 0,
       juniorDiscountAmount: updated.juniorDiscountAmount ?? 0,
       juniorDiscountMode:
-        updated.juniorDiscountMode === "amount" || updated.juniorDiscountMode === "percent"
+        updated.juniorDiscountMode === "amount" || updated.juniorDiscountMode === "percent" || updated.juniorDiscountMode === "off"
           ? updated.juniorDiscountMode
           : "percent",
     });

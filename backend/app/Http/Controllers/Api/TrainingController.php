@@ -338,6 +338,17 @@ class TrainingController extends Controller
                 $sItemData['location'] = $locationVal;
             }
             $sItem->update($sItemData);
+
+            $unacceptedInvs = TrainingInvitation::where('training_id', $sItem->id)
+                ->where('status', '!=', 'accepted')
+                ->get();
+            foreach ($unacceptedInvs as $uInv) {
+                $uMember = Member::find($uInv->member_id);
+                if ($uMember) {
+                    $uSnapshot = TrainingInvitation::getSnapshotData($sItem, $uMember);
+                    $uInv->update($uSnapshot);
+                }
+            }
         }
 
         try {
@@ -456,7 +467,11 @@ class TrainingController extends Controller
                 ], 422);
             }
             $basePerWeekFee = (float) $tr->fees / $repeatWeeks;
-            $totalFeeToDeduct = FeeHelper::forMember($basePerWeekFee * count($selectedSids), $member);
+            $firstInv = TrainingInvitation::whereIn('training_id', $monthSessionIds)->where('member_id', $member->id)->first();
+            $appDisc = $firstInv && $firstInv->apply_discount !== null ? (bool)$firstInv->apply_discount : (bool)$member->apply_discount;
+            $discountedMonthlyFee = $firstInv && $firstInv->calculated_monthly_fee !== null ? (float)$firstInv->calculated_monthly_fee : FeeHelper::forMember((float)($tr->fees ?? 0), $member, $appDisc);
+            $perSessionFee = round($discountedMonthlyFee / $repeatWeeks, 2);
+            $totalFeeToDeduct = $perSessionFee * count($selectedSids);
 
             return DB::transaction(function () use ($tr, $monthSessions, $selectedSids, $member, $totalFeeToDeduct, $existingInvs) {
                 if ($totalFeeToDeduct > 0) {
@@ -505,7 +520,13 @@ class TrainingController extends Controller
                     $discountedMonthlyFee = $inv && $inv->calculated_monthly_fee !== null ? (float)$inv->calculated_monthly_fee : FeeHelper::forMember((float)($sessionObj->fees ?? $tr->fees ?? 0), $member, $appDisc);
                     $perSessAmount = round($discountedMonthlyFee / $repW, 2);
                     if (!$inv) {
-                        $inv = TrainingInvitation::create([
+                        $snapshot = TrainingInvitation::getSnapshotData($sessionObj ?? $tr, $member);
+                        if (isset($firstInv) && $firstInv && $firstInv->apply_discount !== null) {
+                            $snapshot['apply_discount'] = (bool)$firstInv->apply_discount;
+                            $snapshot['calculated_monthly_fee'] = (float)$firstInv->calculated_monthly_fee;
+                            $snapshot['calculated_per_session_fee'] = (float)$firstInv->calculated_per_session_fee;
+                        }
+                        $inv = TrainingInvitation::create(array_merge([
                             'id' => 'ti_' . Str::random(8),
                             'training_id' => $sid,
                             'member_id' => $member->id,
@@ -514,7 +535,7 @@ class TrainingController extends Controller
                             'accepted_repeat_weeks' => $repW,
                             'accepted_per_session_fee' => $bPerW,
                             'accepted_amount' => $perSessAmount,
-                        ]);
+                        ], $snapshot));
                     } else {
                         $inv->status = 'accepted';
                         $inv->accepted_monthly_fee = (float)($sessionObj->fees ?? $tr->fees ?? 0);
@@ -555,12 +576,20 @@ class TrainingController extends Controller
         foreach ($selectedSids as $sid) {
             $inv = TrainingInvitation::where('training_id', $sid)->where('member_id', $member->id)->first();
             if (!$inv) {
-                $inv = TrainingInvitation::create([
+                $sessionObj = Training::find($sid);
+                $snapshot = TrainingInvitation::getSnapshotData($sessionObj ?? $tr, $member);
+                $firstInv = TrainingInvitation::whereIn('training_id', $monthSessionIds)->where('member_id', $member->id)->first();
+                if ($firstInv && $firstInv->apply_discount !== null) {
+                    $snapshot['apply_discount'] = (bool)$firstInv->apply_discount;
+                    $snapshot['calculated_monthly_fee'] = (float)$firstInv->calculated_monthly_fee;
+                    $snapshot['calculated_per_session_fee'] = (float)$firstInv->calculated_per_session_fee;
+                }
+                $inv = TrainingInvitation::create(array_merge([
                     'id' => 'ti_' . Str::random(8),
                     'training_id' => $sid,
                     'member_id' => $member->id,
                     'status' => 'open',
-                ]);
+                ], $snapshot));
 
                 try {
                     $sessionObj = Training::find($sid);
@@ -804,7 +833,7 @@ class TrainingController extends Controller
         }
         $appDisc = $invite->apply_discount !== null ? (bool)$invite->apply_discount : (bool)$member->apply_discount;
         $discountedMonthlyFee = $invite->calculated_monthly_fee !== null ? (float)$invite->calculated_monthly_fee : FeeHelper::forMember((float) $tr->fees, $member, $appDisc);
-        $feeToDeduct = round($discountedMonthlyFee / $repeatWeeks, 2);
+        $feeToDeduct = $invite->calculated_per_session_fee !== null ? (float)$invite->calculated_per_session_fee : round($discountedMonthlyFee / $repeatWeeks, 2);
         $originalFee = round((float) $tr->fees / $repeatWeeks, 2);
         $discountApplied = round(max(0, $originalFee - $feeToDeduct), 2);
 
@@ -934,7 +963,7 @@ class TrainingController extends Controller
                             }
                             $appDisc = $inv->apply_discount !== null ? (bool)$inv->apply_discount : (bool)$member->apply_discount;
                             $discountedMonthlyFee = $inv->calculated_monthly_fee !== null ? (float)$inv->calculated_monthly_fee : FeeHelper::forMember((float) $tr->fees, $member, $appDisc);
-                            $perSessFee = round($discountedMonthlyFee / $repeatWeeks, 2);
+                            $perSessFee = $inv->calculated_per_session_fee !== null ? (float)$inv->calculated_per_session_fee : round($discountedMonthlyFee / $repeatWeeks, 2);
                             $origSessFee = round((float) $tr->fees / $repeatWeeks, 2);
 
                             $totalFeeToDeduct += $perSessFee;
@@ -986,7 +1015,7 @@ class TrainingController extends Controller
                             $repW = max(1, (int)($trSession->repeat_weeks ?? 1));
                             $appDisc = $inv->apply_discount !== null ? (bool)$inv->apply_discount : (bool)$member->apply_discount;
                             $discountedMonthlyFee = $inv->calculated_monthly_fee !== null ? (float)$inv->calculated_monthly_fee : FeeHelper::forMember((float) $trSession->fees, $member, $appDisc);
-                            $perSessAmount = round($discountedMonthlyFee / $repW, 2);
+                            $perSessAmount = $inv->calculated_per_session_fee !== null ? (float)$inv->calculated_per_session_fee : round($discountedMonthlyFee / $repW, 2);
 
                             $inv->status = 'accepted';
                             $inv->accepted_monthly_fee = (float) $trSession->fees;
@@ -1219,7 +1248,14 @@ class TrainingController extends Controller
                 $appDisc = $inv && $inv->apply_discount !== null ? (bool)$inv->apply_discount : (bool)$member->apply_discount;
                 $perSessAmount = $inv && $inv->calculated_per_session_fee !== null ? (float)$inv->calculated_per_session_fee : FeeHelper::forMember($bPerW, $member, $appDisc);
                 if (!$inv) {
-                    TrainingInvitation::create([
+                    $snapshot = TrainingInvitation::getSnapshotData($sessionObj ?? $tr, $member);
+                    $firstSeriesInv = TrainingInvitation::whereIn('training_id', $freshReq->existing_session_ids ?? [])->where('member_id', $member->id)->first();
+                    if ($firstSeriesInv && $firstSeriesInv->apply_discount !== null) {
+                        $snapshot['apply_discount'] = (bool)$firstSeriesInv->apply_discount;
+                        $snapshot['calculated_monthly_fee'] = (float)$firstSeriesInv->calculated_monthly_fee;
+                        $snapshot['calculated_per_session_fee'] = (float)$firstSeriesInv->calculated_per_session_fee;
+                    }
+                    TrainingInvitation::create(array_merge([
                         'id' => 'ti_' . Str::random(8),
                         'training_id' => $sid,
                         'member_id' => $member->id,
@@ -1228,7 +1264,7 @@ class TrainingController extends Controller
                         'accepted_repeat_weeks' => $repW,
                         'accepted_per_session_fee' => $bPerW,
                         'accepted_amount' => $perSessAmount,
-                    ]);
+                    ], $snapshot));
                 } else {
                     $inv->status = 'accepted';
                     $inv->accepted_monthly_fee = (float)($sessionObj->fees ?? $tr->fees ?? 0);
@@ -1344,8 +1380,8 @@ class TrainingController extends Controller
         }
         $existingInv = TrainingInvitation::where('training_id', $tr->id)->where('member_id', $member->id)->first();
         $appDisc = $existingInv && $existingInv->apply_discount !== null ? (bool)$existingInv->apply_discount : (bool)$member->apply_discount;
-        $discountedMonthlyFee = FeeHelper::forMember((float) $tr->fees, $member, $appDisc);
-        $weeklyFee = round($discountedMonthlyFee / $repeatWeeks, 2);
+        $discountedMonthlyFee = $existingInv && $existingInv->calculated_monthly_fee !== null ? (float)$existingInv->calculated_monthly_fee : FeeHelper::forMember((float) $tr->fees, $member, $appDisc);
+        $weeklyFee = $existingInv && $existingInv->calculated_per_session_fee !== null ? (float)$existingInv->calculated_per_session_fee : round($discountedMonthlyFee / $repeatWeeks, 2);
 
         $refundType = $request->refundType;
         $refundAmount = 0.0;
@@ -1646,6 +1682,8 @@ class TrainingController extends Controller
                 foreach ($acceptedSeriesInvites as $accInv) {
                     if ($accInv->accepted_amount !== null) {
                         $calculatedDeducted += (float) $accInv->accepted_amount;
+                    } elseif ($accInv->calculated_per_session_fee !== null) {
+                        $calculatedDeducted += (float) $accInv->calculated_per_session_fee;
                     } else {
                         $trSession = Training::find($accInv->training_id);
                         if ($trSession) {

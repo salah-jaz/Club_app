@@ -119,7 +119,7 @@ class SettingController extends Controller
                     $val = filter_var($val, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
                 }
                 if (in_array($camel, ['adultDiscountMode', 'juniorDiscountMode'], true)) {
-                    $val = $val === 'amount' ? 'amount' : 'percent';
+                    $val = in_array($val, ['amount', 'percent', 'off'], true) ? $val : 'percent';
                 }
                 Setting::updateOrCreate(['key' => $snake], ['value' => $val]);
             }

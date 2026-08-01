@@ -32,6 +32,9 @@ class FeeHelper
         $percent = (float) (self::settingValue("{$type}_discount_percent") ?? 0);
         $amount = (float) (self::settingValue("{$type}_discount_amount") ?? 0);
         $mode = self::settingValue("{$type}_discount_mode");
+        if ($mode === 'off') {
+            return round(max(0, $baseFee), 2);
+        }
         if ($mode !== 'percent' && $mode !== 'amount') {
             $mode = ($amount > 0 && $percent <= 0) ? 'amount' : 'percent';
         }

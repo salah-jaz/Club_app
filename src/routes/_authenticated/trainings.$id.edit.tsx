@@ -38,6 +38,7 @@ function EditTraining() {
   const { id } = Route.useParams();
   const s = useStore();
   const tr = s.trainings.find((x) => x.id === id);
+  if (!tr) return <Navigate to="/trainings" />;
   const update = useStore((state) => state.updateTraining);
   const locations = useStore((state) => state.locations);
   const coaches = useStore((state) => state.coaches);
@@ -54,7 +55,7 @@ function EditTraining() {
     fees: 120,
     coach: coaches[0] || "Coach Lee",
     location: locations[0] || "",
-    targetType: (tr?.targetType || "junior") as "adult" | "junior",
+    targetType: (tr.targetType || "junior") as "adult" | "junior",
   });
 
   const [nameTouched, setNameTouched] = useState(false);
@@ -109,8 +110,6 @@ function EditTraining() {
       endIso,
     };
   }, [f.startDate, f.repeatWeeks, f.repeatMonths]);
-
-  if (!tr) return <Navigate to="/trainings" />;
 
   const onDateChange = (value: string) => {
     const parsed = parseScheduleDateTime(value);
