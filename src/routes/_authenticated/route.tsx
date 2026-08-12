@@ -196,6 +196,7 @@ function Layout() {
   const routeNames: Record<string, string> = {
     events: "Play Sessions",
     invitations: "Play Sessions",
+    training: "Training",
   };
   const screenName = routeNames[pathPart] || (pathPart.charAt(0).toUpperCase() + pathPart.slice(1));
 

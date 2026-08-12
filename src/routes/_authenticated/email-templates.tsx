@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
+import { fmtMoney } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -150,11 +151,11 @@ function EmailTemplatesPage() {
                 </tr>
                 <tr>
                   <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#8A9E98", fontSize: "13px" }}>Amount:</td>
-                  <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: "bold", textAlign: "right", fontSize: "13px" }}>$15.00</td>
+                  <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: "bold", textAlign: "right", fontSize: "13px" }}>{fmtMoney(15)}</td>
                 </tr>
                 <tr>
                   <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#8A9E98", fontSize: "13px" }}>Account Balance:</td>
-                  <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: "bold", textAlign: "right", fontSize: "13px" }}>$45.00</td>
+                  <td style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: "bold", textAlign: "right", fontSize: "13px" }}>{fmtMoney(45)}</td>
                 </tr>
               </tbody>
             </table>

@@ -177,8 +177,8 @@ function TrainingPage() {
       await s.updateMemberTrainingInvitation(t.id, memberId, selectedSids);
       toast.success(
         isUpdate
-          ? `Invitation updated for ${memberName} (${selectedSids.length} week(s), $${totalCharge.toFixed(2)})`
-          : `Invitation sent to ${memberName} for ${selectedSids.length} week(s) ($${totalCharge.toFixed(2)})`
+          ? `Invitation updated for ${memberName} (${selectedSids.length} week(s), ${fmtMoney(totalCharge)})`
+          : `Invitation sent to ${memberName} for ${selectedSids.length} week(s) (${fmtMoney(totalCharge)})`
       );
     } catch (error: any) {
       toast.error(error.message || "Failed to send invitation.");
@@ -251,7 +251,7 @@ function TrainingPage() {
     <div className="space-y-6">
       <PageHeader
         title={`${t.name} - ${monthTitle}`}
-        description={`Coach ${t.coach} · ${t.location} · Training For: ${targetType === "adult" ? "Adult" : "Junior"} · Monthly Fee: $${t.fees.toFixed(2)} ($${sessionFee.toFixed(2)}/session)`}
+        description={`Coach ${t.coach} · ${t.location} · Training For: ${targetType === "adult" ? "Adult" : "Junior"} · Monthly Fee: ${fmtMoney(t.fees)} (${fmtMoney(sessionFee)}/session)`}
         backTo="/trainings"
         actions={
           <div className="flex items-center gap-2 flex-wrap">
@@ -346,7 +346,7 @@ function TrainingPage() {
                     "uppercase tracking-wide",
                     refundDialog.refundType === "half" ? "text-purple-400" : refundDialog.refundType === "full" ? "text-emerald-400" : "text-gray-400"
                   )}>
-                    {refundDialog.refundType === "half" ? "50% Refund ($" + (refundDialog.weeklyFee * 0.5).toFixed(2) + ")" : refundDialog.refundType === "full" ? "Full Refund ($" + refundDialog.weeklyFee.toFixed(2) + ")" : "No Refund ($0.00)"}
+                    {refundDialog.refundType === "half" ? `50% Refund (${fmtMoney(refundDialog.weeklyFee * 0.5)})` : refundDialog.refundType === "full" ? `Full Refund (${fmtMoney(refundDialog.weeklyFee)})` : `No Refund (${fmtMoney(0)})`}
                   </span>
                 </div>
               </div>
@@ -423,7 +423,7 @@ function TrainingPage() {
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {sendUpdateDialog.newSessions.map((sItem) => (
                     <span key={sItem.id} className="inline-flex items-center gap-1 text-[11px] font-medium bg-[#3B82F6]/10 text-[#60A5FA] px-2 py-0.5 rounded border border-[#3B82F6]/20">
-                      + {formattedDatePill(sItem.startDate)} (${sendUpdateDialog.newPerSessionFee.toFixed(2)})
+                      + {formattedDatePill(sItem.startDate)} ({fmtMoney(sendUpdateDialog.newPerSessionFee)})
                     </span>
                   ))}
                   {sendUpdateDialog.newSessions.length === 0 && (
@@ -555,11 +555,13 @@ function TrainingPage() {
                     {monthSessions.map((ms) => (
                       <TableHead
                         key={ms.id}
-                        className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 text-center font-mono px-3"
+                        className="text-[10px] font-medium tracking-[0.12em] uppercase h-11 text-center font-mono px-3"
                       >
-                        {formattedDatePill(ms.startDate)}
-                        <span className="block text-[9px] text-[#34D399] font-normal">
-                          (${sessionFee.toFixed(0)})
+                        <span className="bg-white text-black px-2 py-0.5 rounded font-bold">
+                          {formattedDatePill(ms.startDate)}
+                        </span>
+                        <span className="block text-[9px] text-[#34D399] font-normal mt-1">
+                          ({fmtMoney(sessionFee)})
                         </span>
                       </TableHead>
                     ))}
@@ -696,11 +698,11 @@ function TrainingPage() {
                               <span className="text-[#3B82F6]">{fmtMoney(remainingPayable)}</span>
                             ) : Math.abs(remainingPayable) <= 0.009 ? (
                               <span className="text-[#34D399]">
-                                $0.00 <span className="text-[10px] text-[#8A8A98] font-normal">(Paid in Full)</span>
+                                {fmtMoney(0)} <span className="text-[10px] text-[#8A8A98] font-normal">(Paid in Full)</span>
                               </span>
                             ) : (
                               <span className="text-[#A78BFA]">
-                                $0.00 <span className="text-[10px] text-[#A78BFA]/80 font-normal">(Refund {fmtMoney(Math.abs(remainingPayable))})</span>
+                                {fmtMoney(0)} <span className="text-[10px] text-[#A78BFA]/80 font-normal">(Refund {fmtMoney(Math.abs(remainingPayable))})</span>
                               </span>
                             )
                           ) : countWeeksDisplay > 0 ? (
@@ -708,7 +710,7 @@ function TrainingPage() {
                               {fmtMoney(totalPayable)} ({countWeeksDisplay} wk{countWeeksDisplay !== 1 ? "s" : ""})
                             </span>
                           ) : (
-                            <span className="text-[#8A8A98] font-normal">$0.00</span>
+                            <span className="text-[#8A8A98] font-normal">{fmtMoney(0)}</span>
                           )}
                         </TableCell>
 
@@ -839,9 +841,11 @@ function TrainingPage() {
                     {monthSessions.map((ms) => (
                       <TableHead
                         key={ms.id}
-                        className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase h-11 text-center font-mono px-4"
+                        className="text-[10px] font-medium tracking-[0.12em] uppercase h-11 text-center font-mono px-4"
                       >
-                        {formattedDatePill(ms.startDate)}
+                        <span className="bg-white text-black px-2 py-0.5 rounded font-bold">
+                          {formattedDatePill(ms.startDate)}
+                        </span>
                       </TableHead>
                     ))}
                   </TableRow>
@@ -994,7 +998,7 @@ function TrainingPage() {
                                             }}
                                             className="w-full px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 transition-colors text-center cursor-pointer font-medium"
                                           >
-                                            50% Refund (${(baseMemberWeekFee * 0.5).toFixed(2)})
+                                            50% Refund ({fmtMoney(baseMemberWeekFee * 0.5)})
                                           </button>
                                           <button
                                             type="button"
@@ -1011,7 +1015,7 @@ function TrainingPage() {
                                             }}
                                             className="w-full px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition-colors text-center cursor-pointer font-medium"
                                           >
-                                            Full Refund (${baseMemberWeekFee.toFixed(2)})
+                                            Full Refund ({fmtMoney(baseMemberWeekFee)})
                                           </button>
                                         </div>
                                       </div>

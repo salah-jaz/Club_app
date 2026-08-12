@@ -397,7 +397,7 @@ function CreditsPage() {
         <CreditStatCard label="Pending" value={stats.pending} hint="Credit requests awaiting approval" icon={Clock3} index={1} />
         <CreditStatCard label="Approved" value={stats.approved} hint="Completed entries" icon={CheckCircle2} index={2} />
         <CreditStatCard
-          label="Balance"
+          label="Total Balance"
           value={stats.balanceTotal}
           hint={`${fmtMoney(stats.approvedTotal)} approved credits`}
           icon={CircleDollarSign}

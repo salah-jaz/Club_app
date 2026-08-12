@@ -52,6 +52,7 @@ export function AppSidebar() {
     { to: "/members", label: "Members", icon: Users, show: isMember || isAdmin },
     { to: "/credits", label: "Wallet", icon: Wallet, show: isMember || isAdmin },
     { to: "/events", label: "Play Sessions", icon: CalendarDays, show: isMember },
+    { to: "/training", label: "Training", icon: GraduationCap, show: isMember },
     { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin },
     { to: "/league-groups", label: "League Groups", icon: Users, show: isAdmin || isMember },
     { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isAdmin || isVol },
