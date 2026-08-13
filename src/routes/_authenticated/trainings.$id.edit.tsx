@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useMemo, useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { parseScheduleDateTime } from "@/lib/format";
+import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
 import { generateTrainingProgramDates } from "@/lib/rotation";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,6 +84,8 @@ function EditTraining() {
 
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
 
+  const minDateTime = datetimeLocalNow();
+
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.startDate), [f.startDate]);
 
   const repeatPreview = useMemo(() => {
@@ -125,6 +129,10 @@ function EditTraining() {
     const weeks = Number(f.repeatWeeks);
     if (isNaN(weeks) || weeks < 1 || weeks > 5) {
       toast.error("Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.");
+      return;
+    }
+    if (isScheduleDateTimeInPast(f.startDate)) {
+      toast.error("Schedule date and time must be today or later.");
       return;
     }
     setSubmitting(true);
@@ -237,13 +245,12 @@ function EditTraining() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Start Date &amp; Time</Label>
-              <Input
-                required
-                type="datetime-local"
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Start Date & Time</Label>
+              <DateTimePicker
                 value={f.startDate}
-                onChange={(e) => onDateChange(e.target.value)}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg w-full min-w-0 font-mono"
+                onChange={onDateChange}
+                minDateTime={minDateTime}
+                placeholder="Select Start Date & Time..."
               />
               {scheduleWhen && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">

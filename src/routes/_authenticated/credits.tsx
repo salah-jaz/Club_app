@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { Search, X, SlidersHorizontal, Calendar, Plus, Wallet, Clock3, CheckCircle2, CircleDollarSign, ArrowDownLeft, ArrowUpRight, Trash2 } from "lucide-react";
+import { Search, X, SlidersHorizontal, Calendar, Plus, Wallet, Clock3, CheckCircle2, CircleDollarSign, ArrowDownLeft, ArrowUpRight, Trash2, RotateCcw } from "lucide-react";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
@@ -47,7 +47,7 @@ type CreditsSearch = {
 };
 
 type TypeTab = "all" | "debit" | "credit";
-type EntryType = "credit" | "debit";
+type EntryType = "credit" | "debit" | "refund";
 
 export const Route = createFileRoute("/_authenticated/credits")({
   validateSearch: (search: Record<string, unknown>): CreditsSearch => {
@@ -111,17 +111,20 @@ function CreditStatCard({
 
 function TypeBadge({ type }: { type: EntryType }) {
   const isCredit = type === "credit";
+  const isRefund = type === "refund";
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide",
         isCredit
           ? "bg-[#10B981]/12 text-[#34D399] border border-[#10B981]/25"
-          : "bg-[#EF4444]/12 text-[#F87171] border border-[#EF4444]/25",
+          : isRefund
+            ? "bg-[#818CF8]/12 text-[#818CF8] border border-[#818CF8]/25"
+            : "bg-[#EF4444]/12 text-[#F87171] border border-[#EF4444]/25",
       )}
     >
-      {isCredit ? <ArrowDownLeft className="size-3" /> : <ArrowUpRight className="size-3" />}
-      {isCredit ? "Credit" : "Debit"}
+      {isCredit ? <ArrowDownLeft className="size-3" /> : isRefund ? <RotateCcw className="size-3" /> : <ArrowUpRight className="size-3" />}
+      {isCredit ? "Credit" : isRefund ? "Refund" : "Debit"}
     </span>
   );
 }
@@ -131,7 +134,10 @@ function CreditsPage() {
   const s = useStore();
   const search = Route.useSearch();
   const isAdmin = user.role === "admin";
+  // All members the current user can see
   const myMembers = isAdmin ? s.members : s.members.filter((m) => m.userId === user.id);
+  // Adults-only list used for wallet pickers (juniors share the parent adult's wallet)
+  const adultMembers = myMembers.filter((m) => m.memberType === "adult");
 
   const [typeTab, setTypeTab] = useState<TypeTab>("all");
   const [entryType, setEntryType] = useState<EntryType>("credit");
@@ -162,23 +168,36 @@ function CreditsPage() {
       s.members.find((m) => m.id === search.memberId)
     : undefined;
   const isMemberScoped = Boolean(focusMember);
+
+  // If focusMember is a junior, resolve the effective wallet member (parent)
+  const walletMember = focusMember
+    ? focusMember.memberType === "junior" && focusMember.parentMemberId
+      ? s.members.find((m) => m.id === focusMember.parentMemberId) ?? focusMember
+      : focusMember
+    : undefined;
+
   const scopedReqs = focusMember ? myReqs.filter((r) => r.memberId === focusMember.id) : myReqs;
-  const addMembers = focusMember ? [focusMember] : myMembers;
+  // For the add dialog: if scoped to a junior, show its parent in the picker; otherwise show adults
+  const addMembers = focusMember
+    ? walletMember ? [walletMember] : [focusMember]
+    : adultMembers;
 
   const tabReqs = useMemo(() => {
     if (typeTab === "all") return scopedReqs;
+    if (typeTab === "credit") return scopedReqs.filter((r) => (r.type || "credit") === "credit" || r.type === "refund");
     return scopedReqs.filter((r) => (r.type || "credit") === typeTab);
   }, [scopedReqs, typeTab]);
 
   const stats = useMemo(() => {
-    const pending = scopedReqs.filter((r) => (r.type || "credit") === "credit" && r.status === "created").length;
+    const pending = scopedReqs.filter((r) => (r.type === "credit" || !r.type) && r.status === "created").length;
     const approved = scopedReqs.filter((r) => r.status === "approved").length;
     const approvedTotal = scopedReqs
       .filter((r) => r.status === "approved" && (r.type || "credit") === "credit")
       .reduce((sum, r) => sum + r.amount, 0);
+    // Balance: for a junior focusMember, show the parent (wallet) member's credit
     const balanceTotal = focusMember
-      ? focusMember.credit || 0
-      : myMembers.reduce((sum, m) => sum + (m.credit || 0), 0);
+      ? (walletMember?.credit ?? focusMember.credit ?? 0)
+      : adultMembers.reduce((sum, m) => sum + (m.credit || 0), 0);
     return {
       total: tabReqs.length,
       pending,
@@ -186,7 +205,7 @@ function CreditsPage() {
       approvedTotal,
       balanceTotal,
     };
-  }, [scopedReqs, tabReqs, myMembers, focusMember]);
+  }, [scopedReqs, tabReqs, adultMembers, focusMember, walletMember]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -293,6 +312,8 @@ function CreditsPage() {
       await s.requestCredit(targetMemberId, parseFloat(amount), date, entryType, trimmedReason);
       if (entryType === "debit") {
         toast.success("Debit applied — member balance reduced");
+      } else if (entryType === "refund") {
+        toast.success("Refund applied — member balance credited");
       } else if (isAdmin) {
         toast.success("Credit added successfully");
       } else {
@@ -314,7 +335,7 @@ function CreditsPage() {
     }
   };
 
-  const creditCount = scopedReqs.filter((r) => (r.type || "credit") === "credit").length;
+  const creditCount = scopedReqs.filter((r) => (r.type || "credit") === "credit" || r.type === "refund").length;
   const debitCount = scopedReqs.filter((r) => r.type === "debit").length;
   const colSpan = isAdmin ? 6 : 5;
 
@@ -336,7 +357,9 @@ function CreditsPage() {
         }
         description={
           focusMember
-            ? `Wallet history for this member. Current balance ${fmtMoney(focusMember.credit || 0)}.`
+            ? focusMember.memberType === "junior" && walletMember && walletMember.id !== focusMember.id
+              ? `Junior member — wallet shared with ${walletMember.firstName} ${walletMember.lastName}. Current balance ${fmtMoney(walletMember.credit || 0)}.`
+              : `Wallet history for this member. Current balance ${fmtMoney(walletMember?.credit ?? focusMember.credit ?? 0)}.`
             : "Top-ups, debits, and balance management."
         }
         eyebrow={focusMember ? "FINANCE / MEMBER WALLET" : undefined}
@@ -356,15 +379,29 @@ function CreditsPage() {
               </Button>
             )}
             {(typeTab === "credit" || typeTab === "all") && (
-              <Button
-                type="button"
-                className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer"
-                onClick={() => openAddDialog("credit")}
-                disabled={addMembers.length === 0}
-              >
-                <Plus className="size-4 mr-1.5" />
-                {isAdmin ? "Add credit" : "Request credit"}
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer"
+                  onClick={() => openAddDialog("credit")}
+                  disabled={addMembers.length === 0}
+                >
+                  <Plus className="size-4 mr-1.5" />
+                  {isAdmin ? "Add credit" : "Request credit"}
+                </Button>
+                {isAdmin && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-[38px] px-4 hover:cursor-pointer border-[#818CF8]/40 text-[#818CF8] hover:bg-[#818CF8]/10 hover:text-[#818CF8]"
+                    onClick={() => openAddDialog("refund")}
+                    disabled={addMembers.length === 0}
+                  >
+                    <RotateCcw className="size-4 mr-1.5" />
+                    Add refund
+                  </Button>
+                )}
+              </>
             )}
             {typeTab === "debit" && !isAdmin && (
               <span className="text-xs text-[#8A8A98]">Only admins can add debits</span>
@@ -435,20 +472,26 @@ function CreditsPage() {
             <DialogTitle className="text-[#F1F0EE]">
               {entryType === "debit"
                 ? "Add member debit"
-                : isAdmin
-                  ? "Add member credit top-up"
-                  : "Request credit top-up"}
+                : entryType === "refund"
+                  ? "Add member refund"
+                  : isAdmin
+                    ? "Add member credit top-up"
+                    : "Request credit top-up"}
             </DialogTitle>
             <DialogDescription className="text-[#8A8A98]">
               {entryType === "debit"
                 ? focusMember
                   ? `Amount will be deducted from ${focusMember.firstName} ${focusMember.lastName}'s balance (same as play session debits).`
                   : "Amount is deducted from the member's balance and recorded as a debit (same as play session debits)."
-                : focusMember
-                  ? `Top-up will be applied to ${focusMember.firstName} ${focusMember.lastName} only.`
-                  : isAdmin
-                    ? "Credit is applied after you submit. Pending requests from members still need approval."
-                    : "Your request will be sent for admin approval."}
+                : entryType === "refund"
+                  ? focusMember
+                    ? `Refund will be credited to ${focusMember.firstName} ${focusMember.lastName}'s wallet immediately.`
+                    : "Refund is applied to the member's wallet immediately and recorded as a refund."
+                  : focusMember
+                    ? `Top-up will be applied to ${focusMember.firstName} ${focusMember.lastName} only.`
+                    : isAdmin
+                      ? "Credit is applied after you submit. Pending requests from members still need approval."
+                      : "Your request will be sent for admin approval."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
@@ -461,13 +504,23 @@ function CreditsPage() {
               </Label>
               {focusMember ? (
                 <div className="flex h-[38px] items-center rounded-md border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E] px-3 text-sm text-[#F1F0EE]">
-                  {focusMember.firstName} {focusMember.lastName}
-                  <span className="ml-2 text-[#8A8A98]">— bal {fmtMoney(focusMember.credit || 0)}</span>
+                  {focusMember.memberType === "junior" && walletMember && walletMember.id !== focusMember.id ? (
+                    <>
+                      {walletMember.firstName} {walletMember.lastName}
+                      <span className="ml-2 text-[#8A8A98]">— bal {fmtMoney(walletMember.credit || 0)}</span>
+                      <span className="ml-2 text-[10px] text-[#6B7F78]">(parent wallet for {focusMember.firstName})</span>
+                    </>
+                  ) : (
+                    <>
+                      {focusMember.firstName} {focusMember.lastName}
+                      <span className="ml-2 text-[#8A8A98]">— bal {fmtMoney(focusMember.credit || 0)}</span>
+                    </>
+                  )}
                 </div>
               ) : (
                 <MemberCombobox
                   id="credits-member-combobox"
-                  members={myMembers}
+                  members={addMembers}
                   value={memberId}
                   onValueChange={setMemberId}
                 />
@@ -536,9 +589,11 @@ function CreditsPage() {
                   ? "Saving…"
                   : entryType === "debit"
                     ? "Add debit"
-                    : isAdmin
-                      ? "Add credit"
-                      : "Submit request"}
+                    : entryType === "refund"
+                      ? "Add refund"
+                      : isAdmin
+                        ? "Add credit"
+                        : "Submit request"}
               </Button>
             </DialogFooter>
           </form>

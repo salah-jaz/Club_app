@@ -14,6 +14,7 @@ use App\Models\Setting;
 use App\Models\Holiday;
 use App\Helpers\MailHelper;
 use App\Helpers\FeeHelper;
+use App\Helpers\SessionTimingHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -43,6 +44,10 @@ class PlayScheduleController extends Controller
             'leagueGroupIds.*' => 'string',
             'repeatWeeks' => 'sometimes|integer|min:1|max:52',
         ]);
+
+        if ($message = SessionTimingHelper::assertScheduleNotInPast($request->date)) {
+            return response()->json(['message' => $message], 422);
+        }
 
         $weeks = max(1, min(52, (int) $request->input('repeatWeeks', 1)));
         $baseDate = \Carbon\Carbon::parse($request->date);
@@ -206,7 +211,12 @@ class PlayScheduleController extends Controller
 
         $data = [];
         if ($request->has('name')) $data['name'] = $this->uniqueScheduleName($request->name, $sch->id);
-        if ($request->has('date')) $data['date'] = $request->date;
+        if ($request->has('date')) {
+            if ($message = SessionTimingHelper::assertScheduleNotInPast($request->date)) {
+                return response()->json(['message' => $message], 422);
+            }
+            $data['date'] = $request->date;
+        }
         if ($request->has('courts')) $data['courts'] = $request->courts;
         if ($request->has('players')) $data['players'] = $request->players;
         if ($request->has('slotHours')) $data['slot_hours'] = $request->slotHours;
@@ -454,12 +464,23 @@ class PlayScheduleController extends Controller
      * Accept a freshly enrolled open invite (capacity / waiting / debit).
      * @return string|null error message, or null on success
      */
+    private function resolveWalletMember(Member $member): Member
+    {
+        return \App\Helpers\WalletHelper::resolveMember($member);
+    }
+
     private function acceptNewlyEnrolledInvite(PlaySchedule $sch, PlayInvitation $invite, ?Member $member): ?string
     {
+        $sessionPhase = SessionTimingHelper::playSessionPhase($sch);
+        if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
+            return $message;
+        }
+
         $skipsLeagueFee = $member && $this->memberSkipsLeagueFee($sch, $member->id);
         if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
+            $walletMember = $this->resolveWalletMember($member);
             $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
-            if ($member->credit < $estimatedFee) {
+            if ($walletMember->credit < $estimatedFee) {
                 return "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule.";
             }
         }
@@ -916,7 +937,15 @@ class PlayScheduleController extends Controller
             ], 422);
         }
 
+        $sessionPhase = SessionTimingHelper::playSessionPhase($sch);
+        if ($message = SessionTimingHelper::actionsBlockedMessage($sessionPhase)) {
+            return response()->json(['message' => $message], 422);
+        }
+
         if ($desired === 'accepted') {
+            if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
+                return response()->json(['message' => $message], 422);
+            }
             if (!in_array($invite->status, ['open', 'declined'], true)) {
                 return response()->json([
                     'message' => 'This invitation is already accepted or on the waiting list.',
@@ -927,8 +956,9 @@ class PlayScheduleController extends Controller
             $skipsLeagueFee = $member && $this->memberSkipsLeagueFee($sch, $member->id);
             // League matches: always allow accept (debit may go negative). Non-league: require credit.
             if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
+                $walletMember = $this->resolveWalletMember($member);
                 $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
-                if ($member->credit < $estimatedFee) {
+                if ($walletMember->credit < $estimatedFee) {
                     return response()->json([
                         'message' => "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule."
                     ], 422);
@@ -1010,7 +1040,8 @@ class PlayScheduleController extends Controller
                             1,
                             $nextMember
                         );
-                        if ($nextMember->credit < $estimatedFee) {
+                        $walletMember = $this->resolveWalletMember($nextMember);
+                        if ($walletMember->credit < $estimatedFee) {
                             // Keep them waiting; do not promote without credits
                             $next = null;
                         }
@@ -1063,19 +1094,22 @@ class PlayScheduleController extends Controller
             return;
         }
 
+        // Juniors always debit from the parent adult's wallet.
+        $walletMember = $this->resolveWalletMember($member);
         $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
         $isLeague = (bool) $schedule->is_league_match;
 
-        if (!$member->skip_credit_consumption && $memberFee > 0) {
-            if (!$isLeague && $member->credit < $memberFee) {
+        if (!$walletMember->skip_credit_consumption && $memberFee > 0) {
+            if (!$isLeague && $walletMember->credit < $memberFee) {
                 return;
             }
-            $member->credit -= $memberFee;
-            $member->save();
+            $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+            $freshWallet->credit = round($freshWallet->credit - $memberFee, 2);
+            $freshWallet->save();
 
             $transaction = Transaction::create([
                 'id' => 't_' . Str::random(8),
-                'member_id' => $member->id,
+                'member_id' => $freshWallet->id,
                 'type' => 'debit',
                 'amount' => $memberFee,
                 'description' => 'Play session: ' . $schedule->name,
@@ -1083,9 +1117,9 @@ class PlayScheduleController extends Controller
             ]);
 
             try {
-                MailHelper::sendTransactionEmail($member, $transaction);
+                MailHelper::sendTransactionEmail($freshWallet, $transaction);
             } catch (\Exception $e) {
-                logger()->error("Transaction debit email failed for member {$member->id}: " . $e->getMessage());
+                logger()->error("Transaction debit email failed for member {$freshWallet->id}: " . $e->getMessage());
             }
         }
 
@@ -1104,7 +1138,16 @@ class PlayScheduleController extends Controller
         }
 
         $member = Member::find($invite->member_id);
-        if (!$member || $member->skip_credit_consumption || $this->memberSkipsLeagueFee($schedule, $member->id)) {
+        if (!$member || $this->memberSkipsLeagueFee($schedule, $member->id)) {
+            $invite->debited = false;
+            $invite->save();
+            return;
+        }
+
+        // Juniors always refund to the parent adult's wallet.
+        $walletMember = $this->resolveWalletMember($member);
+
+        if ($walletMember->skip_credit_consumption) {
             $invite->debited = false;
             $invite->save();
             return;
@@ -1112,22 +1155,23 @@ class PlayScheduleController extends Controller
 
         $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
         if ($memberFee > 0) {
-            $member->credit += $memberFee;
-            $member->save();
+            $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+            $freshWallet->credit = round($freshWallet->credit + $memberFee, 2);
+            $freshWallet->save();
 
             $transaction = Transaction::create([
                 'id' => 't_' . Str::random(8),
-                'member_id' => $member->id,
-                'type' => 'credit',
+                'member_id' => $freshWallet->id,
+                'type' => 'refund',
                 'amount' => $memberFee,
                 'description' => 'Refund — cancelled play session: ' . $schedule->name,
                 'date' => now(),
             ]);
 
             try {
-                MailHelper::sendTransactionEmail($member, $transaction);
+                MailHelper::sendTransactionEmail($freshWallet, $transaction);
             } catch (\Exception $e) {
-                logger()->error("Transaction refund email failed for member {$member->id}: " . $e->getMessage());
+                logger()->error("Transaction refund email failed for member {$freshWallet->id}: " . $e->getMessage());
             }
         }
 

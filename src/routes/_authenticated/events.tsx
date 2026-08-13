@@ -29,7 +29,9 @@ import { fmtDateTime, fmtMoney } from "@/lib/format";
 import { toast } from "sonner";
 import { CalendarDays, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users, User } from "lucide-react";
 import type { Member, PlayInvitation, PlaySchedule, Rotation } from "@/lib/types";
-import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
+import { applyMemberFee, discountsFromStore, playSessionBaseFee, resolveWalletMember } from "@/lib/fees";
+import { getPlaySessionPhase } from "@/lib/sessionTiming";
+import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/events")({ component: Events });
@@ -125,6 +127,7 @@ function isEligibleForPlaySchedule(
 function Events() {
   const user = useCurrentUser()!;
   const s = useStore();
+  const now = useNow();
   const enrollPlay = useStore((st) => st.enrollPlay);
   const syncData = useStore((st) => st.syncData);
   const myMembers = s.members.filter((m) => m.userId === user.id);
@@ -382,6 +385,7 @@ function Events() {
     sch: PlaySchedule,
   ) => {
     const member = s.members.find((x) => x.id === i.memberId);
+    const walletMember = member ? resolveWalletMember(member, s.members) : null;
     const holidayName = getHolidayName(sch.date);
     const isHoliday = !!holidayName;
     const skipsLeagueFee = (() => {
@@ -400,6 +404,9 @@ function Events() {
       return false;
     })();
     const isCancelled = sch.status === "cancelled";
+    const sessionPhase = getPlaySessionPhase(sch, now);
+    const sessionInProgress = sessionPhase === "in_progress";
+    const sessionFinished = sessionPhase === "finished";
     const estimatedFee = isCancelled || isHoliday
       ? 0
       : skipsLeagueFee
@@ -411,10 +418,11 @@ function Events() {
         );
     const hasInsufficientCredits =
       !!member &&
+      !!walletMember &&
       !member.skipCreditConsumption &&
       !skipsLeagueFee &&
       !sch.isLeagueMatch &&
-      member.credit < estimatedFee;
+      walletMember.credit < estimatedFee;
 
     const responsesLocked =
       (sch.status === "rotated" || sch.status === "published" || sch.status === "closed") && !isCancelled;
@@ -426,10 +434,21 @@ function Events() {
     const hoursLabel = lockHours === 1 ? "1 hour" : `${lockHours} hours`;
 
     const canAccept =
-      !isCancelled && !isHoliday && !responsesLocked && (i.status === "open" || i.status === "declined");
-    const canDeclineWaiting = !isCancelled && !isHoliday && !responsesLocked && i.status === "waiting";
+      !isCancelled &&
+      !isHoliday &&
+      !responsesLocked &&
+      !sessionInProgress &&
+      !sessionFinished &&
+      (i.status === "open" || i.status === "declined");
+    const canDeclineWaiting =
+      !isCancelled && !isHoliday && !responsesLocked && !sessionFinished && i.status === "waiting";
     const canDeclineAccepted =
-      !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && withinCancelWindow;
+      !isCancelled &&
+      !isHoliday &&
+      !responsesLocked &&
+      !sessionFinished &&
+      i.status === "accepted" &&
+      withinCancelWindow;
     const canDecline = canDeclineWaiting || canDeclineAccepted;
     const declineLockedByTime =
       !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
@@ -459,15 +478,19 @@ function Events() {
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
             <StatusBadge kind="invitation" status={i.status === "declined" ? "open" : i.status} />
+            {sessionInProgress && (i.status === "open" || i.status === "declined") && (
+              <StatusBadge status="in_progress" />
+            )}
+            {sessionFinished && <StatusBadge status="finished" />}
             {canAccept && (
               <Button
                 size="sm"
                 className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                 onClick={async () => {
-                  if (hasInsufficientCredits && member) {
+                  if (hasInsufficientCredits && member && walletMember) {
                     setCreditGap({
                       memberId: member.id,
-                      balance: member.credit,
+                      balance: walletMember.credit,
                       required: estimatedFee,
                     });
                     return;
@@ -481,10 +504,10 @@ function Events() {
                     }
                   } catch (error: any) {
                     const msg = error.message || "Failed to respond to invitation.";
-                    if (member && /insufficient credits/i.test(msg)) {
+                    if (member && walletMember && /insufficient credits/i.test(msg)) {
                       setCreditGap({
                         memberId: member.id,
-                        balance: member.credit,
+                        balance: walletMember.credit,
                         required: estimatedFee,
                       });
                       return;
@@ -550,6 +573,16 @@ function Events() {
               <span className="font-semibold">Cancellation closed:</span> You cannot cancel within{" "}
               {hoursLabel} of the match start. This rule applies to all members.
             </span>
+          </div>
+        )}
+        {sessionInProgress && (i.status === "open" || i.status === "declined") && (
+          <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md">
+            This session is in progress. Accept and payment are no longer available.
+          </div>
+        )}
+        {sessionFinished && (
+          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">
+            This session has finished. No further actions are available.
           </div>
         )}
       </div>
@@ -777,6 +810,7 @@ function Events() {
             const holidayName = getHolidayName(sch.date);
             const isHoliday = !!holidayName;
             const isCancelled = sch.status === "cancelled";
+            const sessionPhase = getPlaySessionPhase(sch, now);
 
             return (
               <div
@@ -800,6 +834,14 @@ function Events() {
                       ) : holidayName ? (
                         <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
                           Holiday
+                        </span>
+                      ) : sessionPhase === "in_progress" ? (
+                        <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
+                          In Progress
+                        </span>
+                      ) : sessionPhase === "finished" ? (
+                        <span className="inline-flex items-center rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#8A8A98] uppercase">
+                          Finished
                         </span>
                       ) : null}
                     </div>

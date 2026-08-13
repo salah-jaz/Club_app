@@ -31,6 +31,18 @@ export function formatTxnDescription(t: Transaction): string {
   return t.description || t.reason || "N/A";
 }
 
+/** Resolve display type. Historical refunds may still be stored as credit. */
+export function txnDisplayType(t: Transaction): "credit" | "debit" | "refund" {
+  if (t.type === "refund" || t.type === "debit") return t.type;
+  if (/refund/i.test(t.description || "")) return "refund";
+  return "credit";
+}
+
+export function isTxnInflow(t: Transaction): boolean {
+  const type = txnDisplayType(t);
+  return type === "credit" || type === "refund";
+}
+
 /** Parse `datetime-local` value (`YYYY-MM-DDTHH:mm`) into day / date / time labels. */
 export function parseScheduleDateTime(value: string): {
   day: string;

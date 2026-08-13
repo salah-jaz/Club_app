@@ -122,7 +122,7 @@ interface State {
   rejectJunior: (id: string) => Promise<void>;
 
   // credits
-  requestCredit: (memberId: string, amount: number, date: string, type?: "credit" | "debit", reason?: string) => Promise<void>;
+  requestCredit: (memberId: string, amount: number, date: string, type?: "credit" | "debit" | "refund", reason?: string) => Promise<void>;
   approveCredit: (id: string) => Promise<void>;
   approveAllCredits: () => Promise<void>;
   rejectCredit: (id: string) => Promise<void>;

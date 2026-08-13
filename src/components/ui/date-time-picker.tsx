@@ -16,6 +16,24 @@ export interface DateTimePickerProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  /** Earliest selectable date/time (`YYYY-MM-DDTHH:mm`). Past dates/times are blocked. */
+  minDateTime?: string;
+}
+
+function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function clampToMinDateTime(value: string, minDateTime?: string): string {
+  if (!minDateTime) return value;
+  const valueMs = Date.parse(value);
+  const minMs = Date.parse(minDateTime);
+  if (!Number.isFinite(valueMs) || !Number.isFinite(minMs) || valueMs >= minMs) {
+    return value;
+  }
+  return minDateTime;
 }
 
 const QUICK_PRESETS = [
@@ -33,6 +51,7 @@ export function DateTimePicker({
   placeholder = "Select Date & Time",
   className,
   disabled = false,
+  minDateTime,
 }: DateTimePickerProps) {
   const [open, setOpen] = React.useState(false);
 
@@ -44,6 +63,12 @@ export function DateTimePicker({
   }, [value]);
 
   const selectedDate = parsedDate ?? undefined;
+
+  const minDate = React.useMemo(() => {
+    if (!minDateTime) return undefined;
+    const d = new Date(minDateTime);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }, [minDateTime]);
 
   // Extract initial 12-hour state
   const currentHour24 = parsedDate ? parsedDate.getHours() : 19; // Default 7 PM
@@ -83,7 +108,7 @@ export function DateTimePicker({
     const hours = String(h24).padStart(2, "0");
     const minutes = String(min).padStart(2, "0");
 
-    const formatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+    const formatted = clampToMinDateTime(`${year}-${month}-${day}T${hours}:${minutes}`, minDateTime);
     onChange(formatted);
   };
 
@@ -172,6 +197,7 @@ export function DateTimePicker({
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
+              disabled={minDate ? { before: startOfDay(minDate) } : undefined}
               initialFocus
               className="p-1 text-[#F1F0EE] [--cell-size:1.75rem]"
             />

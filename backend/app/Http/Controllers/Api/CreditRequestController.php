@@ -12,6 +12,24 @@ use App\Helpers\MailHelper;
 
 class CreditRequestController extends Controller
 {
+    // -------------------------------------------------------------------------
+    // Wallet routing helper
+    // -------------------------------------------------------------------------
+
+    /**
+     * Juniors share their parent adult's wallet.
+     * Returns the parent if the given member is a junior with a known parent,
+     * otherwise returns the member themselves.
+     */
+    private function resolveWalletMember(string $memberId): Member
+    {
+        return \App\Helpers\WalletHelper::resolveMember(Member::findOrFail($memberId));
+    }
+
+    // -------------------------------------------------------------------------
+    // CRUD
+    // -------------------------------------------------------------------------
+
     public function index()
     {
         $requests = CreditRequest::orderBy('created_at', 'desc')->get();
@@ -24,7 +42,7 @@ class CreditRequestController extends Controller
             'memberId' => 'required|string',
             'amount' => 'required|numeric|min:0.01',
             'date' => 'required|date',
-            'type' => 'nullable|in:credit,debit',
+            'type' => 'nullable|in:credit,debit,refund',
         ]);
 
         $user = $request->user();
@@ -35,6 +53,11 @@ class CreditRequestController extends Controller
             return $this->storeDebit($request, $user, $isAdmin);
         }
 
+        if ($type === 'refund') {
+            return $this->storeRefund($request, $user, $isAdmin);
+        }
+
+        // Credit request — record is always against the requested memberId for auditability.
         $cr = CreditRequest::create([
             'id' => 'c_' . Str::random(8),
             'member_id' => $request->memberId,
@@ -45,15 +68,15 @@ class CreditRequestController extends Controller
         ]);
 
         if ($isAdmin) {
-            // Credit the member directly
-            $member = Member::findOrFail($request->memberId);
-            $member->credit += $request->amount;
-            $member->save();
+            // Immediately credit the wallet member (parent for juniors).
+            $walletMember = $this->resolveWalletMember($request->memberId);
+            $walletMember->credit += $request->amount;
+            $walletMember->save();
 
-            // Create transaction ledger entry
+            // Ledger entry recorded against the wallet member.
             $transaction = Transaction::create([
                 'id' => 't_' . Str::random(8),
-                'member_id' => $request->memberId,
+                'member_id' => $walletMember->id,
                 'credit_request_id' => $cr->id,
                 'type' => 'credit',
                 'amount' => $request->amount,
@@ -62,10 +85,49 @@ class CreditRequestController extends Controller
             ]);
 
             try {
-                MailHelper::sendTransactionEmail($member, $transaction);
+                MailHelper::sendTransactionEmail($walletMember, $transaction);
             } catch (\Exception $e) {
                 logger()->error("Transaction credit email failed: " . $e->getMessage());
             }
+        }
+
+        return response()->json($this->formatRequest($cr), 201);
+    }
+
+    private function storeRefund(Request $request, $user, bool $isAdmin)
+    {
+        if (!$isAdmin) {
+            return response()->json(['message' => 'Only admins can create refund entries.'], 403);
+        }
+
+        $cr = CreditRequest::create([
+            'id' => 'c_' . Str::random(8),
+            'member_id' => $request->memberId,
+            'type' => 'refund',
+            'amount' => $request->amount,
+            'date' => $request->date,
+            'status' => 'approved',
+        ]);
+
+        // Refund always goes to the wallet member (parent for juniors).
+        $walletMember = $this->resolveWalletMember($request->memberId);
+        $walletMember->credit += $request->amount;
+        $walletMember->save();
+
+        $transaction = Transaction::create([
+            'id' => 't_' . Str::random(8),
+            'member_id' => $walletMember->id,
+            'credit_request_id' => $cr->id,
+            'type' => 'refund',
+            'amount' => $request->amount,
+            'description' => 'Refund (Admin)',
+            'date' => $request->date,
+        ]);
+
+        try {
+            MailHelper::sendTransactionEmail($walletMember, $transaction);
+        } catch (\Exception $e) {
+            logger()->error("Transaction refund email failed: " . $e->getMessage());
         }
 
         return response()->json($this->formatRequest($cr), 201);
@@ -101,9 +163,10 @@ class CreditRequestController extends Controller
             ], 422);
         }
 
-        $member = Member::findOrFail($request->memberId);
+        // Debit is always charged against the wallet member (parent for juniors).
+        $walletMember = $this->resolveWalletMember($request->memberId);
 
-        if ((float) $member->credit < (float) $request->amount) {
+        if ((float) $walletMember->credit < (float) $request->amount) {
             return response()->json([
                 'message' => 'Insufficient member balance for this debit.',
             ], 400);
@@ -119,13 +182,12 @@ class CreditRequestController extends Controller
             'reason' => $reason,
         ]);
 
-        // Same pattern as play-schedule debits: reduce member balance + one debit txn only
-        $member->credit -= $request->amount;
-        $member->save();
+        $walletMember->credit -= $request->amount;
+        $walletMember->save();
 
         $debitTxn = Transaction::create([
             'id' => 't_' . Str::random(8),
-            'member_id' => $member->id,
+            'member_id' => $walletMember->id,
             'credit_request_id' => $cr->id,
             'type' => 'debit',
             'amount' => $request->amount,
@@ -135,7 +197,7 @@ class CreditRequestController extends Controller
         ]);
 
         try {
-            MailHelper::sendTransactionEmail($member, $debitTxn);
+            MailHelper::sendTransactionEmail($walletMember, $debitTxn);
         } catch (\Exception $e) {
             logger()->error("Transaction debit email failed: " . $e->getMessage());
         }
@@ -158,15 +220,14 @@ class CreditRequestController extends Controller
         $cr->status = 'approved';
         $cr->save();
 
-        // Credit the member
-        $member = Member::findOrFail($cr->member_id);
-        $member->credit += $cr->amount;
-        $member->save();
+        // Credit the wallet member (parent for juniors).
+        $walletMember = $this->resolveWalletMember($cr->member_id);
+        $walletMember->credit += $cr->amount;
+        $walletMember->save();
 
-        // Create transaction ledger entry
         $transaction = Transaction::create([
             'id' => 't_' . Str::random(8),
-            'member_id' => $cr->member_id,
+            'member_id' => $walletMember->id,
             'credit_request_id' => $cr->id,
             'type' => 'credit',
             'amount' => $cr->amount,
@@ -175,7 +236,7 @@ class CreditRequestController extends Controller
         ]);
 
         try {
-            MailHelper::sendTransactionEmail($member, $transaction);
+            MailHelper::sendTransactionEmail($walletMember, $transaction);
         } catch (\Exception $e) {
             logger()->error("Transaction credit email failed: " . $e->getMessage());
         }
@@ -183,7 +244,7 @@ class CreditRequestController extends Controller
         return response()->json([
             'message' => 'Credit request approved.',
             'request' => $this->formatRequest($cr),
-            'memberCredit' => $member->credit
+            'memberCredit' => $walletMember->credit
         ]);
     }
 
@@ -217,25 +278,30 @@ class CreditRequestController extends Controller
 
         return \Illuminate\Support\Facades\DB::transaction(function () use ($id) {
             $cr = CreditRequest::findOrFail($id);
-            $member = Member::lockForUpdate()->find($cr->member_id);
 
+            // Resolve wallet member for balance reversal (parent for juniors).
+            $walletMember = null;
             if ($cr->status === 'approved') {
-                if ($member) {
+                // The transaction record holds the actual wallet member id used.
+                $txn = Transaction::where('credit_request_id', $cr->id)->first();
+                $walletMemberId = $txn ? $txn->member_id : $cr->member_id;
+                $walletMember = Member::lockForUpdate()->find($walletMemberId);
+
+                if ($walletMember) {
                     $type = $cr->type ?? 'credit';
-                    if ($type === 'credit') {
-                        $member->credit -= (float) $cr->amount;
-                    } else if ($type === 'debit') {
-                        $member->credit += (float) $cr->amount;
+                    if ($type === 'credit' || $type === 'refund') {
+                        $walletMember->credit -= (float) $cr->amount;
+                    } elseif ($type === 'debit') {
+                        $walletMember->credit += (float) $cr->amount;
                     }
-                    $member->save();
+                    $walletMember->save();
                 }
 
                 // Delete corresponding transaction record
-                $txn = Transaction::where('credit_request_id', $cr->id)->first();
                 if (!$txn) {
                     $type = $cr->type ?? 'credit';
-                    $txn = Transaction::where('member_id', $cr->member_id)
-                        ->where('type', $type)
+                    $txn = Transaction::where('member_id', $walletMember?->id ?? $cr->member_id)
+                        ->whereIn('type', $type === 'refund' ? ['refund', 'credit'] : [$type])
                         ->where('amount', $cr->amount)
                         ->orderBy('created_at', 'desc')
                         ->first();
@@ -249,19 +315,24 @@ class CreditRequestController extends Controller
 
             return response()->json([
                 'message' => 'Wallet transaction deleted and reversed successfully.',
-                'memberCredit' => $member ? (float) $member->credit : 0,
+                'memberCredit' => $walletMember ? (float) $walletMember->credit : 0,
             ]);
         });
     }
 
     private function formatRequest(CreditRequest|\stdClass $r)
     {
+        $type = $r->type ?? 'credit';
+        // Normalise: only valid types exposed to the frontend
+        if (!in_array($type, ['credit', 'debit', 'refund'])) {
+            $type = 'credit';
+        }
         return [
             'id' => $r->id,
             'memberId' => $r->member_id,
             'amount' => (float)$r->amount,
             'date' => $r->date,
-            'type' => $r->type ?? 'credit',
+            'type' => $type,
             'status' => $r->status,
             'reason' => $r->reason,
             'createdAt' => $r->created_at instanceof \DateTimeInterface ? $r->created_at->format('c') : (string) $r->created_at,

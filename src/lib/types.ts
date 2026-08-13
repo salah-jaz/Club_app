@@ -68,7 +68,7 @@ export interface CreditRequest {
   memberId: string;
   amount: number;
   date: string;
-  type: "credit" | "debit";
+  type: "credit" | "debit" | "refund";
   status: "created" | "approved" | "rejected";
   reason?: string;
   createdAt: string;
@@ -77,7 +77,7 @@ export interface CreditRequest {
 export interface Transaction {
   id: string;
   memberId: string;
-  type: "credit" | "debit";
+  type: "credit" | "debit" | "refund";
   amount: number;
   description: string;
   reason?: string;

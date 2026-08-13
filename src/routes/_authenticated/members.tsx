@@ -1256,9 +1256,15 @@ function MembersList() {
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5">
                         <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">Balance</p>
-                        <p className={cn("font-mono font-semibold text-sm", m.credit < 0 ? "text-[#F87171]" : "text-[#34D399]")}>
-                          {fmtMoney(m.credit)}
-                        </p>
+                        {m.memberType === "junior" ? (
+                          <p className="font-mono text-[#6B7F78] text-sm" title="Junior members share the parent adult's wallet">
+                            —
+                          </p>
+                        ) : (
+                          <p className={cn("font-mono font-semibold text-sm", m.credit < 0 ? "text-[#F87171]" : "text-[#34D399]")}>
+                            {fmtMoney(m.credit)}
+                          </p>
+                        )}
                       </div>
                       <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5">
                         <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">BI ID</p>
@@ -1394,8 +1400,18 @@ function MembersList() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className={cn("type-mono-value text-right", m.credit < 0 && "text-[#F87171]")}>
-                        {fmtMoney(m.credit)}
+                      <TableCell
+                        className={cn(
+                          "type-mono-value text-right",
+                          m.memberType !== "junior" && m.credit < 0 && "text-[#F87171]",
+                        )}
+                        title={m.memberType === "junior" ? "Junior members share the parent adult's wallet" : undefined}
+                      >
+                        {m.memberType === "junior" ? (
+                          <span className="text-[#6B7F78]">—</span>
+                        ) : (
+                          fmtMoney(m.credit)
+                        )}
                       </TableCell>
                       <TableCell><StatusBadge status={m.status} /></TableCell>
                       <TableCell className="text-right px-4">

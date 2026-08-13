@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { fmtMoney, parseScheduleDateTime } from "@/lib/format";
+import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,8 @@ function EditSchedule() {
     }
   }, [sch]);
 
+  const minDateTime = datetimeLocalNow();
+
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
   const repeatPreview = useMemo(() => {
@@ -123,6 +126,10 @@ function EditSchedule() {
   };
 
   const executeSave = async () => {
+    if (isScheduleDateTimeInPast(f.date)) {
+      toast.error("Schedule date and time must be today or later.");
+      return;
+    }
     setSubmitting(true);
     try {
       await update(sch.id, {
@@ -202,6 +209,7 @@ function EditSchedule() {
               <DateTimePicker
                 value={f.date}
                 onChange={onDateChange}
+                minDateTime={minDateTime}
                 placeholder="Select Date & Time..."
               />
               {scheduleWhen && (

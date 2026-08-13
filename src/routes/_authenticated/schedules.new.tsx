@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { fmtMoney, parseScheduleDateTime } from "@/lib/format";
+import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,8 @@ function NewSchedule() {
   const [nameTouched, setNameTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  const minDateTime = datetimeLocalNow();
 
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
@@ -83,6 +86,10 @@ function NewSchedule() {
           toast.error("Please select a Date & Time for the schedule.");
           return;
         }
+        if (isScheduleDateTimeInPast(f.date)) {
+          toast.error("Schedule date and time must be today or later.");
+          return;
+        }
         const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
         setSubmitting(true);
         try {
@@ -112,6 +119,7 @@ function NewSchedule() {
               <DateTimePicker
                 value={f.date}
                 onChange={onDateChange}
+                minDateTime={minDateTime}
                 placeholder="Select Date & Time..."
               />
               {scheduleWhen && (

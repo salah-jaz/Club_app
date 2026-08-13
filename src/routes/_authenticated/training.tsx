@@ -19,7 +19,9 @@ import { fmtDate, fmtMoney } from "@/lib/format";
 import { toast } from "sonner";
 import { GraduationCap, Plus, Wallet, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-react";
 import type { Member, Training, TrainingInvitation, TrainingUpdateRequest } from "@/lib/types";
-import { applyMemberFee, discountsFromStore } from "@/lib/fees";
+import { applyMemberFee, discountsFromStore, resolveWalletMember } from "@/lib/fees";
+import { getTrainingSessionPhase } from "@/lib/sessionTiming";
+import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/training")({ component: TrainingModule });
@@ -34,6 +36,7 @@ function scheduleDateIso(dateStr: string): string | null {
 function TrainingModule() {
   const user = useCurrentUser()!;
   const s = useStore();
+  const now = useNow();
   const syncData = useStore((st) => st.syncData);
   const navigate = useNavigate();
 
@@ -211,13 +214,14 @@ function TrainingModule() {
       {bulkAcceptPopup && (() => {
         const { member, training, monthSessions, invitedMonthSessions, invites } = bulkAcceptPopup;
         const isAdult = training.targetType === "adult";
+        const walletMember = resolveWalletMember(member, s.members);
 
         const repeatWeeks = Math.max(1, training.repeatWeeks || 3);
         const discountedMonthlyFee = applyMemberFee(training.fees || 0, member, discountsFromStore(s));
         const feePerWeek = discountedMonthlyFee / repeatWeeks;
         const invitedWeeksCount = invitedMonthSessions.length;
         const totalFee = feePerWeek * invitedWeeksCount;
-        const balanceAfter = member.credit - totalFee;
+        const balanceAfter = walletMember.credit - totalFee;
 
         return (
           <AlertDialog open={!!bulkAcceptPopup} onOpenChange={(open) => !open && setBulkAcceptPopup(null)}>
@@ -257,7 +261,7 @@ function TrainingModule() {
                     </div>
                     <div className="flex justify-between text-xs text-[#8A8A98]">
                       <span>Current Wallet Balance</span>
-                      <span className="font-mono">{fmtMoney(member.credit)}</span>
+                      <span className="font-mono">{fmtMoney(walletMember.credit)}</span>
                     </div>
                     <div className="flex justify-between text-xs font-semibold text-[#F1F0EE]">
                       <span>Wallet Deduction</span>
@@ -283,7 +287,7 @@ function TrainingModule() {
                       setBulkAcceptPopup(null);
                       setCreditGap({
                         memberId: member.id,
-                        balance: member.credit,
+                        balance: walletMember.credit,
                         required: totalFee,
                       });
                       return;
@@ -322,9 +326,13 @@ function TrainingModule() {
           {pendingTrainingUpdateRequests.map((ur) => {
             const member = s.members.find((m) => m.id === ur.memberId);
             if (!member) return null;
+            const walletMember = resolveWalletMember(member, s.members);
 
             const tr = s.trainings.find((x) => x.id === ur.trainingId) || s.trainings.find((x) => (x.parentId || x.id) === ur.trainingId);
             const trName = tr ? tr.name : "Training Program";
+            const updateSessionPhase = tr ? getTrainingSessionPhase(tr, now) : "upcoming";
+            const updateActionsBlocked = updateSessionPhase === "finished";
+            const updateAcceptBlocked = updateSessionPhase !== "upcoming";
 
             const existingSessions = (ur.existingSessionIds ?? [])
               .map((sid) => s.trainings.find((x) => x.id === sid))
@@ -404,6 +412,14 @@ function TrainingModule() {
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.04]">
+                  {updateSessionPhase === "in_progress" && (
+                    <StatusBadge status="in_progress" />
+                  )}
+                  {updateSessionPhase === "finished" && (
+                    <StatusBadge status="finished" />
+                  )}
+                  {!updateActionsBlocked && (
+                    <>
                   <Button
                     size="sm"
                     variant="outline"
@@ -422,11 +438,12 @@ function TrainingModule() {
                   <Button
                     size="sm"
                     className="btn-premium-solid h-8 text-xs font-semibold cursor-pointer"
+                    disabled={updateAcceptBlocked}
                     onClick={async () => {
-                      if (ur.additionalAmount > 0 && ur.additionalAmount > member.credit && !member.skipCreditConsumption) {
+                      if (ur.additionalAmount > 0 && ur.additionalAmount > walletMember.credit && !member.skipCreditConsumption) {
                         setCreditGap({
                           memberId: member.id,
-                          balance: member.credit,
+                          balance: walletMember.credit,
                           required: ur.additionalAmount,
                         });
                         return;
@@ -447,7 +464,19 @@ function TrainingModule() {
                   >
                     Accept Update
                   </Button>
+                    </>
+                  )}
                 </div>
+                {updateSessionPhase === "in_progress" && (
+                  <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md">
+                    This session is in progress. Accept and payment are no longer available.
+                  </div>
+                )}
+                {updateSessionPhase === "finished" && (
+                  <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">
+                    This session has finished. No further actions are available.
+                  </div>
+                )}
               </div>
             );
           })}
@@ -578,6 +607,17 @@ function TrainingModule() {
                   const invitedMonthSessions = monthSessions.filter(ms =>
                     mInvites.some(i => i.trainingId === ms.id)
                   );
+                  const openInvitedSessions = invitedMonthSessions.filter((ms) =>
+                    mInvites.some((i) => i.trainingId === ms.id && i.status === "open")
+                  );
+                  const openSessionPhases = openInvitedSessions.map((ms) => getTrainingSessionPhase(ms, now));
+                  const upcomingOpenSessions = openInvitedSessions.filter(
+                    (_ms, idx) => openSessionPhases[idx] === "upcoming",
+                  );
+                  const canRespondToInvites = hasOpen && upcomingOpenSessions.length > 0;
+                  const showInProgress = hasOpen && openSessionPhases.some((p) => p === "in_progress");
+                  const showFinished = hasOpen && openSessionPhases.length > 0 && openSessionPhases.every((p) => p === "finished");
+                  const canDeclineInvites = hasOpen && !showFinished;
 
                   return (
                     <div key={memberId} className="pt-2.5 border-t border-white/[0.04] space-y-2">
@@ -595,30 +635,39 @@ function TrainingModule() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <StatusBadge kind="invitation" status={displayStatus} />
-                          {hasOpen && (
+                          {showInProgress && <StatusBadge status="in_progress" />}
+                          {showFinished && <StatusBadge status="finished" />}
+                          {canRespondToInvites && (
                             <div className="flex gap-2">
                               <Button
                                 size="sm"
                                 className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                                 onClick={() => {
+                                  const upcomingIds = new Set(upcomingOpenSessions.map((ms) => ms.id));
                                   setBulkAcceptPopup({
                                     member,
                                     training: t,
                                     monthSessions,
-                                    invitedMonthSessions,
-                                    invites: mInvites.filter(i => i.status !== "accepted")
+                                    invitedMonthSessions: upcomingOpenSessions,
+                                    invites: mInvites.filter(
+                                      (i) => i.status === "open" && upcomingIds.has(i.trainingId),
+                                    ),
                                   });
                                 }}
                               >
                                 Accept
                               </Button>
+                              {canDeclineInvites && (
                               <Button
                                 size="sm"
                                 variant="outline"
                                 className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
                                 onClick={async () => {
                                   try {
-                                    await s.respondTrainingBulk(mInvites.map(i => i.id), "declined");
+                                    await s.respondTrainingBulk(
+                                      mInvites.filter((i) => i.status === "open").map((i) => i.id),
+                                      "declined",
+                                    );
                                     toast.success("Declined invitation");
                                   } catch (error: any) {
                                     toast.error(error.message || "Failed to decline invitation.");
@@ -627,10 +676,22 @@ function TrainingModule() {
                               >
                                 Decline
                               </Button>
+                              )}
                             </div>
                           )}
                         </div>
                       </div>
+
+                      {showInProgress && (
+                        <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md">
+                          This session is in progress. Accept and payment are no longer available.
+                        </div>
+                      )}
+                      {showFinished && (
+                        <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">
+                          This session has finished. No further actions are available.
+                        </div>
+                      )}
 
                       {/* Read-Only Attendance Status for Accepted Members */}
                       {isAllAccepted && !isCancelled && (
