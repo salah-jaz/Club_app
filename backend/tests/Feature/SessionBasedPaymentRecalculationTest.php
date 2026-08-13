@@ -298,7 +298,7 @@ class SessionBasedPaymentRecalculationTest extends TestCase
 
         // Credit transaction created for $20.00
         $refundTxn = Transaction::where('member_id', $this->member->id)
-            ->where('type', 'credit')
+            ->where('type', 'refund')
             ->where('description', 'like', '%update refund%')
             ->first();
         $this->assertNotNull($refundTxn);

@@ -283,7 +283,10 @@ class MemberController extends Controller
                 }
                 $data['status'] = $request->status;
             }
-            if ($request->has('credit')) $data['credit'] = $request->credit;
+            if ($request->has('credit')) {
+                // Juniors share the parent wallet — their own credit column stays at 0.
+                $data['credit'] = $member->member_type === 'junior' ? 0.00 : $request->credit;
+            }
             if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->boolean('skipCreditConsumption');
             if ($request->has('applyDiscount')) $data['apply_discount'] = $request->boolean('applyDiscount');
             if ($request->has('parentMemberId')) {

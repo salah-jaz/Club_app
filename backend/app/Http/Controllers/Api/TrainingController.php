@@ -12,6 +12,7 @@ use App\Models\Member;
 use App\Models\Transaction;
 use App\Helpers\MailHelper;
 use App\Helpers\FeeHelper;
+use App\Helpers\SessionTimingHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +59,10 @@ class TrainingController extends Controller
         }
         $repeatMonths = max(1, min(24, (int) $request->input('repeatMonths', 1)));
         $targetType = strtolower($request->targetType) === 'adult' ? 'adult' : 'junior';
+
+        if ($message = SessionTimingHelper::assertScheduleNotInPast($request->startDate)) {
+            return response()->json(['message' => $message], 422);
+        }
 
         $baseStart = \Carbon\Carbon::parse($request->startDate);
         $baseEnd = \Carbon\Carbon::parse($request->endDate);
@@ -161,6 +166,12 @@ class TrainingController extends Controller
                 return response()->json([
                     'message' => 'Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.'
                 ], 422);
+            }
+        }
+
+        if ($request->has('startDate') && !empty($request->startDate)) {
+            if ($message = SessionTimingHelper::assertScheduleNotInPast($request->startDate)) {
+                return response()->json(['message' => $message], 422);
             }
         }
 
@@ -748,6 +759,16 @@ class TrainingController extends Controller
         $invite = TrainingInvitation::findOrFail($id);
         $desired = $request->status;
 
+        if ($desired !== 'accepted') {
+            $tr = Training::find($invite->training_id);
+            if ($tr) {
+                $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
+                if ($message = SessionTimingHelper::actionsBlockedMessage($sessionPhase)) {
+                    return response()->json(['message' => $message], 422);
+                }
+            }
+        }
+
         if ($desired === 'accepted') {
             $error = $this->processTrainingAcceptance($invite);
             if ($error !== null) {
@@ -763,20 +784,9 @@ class TrainingController extends Controller
         return response()->json($this->formatInvitation($invite));
     }
 
-    private function getWalletMember(Member $member, float $feeToDeduct): Member
+    private function getWalletMember(Member $member, float $feeToDeduct = 0): Member
     {
-        if ($member->credit >= $feeToDeduct || !$member->parent_member_id) {
-            return $member;
-        }
-
-        if ($member->parent_member_id) {
-            $parent = Member::find($member->parent_member_id);
-            if ($parent && $parent->credit >= $feeToDeduct) {
-                return $parent;
-            }
-        }
-
-        return $member;
+        return \App\Helpers\WalletHelper::resolveMember($member);
     }
 
     private function processTrainingAcceptance(TrainingInvitation $invite): ?string
@@ -788,6 +798,11 @@ class TrainingController extends Controller
         $tr = Training::find($invite->training_id);
         if (!$tr) {
             return null;
+        }
+
+        $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
+        if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
+            return $message;
         }
 
         $member = Member::find($invite->member_id);
@@ -897,6 +912,18 @@ class TrainingController extends Controller
         $inviteIds = $request->inviteIds;
 
         if ($status !== 'accepted') {
+            $invites = TrainingInvitation::whereIn('id', $inviteIds)->get();
+            foreach ($invites as $inv) {
+                $tr = Training::find($inv->training_id);
+                if (!$tr) {
+                    continue;
+                }
+                $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
+                if ($message = SessionTimingHelper::actionsBlockedMessage($sessionPhase)) {
+                    return response()->json(['message' => $message], 422);
+                }
+            }
+
             TrainingInvitation::whereIn('id', $inviteIds)->update(['status' => $status]);
             return response()->json(['message' => 'Invitations declined.']);
         }
@@ -910,6 +937,17 @@ class TrainingController extends Controller
                 
                 if ($invites->isEmpty()) {
                     return response()->json(['message' => 'No valid invitations to accept.'], 422);
+                }
+
+                foreach ($invites as $inv) {
+                    $tr = Training::find($inv->training_id);
+                    if (!$tr) {
+                        continue;
+                    }
+                    $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
+                    if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
+                        return response()->json(['message' => $message], 422);
+                    }
                 }
 
                 // Group by member_id to process fees per member
@@ -1118,6 +1156,14 @@ class TrainingController extends Controller
 
         $desiredStatus = $request->status;
 
+        $tr = Training::find($updateReq->training_id);
+        if ($tr) {
+            $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
+            if ($message = SessionTimingHelper::actionsBlockedMessage($sessionPhase)) {
+                return response()->json(['message' => $message], 422);
+            }
+        }
+
         if ($desiredStatus === 'declined') {
             $updateReq->status = 'declined';
             $updateReq->save();
@@ -1132,6 +1178,10 @@ class TrainingController extends Controller
         $tr = Training::find($updateReq->training_id);
         if (!$tr) {
             return response()->json(['message' => 'Training program not found.'], 404);
+        }
+
+        if ($message = SessionTimingHelper::acceptBlockedMessage(SessionTimingHelper::trainingSessionPhase($tr))) {
+            return response()->json(['message' => $message], 422);
         }
 
         $member = Member::find($updateReq->member_id);
@@ -1191,7 +1241,7 @@ class TrainingController extends Controller
                     $transaction = Transaction::create([
                         'id' => 't_' . Str::random(8),
                         'member_id' => $freshWalletMember->id,
-                        'type' => 'credit',
+                        'type' => 'refund',
                         'amount' => $refundAmount,
                         'description' => 'Training program update refund: ' . $tr->name,
                         'date' => now(),
@@ -1371,7 +1421,7 @@ class TrainingController extends Controller
                 $transaction = Transaction::create([
                     'id' => 't_' . Str::random(8),
                     'member_id' => $freshWallet->id,
-                    'type' => 'credit',
+                    'type' => 'refund',
                     'amount' => $refundAmount,
                     'description' => "Training session absent ({$refundLabel}): {$tr->name}",
                     'date' => now(),
@@ -1636,6 +1686,9 @@ class TrainingController extends Controller
                     continue;
                 }
 
+                // Resolve the wallet member: parent for juniors, self for adults.
+                $walletMember = $this->getWalletMember($member);
+
                 // 1. Total Amount Deducted at Acceptance for this member for this training program
                 $acceptedSeriesInvites = TrainingInvitation::whereIn('training_id', $seriesSessionIds)
                     ->where('member_id', $member->id)
@@ -1657,7 +1710,8 @@ class TrainingController extends Controller
                     }
                 }
 
-                $debitSum = (float) Transaction::where('member_id', $member->id)
+                // Search debit transactions against the wallet member's id (parent for juniors)
+                $debitSum = (float) Transaction::where('member_id', $walletMember->id)
                     ->where('type', 'debit')
                     ->where(function ($q) use ($session, $cleanBaseName) {
                         $q->where('description', 'like', '%' . $session->name . '%')
@@ -1678,8 +1732,8 @@ class TrainingController extends Controller
                     ->whereNotNull('refund_amount')
                     ->sum('refund_amount');
 
-                $txnAttendanceRefunds = Transaction::where('member_id', $member->id)
-                    ->where('type', 'credit')
+                $txnAttendanceRefunds = Transaction::where('member_id', $walletMember->id)
+                    ->whereIn('type', Transaction::inflowTypes())
                     ->where('description', 'like', 'Training session absent%')
                     ->where(function ($q) use ($session, $cleanBaseName) {
                         $q->where('description', 'like', '%' . $session->name . '%')
@@ -1690,8 +1744,8 @@ class TrainingController extends Controller
                 $alreadyRefundedAttendance = max((float)$tdAttendanceRefunds, (float)$txnAttendanceRefunds);
 
                 // 3. Previous Cancellation / Deletion Refunds Already Issued for this member for this training program
-                $alreadyRefundedCancellation = (float) Transaction::where('member_id', $member->id)
-                    ->where('type', 'credit')
+                $alreadyRefundedCancellation = (float) Transaction::where('member_id', $walletMember->id)
+                    ->whereIn('type', Transaction::inflowTypes())
                     ->where(function ($q) {
                         $q->where('description', 'like', 'Refund — cancelled training session%')
                           ->orWhere('description', 'like', 'Refund — deleted training session%');
@@ -1707,13 +1761,14 @@ class TrainingController extends Controller
                 $remainingRefund = round($totalDeducted - $alreadyRefundedAttendance - $alreadyRefundedCancellation, 2);
 
                 if ($remainingRefund > 0) {
-                    $member->credit = round($member->credit + $remainingRefund, 2);
-                    $member->save();
+                    $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                    $freshWallet->credit = round($freshWallet->credit + $remainingRefund, 2);
+                    $freshWallet->save();
 
                     $transaction = Transaction::create([
                         'id' => 't_' . Str::random(8),
-                        'member_id' => $member->id,
-                        'type' => 'credit',
+                        'member_id' => $freshWallet->id,
+                        'type' => 'refund',
                         'amount' => $remainingRefund,
                         'description' => $isDeletion
                             ? 'Refund — deleted training session: ' . $session->name
@@ -1722,9 +1777,9 @@ class TrainingController extends Controller
                     ]);
 
                     try {
-                        MailHelper::sendTransactionEmail($member, $transaction);
+                        MailHelper::sendTransactionEmail($freshWallet, $transaction);
                     } catch (\Exception $e) {
-                        logger()->error("Transaction refund email failed for member {$member->id}: " . $e->getMessage());
+                        logger()->error("Transaction refund email failed for member {$freshWallet->id}: " . $e->getMessage());
                     }
                 }
 

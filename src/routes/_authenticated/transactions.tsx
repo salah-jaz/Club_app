@@ -3,7 +3,7 @@ import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtDateTime, fmtMoney, fmtDate, formatTxnDescription } from "@/lib/format";
+import { fmtDateTime, fmtMoney, fmtDate, formatTxnDescription, txnDisplayType, isTxnInflow } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -16,6 +16,7 @@ import {
   Receipt,
   ArrowDownRight,
   ArrowUpLeft,
+  RotateCcw,
   Trash2,
 } from "lucide-react";
 import { useState, useMemo } from "react";
@@ -65,6 +66,27 @@ const STAT_ACCENTS = [
   { border: "#EF4444", iconBg: "rgba(239,68,68,0.12)", iconColor: "#EF4444" },
   { border: "#818CF8", iconBg: "rgba(129,140,248,0.12)", iconColor: "#818CF8" },
 ];
+
+function TxnTypeBadge({ t }: { t: import("@/lib/types").Transaction }) {
+  const displayType = txnDisplayType(t);
+  const isCredit = displayType === "credit";
+  const isRefund = displayType === "refund";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tracking-wider uppercase shrink-0",
+        isCredit
+          ? "static-financial-credit-bg-dim static-financial-credit-text border static-financial-credit-border-dim"
+          : isRefund
+            ? "bg-[#818CF8]/12 text-[#818CF8] border border-[#818CF8]/25"
+            : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20",
+      )}
+    >
+      {isCredit ? <ArrowUpLeft className="size-3" /> : isRefund ? <RotateCcw className="size-3" /> : <ArrowDownRight className="size-3" />}
+      {displayType}
+    </span>
+  );
+}
 
 function TxnStatCard({
   label,
@@ -123,6 +145,13 @@ function Txns() {
     : undefined;
   const isMemberScoped = Boolean(focusMember);
 
+  // If focusMember is a junior, transactions are recorded on the parent's wallet.
+  const walletMember = focusMember
+    ? focusMember.memberType === "junior" && focusMember.parentMemberId
+      ? s.members.find((m) => m.id === focusMember.parentMemberId) ?? focusMember
+      : focusMember
+    : undefined;
+
   const isAdmin = user.role === "admin";
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -155,10 +184,12 @@ function Txns() {
   const baseTxns = useMemo(() => {
     let list = user.role === "admin" ? s.transactions : s.transactions.filter((t) => myMemberIds.includes(t.memberId));
     if (focusMember) {
-      list = list.filter((t) => t.memberId === focusMember.id);
+      // Show transactions for the wallet member (parent for juniors)
+      const wid = walletMember?.id ?? focusMember.id;
+      list = list.filter((t) => t.memberId === wid);
     }
     return list;
-  }, [s.transactions, user.role, myMemberIds, focusMember]);
+  }, [s.transactions, user.role, myMemberIds, focusMember, walletMember]);
 
   const filteredTxns = useMemo(() => {
     return baseTxns
@@ -180,7 +211,7 @@ function Txns() {
             return false;
           }
         }
-        if (typeFilter !== "all" && t.type !== typeFilter) return false;
+        if (typeFilter !== "all" && txnDisplayType(t) !== typeFilter) return false;
         if (fromDate) {
           const txnDate = new Date(t.date);
           const filterFrom = new Date(fromDate);
@@ -207,7 +238,7 @@ function Txns() {
   }, [baseTxns, s.members, memberTypeFilter, searchTerm, typeFilter, fromDate, toDate, sortBy]);
 
   const stats = useMemo(() => {
-    const creditTxns = filteredTxns.filter((t) => t.type === "credit");
+    const creditTxns = filteredTxns.filter((t) => isTxnInflow(t));
     const debitTxns = filteredTxns.filter((t) => t.type === "debit");
     const totalCredited = creditTxns.reduce((sum, t) => sum + t.amount, 0);
     const totalDebited = debitTxns.reduce((sum, t) => sum + t.amount, 0);
@@ -224,7 +255,9 @@ function Txns() {
         title={focusMember ? `${focusMember.firstName} ${focusMember.lastName}` : "Transactions"}
         description={
           focusMember
-            ? `Account credits and debits for this member only. Current balance ${fmtMoney(focusMember.credit || 0)}.`
+            ? focusMember.memberType === "junior" && walletMember && walletMember.id !== focusMember.id
+              ? `Junior member — transactions recorded on ${walletMember.firstName} ${walletMember.lastName}'s shared wallet. Balance: ${fmtMoney(walletMember.credit || 0)}.`
+              : `Account credits and debits for this member only. Current balance ${fmtMoney(walletMember?.credit ?? focusMember.credit ?? 0)}.`
             : "Audit log of all account credits and session debits."
         }
         eyebrow={focusMember ? "FINANCE / MEMBER HISTORY" : undefined}
@@ -329,6 +362,7 @@ function Txns() {
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
                     <SelectItem value="all" className="text-xs">All Types</SelectItem>
                     <SelectItem value="credit" className="text-xs">Credit</SelectItem>
+                    <SelectItem value="refund" className="text-xs">Refund</SelectItem>
                     <SelectItem value="debit" className="text-xs">Debit</SelectItem>
                   </SelectContent>
                 </Select>
@@ -417,6 +451,9 @@ function Txns() {
                   </SelectItem>
                   <SelectItem value="credit" className="text-xs">
                     Credit
+                  </SelectItem>
+                  <SelectItem value="refund" className="text-xs">
+                    Refund
                   </SelectItem>
                   <SelectItem value="debit" className="text-xs">
                     Debit
@@ -622,7 +659,7 @@ function Txns() {
                   m?.memberType.toLowerCase() === "junior"
                     ? "bg-[#1A1A0A] text-[#F59E0B]"
                     : "bg-[#0D2E22] text-[#10B981]";
-                const isCredit = t.type === "credit";
+                const isInflow = isTxnInflow(t);
 
                 return (
                   <motion.div
@@ -648,17 +685,7 @@ function Txns() {
                           </span>
                         </div>
                       </div>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tracking-wider uppercase shrink-0",
-                          isCredit
-                            ? "static-financial-credit-bg-dim static-financial-credit-text border static-financial-credit-border-dim"
-                            : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20",
-                        )}
-                      >
-                        {isCredit ? <ArrowUpLeft className="size-3" /> : <ArrowDownRight className="size-3" />}
-                        {t.type}
-                      </span>
+                      <TxnTypeBadge t={t} />
                     </div>
 
                     <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
@@ -672,10 +699,10 @@ function Txns() {
                       <span
                         className={cn(
                           "type-mono-value text-base font-semibold shrink-0 ml-2",
-                          isCredit ? "static-financial-credit-text" : "text-[#EF4444]",
+                          isInflow ? "static-financial-credit-text" : "text-[#EF4444]",
                         )}
                       >
-                        {isCredit ? "+" : "−"}
+                        {isInflow ? "+" : "−"}
                         {fmtMoney(t.amount)}
                       </span>
                     </div>
@@ -738,7 +765,7 @@ function Txns() {
                       m?.memberType.toLowerCase() === "junior"
                         ? "bg-[#1A1A0A] text-[#F59E0B]"
                         : "bg-[#0D2E22] text-[#10B981]";
-                    const isCredit = t.type === "credit";
+                    const isInflow = isTxnInflow(t);
 
                     return (
                       <motion.tr
@@ -774,29 +801,15 @@ function Txns() {
                           </button>
                         </TableCell>
                         <TableCell className="py-3 px-6">
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tracking-wider uppercase",
-                              isCredit
-                                ? "static-financial-credit-bg-dim static-financial-credit-text border static-financial-credit-border-dim"
-                                : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20",
-                            )}
-                          >
-                            {isCredit ? (
-                              <ArrowUpLeft className="size-3" />
-                            ) : (
-                              <ArrowDownRight className="size-3" />
-                            )}
-                            {t.type}
-                          </span>
+                          <TxnTypeBadge t={t} />
                         </TableCell>
                         <TableCell
                           className={cn(
                             "py-3 px-6 text-right type-mono-value text-[14px] font-medium",
-                            isCredit ? "static-financial-credit-text" : "text-[#EF4444]",
+                            isInflow ? "static-financial-credit-text" : "text-[#EF4444]",
                           )}
                         >
-                          {isCredit ? "+" : "−"}
+                          {isInflow ? "+" : "−"}
                           {fmtMoney(t.amount)}
                         </TableCell>
                         {isAdmin && (
@@ -825,17 +838,26 @@ function Txns() {
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">
-              {selectedTxnDetail?.type === "debit" ? "Debit Details" : "Transaction Details"}
+              {selectedTxnDetail
+                ? txnDisplayType(selectedTxnDetail) === "debit"
+                  ? "Debit Details"
+                  : txnDisplayType(selectedTxnDetail) === "refund"
+                    ? "Refund Details"
+                    : "Transaction Details"
+                : "Transaction Details"}
             </DialogTitle>
             <DialogDescription className="text-[#8A8A98]">
-              {selectedTxnDetail?.type === "debit"
+              {selectedTxnDetail && txnDisplayType(selectedTxnDetail) === "debit"
                 ? "Details of the member debit transaction."
-                : "Details of the recorded transaction."}
+                : selectedTxnDetail && txnDisplayType(selectedTxnDetail) === "refund"
+                  ? "Details of the member refund transaction."
+                  : "Details of the recorded transaction."}
             </DialogDescription>
           </DialogHeader>
           {selectedTxnDetail && (() => {
             const tm = s.members.find((x) => x.id === selectedTxnDetail.memberId);
-            const isCred = selectedTxnDetail.type === "credit";
+            const isInflow = isTxnInflow(selectedTxnDetail);
+            const displayType = txnDisplayType(selectedTxnDetail);
             return (
               <div className="space-y-4 py-2">
                 <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
@@ -847,8 +869,8 @@ function Txns() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
                     <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Amount</span>
-                    <span className={cn("text-base font-bold", isCred ? "text-[#34D399]" : "text-[#EF4444]")}>
-                      {isCred ? "+" : "−"}{fmtMoney(selectedTxnDetail.amount)}
+                    <span className={cn("text-base font-bold", isInflow ? "text-[#34D399]" : "text-[#EF4444]")}>
+                      {isInflow ? "+" : "−"}{fmtMoney(selectedTxnDetail.amount)}
                     </span>
                   </div>
                   <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
@@ -856,9 +878,13 @@ function Txns() {
                     <span className="text-xs font-medium text-[#EEF2F0]">{fmtDateTime(selectedTxnDetail.date)}</span>
                   </div>
                 </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                  <span className="text-xs text-[#8A8A98]">Type</span>
+                  <TxnTypeBadge t={selectedTxnDetail} />
+                </div>
                 <div className="space-y-1.5">
                   <span className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
-                    {selectedTxnDetail.type === "debit" ? "Reason" : "Description"}
+                    {displayType === "debit" ? "Reason" : "Description"}
                   </span>
                   <div className="p-3.5 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] text-sm text-[#EEF2F0] leading-relaxed whitespace-pre-wrap">
                     {formatTxnDescription(selectedTxnDetail)}

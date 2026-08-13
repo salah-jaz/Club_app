@@ -366,7 +366,7 @@ class SettingController extends Controller
                     $descHyphen = 'Refund - Club Holiday: ' . $scheduleDateStr;
 
                     $alreadyRefunded = Transaction::where('member_id', $member->id)
-                        ->where('type', 'credit')
+                        ->whereIn('type', Transaction::inflowTypes())
                         ->where(function ($q) use ($desc, $descHyphen, $scheduleDateStr) {
                             $q->where('description', $desc)
                               ->orWhere('description', $descHyphen)
@@ -393,7 +393,7 @@ class SettingController extends Controller
                             $transaction = Transaction::create([
                                 'id' => 't_' . Str::random(8),
                                 'member_id' => $member->id,
-                                'type' => 'credit',
+                                'type' => 'refund',
                                 'amount' => $refundAmount,
                                 'description' => $desc,
                                 'date' => now(),

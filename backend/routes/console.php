@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Models\Setting;
 use App\Helpers\MailHelper;
 use App\Helpers\FeeHelper;
+use App\Helpers\WalletHelper;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -44,13 +45,14 @@ Artisan::command('debit:cancellations', function () {
             $member = Member::find($inv->member_id);
             if ($member) {
                 $memberFee = FeeHelper::forMember($feeRounded, $member);
-                if (!$member->skip_credit_consumption && $memberFee > 0) {
-                    $member->credit -= $memberFee;
-                    $member->save();
+                $walletMember = WalletHelper::resolveMember($member);
+                if (!$walletMember->skip_credit_consumption && $memberFee > 0) {
+                    $walletMember->credit -= $memberFee;
+                    $walletMember->save();
 
                     $transaction = Transaction::create([
                         'id' => 't_' . Str::random(8),
-                        'member_id' => $member->id,
+                        'member_id' => $walletMember->id,
                         'type' => 'debit',
                         'amount' => $memberFee,
                         'description' => "Auto Debit - Play session: " . $schedule->name,
@@ -58,9 +60,9 @@ Artisan::command('debit:cancellations', function () {
                     ]);
 
                     try {
-                        MailHelper::sendTransactionEmail($member, $transaction);
+                        MailHelper::sendTransactionEmail($walletMember, $transaction);
                     } catch (\Exception $e) {
-                        logger()->error("Transaction auto-debit email failed for member {$member->id}: " . $e->getMessage());
+                        logger()->error("Transaction auto-debit email failed for member {$walletMember->id}: " . $e->getMessage());
                     }
                 }
             }

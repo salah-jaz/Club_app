@@ -442,7 +442,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'membership' => false,
             'play_eligible' => true,
             'status' => 'active',
-            'credit' => 100.00,
+            'credit' => 0.00,
             'grade' => 'Beginner',
         ]);
 
@@ -459,7 +459,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'membership' => false,
             'play_eligible' => true,
             'status' => 'active',
-            'credit' => 100.00,
+            'credit' => 0.00,
             'grade' => 'Beginner',
         ]);
 
@@ -470,7 +470,8 @@ class InvitationAutoSynchronizationTest extends TestCase
             'accepted_at' => now(),
             'debited' => true,
         ]);
-        $juniorAcc->update(['credit' => 80.00]); // $100 - $20 session fee
+        // Parent wallet was debited $20 session fee (100 - 20 = 80)
+        $this->parentMember->update(['credit' => 80.00]);
 
         // Set juniorWait status to waiting
         $waitInvite = PlayInvitation::where('schedule_id', $schedule->id)->where('member_id', $juniorWait->id)->first();
@@ -487,14 +488,16 @@ class InvitationAutoSynchronizationTest extends TestCase
             'member_id' => $juniorAcc->id,
         ]);
 
-        // 2. juniorAcc refunded $20 credit (80 + 20 = 100)
+        // 2. Parent wallet refunded $20, then waiting player promoted and debited $20 (net: stays 80)
+        $this->parentMember->refresh();
+        $this->assertEquals(80.00, $this->parentMember->credit);
         $juniorAcc->refresh();
-        $this->assertEquals(100.00, $juniorAcc->credit);
+        $this->assertEquals(0.00, $juniorAcc->credit);
 
-        // 3. Refund transaction logged
+        // 3. Refund transaction logged on parent wallet
         $this->assertDatabaseHas('transactions', [
-            'member_id' => $juniorAcc->id,
-            'type' => 'credit',
+            'member_id' => $this->parentMember->id,
+            'type' => 'refund',
             'amount' => 20.00,
             'description' => 'Refund — cancelled play session: Competitive Play',
         ]);
@@ -595,19 +598,22 @@ class InvitationAutoSynchronizationTest extends TestCase
             'training_eligible' => true,
             'play_eligible' => false,
             'status' => 'active',
-            'credit' => 20.00, // Balance after $80 deducted from $100
+            'credit' => 0.00,
             'grade' => 'Beginner',
         ]);
+
+        // Parent wallet balance after $80 training debit (100 - 80 = 20)
+        $this->parentMember->update(['credit' => 20.00]);
 
         // Create accepted invitation
         TrainingInvitation::where('training_id', $training->id)->where('member_id', $junior->id)->update([
             'status' => 'accepted',
         ]);
 
-        // Record debit transaction for initial enrollment
+        // Record debit transaction on parent wallet for initial enrollment
         \App\Models\Transaction::create([
             'id' => 't_tr_debit_init',
-            'member_id' => $junior->id,
+            'member_id' => $this->parentMember->id,
             'type' => 'debit',
             'amount' => 80.00,
             'description' => 'Training session: Elite Training',
@@ -634,14 +640,16 @@ class InvitationAutoSynchronizationTest extends TestCase
             'member_id' => $junior->id,
         ]);
 
-        // 2. $80 credit refunded (20 + 80 = 100)
+        // 2. $80 credit refunded to parent wallet (20 + 80 = 100); junior stays at 0
+        $this->parentMember->refresh();
+        $this->assertEquals(100.00, $this->parentMember->credit);
         $junior->refresh();
-        $this->assertEquals(100.00, $junior->credit);
+        $this->assertEquals(0.00, $junior->credit);
 
-        // 3. Credit transaction created
+        // 3. Refund transaction created on parent wallet
         $this->assertDatabaseHas('transactions', [
-            'member_id' => $junior->id,
-            'type' => 'credit',
+            'member_id' => $this->parentMember->id,
+            'type' => 'refund',
             'amount' => 80.00,
             'description' => 'Refund — cancelled training session: Elite Training',
         ]);

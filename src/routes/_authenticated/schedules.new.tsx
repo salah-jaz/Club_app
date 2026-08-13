@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { fmtMoney, parseScheduleDateTime } from "@/lib/format";
+import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ function NewSchedule() {
   const leagueGroups = useStore((s) => s.leagueGroups || []);
   const navigate = useNavigate();
   const [f, setF] = useState({
-    name: "", date: "", courts: 2, players: 16, slotHours: 2, slotDuration: "15 min",
+    name: "", date: "", courts: 2, players: 16, slotHours: 2, slotDuration: "15",
     sessionRate: 8, hallRate: 40, location: locations[0],
     isLeagueMatch: false, leagueGroupIds: [] as string[],
     repeatWeeks: 1,
@@ -31,6 +32,8 @@ function NewSchedule() {
   const [nameTouched, setNameTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  const minDateTime = datetimeLocalNow();
 
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
@@ -83,6 +86,10 @@ function NewSchedule() {
           toast.error("Please select a Date & Time for the schedule.");
           return;
         }
+        if (isScheduleDateTimeInPast(f.date)) {
+          toast.error("Schedule date and time must be today or later.");
+          return;
+        }
         const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
         setSubmitting(true);
         try {
@@ -112,6 +119,7 @@ function NewSchedule() {
               <DateTimePicker
                 value={f.date}
                 onChange={onDateChange}
+                minDateTime={minDateTime}
                 placeholder="Select Date & Time..."
               />
               {scheduleWhen && (
@@ -189,7 +197,7 @@ function NewSchedule() {
           <CardContent className="pt-4 space-y-4">
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
-                <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable League Match</Label>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable League</Label>
                 <p className="text-xs text-muted-foreground">Limit invitations to specific league groups</p>
               </div>
               <Switch checked={f.isLeagueMatch} onCheckedChange={(v) => set("isLeagueMatch", v)} />
@@ -251,8 +259,8 @@ function NewSchedule() {
               <Input required type="number" min={0.5} step={0.5} value={f.slotHours} onChange={(e) => set("slotHours", +e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Slot Duration</Label>
-              <Input required value={f.slotDuration} onChange={(e) => set("slotDuration", e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Slot Duration (min)</Label>
+              <Input required type="number" min={1} value={f.slotDuration} onChange={(e) => set("slotDuration", e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
             </div>
           </CardContent>
         </Card>

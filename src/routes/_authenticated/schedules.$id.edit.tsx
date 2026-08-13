@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { fmtMoney, parseScheduleDateTime } from "@/lib/format";
+import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ function EditSchedule() {
     courts: 2,
     players: 16,
     slotHours: 2,
-    slotDuration: "15 min",
+    slotDuration: "15",
     sessionRate: 8,
     hallRate: 40,
     location: "",
@@ -73,7 +74,7 @@ function EditSchedule() {
         courts: sch.courts,
         players: sch.players,
         slotHours: sch.slotHours,
-        slotDuration: sch.slotDuration,
+        slotDuration: String(sch.slotDuration || "").match(/(\d+(?:\.\d+)?)/)?.[1] || "15",
         sessionRate: sch.sessionRate,
         hallRate: sch.hallRate,
         location: sch.location,
@@ -84,6 +85,8 @@ function EditSchedule() {
       setNameTouched(true);
     }
   }, [sch]);
+
+  const minDateTime = datetimeLocalNow();
 
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
@@ -123,6 +126,10 @@ function EditSchedule() {
   };
 
   const executeSave = async () => {
+    if (isScheduleDateTimeInPast(f.date)) {
+      toast.error("Schedule date and time must be today or later.");
+      return;
+    }
     setSubmitting(true);
     try {
       await update(sch.id, {
@@ -202,6 +209,7 @@ function EditSchedule() {
               <DateTimePicker
                 value={f.date}
                 onChange={onDateChange}
+                minDateTime={minDateTime}
                 placeholder="Select Date & Time..."
               />
               {scheduleWhen && (
@@ -284,7 +292,7 @@ function EditSchedule() {
           <CardContent className="pt-4 space-y-4">
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
-                <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable League Match</Label>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable League</Label>
                 <p className="text-xs text-muted-foreground">Limit invitations to specific league groups</p>
               </div>
               <Switch checked={f.isLeagueMatch} onCheckedChange={(v) => set("isLeagueMatch", v)} />
@@ -368,9 +376,11 @@ function EditSchedule() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Slot Duration</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Slot Duration (min)</Label>
               <Input
                 required
+                type="number"
+                min={1}
                 value={f.slotDuration}
                 onChange={(e) => set("slotDuration", e.target.value)}
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"

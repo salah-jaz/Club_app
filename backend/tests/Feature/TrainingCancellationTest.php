@@ -162,7 +162,7 @@ class TrainingCancellationTest extends TestCase
 
         $this->assertDatabaseHas('transactions', [
             'member_id' => $this->juniorMember->id,
-            'type' => 'credit',
+            'type' => 'refund',
             'amount' => 60.0,
             'description' => 'Refund — cancelled training session: Sunday Junior Coaching',
         ]);
@@ -214,9 +214,9 @@ class TrainingCancellationTest extends TestCase
         $this->juniorMember->refresh();
         $this->assertEquals(350.0, $this->juniorMember->credit);
 
-        // Count credit transactions before delete
+        // Count refund transactions before delete
         $creditTxnCountBefore = Transaction::where('member_id', $this->juniorMember->id)
-            ->where('type', 'credit')
+            ->whereIn('type', ['credit', 'refund'])
             ->count();
 
         // Step 2: Admin deletes the cancelled training
@@ -227,9 +227,9 @@ class TrainingCancellationTest extends TestCase
         $this->juniorMember->refresh();
         $this->assertEquals(350.0, $this->juniorMember->credit);
 
-        // Verify NO new credit transaction was created during delete
+        // Verify NO new refund transaction was created during delete
         $creditTxnCountAfter = Transaction::where('member_id', $this->juniorMember->id)
-            ->where('type', 'credit')
+            ->whereIn('type', ['credit', 'refund'])
             ->count();
         $this->assertEquals($creditTxnCountBefore, $creditTxnCountAfter);
 
@@ -417,7 +417,7 @@ class TrainingCancellationTest extends TestCase
         // Assert 1 cancellation refund transaction for remaining $25
         $this->assertDatabaseHas('transactions', [
             'member_id' => $this->juniorMember->id,
-            'type' => 'credit',
+            'type' => 'refund',
             'amount' => 25.0,
             'description' => 'Refund — cancelled training session: Badminton Coaching - Week 1',
         ]);

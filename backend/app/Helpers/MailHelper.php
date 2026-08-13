@@ -128,8 +128,10 @@ class MailHelper
     public static function sendTransactionEmail($member, $transaction)
     {
         $subject = "New Account Transaction Alert";
-        $typeLabel = $transaction->type === 'credit' ? 'Credited' : 'Debited';
-        $color = $transaction->type === 'credit' ? '#34D399' : '#EF4444';
+        $isRefund = $transaction->type === 'refund';
+        $isInflow = in_array($transaction->type, ['credit', 'refund'], true);
+        $typeLabel = $isRefund ? 'Refunded' : ($isInflow ? 'Credited' : 'Debited');
+        $color = $isInflow ? '#34D399' : '#EF4444';
         
         $content = "
             <h2 style=\"color: $color; font-size: 18px; margin-top: 0;\">Transaction Alert</h2>

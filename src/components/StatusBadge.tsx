@@ -17,6 +17,8 @@ const map: Record<string, string> = {
   cancelled: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
   disabled: "bg-white/5 text-[#8A8A9A] border-white/10",
   closed: "bg-white/5 text-[#8A8A9A] border-white/10",
+  in_progress: "bg-[#F59E0B]/10 text-[#FBBF24] border-[#F59E0B]/20",
+  finished: "bg-white/5 text-[#8A8A98] border-white/10",
 };
 
 type StatusKind = "default" | "invitation";
@@ -26,6 +28,8 @@ function labelFor(status: string, kind: StatusKind): string {
   if (status === "created") return "pending";
   if (status === "pending") return "Pending";
   if (status === "waiting") return "Waiting list";
+  if (status === "in_progress") return "In Progress";
+  if (status === "finished") return "Finished";
   // Invitation "open" = member has not responded yet.
   // Schedule/training "open" = created but not released.
   if (status === "open") return kind === "invitation" ? "Yet to accept" : "Open";

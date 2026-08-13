@@ -12,6 +12,7 @@ use App\Models\TrainingUpdateRequest;
 use App\Models\Transaction;
 use App\Helpers\FeeHelper;
 use App\Helpers\MailHelper;
+use App\Helpers\WalletHelper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -271,22 +272,23 @@ class InvitationSyncService
 
         $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
         if ($memberFee > 0) {
-            $member->credit = round($member->credit + $memberFee, 2);
-            $member->saveQuietly();
+            $walletMember = WalletHelper::resolveMember($member);
+            $walletMember->credit = round($walletMember->credit + $memberFee, 2);
+            $walletMember->saveQuietly();
 
             $transaction = Transaction::create([
                 'id' => 't_' . Str::random(8),
-                'member_id' => $member->id,
-                'type' => 'credit',
+                'member_id' => $walletMember->id,
+                'type' => 'refund',
                 'amount' => $memberFee,
                 'description' => 'Refund — cancelled play session: ' . $schedule->name,
                 'date' => now(),
             ]);
 
             try {
-                MailHelper::sendTransactionEmail($member, $transaction);
+                MailHelper::sendTransactionEmail($walletMember, $transaction);
             } catch (\Exception $e) {
-                logger()->error("Transaction refund email failed for member {$member->id}: " . $e->getMessage());
+                logger()->error("Transaction refund email failed for member {$walletMember->id}: " . $e->getMessage());
             }
         }
     }
@@ -326,7 +328,8 @@ class InvitationSyncService
                 && !(bool) $sch->is_league_match
             ) {
                 $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $nextMember);
-                if ($nextMember->credit < $estimatedFee) {
+                $walletMember = WalletHelper::resolveMember($nextMember);
+                if ($walletMember->credit < $estimatedFee) {
                     $next = null;
                 }
             }
@@ -361,17 +364,18 @@ class InvitationSyncService
 
         $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
         $isLeague = (bool) $schedule->is_league_match;
+        $walletMember = WalletHelper::resolveMember($member);
 
-        if (!$member->skip_credit_consumption && $memberFee > 0) {
-            if (!$isLeague && $member->credit < $memberFee) {
+        if (!$walletMember->skip_credit_consumption && $memberFee > 0) {
+            if (!$isLeague && $walletMember->credit < $memberFee) {
                 return;
             }
-            $member->credit = round($member->credit - $memberFee, 2);
-            $member->saveQuietly();
+            $walletMember->credit = round($walletMember->credit - $memberFee, 2);
+            $walletMember->saveQuietly();
 
             $transaction = Transaction::create([
                 'id' => 't_' . Str::random(8),
-                'member_id' => $member->id,
+                'member_id' => $walletMember->id,
                 'type' => 'debit',
                 'amount' => $memberFee,
                 'description' => 'Play session: ' . $schedule->name,
@@ -379,9 +383,9 @@ class InvitationSyncService
             ]);
 
             try {
-                MailHelper::sendTransactionEmail($member, $transaction);
+                MailHelper::sendTransactionEmail($walletMember, $transaction);
             } catch (\Exception $e) {
-                logger()->error("Transaction debit email failed for member {$member->id}: " . $e->getMessage());
+                logger()->error("Transaction debit email failed for member {$walletMember->id}: " . $e->getMessage());
             }
         }
 
@@ -421,10 +425,11 @@ class InvitationSyncService
             }
         }
 
+        $walletMember = WalletHelper::resolveMember($member);
         $baseName = trim(explode(' - Week', $tr->name)[0]);
         $cleanBaseName = trim(preg_replace('/ \(\d+\)$/', '', $baseName));
 
-        $debitSum = (float) Transaction::where('member_id', $member->id)
+        $debitSum = (float) Transaction::where('member_id', $walletMember->id)
             ->where('type', 'debit')
             ->where(function ($q) use ($tr, $cleanBaseName) {
                 $q->where('description', 'like', '%' . $tr->name . '%')
@@ -441,8 +446,8 @@ class InvitationSyncService
             ->whereNotNull('refund_amount')
             ->sum('refund_amount');
 
-        $txnAttendanceRefunds = Transaction::where('member_id', $member->id)
-            ->where('type', 'credit')
+        $txnAttendanceRefunds = Transaction::where('member_id', $walletMember->id)
+            ->whereIn('type', Transaction::inflowTypes())
             ->where('description', 'like', 'Training session absent%')
             ->where(function ($q) use ($tr, $cleanBaseName) {
                 $q->where('description', 'like', '%' . $tr->name . '%')
@@ -453,8 +458,8 @@ class InvitationSyncService
         $alreadyRefundedAttendance = max((float) $tdAttendanceRefunds, (float) $txnAttendanceRefunds);
 
         // 3. Previous Cancellation Refunds Already Issued
-        $alreadyRefundedCancellation = (float) Transaction::where('member_id', $member->id)
-            ->where('type', 'credit')
+        $alreadyRefundedCancellation = (float) Transaction::where('member_id', $walletMember->id)
+            ->whereIn('type', Transaction::inflowTypes())
             ->where(function ($q) {
                 $q->where('description', 'like', 'Refund — cancelled training session%')
                     ->orWhere('description', 'like', 'Refund — deleted training session%');
@@ -468,23 +473,23 @@ class InvitationSyncService
         // 4. Remaining Refund
         $remainingRefund = round($totalDeducted - $alreadyRefundedAttendance - $alreadyRefundedCancellation, 2);
 
-        if ($remainingRefund > 0 && !$member->skip_credit_consumption) {
-            $member->credit = round($member->credit + $remainingRefund, 2);
-            $member->saveQuietly();
+        if ($remainingRefund > 0 && !$walletMember->skip_credit_consumption) {
+            $walletMember->credit = round($walletMember->credit + $remainingRefund, 2);
+            $walletMember->saveQuietly();
 
             $transaction = Transaction::create([
                 'id' => 't_' . Str::random(8),
-                'member_id' => $member->id,
-                'type' => 'credit',
+                'member_id' => $walletMember->id,
+                'type' => 'refund',
                 'amount' => $remainingRefund,
                 'description' => 'Refund — cancelled training session: ' . $tr->name,
                 'date' => now(),
             ]);
 
             try {
-                MailHelper::sendTransactionEmail($member, $transaction);
+                MailHelper::sendTransactionEmail($walletMember, $transaction);
             } catch (\Exception $e) {
-                logger()->error("Transaction refund email failed for member {$member->id}: " . $e->getMessage());
+                logger()->error("Transaction refund email failed for member {$walletMember->id}: " . $e->getMessage());
             }
         }
 

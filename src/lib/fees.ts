@@ -78,3 +78,18 @@ export function discountsFromStore(store: DiscountSettings): DiscountSettings {
 function roundFee(n: number): number {
   return Math.round(Math.max(0, n) * 100) / 100;
 }
+
+/**
+ * Juniors share their parent adult's wallet.
+ * Returns the parent member when linked, otherwise the member themselves.
+ */
+export function resolveWalletMember(
+  member: Pick<Member, "id" | "memberType" | "parentMemberId" | "credit">,
+  members: Pick<Member, "id" | "credit">[],
+): Pick<Member, "id" | "credit"> {
+  if (member.memberType === "junior" && member.parentMemberId) {
+    const parent = members.find((m) => m.id === member.parentMemberId);
+    if (parent) return parent;
+  }
+  return member;
+}
