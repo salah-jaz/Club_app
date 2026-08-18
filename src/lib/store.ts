@@ -68,6 +68,7 @@ interface State {
   skipCreditConsumption: boolean;
   cancellationLockHours: number;
   debitTimingHours: number;
+  autoPublishRotation: boolean;
   /** When true, court rotation chips show member grade (admin + members). */
   showGradeInCourtRotation: boolean;
   adultDiscountPercent: number;
@@ -201,6 +202,7 @@ interface State {
     skipCreditConsumption?: boolean;
     cancellationLockHours?: number;
     debitTimingHours?: number;
+    autoPublishRotation?: boolean;
     showGradeInCourtRotation?: boolean;
     adultDiscountPercent?: number;
     adultDiscountAmount?: number;
@@ -310,6 +312,7 @@ export const useStore = create<State>((set, get) => ({
   skipCreditConsumption: false,
   cancellationLockHours: 24,
   debitTimingHours: 24,
+  autoPublishRotation: false,
   showGradeInCourtRotation: false,
   adultDiscountPercent: 0,
   adultDiscountAmount: 0,
@@ -353,6 +356,7 @@ export const useStore = create<State>((set, get) => ({
         skipCreditConsumption: settings.skipCreditConsumption ?? false,
         cancellationLockHours: settings.cancellationLockHours ?? 24,
         debitTimingHours: settings.debitTimingHours ?? 24,
+        autoPublishRotation: settings.autoPublishRotation ?? false,
         showGradeInCourtRotation: settings.showGradeInCourtRotation ?? false,
         adultDiscountPercent: settings.adultDiscountPercent ?? 0,
         adultDiscountAmount: settings.adultDiscountAmount ?? 0,
@@ -437,6 +441,7 @@ export const useStore = create<State>((set, get) => ({
           skipCreditConsumption?: boolean;
           cancellationLockHours?: number;
           debitTimingHours?: number;
+          autoPublishRotation?: boolean;
           showGradeInCourtRotation?: boolean;
           adultDiscountPercent?: number;
           adultDiscountAmount?: number;
@@ -503,6 +508,7 @@ export const useStore = create<State>((set, get) => ({
         skipCreditConsumption: settings.skipCreditConsumption ?? false,
         cancellationLockHours: settings.cancellationLockHours ?? 24,
         debitTimingHours: settings.debitTimingHours ?? 24,
+        autoPublishRotation: settings.autoPublishRotation ?? false,
         showGradeInCourtRotation: settings.showGradeInCourtRotation ?? false,
         adultDiscountPercent: settings.adultDiscountPercent ?? 0,
         adultDiscountAmount: settings.adultDiscountAmount ?? 0,
@@ -961,6 +967,7 @@ export const useStore = create<State>((set, get) => ({
       skipCreditConsumption: boolean;
       cancellationLockHours: number;
       debitTimingHours: number;
+      autoPublishRotation: boolean;
       showGradeInCourtRotation: boolean;
       adultDiscountPercent: number;
       adultDiscountAmount: number;
@@ -1001,6 +1008,7 @@ export const useStore = create<State>((set, get) => ({
       skipCreditConsumption: updated.skipCreditConsumption,
       cancellationLockHours: updated.cancellationLockHours,
       debitTimingHours: updated.debitTimingHours,
+      autoPublishRotation: updated.autoPublishRotation ?? false,
       showGradeInCourtRotation: updated.showGradeInCourtRotation ?? false,
       adultDiscountPercent: updated.adultDiscountPercent ?? 0,
       adultDiscountAmount: updated.adultDiscountAmount ?? 0,

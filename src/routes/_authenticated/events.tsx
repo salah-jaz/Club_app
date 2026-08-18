@@ -735,7 +735,11 @@ function Events() {
 
       <PageHeader
         title="Play Sessions"
-        description={`Enroll in released play sessions. Cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before the match starts.`}
+        description={
+          s.autoPublishRotation
+            ? `Enroll in released play sessions. Cancellations automatically close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before match start.`
+            : `Enroll in released play sessions and manage RSVPs until rotation is published.`
+        }
       />
 
       {uniquePlaySessions.length > 0 && (
@@ -769,13 +773,21 @@ function Events() {
             <div>
               <p className="font-semibold text-[#FBBF24]">Cancellation policy (all members)</p>
               <p className="mt-0.5 text-[#F59E0B]/90 font-light leading-relaxed">
-                You can cancel an accepted play session until{" "}
-                <span className="font-semibold text-[#FBBF24]">
-                  {s.cancellationLockHours === 1
-                    ? "1 hour"
-                    : `${s.cancellationLockHours ?? 24} hours`}
-                </span>{" "}
-                before the match starts. After that, cancellation is not allowed.
+                {s.autoPublishRotation ? (
+                  <>
+                    You can cancel an accepted play session until{" "}
+                    <span className="font-semibold text-[#FBBF24]">
+                      {s.cancellationLockHours === 1
+                        ? "1 hour"
+                        : `${s.cancellationLockHours ?? 24} hours`}
+                    </span>{" "}
+                    before the match starts. At that time, cancellations lock and court rotation is automatically published.
+                  </>
+                ) : (
+                  <>
+                    You can update your play session RSVP until court rotation is generated and published by club admins.
+                  </>
+                )}
               </p>
             </div>
           </div>

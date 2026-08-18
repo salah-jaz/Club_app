@@ -13,11 +13,14 @@ function EditMember() {
   const update = useStore((s) => s.updateMember);
   const navigate = useNavigate();
 
+  const activeRole = useStore((s) => s.activeRole) || user.role;
+
   if (!member) return <Navigate to="/members" />;
-  const canEdit = user.role === "admin" || member.userId === user.id;
+  const isJunior = member.memberType.toLowerCase() === "junior";
+  const canEdit = activeRole === "admin" || (activeRole === "member" && (isJunior || member.userId === user.id));
   if (!canEdit) return <Navigate to="/members" />;
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = activeRole === "admin";
   const familyMemberMode = !isAdmin && member.memberType === "junior";
 
   return (

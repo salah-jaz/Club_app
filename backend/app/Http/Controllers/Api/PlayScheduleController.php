@@ -23,6 +23,7 @@ class PlayScheduleController extends Controller
 {
     public function index()
     {
+        self::processAutoPublishAndRotation();
         $schedules = PlaySchedule::orderBy('date', 'desc')->get();
         return response()->json($schedules->map(fn(PlaySchedule $s) => $this->formatSchedule($s)));
     }
@@ -609,6 +610,161 @@ class PlayScheduleController extends Controller
         ]);
     }
 
+    public function performRotate(PlaySchedule $schedule): ?Rotation
+    {
+        $invites = PlayInvitation::where('schedule_id', $schedule->id)->where('status', 'accepted')->get();
+        $playerIds = $invites->pluck('member_id')->values()->all();
+
+        $rotationPlayers = array_merge($playerIds, $this->guestIdsForAccepted($schedule, count($playerIds)));
+        $rounds = $this->buildRotationRounds($schedule, $rotationPlayers);
+
+        $showGrades = Setting::where('key', 'show_grade_in_court_rotation')->value('value') === 'true';
+
+        Rotation::where('schedule_id', $schedule->id)->delete();
+        $rotation = Rotation::create([
+            'id' => 'r_' . Str::random(8),
+            'schedule_id' => $schedule->id,
+            'rounds' => $rounds,
+            'show_member_grades' => $showGrades,
+        ]);
+
+        foreach ($playerIds as $memberId) {
+            if ($this->isGuestMemberId($memberId)) {
+                continue;
+            }
+
+            $invite = PlayInvitation::where('schedule_id', $schedule->id)->where('member_id', $memberId)->first();
+            if ($invite) {
+                $this->debitPlayInvite($schedule, $invite);
+            }
+        }
+
+        $schedule->status = 'rotated';
+        $schedule->save();
+
+        return $rotation;
+    }
+
+    public static function processAutoPublishAndRotation(): void
+    {
+        $autoPublish = Setting::where('key', 'auto_publish_rotation')->value('value') === 'true';
+        if (!$autoPublish) {
+            return;
+        }
+
+        $lockHoursSetting = Setting::where('key', 'cancellation_lock_hours')->first();
+        $lockHours = $lockHoursSetting ? (int) $lockHoursSetting->value : 24;
+        if ($lockHours < 0) {
+            $lockHours = 0;
+        }
+
+        $now = \Carbon\Carbon::now();
+        $schedules = PlaySchedule::whereIn('status', ['released', 'open', 'rotated'])->get();
+        $controller = new self();
+
+        foreach ($schedules as $schedule) {
+            if (!$schedule->date) {
+                continue;
+            }
+
+            $matchStart = \Carbon\Carbon::parse($schedule->date);
+            $lockDeadline = $matchStart->copy()->subHours($lockHours);
+
+            if ($now->greaterThanOrEqualTo($lockDeadline)) {
+                if ($schedule->status === 'open') {
+                    $controller->release($schedule->id);
+                    $schedule->refresh();
+                }
+
+                if (in_array($schedule->status, ['released', 'open'], true)) {
+                    $controller->performRotate($schedule);
+                    $schedule->refresh();
+                }
+
+                if (in_array($schedule->status, ['rotated', 'released', 'open'], true)) {
+                    $rotation = Rotation::where('schedule_id', $schedule->id)->first();
+                    if (!$rotation) {
+                        $controller->performRotate($schedule);
+                        $schedule->refresh();
+                    }
+                    $schedule->status = 'published';
+                    $schedule->save();
+                }
+
+                self::ensureNextPlaySessionGenerated($schedule, $controller);
+            }
+        }
+    }
+
+    private static function ensureNextPlaySessionGenerated(PlaySchedule $schedule, PlayScheduleController $controller): void
+    {
+        if (!$schedule->date) {
+            return;
+        }
+
+        $currentDate = \Carbon\Carbon::parse($schedule->date);
+        $nextDate = $currentDate->copy()->addWeeks(1);
+
+        while ($nextDate->isPast()) {
+            $nextDate->addWeeks(1);
+        }
+
+        $parentId = $schedule->parent_id ?: $schedule->id;
+
+        if (empty($schedule->parent_id)) {
+            $schedule->parent_id = $schedule->id;
+            $schedule->save();
+        }
+
+        $existingNext = PlaySchedule::where(function ($q) use ($parentId) {
+            $q->where('parent_id', $parentId)->orWhere('id', $parentId);
+        })->whereDate('date', $nextDate->toDateString())->first();
+
+        if (!$existingNext) {
+            $existingNext = PlaySchedule::where('location', $schedule->location)
+                ->where('date', $nextDate->toDateTimeString())
+                ->first();
+        }
+
+        if ($existingNext) {
+            if ($existingNext->status === 'open') {
+                $controller->release($existingNext->id);
+            }
+            return;
+        }
+
+        $rawName = $controller->scheduleNameFromDate($nextDate);
+        $name = $controller->uniqueScheduleName($rawName);
+        $nextSchId = 's_' . Str::random(8);
+
+        $seriesCount = PlaySchedule::where('parent_id', $parentId)->orWhere('id', $parentId)->count();
+        $newRepeatWeeks = max((int) $schedule->repeat_weeks, $seriesCount + 1);
+
+        $nextSchedule = PlaySchedule::create([
+            'id' => $nextSchId,
+            'parent_id' => $parentId,
+            'repeat_weeks' => $newRepeatWeeks,
+            'name' => $name,
+            'date' => $nextDate,
+            'courts' => $schedule->courts,
+            'players' => $schedule->players,
+            'slot_hours' => $schedule->slot_hours,
+            'slot_duration' => $schedule->slot_duration,
+            'session_rate' => $schedule->session_rate,
+            'hall_rate' => $schedule->hall_rate,
+            'location' => $schedule->location,
+            'status' => 'open',
+            'is_league_match' => (bool) $schedule->is_league_match,
+            'league_group_ids' => $schedule->league_group_ids,
+        ]);
+
+        PlaySchedule::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->update(['repeat_weeks' => $newRepeatWeeks]);
+
+        $controller->release($nextSchedule->id);
+    }
+
     public function rotate($id)
     {
         $schedule = PlaySchedule::findOrFail($id);
@@ -619,36 +775,7 @@ class PlayScheduleController extends Controller
             return response()->json(['message' => 'No players accepted the invitation yet.'], 400);
         }
 
-        // Guests already belong in Accepted (capacity fillers) — do not invent extras here.
-        $rotationPlayers = array_merge($playerIds, $this->guestIdsForAccepted($schedule, count($playerIds)));
-        $rounds = $this->buildRotationRounds($schedule, $rotationPlayers);
-
-        // Seed grade visibility from club default; admin can change until publish.
-        $showGrades = Setting::where('key', 'show_grade_in_court_rotation')->value('value') === 'true';
-
-        // Save or update rotation in DB
-        Rotation::where('schedule_id', $id)->delete();
-        $rotation = Rotation::create([
-            'id' => 'r_' . Str::random(8),
-            'schedule_id' => $id,
-            'rounds' => $rounds,
-            'show_member_grades' => $showGrades,
-        ]);
-
-        foreach ($playerIds as $memberId) {
-            if ($this->isGuestMemberId($memberId)) {
-                continue;
-            }
-
-            $invite = PlayInvitation::where('schedule_id', $id)->where('member_id', $memberId)->first();
-            // Prefer debit-on-accept; only charge leftovers that somehow were not debited
-            if ($invite) {
-                $this->debitPlayInvite($schedule, $invite);
-            }
-        }
-
-        $schedule->status = 'rotated';
-        $schedule->save();
+        $rotation = $this->performRotate($schedule);
 
         return response()->json([
             'message' => 'Rotation generated successfully.',
@@ -792,6 +919,23 @@ class PlayScheduleController extends Controller
             return [];
         }
 
+        $leagueGroupRaw = $schedule->league_group_ids;
+        $leagueGroupIds = is_array($leagueGroupRaw)
+            ? $leagueGroupRaw
+            : (is_string($leagueGroupRaw) ? (json_decode($leagueGroupRaw, true) ?? []) : []);
+
+        if (!empty($leagueGroupIds)) {
+            return $this->buildLeagueGroupRotationRounds(
+                $schedule,
+                $rotationPlayers,
+                $leagueGroupIds,
+                $courtsCount,
+                $roundsCount,
+                $playersPerCourt,
+                $slots
+            );
+        }
+
         // Adult grade ranks: lower number = stronger. Guests / unknown = weakest.
         $gradeRanks = Grade::where('type', 'adult')->pluck('rank', 'name')->all();
         $maxRank = empty($gradeRanks) ? 0 : (int) max($gradeRanks);
@@ -874,8 +1018,135 @@ class PlayScheduleController extends Controller
         return $rounds;
     }
 
+    private function buildLeagueGroupRotationRounds(
+        PlaySchedule $schedule,
+        array $rotationPlayers,
+        array $leagueGroupIds,
+        int $courtsCount,
+        int $roundsCount,
+        int $playersPerCourt,
+        int $slots
+    ): array {
+        $groupMembers = DB::table('league_group_member')
+            ->whereIn('league_group_id', $leagueGroupIds)
+            ->get(['league_group_id', 'member_id', 'position', 'id']);
+
+        $memberGroupMap = [];
+        foreach ($groupMembers as $gm) {
+            if (!isset($memberGroupMap[$gm->member_id])) {
+                $memberGroupMap[$gm->member_id] = $gm->league_group_id;
+            }
+        }
+
+        $playCount = [];
+        foreach ($rotationPlayers as $p) {
+            $playCount[$p] = 0;
+        }
+
+        $totalPlayers = count($rotationPlayers);
+        $rounds = [];
+
+        for ($r = 1; $r <= $roundsCount; $r++) {
+            if ($totalPlayers <= $slots) {
+                $playing = $rotationPlayers;
+                $resting = [];
+            } else {
+                $sorted = $rotationPlayers;
+                usort($sorted, function ($a, $b) use ($playCount, $rotationPlayers, $r, $totalPlayers, $slots) {
+                    $diff = $playCount[$a] - $playCount[$b];
+                    if ($diff !== 0) {
+                        return $diff;
+                    }
+                    $idxA = array_search($a, $rotationPlayers, true);
+                    $idxB = array_search($b, $rotationPlayers, true);
+                    $offsetA = ($idxA + ($r - 1) * ($totalPlayers - $slots)) % $totalPlayers;
+                    $offsetB = ($idxB + ($r - 1) * ($totalPlayers - $slots)) % $totalPlayers;
+                    return $offsetA - $offsetB;
+                });
+
+                $playing = array_slice($sorted, 0, $slots);
+                $resting = array_slice($sorted, $slots);
+            }
+
+            $playingGroups = [];
+            foreach ($playing as $p) {
+                $gid = $memberGroupMap[$p] ?? ($this->isGuestMemberId($p) ? 'guest' : 'other');
+                $playingGroups[$gid][] = $p;
+            }
+
+            $interleaved = [];
+            $maxGroupSize = 0;
+            foreach ($playingGroups as $gList) {
+                $maxGroupSize = max($maxGroupSize, count($gList));
+            }
+            for ($i = 0; $i < $maxGroupSize; $i++) {
+                foreach ($playingGroups as $gList) {
+                    if (isset($gList[$i])) {
+                        $interleaved[] = $gList[$i];
+                    }
+                }
+            }
+
+            $courtsArr = [];
+            for ($c = 0; $c < $courtsCount; $c++) {
+                $shiftedCourtIdx = ($c + ($r - 1)) % $courtsCount;
+                $slice = array_slice($interleaved, $shiftedCourtIdx * $playersPerCourt, $playersPerCourt);
+
+                if (count($slice) < $playersPerCourt) {
+                    $needed = $playersPerCourt - count($slice);
+                    $available = array_diff($interleaved, $slice);
+                    $slice = array_merge($slice, array_slice(array_values($available), 0, $needed));
+                }
+
+                $permuted = $this->permuteCourtSlots($slice, $r);
+
+                $courtsArr[] = [
+                    'courtNo' => $c + 1,
+                    'players' => $permuted,
+                ];
+
+                foreach ($permuted as $p) {
+                    $playCount[$p] += 1;
+                }
+            }
+
+            $rounds[] = [
+                'round' => $r,
+                'courts' => $courtsArr,
+                'resting' => array_values($resting),
+            ];
+        }
+
+        return $rounds;
+    }
+
+    private function permuteCourtSlots(array $courtPlayers, int $round): array
+    {
+        $n = count($courtPlayers);
+        if ($n < 4) {
+            return $courtPlayers;
+        }
+
+        $perms = [
+            1 => [0, 1, 2, 3],
+            2 => [0, 2, 1, 3],
+            3 => [0, 3, 1, 2],
+            4 => [1, 3, 0, 2],
+            5 => [2, 3, 0, 1],
+        ];
+
+        $pIdx = $perms[$round] ?? [($round - 1) % $n, ($round) % $n, ($round + 1) % $n, ($round + 2) % $n];
+
+        $result = [];
+        foreach ($pIdx as $idx) {
+            $result[] = $courtPlayers[$idx % $n];
+        }
+        return $result;
+    }
+
     public function listInvitations()
     {
+        self::processAutoPublishAndRotation();
         $invites = PlayInvitation::orderBy('updated_at')->get();
         $payload = $invites->map(fn(PlayInvitation $i) => $this->formatInvitation($i))->values()->all();
 
@@ -912,6 +1183,7 @@ class PlayScheduleController extends Controller
 
     public function respondInvitation(Request $request, $id)
     {
+        self::processAutoPublishAndRotation();
         $request->validate([
             'status' => 'required|in:accepted,declined',
         ]);
@@ -991,19 +1263,22 @@ class PlayScheduleController extends Controller
                 ], 422);
             }
 
-            // Accepted players cannot cancel within the lock window before match start
+            // Accepted players cannot cancel within the lock window before match start when Auto Publish & Rotation is enabled
             if ($wasAccepted) {
-                $lockHours = (int) (Setting::where('key', 'cancellation_lock_hours')->value('value') ?? 24);
-                if ($lockHours < 0) {
-                    $lockHours = 0;
-                }
-                $matchStart = \Carbon\Carbon::parse($sch->date);
-                $cancelDeadline = $matchStart->copy()->subHours($lockHours);
-                if (now()->greaterThanOrEqualTo($cancelDeadline)) {
-                    $hoursLabel = $lockHours === 1 ? '1 hour' : "{$lockHours} hours";
-                    return response()->json([
-                        'message' => "Decline is no longer available. Cancellations close {$hoursLabel} before the match starts.",
-                    ], 422);
+                $autoPublish = Setting::where('key', 'auto_publish_rotation')->value('value') === 'true';
+                if ($autoPublish) {
+                    $lockHours = (int) (Setting::where('key', 'cancellation_lock_hours')->value('value') ?? 24);
+                    if ($lockHours < 0) {
+                        $lockHours = 0;
+                    }
+                    $matchStart = \Carbon\Carbon::parse($sch->date);
+                    $cancelDeadline = $matchStart->copy()->subHours($lockHours);
+                    if (now()->greaterThanOrEqualTo($cancelDeadline)) {
+                        $hoursLabel = $lockHours === 1 ? '1 hour' : "{$lockHours} hours";
+                        return response()->json([
+                            'message' => "Decline is no longer available. Cancellations close {$hoursLabel} before the match starts.",
+                        ], 422);
+                    }
                 }
             }
 
@@ -1210,6 +1485,7 @@ class PlayScheduleController extends Controller
 
     public function listRotations(Request $request)
     {
+        self::processAutoPublishAndRotation();
         $user = $request->user();
         $isAdmin = $user && $user->role === 'admin';
 

@@ -82,6 +82,15 @@ function Layout() {
     };
   }, [moduleKey, loading, userId, syncData]);
 
+  // Periodic background sync to keep auto-published schedules & rotations updated automatically
+  useEffect(() => {
+    if (loading || !userId) return;
+    const interval = setInterval(() => {
+      syncData();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [loading, userId, syncData]);
+
   // Move focus to main on route change (WCAG SPA pattern)
   useEffect(() => {
     if (loading) return;

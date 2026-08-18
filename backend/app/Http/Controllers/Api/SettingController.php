@@ -40,6 +40,7 @@ class SettingController extends Controller
         'emailFooterText' => 'email_footer_text',
         'cancellationLockHours' => 'cancellation_lock_hours',
         'debitTimingHours' => 'debit_timing_hours',
+        'autoPublishRotation' => 'auto_publish_rotation',
         'showGradeInCourtRotation' => 'show_grade_in_court_rotation',
         'adultDiscountPercent' => 'adult_discount_percent',
         'adultDiscountAmount' => 'adult_discount_amount',
@@ -74,9 +75,7 @@ class SettingController extends Controller
 
         foreach ($this->settingKeys as $camel => $snake) {
             $val = $dbSettings->get($snake);
-            if ($camel === 'skipCreditConsumption') {
-                $data[$camel] = $val === 'true';
-            } else if ($camel === 'showGradeInCourtRotation') {
+            if (in_array($camel, ['skipCreditConsumption', 'showGradeInCourtRotation', 'autoPublishRotation'], true)) {
                 $data[$camel] = $val === 'true';
             } else if ($camel === 'cancellationLockHours' || $camel === 'debitTimingHours') {
                 $data[$camel] = $val !== null ? (int)$val : null;
@@ -95,6 +94,7 @@ class SettingController extends Controller
         if (empty($data['timezone'])) $data['timezone'] = 'Asia/Kolkata';
         if ($data['cancellationLockHours'] === null) $data['cancellationLockHours'] = 24;
         if ($data['debitTimingHours'] === null) $data['debitTimingHours'] = 24;
+        if (!isset($data['autoPublishRotation'])) $data['autoPublishRotation'] = false;
         foreach (['adultDiscountPercent', 'adultDiscountAmount', 'juniorDiscountPercent', 'juniorDiscountAmount'] as $discountKey) {
             if (!isset($data[$discountKey])) $data[$discountKey] = 0;
         }
@@ -115,7 +115,7 @@ class SettingController extends Controller
         foreach ($this->settingKeys as $camel => $snake) {
             if ($request->has($camel)) {
                 $val = $request->input($camel);
-                if ($camel === 'skipCreditConsumption' || $camel === 'showGradeInCourtRotation') {
+                if (in_array($camel, ['skipCreditConsumption', 'showGradeInCourtRotation', 'autoPublishRotation'], true)) {
                     $val = filter_var($val, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
                 }
                 if (in_array($camel, ['adultDiscountMode', 'juniorDiscountMode'], true)) {
@@ -261,6 +261,7 @@ class SettingController extends Controller
             }
         }
 
+        \App\Http\Controllers\Api\PlayScheduleController::processAutoPublishAndRotation();
         return $this->index();
     }
 

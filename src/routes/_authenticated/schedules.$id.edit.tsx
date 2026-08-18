@@ -13,6 +13,7 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { LeagueGroupSelector } from "@/components/LeagueGroupSelector";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +36,7 @@ function EditSchedule() {
   const update = useStore((state) => state.updateSchedule);
   const locations = useStore((state) => state.locations);
   const leagueGroups = useStore((state) => state.leagueGroups || []);
+  const allMembers = useStore((state) => state.members || []);
   const navigate = useNavigate();
 
   // Helper to convert date format to datetime-local expected string
@@ -87,6 +89,42 @@ function EditSchedule() {
   }, [sch]);
 
   const minDateTime = datetimeLocalNow();
+
+  const leagueStats = useMemo(() => {
+    if (!f.isLeagueMatch || !f.leagueGroupIds?.length)
+      return { uniqueCount: 0, totalSlots: 0, sharedCount: 0 };
+    const memberCounts = new Map<string, number>();
+    let totalSlots = 0;
+    for (const group of leagueGroups) {
+      if (f.leagueGroupIds.includes(group.id)) {
+        const ids =
+          Array.isArray(group.memberIds) && group.memberIds.length > 0
+            ? group.memberIds
+            : group.members?.map((m) => m.id) || [];
+        totalSlots += ids.length;
+        ids.forEach((id) => {
+          if (id) memberCounts.set(id, (memberCounts.get(id) || 0) + 1);
+        });
+      }
+    }
+    let sharedCount = 0;
+    memberCounts.forEach((cnt) => {
+      if (cnt > 1) sharedCount++;
+    });
+    return {
+      uniqueCount: memberCounts.size,
+      totalSlots,
+      sharedCount,
+    };
+  }, [f.isLeagueMatch, f.leagueGroupIds, leagueGroups]);
+
+  const leagueUniqueMemberCount = leagueStats.uniqueCount;
+
+  useEffect(() => {
+    if (f.isLeagueMatch) {
+      setF((prev) => (prev.players === leagueUniqueMemberCount ? prev : { ...prev, players: leagueUniqueMemberCount }));
+    }
+  }, [f.isLeagueMatch, leagueUniqueMemberCount]);
 
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
@@ -299,36 +337,13 @@ function EditSchedule() {
             </div>
 
             {f.isLeagueMatch && (
-              <div className="space-y-2">
-                <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Select League Groups</Label>
-                {leagueGroups.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic">No league groups found. Create one in the League Groups module.</p>
-                ) : (
-                  <div className="grid sm:grid-cols-3 gap-2">
-                    {leagueGroups.map((g) => (
-                      <label
-                        key={g.id}
-                        className={`flex items-center gap-2.5 p-2.5 bg-[#1A2120] border rounded-lg cursor-pointer transition-all ${
-                          f.leagueGroupIds.includes(g.id)
-                            ? "border-[#10B981] bg-[#1A2120]/80"
-                            : "border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
-                        }`}
-                      >
-                        <Checkbox
-                          checked={f.leagueGroupIds.includes(g.id)}
-                          onCheckedChange={(checked) => {
-                            const next = checked
-                              ? [...f.leagueGroupIds, g.id]
-                              : f.leagueGroupIds.filter((id) => id !== g.id);
-                            set("leagueGroupIds", next);
-                          }}
-                          className="border-[rgba(255,255,255,0.2)] data-[state=checked]:bg-[#10B981] data-[state=checked]:border-[#10B981]"
-                        />
-                        <span className="text-xs text-[#F1F0EE] truncate">{g.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
+              <div className="pt-2">
+                <LeagueGroupSelector
+                  selectedGroupIds={f.leagueGroupIds}
+                  onSelectionChange={(nextIds) => set("leagueGroupIds", nextIds)}
+                  leagueGroups={leagueGroups}
+                  allMembers={allMembers}
+                />
               </div>
             )}
           </CardContent>
@@ -357,11 +372,25 @@ function EditSchedule() {
               <Input
                 required
                 type="number"
-                min={1}
-                value={f.players}
+                min={f.isLeagueMatch ? 0 : 1}
+                value={f.isLeagueMatch ? leagueUniqueMemberCount : f.players}
                 onChange={(e) => set("players", +e.target.value)}
-                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+                readOnly={f.isLeagueMatch}
+                className={`bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono ${
+                  f.isLeagueMatch ? "opacity-75 cursor-not-allowed bg-[#131916]" : ""
+                }`}
               />
+              {f.isLeagueMatch && (
+                <p className="text-[11px] text-[#34D399] leading-relaxed">
+                  {f.leagueGroupIds.length === 0
+                    ? "Select league groups above to calculate max players."
+                    : `Dynamic: ${leagueStats.uniqueCount} unique player${leagueStats.uniqueCount === 1 ? "" : "s"} across ${f.leagueGroupIds.length} selected team${f.leagueGroupIds.length === 1 ? "" : "s"}${
+                        leagueStats.sharedCount > 0
+                          ? ` (${leagueStats.totalSlots} total slots - ${leagueStats.sharedCount} shared member${leagueStats.sharedCount === 1 ? "" : "s"} counted once).`
+                          : "."
+                      }`}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Slot Hours</Label>
