@@ -29,7 +29,7 @@ function EmailTemplatesPage() {
   const [footerText, setFooterText] = useState(store.emailFooterText || "");
 
   // Preview options state
-  const [previewType, setPreviewType] = useState<"approval" | "rejection" | "transaction" | "schedule" | "training">("transaction");
+  const [previewType, setPreviewType] = useState<"registration" | "approval" | "rejection" | "transaction" | "schedule" | "training">("transaction");
 
   // Sync state if store settings change later
   useEffect(() => {
@@ -86,6 +86,20 @@ function EmailTemplatesPage() {
   // Render dummy contents matching the helpers in MailHelper.php
   const renderPreviewContent = () => {
     switch (previewType) {
+      case "registration":
+        return (
+          <>
+            <h2 style={{ color: primaryColor, fontSize: "18px", marginTop: 0, fontWeight: "bold" }}>Registration Received</h2>
+            <p style={{ margin: "14px 0 8px 0" }}>Hello John,</p>
+            <p style={{ margin: "8px 0 16px 0", lineHeight: "1.5" }}>
+              Thank you for registering your account with ClubConnect.
+            </p>
+            <p style={{ margin: "8px 0 16px 0", lineHeight: "1.5" }}>
+              Your registration details have been received and are currently awaiting review by the club administrator. You will receive another email notification once your account is reviewed.
+            </p>
+          </>
+        );
+
       case "approval":
         return (
           <>
@@ -400,6 +414,7 @@ function EmailTemplatesPage() {
                   <SelectValue placeholder="Preview Email" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="registration" className="cursor-pointer text-xs hover:bg-white/5">Registration Received</SelectItem>
                   <SelectItem value="approval" className="cursor-pointer text-xs hover:bg-white/5">Account Approved</SelectItem>
                   <SelectItem value="rejection" className="cursor-pointer text-xs hover:bg-white/5">Account Registration</SelectItem>
                   <SelectItem value="transaction" className="cursor-pointer text-xs hover:bg-white/5">Transaction Alert</SelectItem>

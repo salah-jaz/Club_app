@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Member;
 use App\Models\User;
+use App\Helpers\MailHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -23,13 +24,19 @@ class AuthController extends Controller
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['Invalid credentials or pending approval.'],
+                'email' => ['The provided credentials do not match our records.'],
             ]);
         }
 
-        if ($user->status !== 'active') {
+        if ($user->status === 'rejected') {
             throw ValidationException::withMessages([
-                'email' => ['Your account is pending approval or has been rejected.'],
+                'email' => ['Your account registration request has been declined. Please contact the administrator.'],
+            ]);
+        }
+
+        if ($user->status === 'created') {
+            throw ValidationException::withMessages([
+                'email' => ['Your registration request is pending admin approval. You will receive an email once approved.'],
             ]);
         }
 
@@ -74,6 +81,12 @@ class AuthController extends Controller
             'role' => 'member',
             'status' => 'created', // needs admin approval
         ]);
+
+        try {
+            MailHelper::sendRegistrationEmail($user);
+        } catch (\Exception $e) {
+            logger()->error("Registration email failed: " . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'Registration submitted. Awaiting admin approval.',
