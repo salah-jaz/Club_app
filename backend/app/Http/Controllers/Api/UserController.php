@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Helpers\MailHelper;
+use App\Helpers\PermissionHelper;
 
 class UserController extends Controller
 {
@@ -27,6 +28,10 @@ class UserController extends Controller
 
     public function approve(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'approvals.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'memberType' => 'sometimes|in:adult,junior',
             'grade' => [
@@ -102,6 +107,10 @@ class UserController extends Controller
 
     public function reject($id)
     {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'approvals.delete')) {
+            return $response;
+        }
+
         $user = User::findOrFail($id);
         $user->status = 'rejected';
         $user->save();
@@ -120,6 +129,10 @@ class UserController extends Controller
 
     public function setRole(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'admin_management.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'role' => 'required|in:admin,member,volunteer',
         ]);

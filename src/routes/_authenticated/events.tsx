@@ -735,7 +735,7 @@ function Events() {
 
       <PageHeader
         title="Play Sessions"
-        description={`Enroll in released play sessions. Cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before the match starts.`}
+        description={`Enroll in released play sessions. Cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before match start, when court rotation is generated and published.`}
       />
 
       {uniquePlaySessions.length > 0 && (
@@ -769,13 +769,18 @@ function Events() {
             <div>
               <p className="font-semibold text-[#FBBF24]">Cancellation policy (all members)</p>
               <p className="mt-0.5 text-[#F59E0B]/90 font-light leading-relaxed">
-                You can cancel an accepted play session until{" "}
-                <span className="font-semibold text-[#FBBF24]">
-                  {s.cancellationLockHours === 1
-                    ? "1 hour"
-                    : `${s.cancellationLockHours ?? 24} hours`}
-                </span>{" "}
-                before the match starts. After that, cancellation is not allowed.
+                <>
+                  You can cancel an accepted play session until{" "}
+                  <span className="font-semibold text-[#FBBF24]">
+                    {s.cancellationLockHours === 1
+                      ? "1 hour"
+                      : `${s.cancellationLockHours ?? 24} hours`}
+                  </span>{" "}
+                  before the match starts. After that, cancellations are locked
+                  {s.autoPublishRotation
+                    ? " and court rotation is generated and published automatically."
+                    : "."}
+                </>
               </p>
             </div>
           </div>

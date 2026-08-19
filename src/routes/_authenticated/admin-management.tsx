@@ -1,6 +1,7 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useCurrentUser, useStore } from "@/lib/store";
+import { permissionActionLabel, useCan, useCanModule } from "@/lib/permissions";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -58,6 +59,10 @@ function PermissionMatrix({
       const moduleKey = p.module ?? "other";
       const arr = map.get(moduleKey) || [];
       arr.push(p);
+      arr.sort((a, b) => {
+        const order = ["view", "create", "edit", "delete"];
+        return order.indexOf(a.action) - order.indexOf(b.action);
+      });
       map.set(moduleKey, arr);
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
@@ -138,7 +143,7 @@ function PermissionMatrix({
                       className="border-[rgba(255,255,255,0.15)] data-[state=checked]:bg-[#10B981] data-[state=checked]:border-[#10B981]"
                     />
                     <span className="text-[11px] text-[#C4D4CF] group-hover:text-[#F1F0EE] transition-colors capitalize">
-                      {(p.action ?? p.label ?? p.id).replace(/_/g, " ")}
+                      {permissionActionLabel(p.action ?? p.label ?? p.id)}
                     </span>
                   </label>
                 ))}
@@ -564,13 +569,18 @@ function AdminManagement() {
     return m;
   }, [adminRoles]);
 
-  if (user.role !== "admin") return <Navigate to="/dashboard" />;
+  const canViewAdmin = useCanModule("admin_management");
+  const canAddAdmin = useCan("admin_management.create");
+  const canEditAdmin = useCan("admin_management.edit");
+  const canDeleteAdmin = useCan("admin_management.delete");
+
+  if (user.role !== "admin" || !canViewAdmin) return <Navigate to="/dashboard" />;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Club Admin"
-        description="Manage admin accounts and roles with granular permissions."
+        description="Manage admin accounts and roles."
       />
 
       <Tabs defaultValue="users" className="w-full">
@@ -593,9 +603,11 @@ function AdminManagement() {
         <TabsContent value="users" className="focus-visible:outline-none">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[13px] font-semibold text-[#F1F0EE]">Admin Accounts</h2>
+            {canAddAdmin && (
             <Button size="sm" className="btn-premium-solid h-8 px-3 text-xs cursor-pointer" onClick={openCreateUser}>
               <Plus className="size-3.5 mr-1.5" /> Add admin
             </Button>
+            )}
           </div>
           {adminUsers.length === 0 ? (
             <EmptyIllustration title="No admin users found" description="Create an admin user to get started." />
@@ -650,25 +662,29 @@ function AdminManagement() {
                           </TableCell>
                           <TableCell className="px-5 py-3">
                             <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer"
-                                onClick={() => openEditUser(au)}
-                                title="Edit"
-                              >
-                                <Pencil className="size-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer"
-                                onClick={() => setResetPwTarget(au)}
-                                title="Reset password"
-                              >
-                                <RotateCcw className="size-3.5" />
-                              </Button>
-                              {!isSelf && !au.isSuperAdmin && (
+                              {canEditAdmin && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer"
+                                    onClick={() => openEditUser(au)}
+                                    title="Edit"
+                                  >
+                                    <Pencil className="size-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer"
+                                    onClick={() => setResetPwTarget(au)}
+                                    title="Reset password"
+                                  >
+                                    <RotateCcw className="size-3.5" />
+                                  </Button>
+                                </>
+                              )}
+                              {canDeleteAdmin && !isSelf && !au.isSuperAdmin && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -695,9 +711,11 @@ function AdminManagement() {
         <TabsContent value="roles" className="focus-visible:outline-none">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[13px] font-semibold text-[#F1F0EE]">Admin Roles</h2>
+            {canAddAdmin && (
             <Button size="sm" className="btn-premium-solid h-8 px-3 text-xs cursor-pointer" onClick={openCreateRole}>
               <Plus className="size-3.5 mr-1.5" /> Add role
             </Button>
+            )}
           </div>
           {adminRoles.length === 0 ? (
             <EmptyIllustration title="No roles found" description="Create an admin role to get started." />
@@ -722,7 +740,7 @@ function AdminManagement() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        {!r.isSuper && (
+                        {canEditAdmin && !r.isSuper && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -732,7 +750,7 @@ function AdminManagement() {
                             <Pencil className="size-3.5" />
                           </Button>
                         )}
-                        {!r.isSystem && (
+                        {canDeleteAdmin && !r.isSystem && (
                           <Button
                             variant="ghost"
                             size="sm"

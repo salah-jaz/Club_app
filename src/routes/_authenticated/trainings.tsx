@@ -1,3 +1,4 @@
+import { useCan } from "@/lib/permissions";
 import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { Navigate } from "@tanstack/react-router";
@@ -79,6 +80,8 @@ export function isTrainingCardDeletable(card: MonthlyCardItem): boolean {
 function TrainingsList() {
   const s = useStore();
   const user = useCurrentUser()!;
+  const canCreateTraining = useCan("trainings.create");
+  const canDeleteTraining = useCan("trainings.delete");
   const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-trainings", "list");
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
@@ -296,7 +299,7 @@ function TrainingsList() {
       <PageHeader
         title="Training programs"
         description="Coach-led monthly training programs."
-        actions={user.role === "admin" && <Button asChild><Link to="/trainings/new"><Plus /> New training</Link></Button>}
+        actions={user.role === "admin" && canCreateTraining && <Button asChild><Link to="/trainings/new"><Plus /> New training</Link></Button>}
       />
 
       {s.trainings.length > 0 && (
@@ -471,6 +474,7 @@ function TrainingsList() {
             </div>
 
             <div className="flex items-center gap-3">
+              {canDeleteTraining && (
               <Button
                 variant="destructive"
                 size="sm"
@@ -481,6 +485,7 @@ function TrainingsList() {
                 <Trash2 className="size-3.5" />
                 <span>Delete Selected{selectedCardIds.length > 0 ? ` (${selectedCardIds.length})` : ""}</span>
               </Button>
+              )}
 
               <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0">
                 <button

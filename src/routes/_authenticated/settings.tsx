@@ -171,6 +171,7 @@ function SettingsPage() {
     setCurrency(store.currency);
   }, [store.currency]);
   const [cancellationLockHours, setCancellationLockHours] = useState(store.cancellationLockHours);
+  const [autoPublishRotation, setAutoPublishRotation] = useState(store.autoPublishRotation);
   const [adultDiscountPercent, setAdultDiscountPercent] = useState(store.adultDiscountPercent);
   const [adultDiscountAmount, setAdultDiscountAmount] = useState(store.adultDiscountAmount);
   const [adultDiscountMode, setAdultDiscountMode] = useState<"percent" | "amount">(
@@ -184,7 +185,8 @@ function SettingsPage() {
 
   useEffect(() => {
     setCancellationLockHours(store.cancellationLockHours);
-  }, [store.cancellationLockHours]);
+    setAutoPublishRotation(store.autoPublishRotation);
+  }, [store.cancellationLockHours, store.autoPublishRotation]);
 
   useEffect(() => {
     setAdultDiscountPercent(store.adultDiscountPercent);
@@ -562,6 +564,7 @@ function SettingsPage() {
         timezone,
         skipCreditConsumption,
         cancellationLockHours,
+        autoPublishRotation,
       });
       toast.success("Branding settings saved successfully");
     } catch (err: any) {
@@ -1030,6 +1033,24 @@ function SettingsPage() {
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4 border-t border-white/[0.03] pt-4 mt-4">
+                  <div className="space-y-3 sm:col-span-2">
+                    <div className="flex items-center justify-between gap-4 p-3.5 rounded-lg bg-[#1A2120] border border-white/[0.06]">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold text-[#F1F0EE] flex items-center gap-2">
+                          Automatic Publish & Rotation
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground/80 font-light leading-relaxed">
+                          When enabled, released play schedules automatically generate court rotation and publish it when the Cancellation Lock Window is reached. Create and release remain manual.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={autoPublishRotation}
+                        onCheckedChange={setAutoPublishRotation}
+                        className="data-[state=checked]:bg-[#10B981]"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-1.5 sm:col-span-2 sm:max-w-md">
                     <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                       Cancellation Lock Window (Hours)
@@ -1042,7 +1063,7 @@ function SettingsPage() {
                       className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
                     />
                     <p className="text-[10px] text-muted-foreground/60 font-light">
-                      Hours before the match starts when users are blocked from cancelling accepted invitations.
+                      Hours before match start when accepted members can no longer cancel. {autoPublishRotation ? `At that time court rotation is generated and published automatically (${cancellationLockHours || 0} hour(s) before start).` : "Automatic generate and publish is off: rotation stays manual, but cancellations still close at this window."}
                     </p>
                   </div>
                 </div>

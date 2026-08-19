@@ -1,3 +1,4 @@
+import { useCan } from "@/lib/permissions";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
@@ -397,6 +398,9 @@ function MemberLeagueGroupsView() {
 
 function AdminLeagueGroupsView() {
   const store = useStore();
+  const canCreateGroup = useCan("league_groups.create");
+  const canEditGroup = useCan("league_groups.edit");
+  const canDeleteGroup = useCan("league_groups.delete");
   const allMembers = useStore((s) => s.members);
   const members = allMembers.filter(
     (m) => m.membership && m.status === "active" && m.memberType.toLowerCase() === "adult",
@@ -573,7 +577,7 @@ function AdminLeagueGroupsView() {
         title="League Groups"
         description="Organize league participants into groups to filter play invitations."
         actions={
-          !isCreating && !editingId && (
+          !isCreating && !editingId && canCreateGroup && (
             <Button onClick={handleStartCreate} className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
               <Plus className="size-4 mr-1.5" /> Create Group
             </Button>
@@ -832,6 +836,7 @@ function AdminLeagueGroupsView() {
                       </div>
 
                       <div className="mt-6 flex gap-2 w-full pt-3 border-t border-white/[0.03]">
+                        {canEditGroup && (
                         <Button
                           variant="outline"
                           className="flex-1 btn-premium-outline h-9 text-[12px] hover:cursor-pointer"
@@ -839,6 +844,8 @@ function AdminLeagueGroupsView() {
                         >
                           <Pencil className="size-3.5 mr-1" /> Edit
                         </Button>
+                        )}
+                        {canDeleteGroup && (
                         <Button
                           variant="destructive"
                           className="flex-1 btn-premium-danger h-9 text-[12px] hover:cursor-pointer"
@@ -846,6 +853,7 @@ function AdminLeagueGroupsView() {
                         >
                           <Trash2 className="size-3.5 mr-1" /> Delete
                         </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -875,6 +883,7 @@ function AdminLeagueGroupsView() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right px-5 py-3 space-x-2">
+                        {canEditGroup && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -883,6 +892,8 @@ function AdminLeagueGroupsView() {
                         >
                           <Pencil className="size-3 mr-1" /> Edit
                         </Button>
+                        )}
+                        {canDeleteGroup && (
                         <Button
                           variant="destructive"
                           size="sm"
@@ -891,6 +902,7 @@ function AdminLeagueGroupsView() {
                         >
                           <Trash2 className="size-3 mr-1" /> Delete
                         </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

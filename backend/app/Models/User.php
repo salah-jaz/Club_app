@@ -59,7 +59,7 @@ class User extends Authenticatable
             return [];
         }
 
-        if ($this->is_super_admin) {
+        if ($this->is_super_admin || !$this->admin_role_id) {
             return Permission::pluck('id')->all();
         }
 

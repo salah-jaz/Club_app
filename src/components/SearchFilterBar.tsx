@@ -348,22 +348,28 @@ export function useSearchFilters(
     const params = new URLSearchParams();
     if (search) params.set("q", search);
     Object.entries(filters).forEach(([k, v]) => {
-      if (v && v !== "all") {
+      if (v && v !== "all" && v !== initialFilters[k]) {
         params.set(k, v);
       }
     });
-    if (sortBy) params.set("sortBy", sortBy);
+    if (sortBy && sortBy !== initialSort) {
+      params.set("sortBy", sortBy);
+    }
 
     const newSearch = params.toString();
     const currentUrl = window.location.pathname;
+    const currentSearch = window.location.search;
     const nextUrl = newSearch ? `${currentUrl}?${newSearch}` : currentUrl;
-    
-    window.history.replaceState(
-      { ...window.history.state, as: nextUrl, url: nextUrl },
-      "",
-      nextUrl
-    );
-  }, [search, filters, sortBy]);
+    const currentFullUrl = currentSearch ? `${currentUrl}${currentSearch}` : currentUrl;
+
+    if (nextUrl !== currentFullUrl && typeof window !== "undefined") {
+      window.history.replaceState(
+        window.history.state,
+        "",
+        nextUrl
+      );
+    }
+  }, [search, filters, sortBy, initialSort, initialFilters]);
 
   const handleSearchChange = useCallback((val: string) => {
     setSearch(val);

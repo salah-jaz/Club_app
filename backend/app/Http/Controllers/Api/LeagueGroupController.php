@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\PermissionHelper;
 use App\Http\Controllers\Controller;
 use App\Models\LeagueGroup;
 use App\Models\Member;
@@ -28,6 +29,10 @@ class LeagueGroupController extends Controller
 
     public function store(Request $request)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'league_groups.create')) {
+            return $response;
+        }
+
         if ($request->user()?->role !== 'admin') {
             return response()->json(['message' => 'Only admins can create league groups.'], 403);
         }
@@ -57,6 +62,10 @@ class LeagueGroupController extends Controller
 
     public function update(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'league_groups.edit')) {
+            return $response;
+        }
+
         if ($request->user()?->role !== 'admin') {
             return response()->json(['message' => 'Only admins can update league groups.'], 403);
         }
@@ -86,6 +95,10 @@ class LeagueGroupController extends Controller
 
     public function destroy(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'league_groups.delete')) {
+            return $response;
+        }
+
         if ($request->user()?->role !== 'admin') {
             return response()->json(['message' => 'Only admins can delete league groups.'], 403);
         }

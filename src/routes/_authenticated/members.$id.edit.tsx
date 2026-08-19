@@ -1,3 +1,4 @@
+import { useCan } from "@/lib/permissions";
 import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/PageHeader";
@@ -13,11 +14,15 @@ function EditMember() {
   const update = useStore((s) => s.updateMember);
   const navigate = useNavigate();
 
+  const activeRole = useStore((s) => s.activeRole) || user.role;
+
+  const canEditMembers = useCan("members.edit");
   if (!member) return <Navigate to="/members" />;
-  const canEdit = user.role === "admin" || member.userId === user.id;
+  const isJunior = member.memberType.toLowerCase() === "junior";
+  const canEdit = (activeRole === "admin" && canEditMembers) || (activeRole === "member" && (isJunior || member.userId === user.id));
   if (!canEdit) return <Navigate to="/members" />;
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = activeRole === "admin";
   const familyMemberMode = !isAdmin && member.memberType === "junior";
 
   return (

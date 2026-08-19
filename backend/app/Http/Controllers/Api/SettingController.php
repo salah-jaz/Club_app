@@ -16,6 +16,7 @@ use App\Models\Holiday;
 use App\Models\PlayerPosition;
 use App\Models\Setting;
 use App\Helpers\MailHelper;
+use App\Helpers\PermissionHelper;
 use Illuminate\Http\Request;
 
 class SettingController extends Controller
@@ -40,6 +41,7 @@ class SettingController extends Controller
         'emailFooterText' => 'email_footer_text',
         'cancellationLockHours' => 'cancellation_lock_hours',
         'debitTimingHours' => 'debit_timing_hours',
+        'autoPublishRotation' => 'auto_publish_rotation',
         'showGradeInCourtRotation' => 'show_grade_in_court_rotation',
         'adultDiscountPercent' => 'adult_discount_percent',
         'adultDiscountAmount' => 'adult_discount_amount',
@@ -74,10 +76,12 @@ class SettingController extends Controller
 
         foreach ($this->settingKeys as $camel => $snake) {
             $val = $dbSettings->get($snake);
-            if ($camel === 'skipCreditConsumption') {
-                $data[$camel] = $val === 'true';
-            } else if ($camel === 'showGradeInCourtRotation') {
-                $data[$camel] = $val === 'true';
+            if (in_array($camel, ['skipCreditConsumption', 'showGradeInCourtRotation', 'autoPublishRotation'], true)) {
+                if ($camel === 'autoPublishRotation') {
+                    $data[$camel] = $val === null ? true : $val === 'true';
+                } else {
+                    $data[$camel] = $val === 'true';
+                }
             } else if ($camel === 'cancellationLockHours' || $camel === 'debitTimingHours') {
                 $data[$camel] = $val !== null ? (int)$val : null;
             } else if (in_array($camel, ['adultDiscountPercent', 'adultDiscountAmount', 'juniorDiscountPercent', 'juniorDiscountAmount'], true)) {
@@ -92,9 +96,13 @@ class SettingController extends Controller
         if (empty($data['appLogoText'])) $data['appLogoText'] = 'C';
         if (empty($data['appLogoBase64'])) $data['appLogoBase64'] = '/logo.png';
         if (empty($data['currency'])) $data['currency'] = '$';
-        if (empty($data['timezone'])) $data['timezone'] = 'Asia/Kolkata';
+        if (empty($data['timezone'])) {
+            $data['timezone'] = 'Asia/Kolkata';
+            Setting::updateOrCreate(['key' => 'timezone'], ['value' => 'Asia/Kolkata']);
+        }
         if ($data['cancellationLockHours'] === null) $data['cancellationLockHours'] = 24;
         if ($data['debitTimingHours'] === null) $data['debitTimingHours'] = 24;
+        if (!isset($data['autoPublishRotation'])) $data['autoPublishRotation'] = true;
         foreach (['adultDiscountPercent', 'adultDiscountAmount', 'juniorDiscountPercent', 'juniorDiscountAmount'] as $discountKey) {
             if (!isset($data[$discountKey])) $data[$discountKey] = 0;
         }
@@ -111,11 +119,15 @@ class SettingController extends Controller
 
     public function update(Request $request)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'settings.edit')) {
+            return $response;
+        }
+
         // 1. Save standard settings
         foreach ($this->settingKeys as $camel => $snake) {
             if ($request->has($camel)) {
                 $val = $request->input($camel);
-                if ($camel === 'skipCreditConsumption' || $camel === 'showGradeInCourtRotation') {
+                if (in_array($camel, ['skipCreditConsumption', 'showGradeInCourtRotation', 'autoPublishRotation'], true)) {
                     $val = filter_var($val, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
                 }
                 if (in_array($camel, ['adultDiscountMode', 'juniorDiscountMode'], true)) {
@@ -261,11 +273,17 @@ class SettingController extends Controller
             }
         }
 
+        \App\Helpers\SessionTimingHelper::applyClubTimezone();
+        \App\Http\Controllers\Api\PlayScheduleController::processAutoPublishAndRotation();
         return $this->index();
     }
 
     public function testSmtp(Request $request)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'settings.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'mailHost' => 'required|string',
             'mailPort' => 'required',

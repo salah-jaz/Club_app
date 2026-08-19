@@ -1,5 +1,6 @@
-import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatches, useNavigate } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
+import { useCan } from "@/lib/permissions";
 import { useMemo, useRef, useState } from "react";
 import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,13 +12,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Plus, Pencil, Wallet, LayoutGrid, List, Users, UserRound, Trophy,
   Upload, Download, Mail, IdCard, CheckSquare, Square, ChevronDown, ChevronRight,
+  Phone, Calendar, User, CheckCircle2, XCircle, Trash2, LogIn,
 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { toast } from "sonner";
-import { Trash2, LogIn } from "lucide-react";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -355,23 +356,28 @@ function MemberActions({
   onRequestDelete: (member: Member) => void;
   compact?: boolean;
 }) {
+  const user = useCurrentUser()!;
   const loginAs = useStore((s) => s.loginAs);
   const isJunior = member.memberType.toLowerCase() === "junior";
-  const canEdit = activeRole === "admin" || (activeRole === "member" && isJunior);
+  const canEdit = (activeRole === "admin" && useCan("members.edit")) || (activeRole === "member" && (isJunior || member.userId === user.id));
   const canCredits = activeRole === "admin" || activeRole === "member";
-  // Juniors (and all members) may only be deleted by admins
-  const canDelete = activeRole === "admin";
+  const canDelete = activeRole === "admin" && useCan("members.delete");
+  const canLoginAs = activeRole === "admin" && useCan("members.edit");
   const btnClass = compact
     ? "h-8 text-xs px-2"
     : "h-9 text-xs flex-1 basis-[calc(50%-0.25rem)] sm:basis-0 min-w-0";
 
   return (
-    <div className={cn("flex flex-wrap gap-2 min-w-0", compact ? "justify-end" : "w-full")}>
-      {activeRole === "admin" && !isJunior && (
+    <div
+      className={cn("flex flex-wrap gap-2 min-w-0", compact ? "justify-end" : "w-full")}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {canLoginAs && !isJunior && (
         <Button
           variant="outline"
           className={cn("bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 hover:cursor-pointer min-w-0", btnClass)}
-          onClick={async () => {
+          onClick={async (e) => {
+            e.stopPropagation();
             if (confirm(`Login as ${member.firstName} ${member.lastName}?`)) {
               try {
                 await loginAs(member.id);
@@ -387,14 +393,24 @@ function MemberActions({
         </Button>
       )}
       {canEdit && (
-        <Button asChild variant="outline" className={cn("btn-premium-outline hover:cursor-pointer min-w-0", btnClass)}>
+        <Button
+          asChild
+          variant="outline"
+          className={cn("btn-premium-outline hover:cursor-pointer min-w-0", btnClass)}
+          onClick={(e) => e.stopPropagation()}
+        >
           <Link to="/members/$id/edit" params={{ id: member.id }}>
             <Pencil className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Edit</span>
           </Link>
         </Button>
       )}
       {canCredits && (
-        <Button asChild variant="outline" className={cn("btn-premium-violet-outline hover:cursor-pointer min-w-0", btnClass)}>
+        <Button
+          asChild
+          variant="outline"
+          className={cn("btn-premium-violet-outline hover:cursor-pointer min-w-0", btnClass)}
+          onClick={(e) => e.stopPropagation()}
+        >
           <Link to={`/credits?memberId=${member.id}` as any}>
             <Wallet className="size-3.5 mr-1 shrink-0" /> <span className="truncate">Credit</span>
           </Link>
@@ -407,7 +423,10 @@ function MemberActions({
             "btn-premium-danger hover:cursor-pointer shrink-0",
             compact ? "h-8 w-8 p-0" : "h-9 w-9 p-0",
           )}
-          onClick={() => onRequestDelete(member)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRequestDelete(member);
+          }}
           aria-label={`Remove ${member.firstName} ${member.lastName}`}
           title="Remove"
         >
@@ -418,15 +437,306 @@ function MemberActions({
   );
 }
 
+function MemberDetailDialog({
+  member,
+  open,
+  onOpenChange,
+  activeRole,
+  onRequestDelete,
+}: {
+  member: Member | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  activeRole: string;
+  onRequestDelete: (member: Member) => void;
+}) {
+  const user = useCurrentUser()!;
+  const members = useStore((s) => s.members);
+  const loginAs = useStore((s) => s.loginAs);
+  const canEditMembers = useCan("members.edit");
+  const canDeleteMembersPerm = useCan("members.delete");
+
+  if (!member) return null;
+
+  const isJunior = member.memberType.toLowerCase() === "junior";
+  const parentMember = member.parentMemberId
+    ? members.find((m) => m.id === member.parentMemberId)
+    : members.find((m) => m.id !== member.id && m.userId === member.userId && m.memberType.toLowerCase() === "adult");
+
+  const walletMember = isJunior && parentMember ? parentMember : member;
+  const childMembers = members.filter(
+    (m) =>
+      m.id !== member.id &&
+      (m.parentMemberId === member.id ||
+        (m.userId === member.userId && m.memberType.toLowerCase() === "junior")),
+  );
+
+  const canEdit = (activeRole === "admin" && canEditMembers) || (activeRole === "member" && (isJunior || member.userId === user.id));
+  const canCredits = activeRole === "admin" || activeRole === "member";
+  const canDelete = activeRole === "admin" && canDeleteMembersPerm;
+  const canLoginAs = activeRole === "admin" && canEditMembers;
+  const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] w-[calc(100%-1.5rem)] max-w-xl max-h-[90dvh] flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <Avatar className="size-14 border border-white/10 shrink-0">
+                <AvatarFallback className={cn(avatarBg, "font-bold text-lg")}>
+                  {member.firstName[0]}
+                  {member.lastName[0]}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <DialogTitle className="text-xl font-bold text-[#EEF2F0]">
+                    {member.firstName} {member.lastName}
+                  </DialogTitle>
+                  <StatusBadge status={member.status} />
+                </div>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[11px] font-medium px-2 py-0.5",
+                      isJunior
+                        ? "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30"
+                        : "bg-[#10B981]/10 text-[#34D399] border-[#10B981]/30",
+                    )}
+                  >
+                    {isJunior ? "Junior Member" : "Adult Member"}
+                  </Badge>
+                  {member.biMemberId && (
+                    <span className="font-mono text-xs text-[#8FA89F] bg-white/[0.04] border border-white/10 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <IdCard className="size-3 text-[#6B7F78]" />
+                      {member.biMemberId}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1 min-h-0">
+          {/* Member Privileges & Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-white/[0.06] bg-[#0C0F0E] p-3 space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7F78]">Membership</p>
+              <div className="flex items-center gap-1.5 font-medium text-xs">
+                {member.membership ? (
+                  <span className="text-[#5EEAD4] flex items-center gap-1">
+                    <CheckCircle2 className="size-3.5 text-[#2DD4BF]" /> Active Member
+                  </span>
+                ) : (
+                  <span className="text-[#8FA89F] flex items-center gap-1">
+                    <XCircle className="size-3.5 text-[#6B7F78]" /> Non-member
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/[0.06] bg-[#0C0F0E] p-3 space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7F78]">Grade / Level</p>
+              <p className="text-xs font-semibold text-[#EEF2F0]">{member.grade || "Unassigned"}</p>
+            </div>
+
+            <div className="rounded-xl border border-white/[0.06] bg-[#0C0F0E] p-3 space-y-1 col-span-2 sm:col-span-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7F78]">Eligibilities</p>
+              <div className="flex flex-wrap gap-1 text-[11px]">
+                {member.trainingEligible && (
+                  <span className="px-1.5 py-0.5 rounded bg-white/[0.05] text-[#8FA89F] border border-white/10">
+                    Training
+                  </span>
+                )}
+                {member.playEligible && (
+                  <span className="px-1.5 py-0.5 rounded bg-[#3B82F6]/10 text-[#93C5FD] border border-[#3B82F6]/25">
+                    Play
+                  </span>
+                )}
+                {!member.trainingEligible && !member.playEligible && (
+                  <span className="text-[#6B7F78]">Standard</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Wallet & Balance Section */}
+          <div className="rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] p-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8FA89F] flex items-center gap-1.5">
+                <Wallet className="size-3.5 text-[#F59E0B]" />
+                Wallet Balance
+              </p>
+              {isJunior ? (
+                <p className="text-xs text-[#8FA89F] mt-1">
+                  Junior members share their parent adult’s wallet (
+                  <span className="font-semibold text-[#EEF2F0]">
+                    {parentMember ? `${parentMember.firstName} ${parentMember.lastName}` : "Parent Account"}
+                  </span>
+                  ).
+                </p>
+              ) : (
+                <p className="text-xs text-[#8FA89F] mt-0.5">
+                  Available credit for bookings and subscriptions.
+                </p>
+              )}
+            </div>
+            <div className="text-right shrink-0">
+              <p
+                className={cn(
+                  "font-mono font-bold text-xl",
+                  walletMember.credit < 0 ? "text-[#F87171]" : "text-[#34D399]",
+                )}
+              >
+                {fmtMoney(walletMember.credit)}
+              </p>
+            </div>
+          </div>
+
+          {/* Personal Information */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[#8FA89F] border-b border-white/[0.06] pb-1.5">
+              Contact & Personal Details
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="flex items-center gap-2 text-[#C4D4CF]">
+                <Mail className="size-3.5 text-[#6B7F78] shrink-0" />
+                <span className="truncate">{member.email}</span>
+              </div>
+              <div className="flex items-center gap-2 text-[#C4D4CF]">
+                <Phone className="size-3.5 text-[#6B7F78] shrink-0" />
+                <span>{member.mobile || "No mobile number"}</span>
+              </div>
+              <div className="flex items-center gap-2 text-[#C4D4CF]">
+                <User className="size-3.5 text-[#6B7F78] shrink-0" />
+                <span className="capitalize">{member.sex || "Not specified"}</span>
+                {member.nickname && <span className="text-[#8FA89F]">({member.nickname})</span>}
+              </div>
+              <div className="flex items-center gap-2 text-[#C4D4CF]">
+                <Calendar className="size-3.5 text-[#6B7F78] shrink-0" />
+                <span>DOB: {member.dob || "Not specified"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Family & Relationships */}
+          {(parentMember || childMembers.length > 0) && (
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-[#8FA89F] border-b border-white/[0.06] pb-1.5">
+                Family & Linking
+              </h4>
+              {parentMember && (
+                <div className="rounded-lg border border-[rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.06)] p-3 flex items-center justify-between text-xs">
+                  <div>
+                    <p className="text-[11px] text-[#FBBF24] font-medium">Parent / Primary Adult</p>
+                    <p className="font-semibold text-[#EEF2F0] mt-0.5">
+                      {parentMember.firstName} {parentMember.lastName}
+                    </p>
+                  </div>
+                  {parentMember.biMemberId && (
+                    <span className="font-mono text-[11px] text-[#FBBF24]">{parentMember.biMemberId}</span>
+                  )}
+                </div>
+              )}
+
+              {childMembers.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-[#8FA89F]">Linked Junior Sub-members ({childMembers.length}):</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {childMembers.map((c) => (
+                      <div
+                        key={c.id}
+                        className="rounded-lg border border-white/[0.06] bg-[#0C0F0E] p-2.5 flex items-center justify-between text-xs"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-[#EEF2F0] truncate">
+                            {c.firstName} {c.lastName}
+                          </p>
+                          <p className="text-[10px] text-[#6B7F78] capitalize">{c.grade || "Junior"}</p>
+                        </div>
+                        <Badge variant="outline" className="text-[9px] border-[#F59E0B]/30 text-[#FBBF24] shrink-0">
+                          Junior
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="px-6 py-4 border-t border-white/[0.06] gap-2 flex-wrap sm:flex-nowrap shrink-0">
+          <div className="flex items-center gap-2 w-full justify-end">
+            {canLoginAs && !isJunior && (
+              <Button
+                variant="outline"
+                className="bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 cursor-pointer h-9 text-xs"
+                onClick={async () => {
+                  if (confirm(`Login as ${member.firstName} ${member.lastName}?`)) {
+                    try {
+                      await loginAs(member.id);
+                      toast.success(`Logged in as ${member.firstName}`);
+                      window.location.href = "/dashboard";
+                    } catch (error: any) {
+                      toast.error(error.message || "Failed to login as member.");
+                    }
+                  }
+                }}
+              >
+                <LogIn className="size-3.5 mr-1.5" /> Login
+              </Button>
+            )}
+            {canEdit && (
+              <Button asChild variant="outline" className="btn-premium-outline cursor-pointer h-9 text-xs">
+                <Link to="/members/$id/edit" params={{ id: member.id }}>
+                  <Pencil className="size-3.5 mr-1.5" /> Edit details
+                </Link>
+              </Button>
+            )}
+            {canCredits && (
+              <Button asChild variant="outline" className="btn-premium-violet-outline cursor-pointer h-9 text-xs">
+                <Link to={`/credits?memberId=${member.id}` as any}>
+                  <Wallet className="size-3.5 mr-1.5" /> Wallet / Credit
+                </Link>
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="destructive"
+                className="btn-premium-danger cursor-pointer h-9 text-xs px-3"
+                onClick={() => {
+                  onOpenChange(false);
+                  onRequestDelete(member);
+                }}
+                title="Remove member"
+              >
+                <Trash2 className="size-3.5 mr-1.5" /> Remove
+              </Button>
+            )}
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function MembersList() {
   // Temporarily hide row selection + Bulk actions UI (set true to restore)
   const SHOW_MEMBER_BULK_UI = false;
 
+  const navigate = useNavigate();
   const user = useCurrentUser()!;
   const all = useStore((s) => s.members);
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const deleteMember = useStore((s) => s.deleteMember);
   const activeRole = useStore((s) => s.activeRole) || user.role;
+  const canAddMembers = activeRole !== "admin" || useCan("members.create");
+  const canBulkUpload = activeRole === "admin" && useCan("members.create");
+  const canDeleteMembers = activeRole === "admin" && useCan("members.delete");
   const store = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-members", "list");
@@ -434,9 +744,23 @@ function MembersList() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [detailMember, setDetailMember] = useState<Member | null>(null);
   /** Adult member ids with juniors expanded */
   const [expandedFamilyIds, setExpandedFamilyIds] = useState<Set<string>>(() => new Set());
   const bulkDeleteMembers = useStore((s) => s.bulkDeleteMembers);
+
+  const handleRowClick = (memberId: string, e?: React.SyntheticEvent) => {
+    if (e) {
+      const target = e.target as HTMLElement;
+      if (target.closest("button, a, input, [role='checkbox'], [role='menuitem']")) {
+        return;
+      }
+    }
+    const m = all.find((x) => x.id === memberId);
+    if (m) {
+      setDetailMember(m);
+    }
+  };
 
   const requestDeleteMember = (member: Member) => {
     const state = useStore.getState();
@@ -790,6 +1114,14 @@ function MembersList() {
 
   return (
     <div className="space-y-6 pb-8">
+      <MemberDetailDialog
+        member={detailMember}
+        open={Boolean(detailMember)}
+        onOpenChange={(open) => !open && setDetailMember(null)}
+        activeRole={activeRole}
+        onRequestDelete={requestDeleteMember}
+      />
+
       <ConfirmDeleteDialog
         request={deleteRequest}
         onOpenChange={(open) => !open && setDeleteRequest(null)}
@@ -962,7 +1294,7 @@ function MembersList() {
         actions={
           <div className="flex flex-wrap gap-2 w-full min-w-0 justify-start md:justify-end">
             <input type="file" ref={fileInputRef} onChange={handleBulkUpload} accept=".csv" className="hidden" />
-            {activeRole === "admin" && (
+            {canBulkUpload && (
               <>
                 <Button
                   variant="outline"
@@ -982,7 +1314,7 @@ function MembersList() {
                 </Button>
               </>
             )}
-            {(activeRole === "admin" || activeRole === "member") && (
+            {canAddMembers && (activeRole === "admin" || activeRole === "member") && (
               <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer shrink-0">
                 <Link to="/members/add">
                   <Plus className="size-4 mr-1.5 shrink-0" />
@@ -1188,8 +1520,19 @@ function MembersList() {
                 className={cn(depth === 1 && "sm:col-span-2 xl:col-span-1 xl:ml-4")}
               >
                 <Card
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View details for ${m.firstName} ${m.lastName}`}
+                  data-member-id={m.id}
+                  onClick={(e) => handleRowClick(m.id, e)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleRowClick(m.id, e);
+                    }
+                  }}
                   className={cn(
-                    "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] h-full signature-card-top",
+                    "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.22)] transition-all cursor-pointer h-full signature-card-top",
                     selectedSet.has(m.id) && "border-[rgba(251,191,36,0.45)]",
                     depth === 1 && "border-l-2 border-l-[#F59E0B]/50 bg-[#131916]/90",
                   )}
@@ -1200,7 +1543,10 @@ function MembersList() {
                         {depth === 0 && childCount > 0 ? (
                           <button
                             type="button"
-                            onClick={() => toggleFamilyExpand(m.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFamilyExpand(m.id);
+                            }}
                             className="size-7 shrink-0 rounded-md grid place-items-center text-[#8FA89F] hover:text-[#EEF2F0] hover:bg-white/[0.06] transition-colors"
                             aria-expanded={isExpanded}
                             aria-label={isExpanded ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}` : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`}
@@ -1215,12 +1561,14 @@ function MembersList() {
                           <span className="size-7 shrink-0" aria-hidden />
                         )}
                         {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
-                          <Checkbox
-                            checked={selectedSet.has(m.id)}
-                            onCheckedChange={(v) => toggleSelect(m.id, v === true)}
-                            className="shrink-0 border-white/30 data-[state=checked]:bg-[#FBBF24] data-[state=checked]:border-[#FBBF24] data-[state=checked]:text-[#111]"
-                            aria-label={`Select ${m.firstName} ${m.lastName}`}
-                          />
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedSet.has(m.id)}
+                              onCheckedChange={(v) => toggleSelect(m.id, v === true)}
+                              className="shrink-0 border-white/30 data-[state=checked]:bg-[#FBBF24] data-[state=checked]:border-[#FBBF24] data-[state=checked]:text-[#111]"
+                              aria-label={`Select ${m.firstName} ${m.lastName}`}
+                            />
+                          </div>
                         )}
                         <Avatar className={cn("border border-white/10 shrink-0", depth === 1 ? "size-9" : "size-11")}>
                           <AvatarFallback className={cn(avatarBg, "font-semibold text-sm")}>
@@ -1317,14 +1665,25 @@ function MembersList() {
                   return (
                     <TableRow
                       key={m.id}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`View details for ${m.firstName} ${m.lastName}`}
+                      data-member-id={m.id}
+                      onClick={(e) => handleRowClick(m.id, e)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleRowClick(m.id, e);
+                        }
+                      }}
                       className={cn(
-                        "border-b border-border hover:bg-muted/40 transition-colors",
+                        "border-b border-border hover:bg-muted/50 transition-colors cursor-pointer",
                         selectedSet.has(m.id) && "bg-[#FBBF24]/5",
                         depth === 1 && "bg-[rgba(245,158,11,0.03)]",
                       )}
                     >
                       {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
-                        <TableCell className="px-4 py-3.5">
+                        <TableCell className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={selectedSet.has(m.id)}
                             onCheckedChange={(v) => toggleSelect(m.id, v === true)}
@@ -1343,7 +1702,10 @@ function MembersList() {
                           {depth === 0 && childCount > 0 ? (
                             <button
                               type="button"
-                              onClick={() => toggleFamilyExpand(m.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFamilyExpand(m.id);
+                              }}
                               className="size-7 shrink-0 rounded-md grid place-items-center text-[#8FA89F] hover:text-[#EEF2F0] hover:bg-white/[0.06] transition-colors"
                               aria-expanded={isExpanded}
                               aria-label={isExpanded ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}` : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`}

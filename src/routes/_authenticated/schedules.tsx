@@ -1,3 +1,4 @@
+import { useCan } from "@/lib/permissions";
 import { createFileRoute, Link, Outlet, useRouterState, useMatches } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { Navigate } from "@tanstack/react-router";
@@ -106,6 +107,9 @@ export function isScheduleDeletable(
 
 function SchedulesList() {
   const s = useStore();
+  const canCreateSchedule = useCan("schedules.create");
+  const canEditSchedule = useCan("schedules.edit");
+  const canDeleteSchedule = useCan("schedules.delete");
   const locations = useStore((st) => st.locations);
   const holidays = useStore((st) => st.holidays);
   const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-schedules", "list");
@@ -364,9 +368,11 @@ function SchedulesList() {
         title="Play schedules"
         description="Create sessions, release invitations and generate rotations."
         actions={
+          canCreateSchedule ? (
           <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
             <Link to="/schedules/new"><Plus className="size-4" /> New schedule</Link>
           </Button>
+          ) : undefined
         }
       />
 
@@ -431,6 +437,7 @@ function SchedulesList() {
             </div>
 
             <div className="flex items-center gap-3">
+              {canDeleteSchedule && (
               <Button
                 variant="destructive"
                 size="sm"
@@ -441,6 +448,7 @@ function SchedulesList() {
                 <Trash2 className="size-3.5" />
                 <span>Delete Selected{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}</span>
               </Button>
+              )}
 
               <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0">
                 <button
@@ -565,7 +573,7 @@ function SchedulesList() {
                                 <Eye className="size-4" />
                               </Link>
                             </Button>
-                            {sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && sch.status !== "cancelled" && (
+                            {canEditSchedule && sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && sch.status !== "cancelled" && (
                               <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title="Edit Schedule">
                                 <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
                                   <Pencil className="size-4" />
@@ -708,7 +716,7 @@ function SchedulesList() {
                               <Eye className="size-4" />
                             </Link>
                           </Button>
-                          {sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && sch.status !== "cancelled" && (
+                          {canEditSchedule && sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && sch.status !== "cancelled" && (
                             <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title="Edit Schedule">
                               <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
                                 <Pencil className="size-4" />

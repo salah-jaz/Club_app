@@ -3,6 +3,7 @@
 namespace App\Helpers;
 
 use App\Models\PlaySchedule;
+use App\Models\Setting;
 use App\Models\Training;
 use Carbon\Carbon;
 
@@ -11,6 +12,54 @@ class SessionTimingHelper
     public const PHASE_UPCOMING = 'upcoming';
     public const PHASE_IN_PROGRESS = 'in_progress';
     public const PHASE_FINISHED = 'finished';
+
+    public static function clubTimezone(): string
+    {
+        try {
+            $tz = Setting::where('key', 'timezone')->value('value');
+            if (is_string($tz) && $tz !== '' && in_array($tz, timezone_identifiers_list(), true)) {
+                return $tz;
+            }
+        } catch (\Throwable $e) {
+            // settings table may not exist during early migrations
+        }
+
+        // Match SettingController / frontend default when timezone is not saved yet.
+        return 'Asia/Kolkata';
+    }
+
+    public static function applyClubTimezone(): void
+    {
+        $tz = self::clubTimezone();
+        date_default_timezone_set($tz);
+        config(['app.timezone' => $tz]);
+    }
+
+    public static function now(?Carbon $now = null): Carbon
+    {
+        $tz = self::clubTimezone();
+        if ($now) {
+            return $now->copy()->setTimezone($tz);
+        }
+
+        return Carbon::now($tz);
+    }
+
+    public static function parseDateTime(mixed $value): Carbon
+    {
+        $tz = self::clubTimezone();
+        if ($value instanceof Carbon) {
+            return Carbon::parse($value->format('Y-m-d H:i:s'), $tz);
+        }
+
+        $raw = trim((string) $value);
+        $raw = str_replace('T', ' ', $raw);
+        if (preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?)/', $raw, $m)) {
+            return Carbon::parse($m[1], $tz);
+        }
+
+        return Carbon::parse($raw, $tz);
+    }
 
     public static function parseDurationMinutes(?string $duration): int
     {
@@ -43,7 +92,7 @@ class SessionTimingHelper
 
     public static function assertScheduleNotInPast(string $dateTime): ?string
     {
-        if (Carbon::parse($dateTime)->lt(now())) {
+        if (self::parseDateTime($dateTime)->lt(self::now())) {
             return 'Schedule date and time must be today or later.';
         }
 
@@ -52,7 +101,7 @@ class SessionTimingHelper
 
     public static function playSessionEnd(PlaySchedule $schedule): Carbon
     {
-        $start = Carbon::parse($schedule->date);
+        $start = self::parseDateTime($schedule->date);
         $hours = (float) ($schedule->slot_hours ?? 0);
         $minutes = $hours > 0 ? max(1, (int) round($hours * 60)) : 60;
 
@@ -61,9 +110,9 @@ class SessionTimingHelper
 
     public static function trainingSessionEnd(Training $training): Carbon
     {
-        $start = Carbon::parse($training->start_date);
+        $start = self::parseDateTime($training->start_date);
         if (!empty($training->end_date)) {
-            $end = Carbon::parse($training->end_date);
+            $end = self::parseDateTime($training->end_date);
             if ($end->gt($start)) {
                 return $end;
             }
@@ -74,7 +123,7 @@ class SessionTimingHelper
 
     public static function phase(Carbon $start, Carbon $end, ?Carbon $now = null): string
     {
-        $now = $now ?? now();
+        $now = $now ? self::now($now) : self::now();
 
         if ($now->lt($start)) {
             return self::PHASE_UPCOMING;
@@ -89,14 +138,14 @@ class SessionTimingHelper
 
     public static function playSessionPhase(PlaySchedule $schedule, ?Carbon $now = null): string
     {
-        $start = Carbon::parse($schedule->date);
+        $start = self::parseDateTime($schedule->date);
 
         return self::phase($start, self::playSessionEnd($schedule), $now);
     }
 
     public static function trainingSessionPhase(Training $training, ?Carbon $now = null): string
     {
-        $start = Carbon::parse($training->start_date);
+        $start = self::parseDateTime($training->start_date);
 
         return self::phase($start, self::trainingSessionEnd($training), $now);
     }
