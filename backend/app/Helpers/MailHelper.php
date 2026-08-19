@@ -4,6 +4,24 @@ namespace App\Helpers;
 
 use App\Models\Setting;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Mail\Mailable;
+
+class GenericMailable extends Mailable
+{
+    public string $customSubject;
+    public string $htmlContent;
+
+    public function __construct(string $customSubject, string $htmlContent)
+    {
+        $this->customSubject = $customSubject;
+        $this->htmlContent = $htmlContent;
+    }
+
+    public function build()
+    {
+        return $this->subject($this->customSubject)->html($this->htmlContent);
+    }
+}
 
 class MailHelper
 {
@@ -65,6 +83,9 @@ class MailHelper
 
     public static function applySmtpSettings($customSettings = null)
     {
+        if (app()->environment('testing')) {
+            return;
+        }
         $host = $customSettings ? ($customSettings['mailHost'] ?? null) : Setting::where('key', 'mail_host')->value('value');
         if ($host) {
             $port = $customSettings ? ($customSettings['mailPort'] ?? null) : Setting::where('key', 'mail_port')->value('value');
@@ -93,9 +114,7 @@ class MailHelper
         self::applySmtpSettings();
         $html = self::renderWithTemplate($subject, $content);
         
-        Mail::html($html, function ($message) use ($to, $subject) {
-            $message->to($to)->subject($subject);
-        });
+        Mail::to($to)->send(new GenericMailable($subject, $html));
     }
 
     public static function sendApprovalEmail($user)
@@ -161,8 +180,12 @@ class MailHelper
 
     public static function sendScheduleNotification($member, $schedule, $status, $actionType = 'update')
     {
-        $subject = "Play Schedule Notification: " . $schedule->name;
+        $isUpdate = in_array($actionType, ['update', 'update_request'], true);
+        $subject = $isUpdate
+            ? "Play Schedule Update Notification: " . $schedule->name
+            : "Play Schedule Notification: " . $schedule->name;
         $title = $actionType === 'release' ? 'New Schedule Released' : 'Schedule Updated';
+        $actionVerb = $actionType === 'release' ? 'released' : 'updated';
         
         $estimatedFee = FeeHelper::playSessionFee(
             (float)$schedule->session_rate,
@@ -175,7 +198,7 @@ class MailHelper
         $content = "
             <h2 style=\"color: #34D399; font-size: 18px; margin-top: 0;\">$title</h2>
             <p>Hello {$member->first_name},</p>
-            <p>The play schedule <strong>{$schedule->name}</strong> has been {$actionType}d by the club.</p>
+            <p>The play schedule <strong>{$schedule->name}</strong> has been {$actionVerb} by the club.</p>
             <table style=\"width: 100%; border-collapse: collapse; margin-top: 15px;\">
                 <tr>
                     <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Date:</td>
@@ -198,34 +221,98 @@ class MailHelper
         self::sendEmail($member->email, $subject, $content);
     }
 
-    public static function sendTrainingNotification($member, $training, $status, $actionType = 'update')
+    public static function sendRegistrationEmail($user)
     {
-        $subject = "Training Session Notification: " . $training->name;
-        $title = $actionType === 'release' ? 'New Training Session Released' : 'Training Session Updated';
-        
+        $subject = "Account Registration Received";
+        $content = "
+            <h2 style=\"color: #34D399; font-size: 18px; margin-top: 0;\">Registration Received</h2>
+            <p>Hello {$user->first_name},</p>
+            <p>Thank you for registering your account with ClubConnect.</p>
+            <p>Your registration details have been received and are currently awaiting review by the club administrator. You will receive another email notification once your account is reviewed.</p>
+        ";
+        self::sendEmail($user->email, $subject, $content);
+    }
+
+    public static function sendTrainingNotification($member, $trainings, $status = 'open', $actionType = 'release')
+    {
+        if (empty($trainings)) {
+            return;
+        }
+
+        if ($trainings instanceof \Illuminate\Support\Collection) {
+            $trainingsList = $trainings->all();
+        } elseif (is_array($trainings)) {
+            $trainingsList = $trainings;
+        } else {
+            $trainingsList = [$trainings];
+        }
+
+        if (count($trainingsList) === 0) {
+            return;
+        }
+
+        $firstTraining = $trainingsList[0];
+        if (count($trainingsList) === 1) {
+            $programName = $firstTraining->name ?: \Carbon\Carbon::parse($firstTraining->start_date)->format('l · M j, Y · g:i A');
+        } else {
+            $parentId = $firstTraining->parent_id ?: $firstTraining->id;
+            $parentObj = \App\Models\Training::find($parentId);
+            $programName = ($parentObj ? $parentObj->name : $firstTraining->name) ?: \Carbon\Carbon::parse($firstTraining->start_date)->format('l · M j, Y · g:i A');
+        }
+
+        $coach = $firstTraining->coach ?: 'N/A';
+        $location = $firstTraining->location ?: 'N/A';
+
+        $isUpdate = in_array($actionType, ['update', 'update_request'], true);
+
+        if ($isUpdate) {
+            $subject = "Training Session Update Notification: " . $programName;
+            $title = $actionType === 'update_request' ? 'Training Session Update Requested' : 'Training Session Updated';
+            $actionVerb = 'updated';
+        } else {
+            $subject = "Training Session Notification: " . $programName;
+            $title = 'New Training Session Released';
+            $actionVerb = 'released';
+        }
+
+        if (count($trainingsList) === 1) {
+            $dateFormatted = \Carbon\Carbon::parse($firstTraining->start_date)->format('l · M j, Y · g:i A');
+            $datesHtml = "<span style=\"font-weight: bold;\">{$dateFormatted}</span>";
+        } else {
+            $dateItems = [];
+            foreach ($trainingsList as $tr) {
+                $dStr = \Carbon\Carbon::parse($tr->start_date)->format('l · M j, Y · g:i A');
+                $dateItems[] = "<li style=\"margin-bottom: 4px; color: #34D399;\"><strong style=\"color: #E8F0EE;\">{$dStr}</strong></li>";
+            }
+            $datesHtml = "<ul style=\"margin: 4px 0 0 0; padding-left: 18px;\">" . implode('', $dateItems) . "</ul>";
+        }
+
+        $dateLabel = count($trainingsList) > 1 ? 'Checked Session Dates:' : 'Date:';
+
         $content = "
             <h2 style=\"color: #34D399; font-size: 18px; margin-top: 0;\">$title</h2>
             <p>Hello {$member->first_name},</p>
-            <p>The training course <strong>{$training->name}</strong> has been {$actionType}d by the club.</p>
+            <p>The training course <strong>{$programName}</strong> has been {$actionVerb} by the club.</p>
             <table style=\"width: 100%; border-collapse: collapse; margin-top: 15px;\">
                 <tr>
-                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Coach:</td>
-                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">{$training->coach}</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;\">Coach:</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">{$coach}</td>
                 </tr>
                 <tr>
-                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Start Date:</td>
-                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">{$training->start_date}</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;\">Location:</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">{$location}</td>
                 </tr>
                 <tr>
-                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Location:</td>
-                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">{$training->location}</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;\">{$dateLabel}</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06);\">{$datesHtml}</td>
                 </tr>
                 <tr>
-                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Status:</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;\">Status:</td>
                     <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold; text-transform: uppercase;\">$status</td>
                 </tr>
             </table>
         ";
+
         self::sendEmail($member->email, $subject, $content);
     }
 }

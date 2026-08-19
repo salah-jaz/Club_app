@@ -322,10 +322,43 @@ class SettingController extends Controller
                 'message' => 'Test email sent successfully to ' . $to,
             ]);
         } catch (\Exception $e) {
+            $msg = $e->getMessage();
+
+            // Daily sending limit exceeded (e.g. Gmail 550 5.4.5)
+            if (str_contains($msg, '550-5.4.5') || str_contains($msg, '550 5.4.5') || str_contains($msg, 'Daily user sending limit exceeded')) {
+                return response()->json([
+                    'status' => 'warning',
+                    'message' => 'SMTP server authentication succeeded, but email delivery was blocked because your Gmail account (' . $request->mailUsername . ') exceeded its daily sending limit (500 emails/day). Please wait 24 hours or switch to an SMTP provider (e.g. SendGrid or Resend).',
+                ], 200);
+            }
+
+            // Authentication failure
+            if (str_contains($msg, '535') || str_contains($msg, 'Authentication failed') || str_contains($msg, 'BadCredentialsException')) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SMTP Authentication failed for username ' . $request->mailUsername . '. Please check your credentials or Google App Password.',
+                ], 200);
+            }
+
+            // Connection / Socket failure
+            if (str_contains($msg, 'Could not connect') || str_contains($msg, 'Connection refused') || str_contains($msg, 'Connection timed out') || str_contains($msg, 'stream_socket_client')) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to connect to SMTP host (' . $request->mailHost . ':' . $request->mailPort . '). Check your host, port, and network.',
+                ], 200);
+            }
+
+            // Extract clean message if formatted like Expected response code ... with message "..."
+            if (preg_match('/with message "(.*?)"/s', $msg, $matches)) {
+                $cleanMsg = $matches[1];
+            } else {
+                $cleanMsg = $msg;
+            }
+
             return response()->json([
                 'status' => 'error',
-                'message' => $e->getMessage(),
-            ], 500);
+                'message' => 'SMTP Error: ' . $cleanMsg,
+            ], 200);
         }
     }
 

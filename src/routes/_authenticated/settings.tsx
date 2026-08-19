@@ -1517,7 +1517,7 @@ function SettingsPage() {
                   </div>
 
                   <div className="text-[11px] text-muted-foreground/60 leading-relaxed font-light mt-2 bg-[#1A2120]/40 p-3 rounded-lg border border-white/[0.02]">
-                    <strong className="text-[#34D399] font-medium">Google SMTP Setup Tip:</strong> Use <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">smtp.gmail.com</code> with port <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">587</code> and encryption <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">TLS</code>. You must create an <strong>App Password</strong> in your Google Account settings; entering your normal Gmail password will result in a connection failure. Leave the host blank to disable SMTP and fallback to application log capture.
+                    <strong className="text-[#34D399] font-medium">Google SMTP Setup Tip:</strong> Use <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">smtp.gmail.com</code> with port <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">587</code> and encryption <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">TLS</code>. You must create an <strong>App Password</strong> in your Google Account settings. Standard Gmail accounts have a daily limit of 500 emails/day (error 550 5.4.5). Leave the host blank to disable SMTP and fallback to application log capture.
                   </div>
 
                   <div className="flex justify-end gap-3 pt-2">

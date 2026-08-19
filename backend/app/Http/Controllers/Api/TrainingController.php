@@ -453,6 +453,8 @@ class TrainingController extends Controller
             ->where('member_id', $memberId)
             ->get();
 
+        $hadExistingSentInvs = $existingInvs->contains(fn($i) => $i->status !== 'pending');
+
         $hasAccepted = $existingInvs->contains(fn($i) => $i->status === 'accepted');
 
         if ($hasAccepted && !$forceAccept) {
@@ -579,35 +581,31 @@ class TrainingController extends Controller
         foreach ($selectedSids as $sid) {
             $inv = TrainingInvitation::where('training_id', $sid)->where('member_id', $member->id)->first();
             if (!$inv) {
-                $inv = TrainingInvitation::create([
+                TrainingInvitation::create([
                     'id' => 'ti_' . Str::random(8),
                     'training_id' => $sid,
                     'member_id' => $member->id,
                     'status' => 'open',
                 ]);
-
-                try {
-                    $sessionObj = Training::find($sid);
-                    if ($sessionObj) {
-                        MailHelper::sendTrainingNotification($member, $sessionObj, 'open', 'release');
-                    }
-                } catch (\Exception $e) {
-                    logger()->error("Training invite email error: " . $e->getMessage());
-                }
             } else {
                 if ($inv->status === 'pending') {
                     $inv->status = 'open';
                     $inv->save();
-
-                    try {
-                        $sessionObj = Training::find($sid);
-                        if ($sessionObj) {
-                            MailHelper::sendTrainingNotification($member, $sessionObj, 'open', 'release');
-                        }
-                    } catch (\Exception $e) {
-                        logger()->error("Training invite email error: " . $e->getMessage());
-                    }
                 }
+            }
+        }
+
+        if (count($selectedSids) > 0) {
+            try {
+                $selectedTrainings = Training::whereIn('id', $selectedSids)
+                    ->orderBy('start_date', 'asc')
+                    ->get();
+                if ($selectedTrainings->count() > 0) {
+                    $actionType = $hadExistingSentInvs ? 'update' : 'release';
+                    MailHelper::sendTrainingNotification($member, $selectedTrainings, 'open', $actionType);
+                }
+            } catch (\Exception $e) {
+                logger()->error("Training invite email error: " . $e->getMessage());
             }
         }
 
@@ -1480,6 +1478,15 @@ class TrainingController extends Controller
             $dates = [];
         }
 
+        $parentId = $tr->parent_id ?: $tr->id;
+        $seriesTrainings = Training::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('start_date', 'asc')
+            ->get();
+        if ($seriesTrainings->count() === 0) {
+            $seriesTrainings = collect([$tr]);
+        }
+
         $invites = [];
         foreach ($memberIds as $mid) {
             $existingInv = TrainingInvitation::where('training_id', $tr->id)
@@ -1496,7 +1503,7 @@ class TrainingController extends Controller
                     $member = Member::find($mid);
                     if ($member) {
                         try {
-                            MailHelper::sendTrainingNotification($member, $tr, 'open', 'release');
+                            MailHelper::sendTrainingNotification($member, $seriesTrainings, 'open', 'release');
                         } catch (\Exception $e) {
                             logger()->error("Training release email failed for member {$mid}: " . $e->getMessage());
                         }
@@ -1523,7 +1530,7 @@ class TrainingController extends Controller
                 $member = Member::find($mid);
                 if ($member) {
                     try {
-                        MailHelper::sendTrainingNotification($member, $tr, $inviteStatus, 'release');
+                        MailHelper::sendTrainingNotification($member, $seriesTrainings, $inviteStatus, 'release');
                     } catch (\Exception $e) {
                         logger()->error("Training release email failed for member {$mid}: " . $e->getMessage());
                     }
