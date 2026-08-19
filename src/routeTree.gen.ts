@@ -15,18 +15,26 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTransactionsRouteImport } from './routes/_authenticated/transactions'
 import { Route as AuthenticatedTrainingsRouteImport } from './routes/_authenticated/trainings'
+import { Route as AuthenticatedTrainingRouteImport } from './routes/_authenticated/training'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSchedulesRouteImport } from './routes/_authenticated/schedules'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedMembersRouteImport } from './routes/_authenticated/members'
+import { Route as AuthenticatedLeagueGroupsRouteImport } from './routes/_authenticated/league-groups'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
+import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated/events'
+import { Route as AuthenticatedEmailTemplatesRouteImport } from './routes/_authenticated/email-templates'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCreditsRouteImport } from './routes/_authenticated/credits'
 import { Route as AuthenticatedApprovalsRouteImport } from './routes/_authenticated/approvals'
+import { Route as AuthenticatedAdminManagementRouteImport } from './routes/_authenticated/admin-management'
 import { Route as AuthenticatedTrainingsNewRouteImport } from './routes/_authenticated/trainings.new'
-import { Route as AuthenticatedTrainingsIdRouteImport } from './routes/_authenticated/trainings.$id'
 import { Route as AuthenticatedSchedulesNewRouteImport } from './routes/_authenticated/schedules.new'
-import { Route as AuthenticatedSchedulesIdRouteImport } from './routes/_authenticated/schedules.$id'
 import { Route as AuthenticatedMembersAddRouteImport } from './routes/_authenticated/members.add'
+import { Route as AuthenticatedTrainingsIdIndexRouteImport } from './routes/_authenticated/trainings.$id.index'
+import { Route as AuthenticatedSchedulesIdIndexRouteImport } from './routes/_authenticated/schedules.$id.index'
+import { Route as AuthenticatedTrainingsIdEditRouteImport } from './routes/_authenticated/trainings.$id.edit'
+import { Route as AuthenticatedSchedulesIdEditRouteImport } from './routes/_authenticated/schedules.$id.edit'
 import { Route as AuthenticatedMembersIdEditRouteImport } from './routes/_authenticated/members.$id.edit'
 
 const RegisterRoute = RegisterRouteImport.update({
@@ -59,6 +67,16 @@ const AuthenticatedTrainingsRoute = AuthenticatedTrainingsRouteImport.update({
   path: '/trainings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedTrainingRoute = AuthenticatedTrainingRouteImport.update({
+  id: '/training',
+  path: '/training',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSchedulesRoute = AuthenticatedSchedulesRouteImport.update({
   id: '/schedules',
   path: '/schedules',
@@ -74,10 +92,27 @@ const AuthenticatedMembersRoute = AuthenticatedMembersRouteImport.update({
   path: '/members',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedLeagueGroupsRoute =
+  AuthenticatedLeagueGroupsRouteImport.update({
+    id: '/league-groups',
+    path: '/league-groups',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedInvitationsRoute =
   AuthenticatedInvitationsRouteImport.update({
     id: '/invitations',
     path: '/invitations',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedEventsRoute = AuthenticatedEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedEmailTemplatesRoute =
+  AuthenticatedEmailTemplatesRouteImport.update({
+    id: '/email-templates',
+    path: '/email-templates',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -95,16 +130,16 @@ const AuthenticatedApprovalsRoute = AuthenticatedApprovalsRouteImport.update({
   path: '/approvals',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminManagementRoute =
+  AuthenticatedAdminManagementRouteImport.update({
+    id: '/admin-management',
+    path: '/admin-management',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTrainingsNewRoute =
   AuthenticatedTrainingsNewRouteImport.update({
     id: '/new',
     path: '/new',
-    getParentRoute: () => AuthenticatedTrainingsRoute,
-  } as any)
-const AuthenticatedTrainingsIdRoute =
-  AuthenticatedTrainingsIdRouteImport.update({
-    id: '/$id',
-    path: '/$id',
     getParentRoute: () => AuthenticatedTrainingsRoute,
   } as any)
 const AuthenticatedSchedulesNewRoute =
@@ -113,17 +148,35 @@ const AuthenticatedSchedulesNewRoute =
     path: '/new',
     getParentRoute: () => AuthenticatedSchedulesRoute,
   } as any)
-const AuthenticatedSchedulesIdRoute =
-  AuthenticatedSchedulesIdRouteImport.update({
-    id: '/$id',
-    path: '/$id',
-    getParentRoute: () => AuthenticatedSchedulesRoute,
-  } as any)
 const AuthenticatedMembersAddRoute = AuthenticatedMembersAddRouteImport.update({
   id: '/add',
   path: '/add',
   getParentRoute: () => AuthenticatedMembersRoute,
 } as any)
+const AuthenticatedTrainingsIdIndexRoute =
+  AuthenticatedTrainingsIdIndexRouteImport.update({
+    id: '/$id/',
+    path: '/$id/',
+    getParentRoute: () => AuthenticatedTrainingsRoute,
+  } as any)
+const AuthenticatedSchedulesIdIndexRoute =
+  AuthenticatedSchedulesIdIndexRouteImport.update({
+    id: '/$id/',
+    path: '/$id/',
+    getParentRoute: () => AuthenticatedSchedulesRoute,
+  } as any)
+const AuthenticatedTrainingsIdEditRoute =
+  AuthenticatedTrainingsIdEditRouteImport.update({
+    id: '/$id/edit',
+    path: '/$id/edit',
+    getParentRoute: () => AuthenticatedTrainingsRoute,
+  } as any)
+const AuthenticatedSchedulesIdEditRoute =
+  AuthenticatedSchedulesIdEditRouteImport.update({
+    id: '/$id/edit',
+    path: '/$id/edit',
+    getParentRoute: () => AuthenticatedSchedulesRoute,
+  } as any)
 const AuthenticatedMembersIdEditRoute =
   AuthenticatedMembersIdEditRouteImport.update({
     id: '/$id/edit',
@@ -135,41 +188,57 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/admin-management': typeof AuthenticatedAdminManagementRoute
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/email-templates': typeof AuthenticatedEmailTemplatesRoute
+  '/events': typeof AuthenticatedEventsRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
+  '/league-groups': typeof AuthenticatedLeagueGroupsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
   '/profile': typeof AuthenticatedProfileRoute
   '/schedules': typeof AuthenticatedSchedulesRouteWithChildren
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/training': typeof AuthenticatedTrainingRoute
   '/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/transactions': typeof AuthenticatedTransactionsRoute
   '/members/add': typeof AuthenticatedMembersAddRoute
-  '/schedules/$id': typeof AuthenticatedSchedulesIdRoute
   '/schedules/new': typeof AuthenticatedSchedulesNewRoute
-  '/trainings/$id': typeof AuthenticatedTrainingsIdRoute
   '/trainings/new': typeof AuthenticatedTrainingsNewRoute
   '/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
+  '/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
+  '/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
+  '/schedules/$id/': typeof AuthenticatedSchedulesIdIndexRoute
+  '/trainings/$id/': typeof AuthenticatedTrainingsIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/admin-management': typeof AuthenticatedAdminManagementRoute
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/email-templates': typeof AuthenticatedEmailTemplatesRoute
+  '/events': typeof AuthenticatedEventsRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
+  '/league-groups': typeof AuthenticatedLeagueGroupsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
   '/profile': typeof AuthenticatedProfileRoute
   '/schedules': typeof AuthenticatedSchedulesRouteWithChildren
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/training': typeof AuthenticatedTrainingRoute
   '/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/transactions': typeof AuthenticatedTransactionsRoute
   '/members/add': typeof AuthenticatedMembersAddRoute
-  '/schedules/$id': typeof AuthenticatedSchedulesIdRoute
   '/schedules/new': typeof AuthenticatedSchedulesNewRoute
-  '/trainings/$id': typeof AuthenticatedTrainingsIdRoute
   '/trainings/new': typeof AuthenticatedTrainingsNewRoute
   '/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
+  '/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
+  '/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
+  '/schedules/$id': typeof AuthenticatedSchedulesIdIndexRoute
+  '/trainings/$id': typeof AuthenticatedTrainingsIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -177,21 +246,29 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/_authenticated/admin-management': typeof AuthenticatedAdminManagementRoute
   '/_authenticated/approvals': typeof AuthenticatedApprovalsRoute
   '/_authenticated/credits': typeof AuthenticatedCreditsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/email-templates': typeof AuthenticatedEmailTemplatesRoute
+  '/_authenticated/events': typeof AuthenticatedEventsRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
+  '/_authenticated/league-groups': typeof AuthenticatedLeagueGroupsRoute
   '/_authenticated/members': typeof AuthenticatedMembersRouteWithChildren
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/schedules': typeof AuthenticatedSchedulesRouteWithChildren
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/training': typeof AuthenticatedTrainingRoute
   '/_authenticated/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/_authenticated/transactions': typeof AuthenticatedTransactionsRoute
   '/_authenticated/members/add': typeof AuthenticatedMembersAddRoute
-  '/_authenticated/schedules/$id': typeof AuthenticatedSchedulesIdRoute
   '/_authenticated/schedules/new': typeof AuthenticatedSchedulesNewRoute
-  '/_authenticated/trainings/$id': typeof AuthenticatedTrainingsIdRoute
   '/_authenticated/trainings/new': typeof AuthenticatedTrainingsNewRoute
   '/_authenticated/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
+  '/_authenticated/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
+  '/_authenticated/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
+  '/_authenticated/schedules/$id/': typeof AuthenticatedSchedulesIdIndexRoute
+  '/_authenticated/trainings/$id/': typeof AuthenticatedTrainingsIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -199,62 +276,86 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
+    | '/admin-management'
     | '/approvals'
     | '/credits'
     | '/dashboard'
+    | '/email-templates'
+    | '/events'
     | '/invitations'
+    | '/league-groups'
     | '/members'
     | '/profile'
     | '/schedules'
+    | '/settings'
+    | '/training'
     | '/trainings'
     | '/transactions'
     | '/members/add'
-    | '/schedules/$id'
     | '/schedules/new'
-    | '/trainings/$id'
     | '/trainings/new'
     | '/members/$id/edit'
+    | '/schedules/$id/edit'
+    | '/trainings/$id/edit'
+    | '/schedules/$id/'
+    | '/trainings/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/register'
+    | '/admin-management'
     | '/approvals'
     | '/credits'
     | '/dashboard'
+    | '/email-templates'
+    | '/events'
     | '/invitations'
+    | '/league-groups'
     | '/members'
     | '/profile'
     | '/schedules'
+    | '/settings'
+    | '/training'
     | '/trainings'
     | '/transactions'
     | '/members/add'
-    | '/schedules/$id'
     | '/schedules/new'
-    | '/trainings/$id'
     | '/trainings/new'
     | '/members/$id/edit'
+    | '/schedules/$id/edit'
+    | '/trainings/$id/edit'
+    | '/schedules/$id'
+    | '/trainings/$id'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/login'
     | '/register'
+    | '/_authenticated/admin-management'
     | '/_authenticated/approvals'
     | '/_authenticated/credits'
     | '/_authenticated/dashboard'
+    | '/_authenticated/email-templates'
+    | '/_authenticated/events'
     | '/_authenticated/invitations'
+    | '/_authenticated/league-groups'
     | '/_authenticated/members'
     | '/_authenticated/profile'
     | '/_authenticated/schedules'
+    | '/_authenticated/settings'
+    | '/_authenticated/training'
     | '/_authenticated/trainings'
     | '/_authenticated/transactions'
     | '/_authenticated/members/add'
-    | '/_authenticated/schedules/$id'
     | '/_authenticated/schedules/new'
-    | '/_authenticated/trainings/$id'
     | '/_authenticated/trainings/new'
     | '/_authenticated/members/$id/edit'
+    | '/_authenticated/schedules/$id/edit'
+    | '/_authenticated/trainings/$id/edit'
+    | '/_authenticated/schedules/$id/'
+    | '/_authenticated/trainings/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -308,6 +409,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTrainingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/training': {
+      id: '/_authenticated/training'
+      path: '/training'
+      fullPath: '/training'
+      preLoaderRoute: typeof AuthenticatedTrainingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/schedules': {
       id: '/_authenticated/schedules'
       path: '/schedules'
@@ -329,11 +444,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMembersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/league-groups': {
+      id: '/_authenticated/league-groups'
+      path: '/league-groups'
+      fullPath: '/league-groups'
+      preLoaderRoute: typeof AuthenticatedLeagueGroupsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/invitations': {
       id: '/_authenticated/invitations'
       path: '/invitations'
       fullPath: '/invitations'
       preLoaderRoute: typeof AuthenticatedInvitationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/events': {
+      id: '/_authenticated/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof AuthenticatedEventsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/email-templates': {
+      id: '/_authenticated/email-templates'
+      path: '/email-templates'
+      fullPath: '/email-templates'
+      preLoaderRoute: typeof AuthenticatedEmailTemplatesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -357,18 +493,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedApprovalsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin-management': {
+      id: '/_authenticated/admin-management'
+      path: '/admin-management'
+      fullPath: '/admin-management'
+      preLoaderRoute: typeof AuthenticatedAdminManagementRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/trainings/new': {
       id: '/_authenticated/trainings/new'
       path: '/new'
       fullPath: '/trainings/new'
       preLoaderRoute: typeof AuthenticatedTrainingsNewRouteImport
-      parentRoute: typeof AuthenticatedTrainingsRoute
-    }
-    '/_authenticated/trainings/$id': {
-      id: '/_authenticated/trainings/$id'
-      path: '/$id'
-      fullPath: '/trainings/$id'
-      preLoaderRoute: typeof AuthenticatedTrainingsIdRouteImport
       parentRoute: typeof AuthenticatedTrainingsRoute
     }
     '/_authenticated/schedules/new': {
@@ -378,19 +514,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSchedulesNewRouteImport
       parentRoute: typeof AuthenticatedSchedulesRoute
     }
-    '/_authenticated/schedules/$id': {
-      id: '/_authenticated/schedules/$id'
-      path: '/$id'
-      fullPath: '/schedules/$id'
-      preLoaderRoute: typeof AuthenticatedSchedulesIdRouteImport
-      parentRoute: typeof AuthenticatedSchedulesRoute
-    }
     '/_authenticated/members/add': {
       id: '/_authenticated/members/add'
       path: '/add'
       fullPath: '/members/add'
       preLoaderRoute: typeof AuthenticatedMembersAddRouteImport
       parentRoute: typeof AuthenticatedMembersRoute
+    }
+    '/_authenticated/trainings/$id/': {
+      id: '/_authenticated/trainings/$id/'
+      path: '/$id'
+      fullPath: '/trainings/$id/'
+      preLoaderRoute: typeof AuthenticatedTrainingsIdIndexRouteImport
+      parentRoute: typeof AuthenticatedTrainingsRoute
+    }
+    '/_authenticated/schedules/$id/': {
+      id: '/_authenticated/schedules/$id/'
+      path: '/$id'
+      fullPath: '/schedules/$id/'
+      preLoaderRoute: typeof AuthenticatedSchedulesIdIndexRouteImport
+      parentRoute: typeof AuthenticatedSchedulesRoute
+    }
+    '/_authenticated/trainings/$id/edit': {
+      id: '/_authenticated/trainings/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/trainings/$id/edit'
+      preLoaderRoute: typeof AuthenticatedTrainingsIdEditRouteImport
+      parentRoute: typeof AuthenticatedTrainingsRoute
+    }
+    '/_authenticated/schedules/$id/edit': {
+      id: '/_authenticated/schedules/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/schedules/$id/edit'
+      preLoaderRoute: typeof AuthenticatedSchedulesIdEditRouteImport
+      parentRoute: typeof AuthenticatedSchedulesRoute
     }
     '/_authenticated/members/$id/edit': {
       id: '/_authenticated/members/$id/edit'
@@ -416,14 +573,16 @@ const AuthenticatedMembersRouteWithChildren =
   AuthenticatedMembersRoute._addFileChildren(AuthenticatedMembersRouteChildren)
 
 interface AuthenticatedSchedulesRouteChildren {
-  AuthenticatedSchedulesIdRoute: typeof AuthenticatedSchedulesIdRoute
   AuthenticatedSchedulesNewRoute: typeof AuthenticatedSchedulesNewRoute
+  AuthenticatedSchedulesIdEditRoute: typeof AuthenticatedSchedulesIdEditRoute
+  AuthenticatedSchedulesIdIndexRoute: typeof AuthenticatedSchedulesIdIndexRoute
 }
 
 const AuthenticatedSchedulesRouteChildren: AuthenticatedSchedulesRouteChildren =
   {
-    AuthenticatedSchedulesIdRoute: AuthenticatedSchedulesIdRoute,
     AuthenticatedSchedulesNewRoute: AuthenticatedSchedulesNewRoute,
+    AuthenticatedSchedulesIdEditRoute: AuthenticatedSchedulesIdEditRoute,
+    AuthenticatedSchedulesIdIndexRoute: AuthenticatedSchedulesIdIndexRoute,
   }
 
 const AuthenticatedSchedulesRouteWithChildren =
@@ -432,14 +591,16 @@ const AuthenticatedSchedulesRouteWithChildren =
   )
 
 interface AuthenticatedTrainingsRouteChildren {
-  AuthenticatedTrainingsIdRoute: typeof AuthenticatedTrainingsIdRoute
   AuthenticatedTrainingsNewRoute: typeof AuthenticatedTrainingsNewRoute
+  AuthenticatedTrainingsIdEditRoute: typeof AuthenticatedTrainingsIdEditRoute
+  AuthenticatedTrainingsIdIndexRoute: typeof AuthenticatedTrainingsIdIndexRoute
 }
 
 const AuthenticatedTrainingsRouteChildren: AuthenticatedTrainingsRouteChildren =
   {
-    AuthenticatedTrainingsIdRoute: AuthenticatedTrainingsIdRoute,
     AuthenticatedTrainingsNewRoute: AuthenticatedTrainingsNewRoute,
+    AuthenticatedTrainingsIdEditRoute: AuthenticatedTrainingsIdEditRoute,
+    AuthenticatedTrainingsIdIndexRoute: AuthenticatedTrainingsIdIndexRoute,
   }
 
 const AuthenticatedTrainingsRouteWithChildren =
@@ -448,25 +609,37 @@ const AuthenticatedTrainingsRouteWithChildren =
   )
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminManagementRoute: typeof AuthenticatedAdminManagementRoute
   AuthenticatedApprovalsRoute: typeof AuthenticatedApprovalsRoute
   AuthenticatedCreditsRoute: typeof AuthenticatedCreditsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEmailTemplatesRoute: typeof AuthenticatedEmailTemplatesRoute
+  AuthenticatedEventsRoute: typeof AuthenticatedEventsRoute
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
+  AuthenticatedLeagueGroupsRoute: typeof AuthenticatedLeagueGroupsRoute
   AuthenticatedMembersRoute: typeof AuthenticatedMembersRouteWithChildren
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedSchedulesRoute: typeof AuthenticatedSchedulesRouteWithChildren
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedTrainingRoute: typeof AuthenticatedTrainingRoute
   AuthenticatedTrainingsRoute: typeof AuthenticatedTrainingsRouteWithChildren
   AuthenticatedTransactionsRoute: typeof AuthenticatedTransactionsRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminManagementRoute: AuthenticatedAdminManagementRoute,
   AuthenticatedApprovalsRoute: AuthenticatedApprovalsRoute,
   AuthenticatedCreditsRoute: AuthenticatedCreditsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEmailTemplatesRoute: AuthenticatedEmailTemplatesRoute,
+  AuthenticatedEventsRoute: AuthenticatedEventsRoute,
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
+  AuthenticatedLeagueGroupsRoute: AuthenticatedLeagueGroupsRoute,
   AuthenticatedMembersRoute: AuthenticatedMembersRouteWithChildren,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedSchedulesRoute: AuthenticatedSchedulesRouteWithChildren,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedTrainingRoute: AuthenticatedTrainingRoute,
   AuthenticatedTrainingsRoute: AuthenticatedTrainingsRouteWithChildren,
   AuthenticatedTransactionsRoute: AuthenticatedTransactionsRoute,
 }

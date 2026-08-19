@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AuthShell } from "@/components/AuthShell";
@@ -6,14 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useStore } from "@/lib/store";
+import { firstAllowedAdminPath } from "@/lib/permissions";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
   const login = useStore((s) => s.login);
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@club.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +27,7 @@ function LoginPage() {
         return;
       }
       toast.success(`Welcome back, ${u.firstName}`);
-      navigate({ to: "/dashboard" });
+      navigate({ to: u.role === "admin" ? firstAllowedAdminPath() : "/dashboard" });
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials or pending approval");
     }
@@ -37,7 +40,7 @@ function LoginPage() {
       footer={
         <>
           New here?{" "}
-          <Link to="/register" className="text-[#10B981] font-medium hover:underline transition-all">
+          <Link to="/register" className="text-[var(--primary)] font-medium hover:underline transition-all">
             Create an account
           </Link>
         </>
@@ -48,34 +51,41 @@ function LoginPage() {
           <Label htmlFor="email" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">Email Address</Label>
           <Input 
             id="email" 
-            type="email" 
+            type="email"
+            name="email"
+            autoComplete="username"
             value={email} 
             onChange={(e) => setEmail(e.target.value)} 
             required 
-            className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] h-10 rounded-lg"
+            className="border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] h-10 rounded-lg"
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="password" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">Password</Label>
-          <Input 
-            id="password" 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
-            className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] h-10 rounded-lg"
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              name="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] h-10 rounded-lg pr-10"
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-[var(--foreground)] cursor-pointer"
+              onClick={() => setShowPassword((v) => !v)}
+            >
+              {showPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+            </button>
+          </div>
         </div>
         <Button type="submit" className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">
           Sign in
         </Button>
-        
-        <div className="rounded-lg bg-[#131916] border border-[rgba(255,255,255,0.06)] p-4 text-[12px] text-[#8A8A98] space-y-2 font-light">
-          <span className="text-[10px] font-medium tracking-[0.1em] text-[#34D399] uppercase block mb-1">DEMO CREDENTIALS</span>
-          <div className="flex justify-between border-b border-white/5 pb-1"><span className="font-semibold text-[#F1F0EE]">Admin:</span> <span className="font-mono">admin@club.com / admin123</span></div>
-          <div className="flex justify-between border-b border-white/5 pb-1"><span className="font-semibold text-[#F1F0EE]">Member:</span> <span className="font-mono">john@club.com / john123</span></div>
-          <div className="flex justify-between"><span className="font-semibold text-[#F1F0EE]">Volunteer:</span> <span className="font-mono">vera@club.com / vera123</span></div>
-        </div>
       </form>
     </AuthShell>
   );

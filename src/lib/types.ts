@@ -5,6 +5,7 @@ export interface User {
   id: string;
   firstName: string;
   lastName: string;
+  nickname?: string;
   sex: "male" | "female";
   dob: string;
   email: string;
@@ -14,24 +15,51 @@ export interface User {
   role: Role;
   status: UserStatus;
   createdAt: string;
+  adminRoleId?: string | null;
+  adminRoleName?: string | null;
+  isSuperAdmin?: boolean;
+  permissions?: string[];
+}
+
+export interface AdminRole {
+  id: string;
+  name: string;
+  description: string | null;
+  isSuper: boolean;
+  isSystem: boolean;
+  permissionIds: string[];
+  userCount?: number;
+}
+
+export interface Permission {
+  id: string;
+  module: string;
+  action: string;
+  label: string;
 }
 
 export type MemberType = "adult" | "junior";
 export interface Member {
   id: string;
   userId: string;
+  /** Adult this junior belongs to (null for adults / unlinked juniors) */
+  parentMemberId?: string | null;
   firstName: string;
   lastName: string;
   dob: string;
   email: string;
+  mobile?: string;
   sex: "male" | "female";
   memberType: MemberType;
   membership: boolean;
-  league: boolean;
   trainingEligible: boolean;
+  playEligible: boolean;
+  skipCreditConsumption: boolean;
+  applyDiscount: boolean;
   grade: string;
   biMemberId: string;
-  status: "active" | "disabled";
+  nickname?: string;
+  status: "active" | "disabled" | "pending" | "rejected";
   credit: number;
 }
 
@@ -40,21 +68,54 @@ export interface CreditRequest {
   memberId: string;
   amount: number;
   date: string;
+  type: "credit" | "debit" | "refund";
   status: "created" | "approved" | "rejected";
+  reason?: string;
   createdAt: string;
 }
 
 export interface Transaction {
   id: string;
   memberId: string;
-  type: "credit" | "debit";
+  type: "credit" | "debit" | "refund";
   amount: number;
   description: string;
+  reason?: string;
   date: string;
+}
+
+export interface PlayerPositionItem {
+  name: string;
+  skipLeagueFee: boolean;
+}
+
+export interface HolidayItem {
+  name: string;
+  date: string;
+}
+
+export interface LeagueGroupMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  grade?: string | null;
+  position?: string | null;
+}
+
+export interface LeagueGroup {
+  id: string;
+  name: string;
+  description: string;
+  memberIds: string[];
+  memberPositions?: Record<string, string | null>;
+  /** Populated by API for display (view-only member screens). */
+  members?: LeagueGroupMember[];
 }
 
 export interface PlaySchedule {
   id: string;
+  parentId?: string | null;
+  repeatWeeks?: number;
   name: string;
   date: string;
   courts: number;
@@ -64,15 +125,24 @@ export interface PlaySchedule {
   sessionRate: number;
   hallRate: number;
   location: string;
-  status: "open" | "released" | "rotated" | "closed";
+  status: "open" | "released" | "rotated" | "published" | "closed" | "cancelled";
+  cancelReason?: string | null;
+  isLeagueMatch?: boolean;
+  leagueGroupIds?: string[];
 }
 
-export type InviteStatus = "open" | "accepted" | "declined" | "waiting";
+export type InviteStatus = "pending" | "open" | "accepted" | "declined" | "waiting";
 export interface PlayInvitation {
   id: string;
   scheduleId: string;
   memberId: string;
   status: InviteStatus;
+  debited?: boolean;
+  /** When the member accepted (ISO). */
+  acceptedAt?: string | null;
+  updatedAt?: string;
+  createdAt?: string;
+  isGuest?: boolean;
 }
 
 export interface RotationRound {
@@ -83,20 +153,27 @@ export interface RotationRound {
 export interface Rotation {
   scheduleId: string;
   rounds: RotationRound[];
+  /** Admin-set before publish; locked after publish */
+  showMemberGrades?: boolean;
 }
 
 export interface Training {
   id: string;
+  parentId?: string;
   name: string;
   startDate: string;
   endDate: string;
+  repeatWeeks?: number;
+  repeatMonths?: number;
   sessions: number;
   slots: number;
   duration: string;
   fees: number;
   coach: string;
   location: string;
-  status: "open" | "released" | "closed";
+  status: "open" | "released" | "closed" | "cancelled";
+  cancelReason?: string;
+  targetType?: "adult" | "junior";
 }
 
 export interface TrainingInvitation {
@@ -104,6 +181,13 @@ export interface TrainingInvitation {
   trainingId: string;
   memberId: string;
   status: InviteStatus;
+  applyDiscount?: boolean | null;
+  calculatedMonthlyFee?: number | null;
+  calculatedPerSessionFee?: number | null;
+  acceptedMonthlyFee?: number | null;
+  acceptedRepeatWeeks?: number | null;
+  acceptedPerSessionFee?: number | null;
+  acceptedAmount?: number | null;
 }
 
 export interface TrainingDate {
@@ -112,4 +196,21 @@ export interface TrainingDate {
   memberId: string;
   date: string;
   attended: boolean | null;
+  refundStatus?: "none" | "half" | "full" | null;
+  refundAmount?: number | null;
+}
+
+export interface TrainingUpdateRequest {
+  id: string;
+  trainingId: string;
+  memberId: string;
+  existingSessionIds: string[];
+  newSessionIds: string[];
+  previouslyPaidAmount?: number;
+  updatedMonthlyFee?: number;
+  newPerSessionFee?: number;
+  additionalAmount: number;
+  status: "pending" | "accepted" | "declined";
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }

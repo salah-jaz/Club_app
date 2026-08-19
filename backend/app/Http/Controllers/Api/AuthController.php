@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Member;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -18,7 +19,7 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::with('adminRole')->where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
@@ -32,23 +33,16 @@ class AuthController extends Controller
             ]);
         }
 
+        if (Hash::needsRehash($user->password)) {
+            $user->password = Hash::make($request->password);
+            $user->save();
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'firstName' => $user->first_name,
-                'lastName' => $user->last_name,
-                'sex' => $user->sex,
-                'dob' => $user->dob,
-                'email' => $user->email,
-                'mobile' => $user->mobile,
-                'address' => $user->address,
-                'role' => $user->role,
-                'status' => $user->status,
-                'createdAt' => $user->created_at->toISOString(),
-            ]
+            'user' => $this->formatUser($user),
         ]);
     }
 
@@ -57,6 +51,7 @@ class AuthController extends Controller
         $request->validate([
             'firstName' => 'required|string|max:255',
             'lastName' => 'required|string|max:255',
+            'nickname' => 'nullable|string|max:255',
             'sex' => 'required|in:male,female',
             'dob' => 'required|date',
             'email' => 'required|string|email|max:255|unique:users,email',
@@ -69,6 +64,7 @@ class AuthController extends Controller
             'id' => 'u_' . Str::random(8),
             'first_name' => $request->firstName,
             'last_name' => $request->lastName,
+            'nickname' => $request->nickname,
             'sex' => $request->sex,
             'dob' => $request->dob,
             'email' => $request->email,
@@ -96,19 +92,49 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        $user = $request->user();
-        return response()->json([
+        $user = $request->user()->load('adminRole');
+
+        return response()->json($this->formatUser($user));
+    }
+
+    private function formatUser(User $user): array
+    {
+        $member = Member::where('user_id', $user->id)
+            ->orderByRaw("CASE WHEN member_type = 'adult' THEN 0 WHEN parent_member_id IS NULL THEN 1 ELSE 2 END")
+            ->orderBy('created_at')
+            ->first();
+
+        $firstName = $user->first_name;
+        $lastName = $user->last_name;
+
+        if ($member && ($member->member_type === 'adult' || is_null($member->parent_member_id))) {
+            $firstName = $member->first_name ?: $user->first_name;
+            $lastName = $member->last_name ?: $user->last_name;
+
+            if (($user->first_name !== $firstName || $user->last_name !== $lastName) && !empty($firstName)) {
+                $user->first_name = $firstName;
+                $user->last_name = $lastName;
+                $user->save();
+            }
+        }
+
+        return [
             'id' => $user->id,
-            'firstName' => $user->first_name,
-            'lastName' => $user->last_name,
-            'sex' => $user->sex,
-            'dob' => $user->dob,
+            'firstName' => $firstName,
+            'lastName' => $lastName,
+            'nickname' => $member?->nickname ?? $user->nickname,
+            'sex' => $member?->sex ?? $user->sex,
+            'dob' => $member?->dob ?? $user->dob,
             'email' => $user->email,
-            'mobile' => $user->mobile,
+            'mobile' => $member?->mobile ?? $user->mobile,
             'address' => $user->address,
             'role' => $user->role,
             'status' => $user->status,
+            'adminRoleId' => $user->role === 'admin' ? $user->admin_role_id : null,
+            'adminRoleName' => $user->role === 'admin' ? $user->adminRole?->name : null,
+            'isSuperAdmin' => $user->role === 'admin' ? (bool) $user->is_super_admin : false,
+            'permissions' => $user->getPermissionIds(),
             'createdAt' => $user->created_at->toISOString(),
-        ]);
+        ];
     }
 }

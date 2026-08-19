@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Grade;
 use App\Models\Member;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Helpers\MailHelper;
+use App\Helpers\PermissionHelper;
 
 class UserController extends Controller
 {
@@ -25,11 +28,24 @@ class UserController extends Controller
 
     public function approve(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'approvals.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'memberType' => 'sometimes|in:adult,junior',
-            'grade' => 'sometimes|string',
-            'league' => 'sometimes|boolean',
+            'grade' => [
+                'sometimes',
+                'string',
+                \Illuminate\Validation\Rule::exists('grades', 'name')->where(function ($query) use ($request) {
+                    $query->where('type', $request->input('memberType', 'adult'));
+                })
+            ],
+            'membership' => 'sometimes|boolean',
             'trainingEligible' => 'sometimes|boolean',
+            'playEligible' => 'sometimes|boolean',
+            'skipCreditConsumption' => 'sometimes|boolean',
+            'applyDiscount' => 'sometimes|boolean',
         ]);
 
         $user = User::findOrFail($id);
@@ -37,9 +53,23 @@ class UserController extends Controller
         $user->save();
 
         $memberType = $request->input('memberType', 'adult');
+        $membership = $request->has('membership')
+            ? $request->boolean('membership')
+            : true;
         $trainingEligible = $request->has('trainingEligible')
             ? $request->boolean('trainingEligible')
             : ($memberType === 'junior');
+        $playEligible = $request->has('playEligible')
+            ? $request->boolean('playEligible')
+            : false;
+        $skipCreditConsumption = $request->has('skipCreditConsumption')
+            ? $request->boolean('skipCreditConsumption')
+            : false;
+        $applyDiscount = $request->has('applyDiscount')
+            ? $request->boolean('applyDiscount')
+            : false;
+
+        $defaultGrade = Grade::where('type', $memberType)->first()?->name ?? ($memberType === 'junior' ? 'Beginner' : 'B');
 
         $member = Member::create([
             'id' => 'm_' . Str::random(8),
@@ -48,15 +78,25 @@ class UserController extends Controller
             'last_name' => $user->last_name,
             'dob' => $user->dob,
             'email' => $user->email,
+            'mobile' => $user->mobile,
             'sex' => $user->sex,
             'member_type' => $memberType,
-            'membership' => true,
-            'league' => $request->boolean('league'),
+            'membership' => $membership,
             'training_eligible' => $trainingEligible,
-            'grade' => $request->input('grade', 'Beginner'),
+            'play_eligible' => $playEligible,
+            'skip_credit_consumption' => $skipCreditConsumption,
+            'apply_discount' => $applyDiscount,
+            'grade' => $request->input('grade', $defaultGrade),
+            'nickname' => $user->nickname,
             'status' => 'active',
             'credit' => 0.00,
         ]);
+
+        try {
+            MailHelper::sendApprovalEmail($user);
+        } catch (\Exception $e) {
+            logger()->error("Approval email failed: " . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'User approved successfully.',
@@ -67,9 +107,19 @@ class UserController extends Controller
 
     public function reject($id)
     {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'approvals.delete')) {
+            return $response;
+        }
+
         $user = User::findOrFail($id);
         $user->status = 'rejected';
         $user->save();
+
+        try {
+            MailHelper::sendRejectionEmail($user);
+        } catch (\Exception $e) {
+            logger()->error("Rejection email failed: " . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'User rejected successfully.',
@@ -79,6 +129,10 @@ class UserController extends Controller
 
     public function setRole(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'admin_management.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'role' => 'required|in:admin,member,volunteer',
         ]);
@@ -93,25 +147,60 @@ class UserController extends Controller
         ]);
     }
 
-    private function formatUser(User $u)
+    private function formatUser(User|\stdClass $u)
     {
+        $firstName = $u->first_name;
+        $lastName = $u->last_name;
+        $nickname = $u->nickname;
+        $sex = $u->sex;
+        $dob = $u->dob;
+        $mobile = $u->mobile;
+
+        if ($u instanceof User) {
+            $member = Member::where('user_id', $u->id)
+                ->orderByRaw("CASE WHEN member_type = 'adult' THEN 0 WHEN parent_member_id IS NULL THEN 1 ELSE 2 END")
+                ->orderBy('created_at')
+                ->first();
+
+            if ($member && ($member->member_type === 'adult' || is_null($member->parent_member_id))) {
+                $firstName = $member->first_name ?: $u->first_name;
+                $lastName = $member->last_name ?: $u->last_name;
+                $nickname = $member->nickname ?? $u->nickname;
+                $sex = $member->sex ?? $u->sex;
+                $dob = $member->dob ?? $u->dob;
+                $mobile = $member->mobile ?? $u->mobile;
+
+                if (($u->first_name !== $firstName || $u->last_name !== $lastName) && !empty($firstName)) {
+                    $u->first_name = $firstName;
+                    $u->last_name = $lastName;
+                    $u->save();
+                }
+            }
+        }
+
         return [
-            'id' => $u->id,
-            'firstName' => $u->first_name,
-            'lastName' => $u->last_name,
-            'sex' => $u->sex,
-            'dob' => $u->dob,
+             'id' => $u->id,
+             'firstName' => $firstName,
+             'lastName' => $lastName,
+             'nickname' => $nickname,
+             'sex' => $sex,
+            'dob' => $dob,
             'email' => $u->email,
-            'mobile' => $u->mobile,
+            'mobile' => $mobile,
             'address' => $u->address,
             'role' => $u->role,
             'status' => $u->status,
-            'createdAt' => $u->created_at->toISOString(),
+            'createdAt' => $u->created_at instanceof \DateTimeInterface ? $u->created_at->toISOString() : (string) $u->created_at,
         ];
     }
 
-    private function formatMember(Member $m)
+    private function formatMember(Member|\stdClass $m)
     {
+        $mobile = $m->mobile ?? null;
+        if (empty($mobile) && $m instanceof Member && $m->user_id) {
+            $mobile = User::where('id', $m->user_id)->value('mobile') ?? '';
+        }
+
         return [
             'id' => $m->id,
             'userId' => $m->user_id,
@@ -119,15 +208,19 @@ class UserController extends Controller
             'lastName' => $m->last_name,
             'dob' => $m->dob,
             'email' => $m->email,
+            'mobile' => $mobile ?? '',
             'sex' => $m->sex,
             'memberType' => $m->member_type,
             'membership' => (bool) $m->membership,
-            'league' => (bool) $m->league,
             'trainingEligible' => (bool) $m->training_eligible,
+            'playEligible' => (bool) $m->play_eligible,
             'grade' => $m->grade,
             'biMemberId' => $m->bi_member_id ?? '',
+            'nickname' => $m->nickname ?? '',
             'status' => $m->status,
             'credit' => (float) $m->credit,
+            'skipCreditConsumption' => (bool) ($m->skip_credit_consumption ?? false),
+            'applyDiscount' => (bool) ($m->apply_discount ?? false),
         ];
     }
 }

@@ -1,4 +1,6 @@
-const BASE_URL = "http://localhost:8000/api";
+const BASE_URL =
+  import.meta.env.VITE_API_URL ??
+  (typeof window !== "undefined" ? `${window.location.origin}/api` : "/api");
 
 async function request<T>(
   endpoint: string,
@@ -55,19 +57,19 @@ export const api = {
   post: <T>(endpoint: string, body?: any, options?: RequestInit) =>
     request<T>(endpoint, {
       method: "POST",
-      body: body ? JSON.stringify(body) : undefined,
+      body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined),
       ...options,
     }),
   put: <T>(endpoint: string, body?: any, options?: RequestInit) =>
     request<T>(endpoint, {
       method: "PUT",
-      body: body ? JSON.stringify(body) : undefined,
+      body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined),
       ...options,
     }),
   patch: <T>(endpoint: string, body?: any, options?: RequestInit) =>
     request<T>(endpoint, {
       method: "PATCH",
-      body: body ? JSON.stringify(body) : undefined,
+      body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined),
       ...options,
     }),
   delete: <T>(endpoint: string, options?: RequestInit) =>

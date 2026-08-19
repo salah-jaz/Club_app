@@ -21,7 +21,8 @@ export function PageHeader({
       case "members":
         return "CLUB / ROSTER";
       case "credits":
-        return "FINANCE / CREDITS";
+        return "FINANCE / WALLET";
+      case "events":
       case "invitations":
       case "schedules":
         return "SESSIONS / PLAY";
@@ -31,41 +32,47 @@ export function PageHeader({
         return "FINANCE / HISTORY";
       case "approvals":
         return "ADMIN / APPROVALS";
+      case "admin-management":
+        return "ADMIN / MANAGEMENT";
       default:
         return `${role} / PORTAL`;
     }
   };
 
   return (
-    <div className="mb-6 w-full">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <span className="text-[10px] font-medium tracking-[0.14em] text-[#10B981] uppercase block mb-2">
+    <div className="mb-5 sm:mb-6 w-full min-w-0">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 sm:gap-4 min-w-0">
+        <div className="min-w-0 flex-1">
+          <span className="text-[10px] sm:text-[11px] font-semibold tracking-[0.12em] text-[#10B981] uppercase block mb-1">
             {getEyebrow()}
           </span>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             {backTo && (
               <Link 
                 to={backTo} 
-                className="flex items-center justify-center size-8 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-[#1A2120] hover:border-border/80 transition-all cursor-pointer shrink-0"
+                className="flex items-center justify-center size-8 sm:size-8.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-[#1A2120] hover:border-border/80 transition-all cursor-pointer shrink-0"
                 title="Go back"
               >
                 <ArrowLeft className="size-4" />
               </Link>
             )}
-            <h1 className="text-28 font-playfair font-normal leading-normal text-[#F1F0EE]">
+            <h1 className="type-page-title text-xl sm:text-2xl lg:text-3xl font-playfair font-normal min-w-0 truncate">
               {title}
             </h1>
           </div>
           {description && (
-            <p className="text-[14px] font-light text-[#8A8A9A] mt-1">
+            <p className="text-xs sm:text-[14px] font-normal text-[#C4D4CF] mt-1 sm:mt-1.5 leading-relaxed">
               {description}
             </p>
           )}
         </div>
-        {actions && <div className="flex items-center gap-3 self-start md:self-end">{actions}</div>}
+        {actions && (
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto self-stretch md:self-start min-w-0 justify-start md:justify-end">
+            {actions}
+          </div>
+        )}
       </div>
-      <div className="signature-divider mt-5 mb-5" />
+      <div className="signature-divider mt-4 mb-4 sm:mt-5 sm:mb-5" />
     </div>
   );
 }

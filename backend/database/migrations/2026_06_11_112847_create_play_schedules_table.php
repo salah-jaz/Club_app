@@ -19,6 +19,7 @@ return new class extends Migration
             $table->decimal('session_rate', 10, 2);
             $table->decimal('hall_rate', 10, 2);
             $table->string('location');
+            $table->foreign('location')->references('name')->on('locations')->onUpdate('cascade')->onDelete('restrict');
             $table->string('status')->default('open'); // 'open', 'released', 'rotated', 'closed'
             $table->timestamps();
         });

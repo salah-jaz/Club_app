@@ -1,3 +1,4 @@
+import { useCan } from "@/lib/permissions";
 import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/PageHeader";
@@ -12,16 +13,56 @@ function EditMember() {
   const member = useStore((s) => s.members.find((m) => m.id === id));
   const update = useStore((s) => s.updateMember);
   const navigate = useNavigate();
+
+  const activeRole = useStore((s) => s.activeRole) || user.role;
+
+  const canEditMembers = useCan("members.edit");
   if (!member) return <Navigate to="/members" />;
-  const canEdit = user.role === "admin" || member.userId === user.id;
+  const isJunior = member.memberType.toLowerCase() === "junior";
+  const canEdit = (activeRole === "admin" && canEditMembers) || (activeRole === "member" && (isJunior || member.userId === user.id));
   if (!canEdit) return <Navigate to="/members" />;
+
+  const isAdmin = activeRole === "admin";
+  const familyMemberMode = !isAdmin && member.memberType === "junior";
+
   return (
     <div>
-      <PageHeader title={`Edit ${member.firstName}`} description="Update member details." backTo="/members" />
+      <PageHeader
+        title={isAdmin ? `Edit ${member.firstName}` : `Edit family member`}
+        description={
+          isAdmin
+            ? "Update member details. Juniors can be linked under a parent adult."
+            : "Update this junior’s club profile."
+        }
+        backTo="/members"
+      />
       <MemberForm
-        initial={member}
-        familyMemberMode={user.role === "member" && member.memberType === "junior"}
+        // Same form as Add — login block only on create (showLoginFields=false here)
+        showLoginFields={false}
+        familyMemberMode={familyMemberMode}
         submitLabel="Update member"
+        initial={{
+          id: member.id,
+          userId: member.userId,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          dob: member.dob,
+          email: member.email,
+          mobile: member.mobile ?? "",
+          sex: member.sex,
+          memberType: member.memberType,
+          membership: member.membership,
+          trainingEligible: member.trainingEligible,
+          playEligible: member.playEligible ?? false,
+          skipCreditConsumption: member.skipCreditConsumption,
+          applyDiscount: member.applyDiscount,
+          grade: member.grade,
+          biMemberId: member.biMemberId,
+          nickname: member.nickname ?? "",
+          status: member.status,
+          parentMemberId: member.parentMemberId ?? null,
+          password: "",
+        }}
         onSubmit={async (v) => {
           try {
             await update(id, v);

@@ -19,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        try {
+            \App\Helpers\SessionTimingHelper::applyClubTimezone();
+        } catch (\Throwable $e) {
+            // Ignore if the database is not ready yet.
+        }
     }
 }

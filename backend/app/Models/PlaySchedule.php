@@ -13,6 +13,8 @@ class PlaySchedule extends Model
 
     protected $fillable = [
         'id',
+        'parent_id',
+        'repeat_weeks',
         'name',
         'date',
         'courts',
@@ -23,6 +25,9 @@ class PlaySchedule extends Model
         'hall_rate',
         'location',
         'status',
+        'cancel_reason',
+        'is_league_match',
+        'league_group_ids',
     ];
 
     protected $casts = [
@@ -31,6 +36,9 @@ class PlaySchedule extends Model
         'slot_hours' => 'float',
         'session_rate' => 'float',
         'hall_rate' => 'float',
+        'is_league_match' => 'boolean',
+        'league_group_ids' => 'array',
+        'repeat_weeks' => 'integer',
     ];
 
     public function playInvitations(): HasMany

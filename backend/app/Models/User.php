@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
@@ -19,6 +20,7 @@ class User extends Authenticatable
         'id',
         'first_name',
         'last_name',
+        'nickname',
         'sex',
         'dob',
         'email',
@@ -26,6 +28,9 @@ class User extends Authenticatable
         'address',
         'password',
         'role',
+        'admin_role_id',
+        'is_super_admin',
+        'created_by',
         'status',
     ];
 
@@ -39,7 +44,36 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_super_admin' => 'boolean',
         ];
+    }
+
+    public function adminRole(): BelongsTo
+    {
+        return $this->belongsTo(AdminRole::class, 'admin_role_id');
+    }
+
+    public function getPermissionIds(): array
+    {
+        if ($this->role !== 'admin') {
+            return [];
+        }
+
+        if ($this->is_super_admin || !$this->admin_role_id) {
+            return Permission::pluck('id')->all();
+        }
+
+        $role = $this->relationLoaded('adminRole') ? $this->adminRole : $this->adminRole()->first();
+
+        if (!$role) {
+            return [];
+        }
+
+        if ($role->is_super) {
+            return Permission::pluck('id')->all();
+        }
+
+        return $role->permissions()->pluck('permissions.id')->all();
     }
 
     public function members(): HasMany

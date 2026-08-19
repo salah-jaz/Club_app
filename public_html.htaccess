@@ -1,0 +1,17 @@
+PassengerEnabled on
+PassengerAppRoot "/home/u695058213/domains/clubapp.jazinfotech.com/nodejs"
+PassengerBaseURI "/"
+PassengerNodejs "/home/u695058213/.nvm/versions/node/v24.13.0/bin/node"
+PassengerAppType node
+PassengerStartupFile hostinger.js
+PassengerAppEnv production
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Laravel API (must run before Passenger)
+    RewriteCond %{REQUEST_URI} ^/api
+    RewriteRule ^ backend/public/index.php [L,QSA]
+</IfModule>
+
+AddHandler application/x-httpd-php84 .php

@@ -12,9 +12,12 @@ class Training extends Model
 
     protected $fillable = [
         'id',
+        'parent_id',
         'name',
         'start_date',
         'end_date',
+        'repeat_weeks',
+        'repeat_months',
         'sessions',
         'slots',
         'duration',
@@ -22,9 +25,13 @@ class Training extends Model
         'coach',
         'location',
         'status',
+        'cancel_reason',
+        'target_type',
     ];
 
     protected $casts = [
+        'repeat_weeks' => 'integer',
+        'repeat_months' => 'integer',
         'sessions' => 'integer',
         'slots' => 'integer',
         'fees' => 'float',
@@ -38,5 +45,10 @@ class Training extends Model
     public function trainingDates(): HasMany
     {
         return $this->hasMany(TrainingDate::class);
+    }
+
+    public function trainingUpdateRequests(): HasMany
+    {
+        return $this->hasMany(TrainingUpdateRequest::class);
     }
 }

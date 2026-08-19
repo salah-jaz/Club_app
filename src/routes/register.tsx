@@ -17,7 +17,7 @@ function RegisterPage() {
   const register = useStore((s) => s.register);
   const navigate = useNavigate();
   const [f, setF] = useState({
-    firstName: "", lastName: "", sex: "male" as "male" | "female", dob: "",
+    firstName: "", lastName: "", nickname: "", sex: "male" as "male" | "female", dob: "",
     email: "", mobile: "", address: "", password: "",
   });
   const update = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -37,18 +37,22 @@ function RegisterPage() {
     <AuthShell
       title="Create account"
       subtitle="Submit your details — an admin will approve you shortly."
-      footer={<>Already have an account? <Link to="/login" className="text-[#10B981] font-medium hover:underline transition-all">Sign in</Link></>}
+      footer={<>Already have an account? <Link to="/login" className="text-[var(--primary)] font-medium hover:underline transition-all">Sign in</Link></>}
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">First name</Label>
-            <Input required value={f.firstName} onChange={(e) => update("firstName", e.target.value)} className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] rounded-lg" />
+            <Input required value={f.firstName} onChange={(e) => update("firstName", e.target.value)} className="border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] rounded-lg" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Last name</Label>
-            <Input required value={f.lastName} onChange={(e) => update("lastName", e.target.value)} className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] rounded-lg" />
+            <Input required value={f.lastName} onChange={(e) => update("lastName", e.target.value)} className="border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] rounded-lg" />
           </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Nickname</Label>
+          <Input value={f.nickname} onChange={(e) => update("nickname", e.target.value)} className="border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] rounded-lg" placeholder="Optional" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
@@ -68,19 +72,19 @@ function RegisterPage() {
         </div>
         <div className="space-y-1.5">
           <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Email</Label>
-          <Input required type="email" value={f.email} onChange={(e) => update("email", e.target.value)} className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] rounded-lg" />
+          <Input required type="email" name="email" autoComplete="email" value={f.email} onChange={(e) => update("email", e.target.value)} className="border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] rounded-lg" />
         </div>
         <div className="space-y-1.5">
           <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Mobile</Label>
-          <Input required value={f.mobile} onChange={(e) => update("mobile", e.target.value)} className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] rounded-lg" />
+          <Input required value={f.mobile} onChange={(e) => update("mobile", e.target.value)} className="border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] rounded-lg" />
         </div>
         <div className="space-y-1.5">
           <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Address</Label>
-          <Textarea required value={f.address} onChange={(e) => update("address", e.target.value)} className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] min-h-[60px] rounded-lg" />
+          <Textarea required value={f.address} onChange={(e) => update("address", e.target.value)} className="bg-[var(--input-bg)] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[var(--input-text)] min-h-[60px] rounded-lg" />
         </div>
         <div className="space-y-1.5">
           <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Password</Label>
-          <Input required type="password" value={f.password} onChange={(e) => update("password", e.target.value)} className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] text-[#F1F0EE] rounded-lg" />
+          <Input required type="password" name="password" autoComplete="new-password" value={f.password} onChange={(e) => update("password", e.target.value)} className="border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] rounded-lg" />
         </div>
         <Button type="submit" className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">
           Submit registration
