@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useStore } from "@/lib/store";
+import { firstAllowedAdminPath } from "@/lib/permissions";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
@@ -26,7 +27,7 @@ function LoginPage() {
         return;
       }
       toast.success(`Welcome back, ${u.firstName}`);
-      navigate({ to: "/dashboard" });
+      navigate({ to: u.role === "admin" ? firstAllowedAdminPath() : "/dashboard" });
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials or pending approval");
     }

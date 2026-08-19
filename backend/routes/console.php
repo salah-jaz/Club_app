@@ -74,6 +74,7 @@ Artisan::command('debit:cancellations', function () {
 })->purpose('Safety net: debit any accepted play invites that were not charged on accept')->everyMinute();
 
 Artisan::command('schedules:auto-publish', function () {
+    \App\Helpers\SessionTimingHelper::applyClubTimezone();
     \App\Http\Controllers\Api\PlayScheduleController::processAutoPublishAndRotation();
 })->purpose('Automatically publish schedule and generate player court rotation when Cancellation Lock Window is reached')->everyMinute();
 

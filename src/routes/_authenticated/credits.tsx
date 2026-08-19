@@ -1,3 +1,4 @@
+import { useCan } from "@/lib/permissions";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
@@ -134,6 +135,8 @@ function CreditsPage() {
   const s = useStore();
   const search = Route.useSearch();
   const isAdmin = user.role === "admin";
+  const canAddCredits = !isAdmin || useCan("credits.create");
+  const canDeleteCredits = isAdmin && useCan("credits.delete");
   // All members the current user can see
   const myMembers = isAdmin ? s.members : s.members.filter((m) => m.userId === user.id);
   // Adults-only list used for wallet pickers (juniors share the parent adult's wallet)
@@ -366,7 +369,7 @@ function CreditsPage() {
         backTo={focusMember ? "/members" : undefined}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            {isAdmin && (typeTab === "debit" || typeTab === "all") && (
+            {isAdmin && canAddCredits && (typeTab === "debit" || typeTab === "all") && (
               <Button
                 type="button"
                 variant="outline"
@@ -378,7 +381,7 @@ function CreditsPage() {
                 Add debit
               </Button>
             )}
-            {(typeTab === "credit" || typeTab === "all") && (
+            {(typeTab === "credit" || typeTab === "all") && canAddCredits && (
               <>
                 <Button
                   type="button"

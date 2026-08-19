@@ -1,4 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useCan } from "@/lib/permissions";
+import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/PageHeader";
 import { MemberForm } from "@/components/MemberForm";
@@ -14,8 +15,10 @@ function AddMember() {
   const members = useStore((s) => s.members);
   const navigate = useNavigate();
   const isAdmin = user.role === "admin";
+  const canCreate = useCan("members.create");
   const [initialBiMemberId, setInitialBiMemberId] = useState("");
   const [loading, setLoading] = useState(true);
+  if (isAdmin && !canCreate) return <Navigate to="/members" />;
 
   useEffect(() => {
     let active = true;

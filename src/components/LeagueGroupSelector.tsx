@@ -116,20 +116,20 @@ export function LeagueGroupSelector({
       {/* Top Compact Bar: Search + Quick Actions */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
         <div className="relative flex-1">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8A8A98]" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search teams or members..."
-            className="pl-8 h-8 bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-xs text-[#F1F0EE] focus:border-[#10B981] rounded-lg"
+            className="pl-8 h-8 bg-secondary border-border text-xs text-foreground focus:border-primary rounded-lg"
           />
         </div>
 
         <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-          <span className="text-[11px] text-[#8A8A98]">
-            <strong className="text-[#34D399] font-mono">{selectedGroupIds.length}</strong> / {leagueGroups.length} selected
+          <span className="text-[11px] text-muted-foreground">
+            <strong className="text-primary font-mono">{selectedGroupIds.length}</strong> / {leagueGroups.length} selected
             {selectedGroupIds.length > 0 && (
-              <span className="ml-1 text-[10px] text-[#8A8A98]">({selectedUniqueCount} unique players)</span>
+              <span className="ml-1 text-[10px] text-muted-foreground">({selectedUniqueCount} unique players)</span>
             )}
           </span>
 
@@ -139,7 +139,7 @@ export function LeagueGroupSelector({
               variant="ghost"
               size="sm"
               onClick={handleSelectAll}
-              className="h-7 text-[11px] text-[#34D399] hover:bg-[#10B981]/10 px-2 cursor-pointer"
+              className="h-7 text-[11px] text-primary hover:bg-primary/10 px-2 cursor-pointer"
             >
               Select All
             </Button>
@@ -148,7 +148,7 @@ export function LeagueGroupSelector({
               variant="ghost"
               size="sm"
               onClick={handleDeselectAll}
-              className="h-7 text-[11px] text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 px-2 cursor-pointer"
+              className="h-7 text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent px-2 cursor-pointer"
             >
               Deselect All
             </Button>
@@ -158,12 +158,12 @@ export function LeagueGroupSelector({
 
       {/* Team Compact List Grid */}
       {leagueGroups.length === 0 ? (
-        <div className="p-4 text-center rounded-lg bg-[#1A2120]/40 border border-dashed border-[rgba(255,255,255,0.08)]">
-          <Users className="w-5 h-5 text-[#8A8A98] mx-auto mb-1 opacity-50" />
+        <div className="p-4 text-center rounded-lg bg-muted/50 border border-dashed border-border">
+          <Users className="w-5 h-5 text-muted-foreground mx-auto mb-1 opacity-50" />
           <p className="text-xs text-muted-foreground">No league groups found.</p>
         </div>
       ) : filteredGroups.length === 0 ? (
-        <div className="p-4 text-center rounded-lg bg-[#1A2120]/40 border border-dashed border-[rgba(255,255,255,0.08)]">
+        <div className="p-4 text-center rounded-lg bg-muted/50 border border-dashed border-border">
           <p className="text-xs text-muted-foreground">No teams or members match "{search}".</p>
         </div>
       ) : (
@@ -184,8 +184,8 @@ export function LeagueGroupSelector({
                     onClick={() => toggleSelectGroup(g.id)}
                     className={`flex items-center justify-between p-2.5 rounded-lg border transition-all cursor-pointer select-none ${
                       isSelected
-                        ? "bg-[#16201C] border-[#10B981]/50 shadow-[0_0_8px_rgba(16,185,129,0.08)] text-[#F1F0EE]"
-                        : "bg-[#1A2120]/60 border-[rgba(255,255,255,0.06)] hover:bg-[#1A2120] hover:border-white/15 text-[#C4C4D0]"
+                        ? "bg-primary/10 border-primary/40 text-foreground shadow-[0_0_8px_color-mix(in_srgb,var(--primary)_12%,transparent)]"
+                        : "bg-card border-border hover:bg-accent hover:border-primary/25 text-foreground"
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -193,9 +193,9 @@ export function LeagueGroupSelector({
                         checked={isSelected}
                         onCheckedChange={() => toggleSelectGroup(g.id)}
                         onClick={(e) => e.stopPropagation()}
-                        className="border-white/30 data-[state=checked]:bg-[#10B981] data-[state=checked]:border-[#10B981] w-4 h-4 cursor-pointer shrink-0"
+                        className="border-primary/40 data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=checked]:text-primary-foreground w-4 h-4 cursor-pointer shrink-0"
                       />
-                      <span className="font-semibold text-xs text-[#F1F0EE] truncate">
+                      <span className="font-semibold text-xs text-foreground truncate">
                         {g.name}
                       </span>
                     </div>
@@ -203,14 +203,17 @@ export function LeagueGroupSelector({
                     <div className="flex items-center gap-1.5 shrink-0 ml-2">
                       {sharedCountInThisGroup > 0 && (
                         <span
-                          className="w-1.5 h-1.5 rounded-full bg-amber-400"
+                          className="w-1.5 h-1.5 rounded-full bg-primary"
                           title={`${sharedCountInThisGroup} shared player(s) in selection`}
                         />
                       )}
-                      <Badge className="bg-white/5 text-[#8A8A98] border-white/10 text-[10px] px-1.5 py-0 font-mono">
+                      <Badge
+                        variant="secondary"
+                        className="bg-muted text-muted-foreground border-border text-[10px] px-1.5 py-0 font-mono"
+                      >
                         {memberIds.length} {memberIds.length === 1 ? "member" : "members"}
                       </Badge>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-[#34D399]" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 text-primary" />}
                     </div>
                   </div>
                 </HoverCardTrigger>
@@ -218,17 +221,17 @@ export function LeagueGroupSelector({
                 <HoverCardContent
                   align="start"
                   side="top"
-                  className="z-50 w-72 bg-[#131916] border border-[rgba(255,255,255,0.12)] shadow-2xl rounded-xl p-3 text-xs text-[#F1F0EE]"
+                  className="z-50 w-72 bg-popover border border-border shadow-2xl rounded-xl p-3 text-xs text-popover-foreground"
                 >
-                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
-                    <span className="font-bold text-[#34D399]">{g.name}</span>
-                    <span className="text-[10px] text-[#8A8A98] font-mono">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
+                    <span className="font-bold text-primary">{g.name}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">
                       {memberIds.length} member{memberIds.length === 1 ? "" : "s"}
                     </span>
                   </div>
 
                   {memberIds.length === 0 ? (
-                    <p className="text-[11px] text-[#8A8A98] italic">No members in this team</p>
+                    <p className="text-[11px] text-muted-foreground italic">No members in this team</p>
                   ) : (
                     <ul className="space-y-1 max-h-48 overflow-y-auto pr-1">
                       {memberIds.map((mid) => {
@@ -242,11 +245,11 @@ export function LeagueGroupSelector({
                         return (
                           <li
                             key={mid}
-                            className="flex items-center justify-between gap-2 text-[11px] py-1 border-b border-white/[0.03] last:border-0"
+                            className="flex items-center justify-between gap-2 text-[11px] py-1 border-b border-border last:border-0"
                           >
-                            <span className="text-[#F1F0EE] font-medium truncate">{name}</span>
+                            <span className="text-foreground font-medium truncate">{name}</span>
                             {isShared && (
-                              <span className="text-[9px] font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded shrink-0">
+                              <span className="text-[9px] font-semibold text-primary bg-primary/10 border border-primary/25 px-1.5 py-0.5 rounded shrink-0">
                                 — {sharedLabel}
                               </span>
                             )}
@@ -264,17 +267,17 @@ export function LeagueGroupSelector({
 
       {/* Shared Members Compact Badge Indicator (when > 0 shared members exist in selection) */}
       {sharedMembersInSelection.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs">
-          <div className="flex items-center gap-1 text-amber-300 font-medium text-[11px] shrink-0">
-            <Layers className="w-3.5 h-3.5 text-amber-400" />
+        <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg bg-primary/10 border border-primary/25 text-xs">
+          <div className="flex items-center gap-1 text-primary font-medium text-[11px] shrink-0">
+            <Layers className="w-3.5 h-3.5 text-primary" />
             <span>Shared:</span>
           </div>
           {sharedMembersInSelection.map((sm) => (
             <span
               key={sm.memberId}
-              className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-500/30 text-amber-200"
+              className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-background border border-primary/20 text-foreground"
             >
-              <strong className="text-amber-100 mr-1">{sm.name}</strong> — {sm.teamsStr}
+              <strong className="text-foreground mr-1">{sm.name}</strong> — {sm.teamsStr}
             </span>
           ))}
         </div>

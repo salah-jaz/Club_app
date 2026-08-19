@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\PermissionHelper;
 use App\Http\Controllers\Controller;
 use App\Models\CreditRequest;
 use App\Models\Member;
@@ -38,6 +39,10 @@ class CreditRequestController extends Controller
 
     public function store(Request $request)
     {
+        if ($response = PermissionHelper::denyAdminUnless($request, 'credits.create')) {
+            return $response;
+        }
+
         $request->validate([
             'memberId' => 'required|string',
             'amount' => 'required|numeric|min:0.01',
@@ -207,6 +212,10 @@ class CreditRequestController extends Controller
 
     public function approve($id)
     {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'credits.edit')) {
+            return $response;
+        }
+
         $cr = CreditRequest::findOrFail($id);
 
         if ($cr->type === 'debit') {
@@ -250,6 +259,10 @@ class CreditRequestController extends Controller
 
     public function reject($id)
     {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'credits.edit')) {
+            return $response;
+        }
+
         $cr = CreditRequest::findOrFail($id);
 
         if ($cr->type === 'debit') {
@@ -271,6 +284,10 @@ class CreditRequestController extends Controller
 
     public function destroy(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'credits.delete')) {
+            return $response;
+        }
+
         $user = $request->user();
         if (!$user || $user->role !== 'admin') {
             return response()->json(['message' => 'Only admins can delete transactions.'], 403);

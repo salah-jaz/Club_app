@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, Navigate, useRouterState } from "@tanstack/react-router";
+import { canModule, firstAllowedAdminPath, moduleForPath } from "@/lib/permissions";
 import { AppSidebar } from "@/components/AppSidebar";
 import { applyCustomTheme } from "@/lib/utils";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -200,6 +201,13 @@ function Layout() {
   }
   if (!user) return <Navigate to="/login" />;
 
+  if (user.role === "admin") {
+    const adminModule = moduleForPath(pathname);
+    if (adminModule && !canModule(adminModule)) {
+      return <Navigate to={firstAllowedAdminPath()} />;
+    }
+  }
+
   // Breadcrumb screen name resolution
   const pathPart = pathname.split("/").filter(Boolean)[0] || "dashboard";
   const routeNames: Record<string, string> = {
@@ -304,4 +312,4 @@ function Layout() {
       </div>
     </SidebarProvider>
   );
-}
+}

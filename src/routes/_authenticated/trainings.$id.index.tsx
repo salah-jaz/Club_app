@@ -961,8 +961,8 @@ function TrainingPage() {
                                       </div>
                                     ) : (
                                       /* Refund Action Options */
-                                      <div className="bg-[#1A2120] p-1.5 rounded-lg border border-white/10 space-y-1.5">
-                                        <div className="text-[10px] font-semibold tracking-wider text-[#8A8A98] uppercase">
+                                      <div className="bg-muted p-1.5 rounded-lg border border-border space-y-1.5">
+                                        <div className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                                           Select Refund:
                                         </div>
                                         <div className="flex flex-col gap-1">
@@ -979,7 +979,7 @@ function TrainingPage() {
                                                 });
                                               }
                                             }}
-                                            className="w-full px-1.5 py-0.5 rounded text-[10px] bg-white/5 hover:bg-white/10 text-gray-300 transition-colors text-center cursor-pointer"
+                                            className="w-full px-1.5 py-1 rounded text-[10px] font-semibold bg-background hover:bg-background/80 text-foreground border border-border transition-colors text-center cursor-pointer"
                                           >
                                             No Refund
                                           </button>
@@ -996,7 +996,7 @@ function TrainingPage() {
                                                 });
                                               }
                                             }}
-                                            className="w-full px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 transition-colors text-center cursor-pointer font-medium"
+                                            className="w-full px-1.5 py-1 rounded text-[10px] font-semibold bg-violet-500/15 hover:bg-violet-500/25 text-violet-800 border border-violet-500/40 transition-colors text-center cursor-pointer"
                                           >
                                             50% Refund ({fmtMoney(baseMemberWeekFee * 0.5)})
                                           </button>
@@ -1013,7 +1013,7 @@ function TrainingPage() {
                                                 });
                                               }
                                             }}
-                                            className="w-full px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition-colors text-center cursor-pointer font-medium"
+                                            className="w-full px-1.5 py-1 rounded text-[10px] font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-800 border border-emerald-500/40 transition-colors text-center cursor-pointer"
                                           >
                                             Full Refund ({fmtMoney(baseMemberWeekFee)})
                                           </button>

@@ -11,6 +11,7 @@ use App\Models\Holiday;
 use App\Models\Member;
 use App\Models\Transaction;
 use App\Helpers\MailHelper;
+use App\Helpers\PermissionHelper;
 use App\Helpers\FeeHelper;
 use App\Helpers\SessionTimingHelper;
 use Illuminate\Http\Request;
@@ -27,6 +28,10 @@ class TrainingController extends Controller
 
     public function store(Request $request)
     {
+        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.create')) {
+            return $response;
+        }
+
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'startDate' => 'required|date',
@@ -158,6 +163,10 @@ class TrainingController extends Controller
 
     public function update(Request $request, $id)
     {
+        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.edit')) {
+            return $response;
+        }
+
         $tr = Training::findOrFail($id);
 
         if ($request->has('repeatWeeks')) {
@@ -368,6 +377,10 @@ class TrainingController extends Controller
 
     public function release(Request $request, $id)
     {
+        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'memberIds' => 'sometimes|array',
             'memberIds.*' => 'required|string',
@@ -1327,6 +1340,10 @@ class TrainingController extends Controller
 
     public function markAttendance(Request $request, $id)
     {
+        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'attended' => 'required|boolean',
         ]);
@@ -1560,6 +1577,10 @@ class TrainingController extends Controller
 
     public function destroy($id)
     {
+        if ($response = PermissionHelper::denyAdminUnless(request(), 'trainings.delete')) {
+            return $response;
+        }
+
         $t = Training::findOrFail($id);
         $parentId = $t->parent_id ?: $t->id;
 
@@ -1622,6 +1643,10 @@ class TrainingController extends Controller
 
     public function cancel(Request $request, $id)
     {
+        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'reason' => 'required|string|max:1000',
         ]);

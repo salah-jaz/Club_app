@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\PermissionHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Member;
 use App\Models\User;
@@ -43,6 +44,10 @@ class MemberController extends Controller
 
     public function store(Request $request)
     {
+        if ($response = PermissionHelper::denyAdminUnless($request, 'members.create')) {
+            return $response;
+        }
+
         $user = $request->user();
         $isAdmin = $user && $user->role === 'admin';
         $createLogin = $request->boolean('createLogin') && $isAdmin;
@@ -254,6 +259,10 @@ class MemberController extends Controller
 
     public function update(Request $request, $id)
     {
+        if ($response = PermissionHelper::denyAdminUnless($request, 'members.edit')) {
+            return $response;
+        }
+
         $member = Member::findOrFail($id);
         $user = $request->user();
         $isAdmin = $user && $user->role === 'admin';
@@ -338,6 +347,10 @@ class MemberController extends Controller
      */
     public function approve(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'members.edit')) {
+            return $response;
+        }
+
         if ($request->user()?->role !== 'admin') {
             return response()->json(['message' => 'Only admins can approve juniors.'], 403);
         }
@@ -386,6 +399,10 @@ class MemberController extends Controller
      */
     public function reject(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'members.delete')) {
+            return $response;
+        }
+
         if ($request->user()?->role !== 'admin') {
             return response()->json(['message' => 'Only admins can reject juniors.'], 403);
         }
@@ -411,6 +428,10 @@ class MemberController extends Controller
 
     public function destroy($id)
     {
+        if ($response = PermissionHelper::denyAdminUnless(request(), 'members.delete')) {
+            return $response;
+        }
+
         $member = Member::findOrFail($id);
         $user = auth()->user();
 
@@ -430,6 +451,10 @@ class MemberController extends Controller
 
     public function bulkDelete(Request $request)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'members.delete')) {
+            return $response;
+        }
+
         if ($request->user()->role !== 'admin') {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
@@ -481,6 +506,10 @@ class MemberController extends Controller
 
     public function loginAs(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'members.edit')) {
+            return $response;
+        }
+
         // Only admin role can impersonate
         if ($request->user()->role !== 'admin') {
             return response()->json(['message' => 'Unauthorized.'], 403);
@@ -571,6 +600,10 @@ class MemberController extends Controller
 
     public function bulkUpload(Request $request)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'members.create')) {
+            return $response;
+        }
+
         $request->validate([
             'file' => 'required|file|mimes:csv,txt',
         ]);

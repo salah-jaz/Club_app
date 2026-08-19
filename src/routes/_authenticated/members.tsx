@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, useMatches, useNavigate } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
+import { useCan } from "@/lib/permissions";
 import { useMemo, useRef, useState } from "react";
 import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import { Card, CardContent } from "@/components/ui/card";
@@ -358,10 +359,10 @@ function MemberActions({
   const user = useCurrentUser()!;
   const loginAs = useStore((s) => s.loginAs);
   const isJunior = member.memberType.toLowerCase() === "junior";
-  const canEdit = activeRole === "admin" || (activeRole === "member" && (isJunior || member.userId === user.id));
+  const canEdit = (activeRole === "admin" && useCan("members.edit")) || (activeRole === "member" && (isJunior || member.userId === user.id));
   const canCredits = activeRole === "admin" || activeRole === "member";
-  // Juniors (and all members) may only be deleted by admins
-  const canDelete = activeRole === "admin";
+  const canDelete = activeRole === "admin" && useCan("members.delete");
+  const canLoginAs = activeRole === "admin" && useCan("members.edit");
   const btnClass = compact
     ? "h-8 text-xs px-2"
     : "h-9 text-xs flex-1 basis-[calc(50%-0.25rem)] sm:basis-0 min-w-0";
@@ -371,7 +372,7 @@ function MemberActions({
       className={cn("flex flex-wrap gap-2 min-w-0", compact ? "justify-end" : "w-full")}
       onClick={(e) => e.stopPropagation()}
     >
-      {activeRole === "admin" && !isJunior && (
+      {canLoginAs && !isJunior && (
         <Button
           variant="outline"
           className={cn("bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 hover:cursor-pointer min-w-0", btnClass)}
@@ -452,6 +453,8 @@ function MemberDetailDialog({
   const user = useCurrentUser()!;
   const members = useStore((s) => s.members);
   const loginAs = useStore((s) => s.loginAs);
+  const canEditMembers = useCan("members.edit");
+  const canDeleteMembersPerm = useCan("members.delete");
 
   if (!member) return null;
 
@@ -468,9 +471,10 @@ function MemberDetailDialog({
         (m.userId === member.userId && m.memberType.toLowerCase() === "junior")),
   );
 
-  const canEdit = activeRole === "admin" || (activeRole === "member" && (isJunior || member.userId === user.id));
+  const canEdit = (activeRole === "admin" && canEditMembers) || (activeRole === "member" && (isJunior || member.userId === user.id));
   const canCredits = activeRole === "admin" || activeRole === "member";
-  const canDelete = activeRole === "admin";
+  const canDelete = activeRole === "admin" && canDeleteMembersPerm;
+  const canLoginAs = activeRole === "admin" && canEditMembers;
   const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
 
   return (
@@ -667,7 +671,7 @@ function MemberDetailDialog({
 
         <DialogFooter className="px-6 py-4 border-t border-white/[0.06] gap-2 flex-wrap sm:flex-nowrap shrink-0">
           <div className="flex items-center gap-2 w-full justify-end">
-            {activeRole === "admin" && !isJunior && (
+            {canLoginAs && !isJunior && (
               <Button
                 variant="outline"
                 className="bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 cursor-pointer h-9 text-xs"
@@ -730,6 +734,9 @@ function MembersList() {
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const deleteMember = useStore((s) => s.deleteMember);
   const activeRole = useStore((s) => s.activeRole) || user.role;
+  const canAddMembers = activeRole !== "admin" || useCan("members.create");
+  const canBulkUpload = activeRole === "admin" && useCan("members.create");
+  const canDeleteMembers = activeRole === "admin" && useCan("members.delete");
   const store = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-members", "list");
@@ -1287,7 +1294,7 @@ function MembersList() {
         actions={
           <div className="flex flex-wrap gap-2 w-full min-w-0 justify-start md:justify-end">
             <input type="file" ref={fileInputRef} onChange={handleBulkUpload} accept=".csv" className="hidden" />
-            {activeRole === "admin" && (
+            {canBulkUpload && (
               <>
                 <Button
                   variant="outline"
@@ -1307,7 +1314,7 @@ function MembersList() {
                 </Button>
               </>
             )}
-            {(activeRole === "admin" || activeRole === "member") && (
+            {canAddMembers && (activeRole === "admin" || activeRole === "member") && (
               <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer shrink-0">
                 <Link to="/members/add">
                   <Plus className="size-4 mr-1.5 shrink-0" />

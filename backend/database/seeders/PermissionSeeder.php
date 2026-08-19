@@ -8,81 +8,55 @@ use Illuminate\Database\Seeder;
 
 class PermissionSeeder extends Seeder
 {
-    private const PERMISSIONS = [
-        'dashboard.view' => 'View dashboard',
-        'members.view' => 'View members',
-        'members.create' => 'Create members',
-        'members.edit' => 'Edit members',
-        'members.delete' => 'Delete members',
-        'members.bulk_upload' => 'Bulk upload members',
-        'members.login_as' => 'Login as member',
-        'members.approve_junior' => 'Approve junior members',
-        'credits.view' => 'View credits',
-        'credits.create' => 'Create credits',
-        'credits.approve' => 'Approve credits',
-        'credits.reject' => 'Reject credits',
-        'transactions.view' => 'View transactions',
-        'transactions.export' => 'Export transactions',
-        'schedules.view' => 'View schedules',
-        'schedules.create' => 'Create schedules',
-        'schedules.edit' => 'Edit schedules',
-        'schedules.delete' => 'Delete schedules',
-        'schedules.release' => 'Release schedules',
-        'schedules.generate_rotation' => 'Generate rotation',
-        'schedules.publish' => 'Publish schedules',
-        'schedules.close' => 'Close schedules',
-        'schedules.revert_rotation' => 'Revert rotation',
-        'trainings.view' => 'View trainings',
-        'trainings.create' => 'Create trainings',
-        'trainings.edit' => 'Edit trainings',
-        'trainings.delete' => 'Delete trainings',
-        'trainings.manage_attendance' => 'Manage attendance',
-        'league_groups.view' => 'View league groups',
-        'league_groups.create' => 'Create league groups',
-        'league_groups.edit' => 'Edit league groups',
-        'league_groups.delete' => 'Delete league groups',
-        'approvals.view' => 'View approvals',
-        'approvals.approve_user' => 'Approve user',
-        'approvals.reject_user' => 'Reject user',
-        'approvals.approve_credit' => 'Approve credit',
-        'approvals.reject_credit' => 'Reject credit',
-        'settings.view' => 'View settings',
-        'settings.edit' => 'Edit settings',
-        'settings.smtp' => 'SMTP settings',
-        'settings.branding' => 'Branding settings',
-        'email_templates.view' => 'View email templates',
-        'email_templates.edit' => 'Edit email templates',
-        'admin_management.view' => 'View admin management',
-        'admin_management.create' => 'Create admin users',
-        'admin_management.edit' => 'Edit admin users',
-        'admin_management.delete' => 'Delete admin users',
-        'admin_management.assign_role' => 'Assign admin role',
-        'roles.view' => 'View roles',
-        'roles.create' => 'Create roles',
-        'roles.edit' => 'Edit roles',
-        'roles.delete' => 'Delete roles',
+    private const ACTIONS = [
+        'view' => 'View',
+        'create' => 'Add',
+        'edit' => 'Edit',
+        'delete' => 'Delete',
+    ];
+
+    private const MODULES = [
+        'dashboard' => ['view'],
+        'members' => ['view', 'create', 'edit', 'delete'],
+        'credits' => ['view', 'create', 'edit', 'delete'],
+        'transactions' => ['view', 'create', 'edit', 'delete'],
+        'schedules' => ['view', 'create', 'edit', 'delete'],
+        'trainings' => ['view', 'create', 'edit', 'delete'],
+        'league_groups' => ['view', 'create', 'edit', 'delete'],
+        'approvals' => ['view', 'create', 'edit', 'delete'],
+        'settings' => ['view', 'create', 'edit', 'delete'],
+        'email_templates' => ['view', 'create', 'edit', 'delete'],
+        'admin_management' => ['view', 'create', 'edit', 'delete'],
     ];
 
     public function run(): void
     {
         $now = now();
+        $allPermissionIds = [];
 
-        foreach (self::PERMISSIONS as $id => $label) {
-            [$module, $action] = explode('.', $id, 2);
+        foreach (self::MODULES as $module => $actions) {
+            foreach ($actions as $action) {
+                $id = $module . '.' . $action;
+                $allPermissionIds[] = $id;
+                $verb = self::ACTIONS[$action];
+                $label = $module === 'dashboard'
+                    ? 'View dashboard'
+                    : $verb . ' ' . str_replace('_', ' ', $module);
 
-            Permission::updateOrCreate(
-                ['id' => $id],
-                [
-                    'module' => $module,
-                    'action' => $action,
-                    'label' => $label,
-                    'updated_at' => $now,
-                    'created_at' => $now,
-                ]
-            );
+                Permission::updateOrCreate(
+                    ['id' => $id],
+                    [
+                        'module' => $module,
+                        'action' => $action,
+                        'label' => $label,
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ]
+                );
+            }
         }
 
-        $allPermissionIds = array_keys(self::PERMISSIONS);
+        Permission::whereNotIn('id', $allPermissionIds)->delete();
 
         $roles = [
             [
@@ -100,7 +74,7 @@ class PermissionSeeder extends Seeder
                 'is_super' => false,
                 'is_system' => true,
                 'permissions' => $this->filterPermissions($allPermissionIds, [
-                    'exclude_modules' => ['admin_management', 'roles'],
+                    'exclude_modules' => ['admin_management'],
                 ]),
             ],
             [
@@ -131,8 +105,8 @@ class PermissionSeeder extends Seeder
                         'credits.*',
                         'transactions.*',
                         'approvals.view',
-                        'approvals.approve_credit',
-                        'approvals.reject_credit',
+                        'approvals.edit',
+                        'approvals.delete',
                     ],
                 ]),
             ],

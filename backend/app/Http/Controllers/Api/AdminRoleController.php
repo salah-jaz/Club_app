@@ -14,7 +14,7 @@ class AdminRoleController extends Controller
 {
     public function index(Request $request)
     {
-        if ($response = PermissionHelper::authorizeAdmin($request, 'roles.view')) {
+        if ($response = PermissionHelper::authorizeAdmin($request, 'admin_management.view')) {
             return $response;
         }
 
@@ -25,7 +25,7 @@ class AdminRoleController extends Controller
 
     public function show(Request $request, $id)
     {
-        if ($response = PermissionHelper::authorizeAdmin($request, 'roles.view')) {
+        if ($response = PermissionHelper::authorizeAdmin($request, 'admin_management.view')) {
             return $response;
         }
 
@@ -36,7 +36,7 @@ class AdminRoleController extends Controller
 
     public function store(Request $request)
     {
-        if ($response = PermissionHelper::authorizeAdmin($request, 'roles.create')) {
+        if ($response = PermissionHelper::authorizeAdmin($request, 'admin_management.create')) {
             return $response;
         }
 
@@ -64,7 +64,7 @@ class AdminRoleController extends Controller
 
     public function update(Request $request, $id)
     {
-        if ($response = PermissionHelper::authorizeAdmin($request, 'roles.edit')) {
+        if ($response = PermissionHelper::authorizeAdmin($request, 'admin_management.edit')) {
             return $response;
         }
 
@@ -111,7 +111,7 @@ class AdminRoleController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        if ($response = PermissionHelper::authorizeAdmin($request, 'roles.delete')) {
+        if ($response = PermissionHelper::authorizeAdmin($request, 'admin_management.delete')) {
             return $response;
         }
 
@@ -132,7 +132,7 @@ class AdminRoleController extends Controller
 
     public function permissions(Request $request)
     {
-        if ($response = PermissionHelper::authorizeAdmin($request, 'roles.view')) {
+        if ($response = PermissionHelper::authorizeAdmin($request, 'admin_management.view')) {
             return $response;
         }
 

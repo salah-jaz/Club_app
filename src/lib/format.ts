@@ -43,6 +43,14 @@ export function isTxnInflow(t: Transaction): boolean {
   return type === "credit" || type === "refund";
 }
 
+/** Whether a ledger row came from play schedules, trainings, or other wallet activity. */
+export function txnSource(t: Transaction): "play" | "training" | "other" {
+  const desc = (t.description || "").toLowerCase();
+  if (desc.includes("training")) return "training";
+  if (desc.includes("play session")) return "play";
+  return "other";
+}
+
 /** Parse `datetime-local` value (`YYYY-MM-DDTHH:mm`) into day / date / time labels. */
 export function parseScheduleDateTime(value: string): {
   day: string;

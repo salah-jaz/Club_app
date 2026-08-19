@@ -46,10 +46,6 @@ class AdminUserController extends Controller
             return $response;
         }
 
-        if (!PermissionHelper::userHasPermission($request->user(), 'admin_management.assign_role')) {
-            return response()->json(['message' => 'You do not have permission to assign admin roles.'], 403);
-        }
-
         $role = AdminRole::findOrFail($request->adminRoleId);
 
         $user = User::create([
@@ -102,10 +98,6 @@ class AdminUserController extends Controller
         $caller = $request->user();
 
         if ($request->has('adminRoleId')) {
-            if (!PermissionHelper::userHasPermission($caller, 'admin_management.assign_role')) {
-                return response()->json(['message' => 'You do not have permission to assign admin roles.'], 403);
-            }
-
             if ($response = $this->authorizeRoleChange($caller, $user, $request->adminRoleId)) {
                 return $response;
             }

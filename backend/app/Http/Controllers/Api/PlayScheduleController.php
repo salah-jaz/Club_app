@@ -13,6 +13,7 @@ use App\Models\Transaction;
 use App\Models\Setting;
 use App\Models\Holiday;
 use App\Helpers\MailHelper;
+use App\Helpers\PermissionHelper;
 use App\Helpers\FeeHelper;
 use App\Helpers\SessionTimingHelper;
 use Illuminate\Http\Request;
@@ -30,6 +31,10 @@ class PlayScheduleController extends Controller
 
     public function store(Request $request)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'schedules.create')) {
+            return $response;
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'date' => 'required|date',
@@ -125,6 +130,10 @@ class PlayScheduleController extends Controller
 
     public function update(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'schedules.edit')) {
+            return $response;
+        }
+
         $sch = PlaySchedule::findOrFail($id);
 
         if (in_array($sch->status, ['rotated', 'published', 'closed', 'cancelled'], true)) {
@@ -258,6 +267,10 @@ class PlayScheduleController extends Controller
 
     public function release($id)
     {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'schedules.edit')) {
+            return $response;
+        }
+
         $sch = PlaySchedule::findOrFail($id);
         $sch->status = 'released';
         $sch->save();
@@ -506,6 +519,10 @@ class PlayScheduleController extends Controller
 
     public function close($id)
     {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'schedules.edit')) {
+            return $response;
+        }
+
         $sch = PlaySchedule::findOrFail($id);
         $sch->status = 'closed';
         $sch->save();
@@ -518,6 +535,10 @@ class PlayScheduleController extends Controller
 
     public function cancel(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'schedules.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'reason' => 'required|string|max:1000',
         ]);
@@ -553,6 +574,10 @@ class PlayScheduleController extends Controller
 
     public function publish($id)
     {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'schedules.edit')) {
+            return $response;
+        }
+
         $schedule = PlaySchedule::findOrFail($id);
 
         if ($schedule->status !== 'rotated') {
@@ -587,6 +612,10 @@ class PlayScheduleController extends Controller
      */
     public function revertRotation(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'schedules.edit')) {
+            return $response;
+        }
+
         $user = $request->user();
         if (!$user || $user->role !== 'admin') {
             return response()->json(['message' => 'Only admins can revert court rotations.'], 403);
@@ -612,6 +641,7 @@ class PlayScheduleController extends Controller
 
     public function performRotate(PlaySchedule $schedule): ?Rotation
     {
+        return DB::transaction(function () use ($schedule) {
         $invites = PlayInvitation::where('schedule_id', $schedule->id)->where('status', 'accepted')->get();
         $playerIds = $invites->pluck('member_id')->values()->all();
 
@@ -643,12 +673,13 @@ class PlayScheduleController extends Controller
         $schedule->save();
 
         return $rotation;
+        });
     }
 
     public static function processAutoPublishAndRotation(): void
     {
-        $autoPublish = Setting::where('key', 'auto_publish_rotation')->value('value') === 'true';
-        if (!$autoPublish) {
+        $autoPublishSetting = Setting::where('key', 'auto_publish_rotation')->value('value');
+        if ($autoPublishSetting === 'false') {
             return;
         }
 
@@ -658,8 +689,10 @@ class PlayScheduleController extends Controller
             $lockHours = 0;
         }
 
-        $now = \Carbon\Carbon::now();
-        $schedules = PlaySchedule::whereIn('status', ['released', 'open', 'rotated'])->get();
+        SessionTimingHelper::applyClubTimezone();
+        $now = SessionTimingHelper::now();
+        // Only released/rotated: create + release stay manual. Lock window generates + publishes.
+        $schedules = PlaySchedule::whereIn('status', ['released', 'rotated'])->get();
         $controller = new self();
 
         foreach ($schedules as $schedule) {
@@ -667,23 +700,32 @@ class PlayScheduleController extends Controller
                 continue;
             }
 
-            $matchStart = \Carbon\Carbon::parse($schedule->date);
-            $lockDeadline = $matchStart->copy()->subHours($lockHours);
+            try {
+                $matchStart = SessionTimingHelper::parseDateTime($schedule->date);
+                $lockDeadline = $matchStart->copy()->subHours($lockHours);
 
-            if ($now->greaterThanOrEqualTo($lockDeadline)) {
-                if ($schedule->status === 'open') {
-                    $controller->release($schedule->id);
-                    $schedule->refresh();
+                if ($now->lt($lockDeadline)) {
+                    continue;
                 }
 
-                if (in_array($schedule->status, ['released', 'open'], true)) {
+                $acceptedCount = PlayInvitation::where('schedule_id', $schedule->id)
+                    ->where('status', 'accepted')
+                    ->count();
+
+                if ($schedule->status === 'released') {
+                    if ($acceptedCount < 1) {
+                        continue;
+                    }
                     $controller->performRotate($schedule);
                     $schedule->refresh();
                 }
 
-                if (in_array($schedule->status, ['rotated', 'released', 'open'], true)) {
+                if ($schedule->status === 'rotated') {
                     $rotation = Rotation::where('schedule_id', $schedule->id)->first();
                     if (!$rotation) {
+                        if ($acceptedCount < 1) {
+                            continue;
+                        }
                         $controller->performRotate($schedule);
                         $schedule->refresh();
                     }
@@ -692,6 +734,8 @@ class PlayScheduleController extends Controller
                 }
 
                 self::ensureNextPlaySessionGenerated($schedule, $controller);
+            } catch (\Throwable $e) {
+                logger()->error('Auto publish/rotation failed for schedule '.$schedule->id.': '.$e->getMessage());
             }
         }
     }
@@ -702,10 +746,10 @@ class PlayScheduleController extends Controller
             return;
         }
 
-        $currentDate = \Carbon\Carbon::parse($schedule->date);
+        $currentDate = SessionTimingHelper::parseDateTime($schedule->date);
         $nextDate = $currentDate->copy()->addWeeks(1);
 
-        while ($nextDate->isPast()) {
+        while ($nextDate->lt(SessionTimingHelper::now())) {
             $nextDate->addWeeks(1);
         }
 
@@ -767,6 +811,10 @@ class PlayScheduleController extends Controller
 
     public function rotate($id)
     {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'schedules.edit')) {
+            return $response;
+        }
+
         $schedule = PlaySchedule::findOrFail($id);
         $invites = PlayInvitation::where('schedule_id', $id)->where('status', 'accepted')->get();
         $playerIds = $invites->pluck('member_id')->values()->all();
@@ -786,6 +834,10 @@ class PlayScheduleController extends Controller
 
     public function updateRotation(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'schedules.edit')) {
+            return $response;
+        }
+
         $user = $request->user();
         if (!$user || $user->role !== 'admin') {
             return response()->json(['message' => 'Only admins can edit court rotations.'], 403);
@@ -872,6 +924,10 @@ class PlayScheduleController extends Controller
 
     public function updateRotationShowGrades(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'schedules.edit')) {
+            return $response;
+        }
+
         $user = $request->user();
         if (!$user || $user->role !== 'admin') {
             return response()->json(['message' => 'Only admins can change grade visibility.'], 403);
@@ -1263,22 +1319,19 @@ class PlayScheduleController extends Controller
                 ], 422);
             }
 
-            // Accepted players cannot cancel within the lock window before match start when Auto Publish & Rotation is enabled
+            // Accepted players cannot cancel once the Cancellation Lock Window is reached
             if ($wasAccepted) {
-                $autoPublish = Setting::where('key', 'auto_publish_rotation')->value('value') === 'true';
-                if ($autoPublish) {
-                    $lockHours = (int) (Setting::where('key', 'cancellation_lock_hours')->value('value') ?? 24);
-                    if ($lockHours < 0) {
-                        $lockHours = 0;
-                    }
-                    $matchStart = \Carbon\Carbon::parse($sch->date);
-                    $cancelDeadline = $matchStart->copy()->subHours($lockHours);
-                    if (now()->greaterThanOrEqualTo($cancelDeadline)) {
-                        $hoursLabel = $lockHours === 1 ? '1 hour' : "{$lockHours} hours";
-                        return response()->json([
-                            'message' => "Decline is no longer available. Cancellations close {$hoursLabel} before the match starts.",
-                        ], 422);
-                    }
+                $lockHours = (int) (Setting::where('key', 'cancellation_lock_hours')->value('value') ?? 24);
+                if ($lockHours < 0) {
+                    $lockHours = 0;
+                }
+                $matchStart = SessionTimingHelper::parseDateTime($sch->date);
+                $cancelDeadline = $matchStart->copy()->subHours($lockHours);
+                if (SessionTimingHelper::now()->greaterThanOrEqualTo($cancelDeadline)) {
+                    $hoursLabel = $lockHours === 1 ? '1 hour' : "{$lockHours} hours";
+                    return response()->json([
+                        'message' => "Decline is no longer available. Cancellations close {$hoursLabel} before the match starts.",
+                    ], 422);
                 }
             }
 
@@ -1502,6 +1555,10 @@ class PlayScheduleController extends Controller
 
     public function destroy($id)
     {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'schedules.delete')) {
+            return $response;
+        }
+
         $sch = PlaySchedule::findOrFail($id);
 
         if ($sch->status !== 'cancelled') {

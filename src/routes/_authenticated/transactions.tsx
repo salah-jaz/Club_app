@@ -3,7 +3,7 @@ import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtDateTime, fmtMoney, fmtDate, formatTxnDescription, txnDisplayType, isTxnInflow } from "@/lib/format";
+import { fmtDateTime, fmtMoney, fmtDate, formatTxnDescription, txnDisplayType, isTxnInflow, txnSource } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -48,6 +48,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type SourceTab = "all" | "play" | "training";
 
 type TransactionsSearch = {
   memberId?: string;
@@ -154,6 +157,7 @@ function Txns() {
 
   const isAdmin = user.role === "admin";
   const [searchTerm, setSearchTerm] = useState("");
+  const [sourceTab, setSourceTab] = useState<SourceTab>("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
@@ -195,6 +199,7 @@ function Txns() {
     return baseTxns
       .filter((t) => {
         const m = s.members.find((x) => x.id === t.memberId);
+        if (sourceTab !== "all" && txnSource(t) !== sourceTab) return false;
         if (memberTypeFilter !== "all") {
           if (!m || m.memberType.toLowerCase() !== memberTypeFilter.toLowerCase()) {
             return false;
@@ -235,7 +240,10 @@ function Txns() {
         if (sortBy === "amount_low") return a.amount - b.amount;
         return 0;
       });
-  }, [baseTxns, s.members, memberTypeFilter, searchTerm, typeFilter, fromDate, toDate, sortBy]);
+  }, [baseTxns, s.members, sourceTab, memberTypeFilter, searchTerm, typeFilter, fromDate, toDate, sortBy]);
+
+  const playCount = baseTxns.filter((t) => txnSource(t) === "play").length;
+  const trainingCount = baseTxns.filter((t) => txnSource(t) === "training").length;
 
   const stats = useMemo(() => {
     const creditTxns = filteredTxns.filter((t) => isTxnInflow(t));
@@ -295,12 +303,45 @@ function Txns() {
         />
       </motion.div>
 
+      <Tabs value={sourceTab} onValueChange={(v) => setSourceTab(v as SourceTab)} className="w-full">
+        <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-0 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
+          <TabsTrigger
+            value="all"
+            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+          >
+            All ({baseTxns.length})
+          </TabsTrigger>
+          <TabsTrigger
+            value="play"
+            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+          >
+            Play Schedules ({playCount})
+          </TabsTrigger>
+          <TabsTrigger
+            value="training"
+            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+          >
+            Trainings ({trainingCount})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] overflow-hidden">
         <CardHeader className="border-b border-[rgba(255,255,255,0.06)] py-4.5 px-4 sm:px-6">
           <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
             {focusMember
-              ? `${focusMember.firstName} ${focusMember.lastName} — Transaction History`
-              : "Transaction History"}
+              ? `${focusMember.firstName} ${focusMember.lastName} — ${
+                  sourceTab === "play"
+                    ? "Play Schedule History"
+                    : sourceTab === "training"
+                      ? "Training History"
+                      : "Transaction History"
+                }`
+              : sourceTab === "play"
+                ? "Play Schedule History"
+                : sourceTab === "training"
+                  ? "Training History"
+                  : "Transaction History"}
           </CardTitle>
         </CardHeader>
 

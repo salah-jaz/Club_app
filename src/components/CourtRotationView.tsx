@@ -395,7 +395,7 @@ export function CourtRotationView({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div
             className={cn(
-              "flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E]/70 px-3 py-2",
+              "flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2",
               !canChangeShowGrade && "opacity-70",
             )}
             title={
@@ -409,12 +409,12 @@ export function CourtRotationView({
               checked={showGrade}
               disabled={!canChangeShowGrade || savingGradePref}
               onCheckedChange={(v) => void onToggleShowGrade(v)}
-              className="data-[state=checked]:bg-[#10B981]"
+              className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-foreground/25"
             />
             <Label
               htmlFor="show-grade-court-rotation"
               className={cn(
-                "text-[12px] text-[#C4D4CF] font-medium",
+                "text-[12px] font-semibold tracking-wide uppercase !text-foreground",
                 canChangeShowGrade ? "cursor-pointer" : "cursor-default",
               )}
             >

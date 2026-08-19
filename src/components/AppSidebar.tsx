@@ -9,6 +9,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useCurrentUser, useStore } from "@/lib/store";
+import { useCanModule } from "@/lib/permissions";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -29,6 +30,17 @@ export function AppSidebar() {
   const isAdmin = activeRole === "admin";
   const isMember = activeRole === "member";
   const isVol = activeRole === "volunteer";
+  const canDashboard = useCanModule("dashboard");
+  const canMembers = useCanModule("members");
+  const canCredits = useCanModule("credits");
+  const canSchedules = useCanModule("schedules");
+  const canLeagueGroups = useCanModule("league_groups");
+  const canTrainings = useCanModule("trainings");
+  const canTransactions = useCanModule("transactions");
+  const canApprovals = useCanModule("approvals");
+  const canEmailTemplates = useCanModule("email_templates");
+  const canSettings = useCanModule("settings");
+  const canAdminManagement = useCanModule("admin_management");
 
   const closeSidebarMobile = () => {
     if (isMobile) {
@@ -48,23 +60,23 @@ export function AppSidebar() {
   };
 
   const main = [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
-    { to: "/members", label: "Members", icon: Users, show: isMember || isAdmin },
-    { to: "/credits", label: "Wallet", icon: Wallet, show: isMember || isAdmin },
+    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: !isAdmin || canDashboard },
+    { to: "/members", label: "Members", icon: Users, show: isMember || (isAdmin && canMembers) },
+    { to: "/credits", label: "Wallet", icon: Wallet, show: isMember || (isAdmin && canCredits) },
     { to: "/events", label: "Play Sessions", icon: CalendarDays, show: isMember },
     { to: "/training", label: "Training", icon: GraduationCap, show: isMember },
-    { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin },
-    { to: "/league-groups", label: "League Groups", icon: Users, show: isAdmin || isMember },
-    { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isAdmin || isVol },
-    { to: "/transactions", label: "Transactions", icon: Receipt, show: true },
+    { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin && canSchedules },
+    { to: "/league-groups", label: "League Groups", icon: Users, show: isMember || (isAdmin && canLeagueGroups) },
+    { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isVol || (isAdmin && canTrainings) },
+    { to: "/transactions", label: "Transactions", icon: Receipt, show: isMember || isVol || (isAdmin && canTransactions) },
   ];
 
   const adminItems = [
-    { to: "/approvals", label: "Approvals", icon: ShieldCheck },
-    { to: "/email-templates", label: "Email Templates", icon: Inbox },
-    { to: "/settings", label: "Settings", icon: Settings },
-    { to: "/admin-management", label: "Club Admin", icon: UserCog },
-  ];
+    { to: "/approvals", label: "Approvals", icon: ShieldCheck, show: canApprovals },
+    { to: "/email-templates", label: "Email Templates", icon: Inbox, show: canEmailTemplates },
+    { to: "/settings", label: "Settings", icon: Settings, show: canSettings },
+    { to: "/admin-management", label: "Club Admin", icon: UserCog, show: canAdminManagement },
+  ].filter((i) => i.show);
 
   // Find the active item key for the layout animation
   const activeMainItem = main.filter((i) => i.show).find((i) => pathname.startsWith(i.to));
@@ -133,7 +145,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {isAdmin && (
+        {isAdmin && adminItems.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>Admin</SidebarGroupLabel>
             <SidebarGroupContent>

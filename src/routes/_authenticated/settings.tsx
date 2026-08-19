@@ -1040,7 +1040,7 @@ function SettingsPage() {
                           Automatic Publish & Rotation
                         </Label>
                         <p className="text-[11px] text-muted-foreground/80 font-light leading-relaxed">
-                          When enabled, play schedules reaching the Cancellation Lock Window will automatically lock member cancellations, generate player court rotation, and publish schedules.
+                          When enabled, released play schedules automatically generate court rotation and publish it when the Cancellation Lock Window is reached. Create and release remain manual.
                         </p>
                       </div>
                       <Switch
@@ -1063,7 +1063,7 @@ function SettingsPage() {
                       className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
                     />
                     <p className="text-[10px] text-muted-foreground/60 font-light">
-                      Hours before match start when cancellations close. {autoPublishRotation ? `Cancellations automatically lock and court rotation is published ${cancellationLockHours || 0} hour(s) before match start.` : "Toggle disabled: schedule publishing and rotation remain manual."}
+                      Hours before match start when accepted members can no longer cancel. {autoPublishRotation ? `At that time court rotation is generated and published automatically (${cancellationLockHours || 0} hour(s) before start).` : "Automatic generate and publish is off: rotation stays manual, but cancellations still close at this window."}
                     </p>
                   </div>
                 </div>
