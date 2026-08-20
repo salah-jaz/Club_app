@@ -503,7 +503,7 @@ class TrainingController extends Controller
                             'member_id' => $freshWallet->id,
                             'type' => 'debit',
                             'amount' => $totalFeeToDeduct,
-                            'description' => 'Training program invitation force accepted: ' . $tr->name,
+                            'description' => 'Training program invitation force accepted for ' . $member->name . ': ' . $tr->name,
                             'date' => now(),
                         ]);
 
@@ -713,7 +713,7 @@ class TrainingController extends Controller
                             'member_id' => $freshWalletMember->id,
                             'type' => 'debit',
                             'amount' => $feeToDeduct,
-                            'description' => 'Training program invitation accepted: ' . $tr->name,
+                            'description' => 'Training program invitation accepted for ' . $member->name . ': ' . $tr->name,
                             'date' => now(),
                         ]);
 
@@ -853,7 +853,7 @@ class TrainingController extends Controller
                 $freshWalletMember->credit = round($freshWalletMember->credit - $feeToDeduct, 2);
                 $freshWalletMember->save();
 
-                $description = 'Training program invitation accepted: ' . $tr->name . ' (Training Fee: $' . number_format($originalFee, 2) . ', Discount: $' . number_format($discountApplied, 2) . ', Amount Debited: $' . number_format($feeToDeduct, 2) . ')';
+                $description = 'Training program invitation accepted for ' . $member->name . ': ' . $tr->name . ' (Training Fee: $' . number_format($originalFee, 2) . ', Discount: $' . number_format($discountApplied, 2) . ', Amount Debited: $' . number_format($feeToDeduct, 2) . ')';
 
                 $transaction = Transaction::create([
                     'id' => 't_' . Str::random(8),
@@ -1006,7 +1006,7 @@ class TrainingController extends Controller
                             $freshWalletMember->save();
 
                             $discountApplied = round(max(0, $totalOriginalFee - $totalFeeToDeduct), 2);
-                            $description = 'Training program invitation accepted: ' . implode(', ', $trainingNames) . ' (Training Fee: $' . number_format($totalOriginalFee, 2) . ', Discount: $' . number_format($discountApplied, 2) . ', Amount Debited: $' . number_format($totalFeeToDeduct, 2) . ')';
+                            $description = 'Training program invitation accepted for ' . $member->name . ': ' . implode(', ', $trainingNames) . ' (Training Fee: $' . number_format($totalOriginalFee, 2) . ', Discount: $' . number_format($discountApplied, 2) . ', Amount Debited: $' . number_format($totalFeeToDeduct, 2) . ')';
                             if (strlen($description) > 255) {
                                 $description = substr($description, 0, 252) . '...';
                             }
@@ -1229,7 +1229,7 @@ class TrainingController extends Controller
                         'member_id' => $freshWalletMember->id,
                         'type' => 'debit',
                         'amount' => $additionalAmount,
-                        'description' => 'Training program update request accepted: ' . $tr->name,
+                        'description' => 'Training program update request accepted for ' . $member->name . ': ' . $tr->name,
                         'date' => now(),
                     ]);
 
@@ -1254,7 +1254,7 @@ class TrainingController extends Controller
                         'member_id' => $freshWalletMember->id,
                         'type' => 'refund',
                         'amount' => $refundAmount,
-                        'description' => 'Training program update refund: ' . $tr->name,
+                        'description' => 'Training program update refund for ' . $member->name . ': ' . $tr->name,
                         'date' => now(),
                     ]);
 
@@ -1438,7 +1438,7 @@ class TrainingController extends Controller
                     'member_id' => $freshWallet->id,
                     'type' => 'refund',
                     'amount' => $refundAmount,
-                    'description' => "Training session absent ({$refundLabel}): {$tr->name}",
+                    'description' => "Training session absent ({$refundLabel}) for {$member->name}: {$tr->name}",
                     'date' => now(),
                 ]);
 
@@ -1802,9 +1802,9 @@ class TrainingController extends Controller
                         'member_id' => $freshWallet->id,
                         'type' => 'refund',
                         'amount' => $remainingRefund,
-                        'description' => $isDeletion
-                            ? 'Refund — deleted training session: ' . $session->name
-                            : 'Refund — cancelled training session: ' . $session->name,
+                        'description' => ($isDeletion
+                            ? 'Refund — deleted training session for '
+                            : 'Refund — cancelled training session for ') . $member->name . ': ' . $session->name,
                         'date' => now(),
                     ]);
 

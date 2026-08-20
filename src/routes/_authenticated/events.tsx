@@ -433,6 +433,8 @@ function Events() {
       Date.now() < matchStartMs - lockHours * 60 * 60 * 1000;
     const hoursLabel = lockHours === 1 ? "1 hour" : `${lockHours} hours`;
 
+    const isLeagueMatch = !!(sch.isLeagueMatch || (sch.leagueGroupIds && sch.leagueGroupIds.length > 0));
+
     const canAccept =
       !isCancelled &&
       !isHoliday &&
@@ -441,8 +443,9 @@ function Events() {
       !sessionFinished &&
       (i.status === "open" || i.status === "declined");
     const canDeclineWaiting =
-      !isCancelled && !isHoliday && !responsesLocked && !sessionFinished && i.status === "waiting";
+      !isLeagueMatch && !isCancelled && !isHoliday && !responsesLocked && !sessionFinished && i.status === "waiting";
     const canDeclineAccepted =
+      !isLeagueMatch &&
       !isCancelled &&
       !isHoliday &&
       !responsesLocked &&
@@ -451,7 +454,7 @@ function Events() {
       withinCancelWindow;
     const canDecline = canDeclineWaiting || canDeclineAccepted;
     const declineLockedByTime =
-      !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
+      !isLeagueMatch && !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
 
     const memberTypeLabel = member?.memberType === "junior" ? "Child" : "Player";
 

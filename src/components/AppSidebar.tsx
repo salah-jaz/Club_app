@@ -61,13 +61,13 @@ export function AppSidebar() {
 
   const main = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: !isAdmin || canDashboard },
+    { to: "/training", label: "Training", icon: GraduationCap, show: isMember },
+    { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isVol || (isAdmin && canTrainings) },
     { to: "/members", label: "Members", icon: Users, show: isMember || (isAdmin && canMembers) },
     { to: "/credits", label: "Wallet", icon: Wallet, show: isMember || (isAdmin && canCredits) },
     { to: "/events", label: "Play Sessions", icon: CalendarDays, show: isMember },
-    { to: "/training", label: "Training", icon: GraduationCap, show: isMember },
     { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin && canSchedules },
     { to: "/league-groups", label: "League Groups", icon: Users, show: isMember || (isAdmin && canLeagueGroups) },
-    { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isVol || (isAdmin && canTrainings) },
     { to: "/transactions", label: "Transactions", icon: Receipt, show: isMember || isVol || (isAdmin && canTransactions) },
   ];
 

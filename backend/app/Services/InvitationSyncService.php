@@ -482,7 +482,7 @@ class InvitationSyncService
                 'member_id' => $walletMember->id,
                 'type' => 'refund',
                 'amount' => $remainingRefund,
-                'description' => 'Refund — cancelled training session: ' . $tr->name,
+                'description' => 'Refund — cancelled training session for ' . $member->name . ': ' . $tr->name,
                 'date' => now(),
             ]);
 

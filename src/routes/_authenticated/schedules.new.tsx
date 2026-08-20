@@ -27,13 +27,19 @@ function NewSchedule() {
   const navigate = useNavigate();
   const [f, setF] = useState({
     name: "", date: "", courts: 2, players: 16, slotHours: 2, slotDuration: "15",
-    sessionRate: 8, hallRate: 40, location: locations[0],
+    sessionRate: 8, hallRate: 40, location: locations[0] || "Main Hall",
     isLeagueMatch: false, leagueGroupIds: [] as string[],
     repeatWeeks: 1,
   });
   const [nameTouched, setNameTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  useEffect(() => {
+    if (!f.location && locations.length > 0) {
+      set("location", locations[0]);
+    }
+  }, [locations, f.location]);
 
   const minDateTime = datetimeLocalNow();
 
@@ -122,6 +128,10 @@ function NewSchedule() {
         e.preventDefault();
         if (!f.date) {
           toast.error("Please select a Date & Time for the schedule.");
+          return;
+        }
+        if (f.isLeagueMatch && f.leagueGroupIds.length === 0) {
+          toast.error("Please select at least one league group for the league schedule.");
           return;
         }
         if (isScheduleDateTimeInPast(f.date)) {

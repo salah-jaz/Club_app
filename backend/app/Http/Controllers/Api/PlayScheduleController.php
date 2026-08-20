@@ -1319,6 +1319,12 @@ class PlayScheduleController extends Controller
                 ], 422);
             }
 
+            if ($sch->is_league_match || (!empty($sch->league_group_ids) && count((array)$sch->league_group_ids) > 0)) {
+                return response()->json([
+                    'message' => 'League play session invitations cannot be declined.',
+                ], 422);
+            }
+
             // Accepted players cannot cancel once the Cancellation Lock Window is reached
             if ($wasAccepted) {
                 $lockHours = (int) (Setting::where('key', 'cancellation_lock_hours')->value('value') ?? 24);

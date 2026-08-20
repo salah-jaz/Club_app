@@ -315,4 +315,39 @@ class MailHelper
 
         self::sendEmail($member->email, $subject, $content);
     }
+
+    public static function sendPasswordResetOtpEmail($user, $otp)
+    {
+        $primaryColor = Setting::where('key', 'email_primary_color')->value('value') ?? '#10B981';
+        $subject = "Password Reset Verification Code";
+        $content = "
+            <h2 style=\"color: {$primaryColor}; font-size: 18px; margin-top: 0; font-weight: bold;\">Reset Password Request</h2>
+            <p>Hello {$user->first_name},</p>
+            <p>We received a request to reset your password for your account.</p>
+            <p>Your 6-digit verification code (OTP) is:</p>
+            <div style=\"margin: 20px 0; text-align: center; background: rgba(255,255,255,0.03); padding: 16px; border-radius: 6px; border: 1px dashed {$primaryColor};\">
+                <span style=\"font-size: 28px; font-weight: bold; letter-spacing: 6px; color: {$primaryColor};\">{$otp}</span>
+            </div>
+            <p style=\"font-size: 12px; color: #8A9E98; margin-top: 15px;\">This OTP code will expire in 15 minutes. If you did not request a password reset, please ignore this email.</p>
+        ";
+        self::sendEmail($user->email, $subject, $content);
+    }
+
+    public static function sendPasswordResetSuccessEmail($user)
+    {
+        $primaryColor = Setting::where('key', 'email_primary_color')->value('value') ?? '#10B981';
+        $subject = "Password Reset Successfully";
+        $content = "
+            <h2 style=\"color: {$primaryColor}; font-size: 18px; margin-top: 0; font-weight: bold;\">Password Reset Successfully</h2>
+            <p>Hello {$user->first_name},</p>
+            <p>Your password for your account has been successfully reset.</p>
+            <p>You can now sign in to your account using your new password.</p>
+            <div style=\"margin-top: 25px; text-align: center;\">
+                <a href=\"" . url('/') . "\" style=\"display: inline-block; background-color: {$primaryColor}; color: #0C0F0E; font-weight: bold; text-decoration: none; padding: 10px 20px; border-radius: 4px;\">Sign In to Account</a>
+            </div>
+            <p style=\"font-size: 12px; color: #8A9E98; margin-top: 20px;\">If you did not perform this action, please contact the club administrator immediately.</p>
+        ";
+        self::sendEmail($user->email, $subject, $content);
+    }
 }
+
