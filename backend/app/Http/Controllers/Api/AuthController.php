@@ -7,6 +7,7 @@ use App\Models\Member;
 use App\Models\User;
 use App\Helpers\MailHelper;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -150,4 +151,167 @@ class AuthController extends Controller
             'createdAt' => $user->created_at->toISOString(),
         ];
     }
+
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'email' => ['No registered account was found with this email address.'],
+            ]);
+        }
+
+        if ($user->status === 'rejected') {
+            throw ValidationException::withMessages([
+                'email' => ['Account registration request has been declined. Please contact support.'],
+            ]);
+        }
+
+        // Generate 6-digit OTP code
+        $otp = sprintf("%06d", random_int(0, 999999));
+
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $request->email],
+            [
+                'token' => Hash::make($otp),
+                'created_at' => now(),
+            ]
+        );
+
+        $maskedEmail = $this->maskEmail($request->email);
+
+        try {
+            MailHelper::sendPasswordResetOtpEmail($user, $otp);
+        } catch (\Exception $e) {
+            logger()->error("Password reset OTP email failed: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to send OTP email. Please verify SMTP settings.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => "Password reset OTP sent to {$maskedEmail}",
+            'maskedEmail' => $maskedEmail,
+        ]);
+    }
+
+    public function verifyResetOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp' => 'required|string|size:6',
+        ]);
+
+        $record = DB::table('password_reset_tokens')->where('email', $request->email)->first();
+
+        if (!$record) {
+            throw ValidationException::withMessages([
+                'otp' => ['No password reset request found for this email address.'],
+            ]);
+        }
+
+        // Check 15-minute expiration
+        if (\Carbon\Carbon::parse($record->created_at)->addMinutes(15)->isPast()) {
+            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+            throw ValidationException::withMessages([
+                'otp' => ['This OTP has expired. Please request a new OTP.'],
+            ]);
+        }
+
+        if (!Hash::check($request->otp, $record->token)) {
+            throw ValidationException::withMessages([
+                'otp' => ['The OTP entered is incorrect. Please try again.'],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'OTP verified successfully.',
+            'verified' => true,
+        ]);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp' => 'required|string|size:6',
+            'password' => 'required|string|min:6|confirmed',
+        ]);
+
+        $record = DB::table('password_reset_tokens')->where('email', $request->email)->first();
+
+        if (!$record) {
+            throw ValidationException::withMessages([
+                'otp' => ['No password reset request found. Please request a new OTP.'],
+            ]);
+        }
+
+        if (\Carbon\Carbon::parse($record->created_at)->addMinutes(15)->isPast()) {
+            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+            throw ValidationException::withMessages([
+                'otp' => ['This OTP has expired. Please request a new OTP.'],
+            ]);
+        }
+
+        if (!Hash::check($request->otp, $record->token)) {
+            throw ValidationException::withMessages([
+                'otp' => ['The OTP entered is incorrect. Please try again.'],
+            ]);
+        }
+
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'email' => ['User account not found.'],
+            ]);
+        }
+
+        $user->password = Hash::make($request->password);
+        $user->save();
+
+        // Delete used token record
+        DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+        try {
+            MailHelper::sendPasswordResetSuccessEmail($user);
+        } catch (\Exception $e) {
+            logger()->error("Password reset success email failed: " . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => 'Password reset successfully. You can now sign in with your new password.',
+        ]);
+    }
+
+    private function maskEmail(string $email): string
+    {
+        $parts = explode('@', $email);
+        if (count($parts) !== 2) {
+            return $email;
+        }
+
+        $name = $parts[0];
+        $domain = $parts[1];
+        $length = strlen($name);
+
+        if ($length <= 2) {
+            $maskedName = str_repeat('*', $length);
+        } elseif ($length <= 4) {
+            $maskedName = substr($name, 0, 1) . str_repeat('*', $length - 1);
+        } else {
+            $keepFirst = 1;
+            $keepLast = min(2, max(1, $length - 3));
+            $stars = str_repeat('*', max(3, $length - $keepFirst - $keepLast));
+            $maskedName = substr($name, 0, $keepFirst) . $stars . substr($name, -$keepLast);
+        }
+
+        return $maskedName . '@' . $domain;
+    }
 }
+

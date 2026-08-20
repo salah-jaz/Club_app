@@ -286,4 +286,47 @@ class LeagueGroupRotationTest extends TestCase
             $this->assertLessThanOrEqual(3, $count, "Player {$m->id} play count should be at most 3");
         }
     }
+
+    public function test_league_play_session_invitations_cannot_be_declined(): void
+    {
+        $group = LeagueGroup::create([
+            'id' => 'lg_test_nodecline',
+            'name' => 'No Decline Group',
+        ]);
+
+        $schedule = PlaySchedule::create([
+            'id' => 's_lg_nodecline_test',
+            'name' => 'League Session No Decline',
+            'date' => now()->addDays(3)->format('Y-m-d H:i:s'),
+            'courts' => 2,
+            'players' => 8,
+            'slot_hours' => 2,
+            'slot_duration' => 30,
+            'session_rate' => 10,
+            'hall_rate' => 20,
+            'location' => 'Main Hall',
+            'status' => 'released',
+            'is_league_match' => true,
+            'league_group_ids' => [$group->id],
+        ]);
+
+        $member = $this->members[0];
+        $memberUser = User::find($member->user_id);
+
+        $invite = PlayInvitation::create([
+            'id' => 'pi_nodecline_' . $member->id,
+            'schedule_id' => $schedule->id,
+            'member_id' => $member->id,
+            'status' => 'accepted',
+        ]);
+
+        $response = $this->actingAs($memberUser)->postJson("/api/play-invitations/{$invite->id}/respond", [
+            'status' => 'declined',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'message' => 'League play session invitations cannot be declined.',
+        ]);
+    }
 }

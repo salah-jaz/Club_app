@@ -58,6 +58,12 @@ class Member extends Model
         'credit' => 'float',
     ];
 
+    public function getNameAttribute(): string
+    {
+        $name = trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        return $name ?: ($this->id ?? 'Member');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

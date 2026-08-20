@@ -87,6 +87,14 @@ interface State {
   register: (u: Omit<User, "id" | "role" | "status" | "createdAt">) => Promise<string>;
   verifyOtp: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<{ message: string; maskedEmail: string }>;
+  verifyResetOtp: (email: string, otp: string) => Promise<{ message: string }>;
+  resetPassword: (
+    email: string,
+    otp: string,
+    password: string,
+    passwordConfirmation: string
+  ) => Promise<{ message: string }>;
   login: (email: string, password: string) => Promise<User | null>;
   loginAs: (memberId: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -555,6 +563,23 @@ export const useStore = create<State>((set, get) => ({
 
   resendOtp: async (email) => {
     await api.post("/register/resend-otp", { email });
+  },
+
+  forgotPassword: async (email) => {
+    return await api.post<{ message: string; maskedEmail: string }>("/forgot-password", { email });
+  },
+
+  verifyResetOtp: async (email, otp) => {
+    return await api.post<{ message: string; verified?: boolean }>("/verify-reset-otp", { email, otp });
+  },
+
+  resetPassword: async (email, otp, password, passwordConfirmation) => {
+    return await api.post<{ message: string }>("/reset-password", {
+      email,
+      otp,
+      password,
+      password_confirmation: passwordConfirmation,
+    });
   },
 
   login: async (email, password) => {
