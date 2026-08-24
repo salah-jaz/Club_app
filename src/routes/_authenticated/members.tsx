@@ -16,6 +16,12 @@ import {
 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
+import {
+  ReportDialog,
+  ReportTriggerButton,
+  runReportExport,
+  useReportDialog,
+} from "@/components/ReportDialog";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { toast } from "sonner";
@@ -24,6 +30,13 @@ import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Member } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+  MEMBER_REPORT_CATEGORY,
+  MEMBER_REPORT_STATUS,
+  MEMBER_REPORT_TYPE,
+  exportMembersReport,
+  filterMembersForReport,
+} from "@/lib/module-reports";
 
 /** Flat or nested row for the members list (juniors nest under same-user adults when viewing All). */
 type MemberDisplayRow = {
@@ -748,6 +761,7 @@ function MembersList() {
   /** Adult member ids with juniors expanded */
   const [expandedFamilyIds, setExpandedFamilyIds] = useState<Set<string>>(() => new Set());
   const bulkDeleteMembers = useStore((s) => s.bulkDeleteMembers);
+  const report = useReportDialog();
 
   const handleRowClick = (memberId: string, e?: React.SyntheticEvent) => {
     if (e) {
@@ -891,6 +905,42 @@ function MembersList() {
     }
     return ids;
   }, [leagueGroups]);
+
+  const reportPreviewCount = useMemo(
+    () => filterMembersForReport(baseMembers, store.users, leagueMemberIds, report.values).length,
+    [baseMembers, store.users, leagueMemberIds, report.values],
+  );
+
+  const openMembersReport = () => {
+    report.openWith({
+      status: filters.status !== "all" ? filters.status : "all",
+      type: filters.category !== "all" ? filters.category : "all",
+      category:
+        filters.league === "league"
+          ? "league"
+          : filters.league === "non-league"
+            ? "non-league"
+            : "all",
+      memberId: "all",
+    });
+  };
+
+  const exportMembers = (format: "csv" | "pdf") =>
+    runReportExport({
+      count: reportPreviewCount,
+      format,
+      setExporting: report.setExporting,
+      setOpen: report.setOpen,
+      exportFn: (fmt) =>
+        exportMembersReport(
+          baseMembers,
+          store.users,
+          leagueMemberIds,
+          report.values,
+          fmt,
+          store.appName,
+        ),
+    });
 
   const stats = useMemo(() => ({
     total: baseMembers.length,
@@ -1293,6 +1343,7 @@ function MembersList() {
         }
         actions={
           <div className="flex flex-wrap gap-2 w-full min-w-0 justify-start md:justify-end">
+            <ReportTriggerButton onClick={openMembersReport} />
             <input type="file" ref={fileInputRef} onChange={handleBulkUpload} accept=".csv" className="hidden" />
             {canBulkUpload && (
               <>
@@ -1339,26 +1390,6 @@ function MembersList() {
         <MemberStatCard label="Active" value={stats.active} hint="Currently active" icon={Users} index={3} />
       </motion.div>
 
-      {/* Quick filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-semibold tracking-wider text-[#6B7F78] uppercase mr-1">Quick view</span>
-        {quickFilters.map((qf) => (
-          <button
-            key={qf.id}
-            type="button"
-            onClick={qf.apply}
-            className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer border",
-              isQuickActive(qf.id)
-                ? "bg-[rgba(16,185,129,0.12)] text-[#34D399] border-[rgba(16,185,129,0.35)]"
-                : "bg-transparent text-[#8A8A98] border-transparent hover:text-[#EEF2F0] hover:border-white/10",
-            )}
-          >
-            {qf.label}
-          </button>
-        ))}
-      </div>
-
       <SearchFilterBar
         searchPlaceholder="Search by name, email, or BI ID..."
         searchValue={search}
@@ -1370,10 +1401,43 @@ function MembersList() {
         sortOptions={sortOptions}
         currentSort={sortBy}
         onSortChange={setSortBy}
+        toolbar={
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2.5 min-w-0">
+            <span className="text-[10px] font-semibold tracking-[0.1em] text-[#8A8A98] uppercase shrink-0 leading-none">
+              Quick view
+            </span>
+            <div
+              role="tablist"
+              aria-label="Quick view"
+              className="inline-flex flex-wrap items-center gap-0.5 p-0.5 rounded-md bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] max-w-full"
+            >
+              {quickFilters.map((qf) => {
+                const active = isQuickActive(qf.id);
+                return (
+                  <button
+                    key={qf.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={qf.apply}
+                    className={cn(
+                      "px-2.5 sm:px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap leading-none",
+                      active
+                        ? "bg-[rgba(16,185,129,0.15)] text-[#10B981] shadow-sm"
+                        : "text-[#8A8A98] hover:text-[#EEF2F0] hover:bg-white/[0.04]",
+                    )}
+                  >
+                    {qf.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        }
       />
 
       {/* Results toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 -mt-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="text-sm text-[#8FA89F]">
           Showing <span className="text-[#EEF2F0] font-semibold">{visibleRows.length}</span>
           {visibleRows.length !== baseMembers.length && (
@@ -1793,6 +1857,27 @@ function MembersList() {
           </div>
         </div>
       )}
+
+      <ReportDialog
+        open={report.open}
+        onOpenChange={report.setOpen}
+        values={report.values}
+        onValuesChange={report.setValues}
+        previewCount={reportPreviewCount}
+        exporting={report.exporting}
+        onExport={exportMembers}
+        config={{
+          entityLabel: "members",
+          showDateRange: true,
+          showMember: activeRole === "admin",
+          members: baseMembers.filter((m) => m.memberType === "adult"),
+          statusOptions: MEMBER_REPORT_STATUS,
+          typeOptions: MEMBER_REPORT_TYPE,
+          categoryOptions: MEMBER_REPORT_CATEGORY,
+          typeLabel: "Member type",
+          categoryLabel: "Category",
+        }}
+      />
     </div>
   );
 }

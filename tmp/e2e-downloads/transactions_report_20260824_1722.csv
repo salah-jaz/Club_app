@@ -1,0 +1,19 @@
+﻿# Transactions Report
+# Filters: Type: credit
+# Generated: 24 Aug 2026, 05:22 pm
+# Rows: 13
+
+Date,Member,Type,Category,Description,Amount
+"24 Aug 2026, 12:00 am",Filter Beta872287,credit,Other,Credit top-up (Admin direct),+40.00
+"24 Aug 2026, 12:00 am",Filter Adult700691,credit,Other,Credit top-up (Admin direct),+25.50
+"24 Aug 2026, 12:00 am",Filter Adult081614,credit,Other,Credit top-up (Admin direct),+25.50
+"24 Aug 2026, 12:00 am",Filter Adult651198,credit,Other,Credit top-up (Admin direct),+25.50
+"24 Aug 2026, 12:00 am",Filter Adult629305,credit,Other,Credit top-up (Admin direct),+12.34
+"24 Aug 2026, 12:00 am",Filter Beta081614,credit,Other,Credit top-up (Admin direct),+40.00
+"24 Aug 2026, 12:00 am",Filter Beta700691,credit,Other,Credit top-up (Admin direct),+40.00
+"24 Aug 2026, 12:00 am",Filter Adult081614,credit,Other,Credit top-up (Admin direct),+12.34
+"24 Aug 2026, 12:00 am",Filter Adult629305,credit,Other,Credit top-up (Admin direct),+25.50
+"24 Aug 2026, 12:00 am",Filter Adult872287,credit,Other,Credit top-up (Admin direct),+25.50
+"24 Aug 2026, 12:00 am",Filter Adult629305,credit,Other,Credit top-up (Admin direct),+12.34
+"20 Aug 2026, 12:00 am",Member 01,credit,Other,Credit top-up (Admin direct),+500.00
+"20 Aug 2026, 12:00 am",Member 02,credit,Other,Credit top-up (Admin direct),+500.00

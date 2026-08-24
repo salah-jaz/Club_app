@@ -1,0 +1,32 @@
+﻿# Members Report
+# Filters: Status: Active · Type: Adult · Category: All categories
+# Generated: 24 Aug 2026, 05:23 pm
+# Rows: 26
+
+Name,Email,Type,Status,Grade,BI ID,Membership,League,Balance,Joined
+Filter Adult081614,filter.adult.081614@test.club,adult,active,A,BI-FA-081614,Yes,Yes,$37.84,24 Aug 2026
+Filter Adult629305,filter.adult.629305@test.club,adult,active,A,BI-FA-629305,Yes,Yes,$50.18,24 Aug 2026
+Filter Adult651198,filter.adult.651198@test.club,adult,active,A,BI-FA-651198,Yes,Yes,$25.50,24 Aug 2026
+Filter Adult700691,filter.adult.700691@test.club,adult,active,A,BI-FA-700691,Yes,Yes,$25.50,24 Aug 2026
+Filter Adult872287,filter.adult.872287@test.club,adult,active,A,BI-FA-872287,Yes,Yes,$25.50,24 Aug 2026
+Filter Beta081614,filter.beta.081614@test.club,adult,active,B,BI-FB-081614,No,Yes,$35.00,24 Aug 2026
+Filter Beta700691,filter.beta.700691@test.club,adult,active,B,BI-FB-700691,No,Yes,$35.00,24 Aug 2026
+Filter Beta872287,filter.beta.872287@test.club,adult,active,B,BI-FB-872287,No,Yes,$35.00,24 Aug 2026
+John Doe,member@club.com,adult,active,A,BI001,Yes,No,$90.00,20 Aug 2026
+Member 01,member01@example.com,adult,active,A,BI-01,Yes,No,$300.00,20 Aug 2026
+Member 02,member02@example.com,adult,active,B,BI-02,Yes,No,$500.00,20 Aug 2026
+Sarah Smith,sarah@club.com,adult,active,B,BI002,Yes,No,$100.00,20 Aug 2026
+Filter Adult170916,filter.adult.170916@test.club,adult,active,A,BI-FA-170916,Yes,No,$0.00,24 Aug 2026
+Filter Beta629305,filter.beta.629305@test.club,adult,active,B,BI-FB-629305,No,Yes,$0.00,24 Aug 2026
+Filter Beta651198,filter.beta.651198@test.club,adult,active,B,BI-FB-651198,No,Yes,$0.00,24 Aug 2026
+Member 03,member03@example.com,adult,active,C,BI-03,Yes,No,$0.00,20 Aug 2026
+Member 04,member04@example.com,adult,active,D,BI-04,Yes,No,$0.00,20 Aug 2026
+Member 05,member05@example.com,adult,active,A,BI-05,Yes,No,$0.00,20 Aug 2026
+Member 06,member06@example.com,adult,active,B,BI-06,Yes,No,$0.00,20 Aug 2026
+Member 07,member07@example.com,adult,active,C,BI-07,Yes,No,$0.00,20 Aug 2026
+Member 08,member08@example.com,adult,active,D,BI-08,Yes,No,$0.00,20 Aug 2026
+Member 09,member09@example.com,adult,active,A,BI-09,Yes,No,$0.00,20 Aug 2026
+Member 10,member10@example.com,adult,active,B,BI-10,Yes,No,$0.00,20 Aug 2026
+UI Member081614U,ui.member.081614U@test.club,adult,active,C,BI024,Yes,No,$0.00,24 Aug 2026
+UI Member700691U,ui.member.700691U@test.club,adult,active,C,BI022,Yes,No,$0.00,24 Aug 2026
+UI Member872287U,ui.member.872287U@test.club,adult,active,C,BI023,Yes,No,$0.00,24 Aug 2026

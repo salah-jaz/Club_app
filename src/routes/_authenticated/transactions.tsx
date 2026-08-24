@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCan } from "@/lib/permissions";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,21 +10,19 @@ import { toast } from "sonner";
 import {
   ArrowUpRight,
   ArrowDownLeft,
-  Search,
-  X,
-  SlidersHorizontal,
-  Calendar,
   Receipt,
   ArrowDownRight,
   ArrowUpLeft,
   RotateCcw,
   Trash2,
+  Plus,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
@@ -49,6 +48,23 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MemberCombobox } from "@/components/MemberCombobox";
+import {
+  ReportDialog,
+  ReportTriggerButton,
+  runReportExport,
+  useReportDialog,
+} from "@/components/ReportDialog";
+import {
+  EXPENSE_CATEGORIES,
+  type ExpenseCategory,
+  type TxnReportCategory,
+  type TxnReportType,
+  downloadTransactionsCsv,
+  downloadTransactionsPdf,
+  filterTransactionsForReport,
+  formatExpenseReason,
+} from "@/lib/transaction-report";
 
 type SourceTab = "all" | "play" | "training";
 
@@ -156,6 +172,18 @@ function Txns() {
     : undefined;
 
   const isAdmin = user.role === "admin";
+  const canCreateCredits = useCan("credits.create");
+  const canAddExpense = isAdmin && canCreateCredits;
+  const adultMembers = useMemo(
+    () => myMembers.filter((m) => m.memberType === "adult"),
+    [myMembers],
+  );
+  const expenseMembers = focusMember
+    ? walletMember
+      ? [walletMember]
+      : [focusMember]
+    : adultMembers;
+
   const [searchTerm, setSearchTerm] = useState("");
   const [sourceTab, setSourceTab] = useState<SourceTab>("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -163,10 +191,20 @@ function Txns() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [sortBy, setSortBy] = useState("newest");
-  const [showFilters, setShowFilters] = useState(false);
   const [selectedTxnDetail, setSelectedTxnDetail] = useState<import("@/lib/types").Transaction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<import("@/lib/types").Transaction | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Add Expense
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [expenseMemberId, setExpenseMemberId] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState<ExpenseCategory>("Other");
+  const [expenseReason, setExpenseReason] = useState("");
+  const [expenseReasonError, setExpenseReasonError] = useState<string | null>(null);
+  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [expenseSubmitting, setExpenseSubmitting] = useState(false);
+  const report = useReportDialog();
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -176,6 +214,50 @@ function Txns() {
     setToDate("");
     setSortBy("newest");
   };
+
+  const txnFilterConfig = useMemo(
+    () => [
+      {
+        key: "type",
+        label: "Type",
+        options: [
+          { value: "all", label: "All Types" },
+          { value: "credit", label: "Credit" },
+          { value: "refund", label: "Refund" },
+          { value: "debit", label: "Debit" },
+        ],
+      },
+      {
+        key: "memberType",
+        label: "Member Type",
+        options: [
+          { value: "all", label: "All" },
+          { value: "adult", label: "Adult" },
+          { value: "junior", label: "Junior" },
+        ],
+      },
+      { key: "fromDate", label: "From", type: "date" as const },
+      { key: "toDate", label: "To", type: "date" as const },
+    ],
+    [],
+  );
+
+  const txnSortOptions = useMemo(
+    () => [
+      { value: "newest", label: "Newest First" },
+      { value: "oldest", label: "Oldest First" },
+      { value: "amount_high", label: "Amount High to Low" },
+      { value: "amount_low", label: "Amount Low to High" },
+    ],
+    [],
+  );
+
+  const handleTxnFilterChange = useCallback((key: string, value: string) => {
+    if (key === "type") setTypeFilter(value);
+    else if (key === "memberType") setMemberTypeFilter(value);
+    else if (key === "fromDate") setFromDate(value);
+    else if (key === "toDate") setToDate(value);
+  }, []);
 
   const hasActiveFilters =
     searchTerm !== "" ||
@@ -257,6 +339,107 @@ function Txns() {
     };
   }, [filteredTxns]);
 
+  const openExpenseDialog = () => {
+    if (!canAddExpense) return;
+    if (focusMember) {
+      setExpenseMemberId(walletMember?.id ?? focusMember.id);
+    } else if (expenseMembers[0]) {
+      setExpenseMemberId(expenseMembers[0].id);
+    } else {
+      setExpenseMemberId("");
+    }
+    setExpenseAmount("");
+    setExpenseCategory("Other");
+    setExpenseReason("");
+    setExpenseReasonError(null);
+    setExpenseDate(new Date().toISOString().slice(0, 10));
+    setExpenseOpen(true);
+  };
+
+  const submitExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetMemberId = focusMember ? (walletMember?.id ?? focusMember.id) : expenseMemberId;
+    if (!targetMemberId || !expenseAmount) return;
+
+    const trimmedReason = expenseReason.trim();
+    if (!trimmedReason) {
+      setExpenseReasonError("Reason is required.");
+      return;
+    }
+    if (trimmedReason.length < 5) {
+      setExpenseReasonError("Reason must be at least 5 characters.");
+      return;
+    }
+    if (trimmedReason.length > 480) {
+      setExpenseReasonError("Reason must not exceed 480 characters.");
+      return;
+    }
+
+    setExpenseSubmitting(true);
+    setExpenseReasonError(null);
+    try {
+      const reason = formatExpenseReason(expenseCategory, trimmedReason);
+      await s.requestCredit(targetMemberId, parseFloat(expenseAmount), expenseDate, "debit", reason);
+      toast.success("Expense recorded — member balance reduced");
+      setExpenseOpen(false);
+      setExpenseAmount("");
+      setExpenseReason("");
+    } catch (error: any) {
+      if (error.response?.data?.errors?.reason?.[0]) {
+        setExpenseReasonError(error.response.data.errors.reason[0]);
+      } else if (error.response?.data?.message && String(error.response.data.message).includes("Reason")) {
+        setExpenseReasonError(error.response.data.message);
+      } else {
+        toast.error(error.message || "Failed to record expense.");
+      }
+    } finally {
+      setExpenseSubmitting(false);
+    }
+  };
+
+  const openReportDialog = () => {
+    report.openWith({
+      fromDate,
+      toDate,
+      memberId: walletMember?.id ?? focusMember?.id ?? "all",
+      type: typeFilter === "all" ? "all" : typeFilter,
+      category: sourceTab === "all" ? "all" : sourceTab,
+    });
+  };
+
+  const reportPreviewCount = useMemo(
+    () =>
+      filterTransactionsForReport(baseTxns, s.members, {
+        fromDate: report.values.fromDate,
+        toDate: report.values.toDate,
+        memberId: report.values.memberId,
+        type: report.values.type as TxnReportType,
+        category: report.values.category as TxnReportCategory,
+      }).length,
+    [baseTxns, s.members, report.values],
+  );
+
+  const exportReport = (format: "csv" | "pdf") =>
+    runReportExport({
+      count: reportPreviewCount,
+      emptyMessage: "No transactions match the selected filters.",
+      format,
+      setExporting: report.setExporting,
+      setOpen: report.setOpen,
+      exportFn: (fmt) => {
+        const filters = {
+          fromDate: report.values.fromDate,
+          toDate: report.values.toDate,
+          memberId: report.values.memberId,
+          type: report.values.type as TxnReportType,
+          category: report.values.category as TxnReportCategory,
+        };
+        const rows = filterTransactionsForReport(baseTxns, s.members, filters);
+        if (fmt === "csv") downloadTransactionsCsv(rows, s.members, filters);
+        else downloadTransactionsPdf(rows, s.members, filters, { appName: s.appName });
+      },
+    });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -270,6 +453,22 @@ function Txns() {
         }
         eyebrow={focusMember ? "FINANCE / MEMBER HISTORY" : undefined}
         backTo={focusMember ? "/members" : undefined}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportTriggerButton onClick={openReportDialog} />
+            {canAddExpense && (
+              <Button
+                type="button"
+                className="btn-premium-solid cursor-pointer"
+                onClick={openExpenseDialog}
+                disabled={expenseMembers.length === 0}
+              >
+                <Plus className="size-4 mr-1.5" />
+                Add Expense
+              </Button>
+            )}
+          </div>
+        }
       />
 
       <motion.div
@@ -326,6 +525,25 @@ function Txns() {
         </TabsList>
       </Tabs>
 
+      <SearchFilterBar
+        searchPlaceholder="Search member or description..."
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        showSearch={!isMemberScoped}
+        filters={txnFilterConfig}
+        activeFilters={{
+          type: typeFilter,
+          memberType: memberTypeFilter,
+          fromDate,
+          toDate,
+        }}
+        onFilterChange={handleTxnFilterChange}
+        onClearAll={resetFilters}
+        sortOptions={txnSortOptions}
+        currentSort={sortBy}
+        onSortChange={setSortBy}
+      />
+
       <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] overflow-hidden">
         <CardHeader className="border-b border-[rgba(255,255,255,0.06)] py-4.5 px-4 sm:px-6">
           <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
@@ -344,338 +562,6 @@ function Txns() {
                   : "Transaction History"}
           </CardTitle>
         </CardHeader>
-
-        <div className="px-4 sm:px-6 py-4 border-b border-[rgba(255,255,255,0.06)] bg-[#131916]">
-          <div className="flex items-center gap-2 md:hidden">
-            {!isMemberScoped && (
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
-                <Input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search member..."
-                  className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
-              </div>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className={cn(
-                "flex items-center justify-center gap-2 border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] hover:bg-white/5 text-[#F1F0EE] h-10 rounded-lg text-xs px-4 cursor-pointer",
-                isMemberScoped && "flex-1",
-                showFilters && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]",
-              )}
-            >
-              <SlidersHorizontal className="size-3.5" />
-              <span>Filters</span>
-              {hasActiveFilters && <span className="size-1.5 rounded-full bg-[#10B981]" />}
-            </Button>
-          </div>
-
-          {showFilters && (
-            <div className="flex flex-col gap-3 mt-3 md:hidden p-3 bg-[#0C0F0E]/50 rounded-lg border border-[rgba(255,255,255,0.06)]">
-              {!isMemberScoped && (
-                <div className="space-y-1">
-                  <Label className="text-[10px] font-medium text-[#8A8A98]">Search</Label>
-                  <Input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Member or description..."
-                    className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs"
-                  />
-                </div>
-              )}
-              <div className="space-y-1">
-                <Label className="text-[10px] font-medium text-[#8A8A98]">Type</Label>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="all" className="text-xs">All Types</SelectItem>
-                    <SelectItem value="credit" className="text-xs">Credit</SelectItem>
-                    <SelectItem value="refund" className="text-xs">Refund</SelectItem>
-                    <SelectItem value="debit" className="text-xs">Debit</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] font-medium text-[#8A8A98]">Member Type</Label>
-                <Select value={memberTypeFilter} onValueChange={setMemberTypeFilter}>
-                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs">
-                    <SelectValue placeholder="All" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="all" className="text-xs">All</SelectItem>
-                    <SelectItem value="adult" className="text-xs">Adult</SelectItem>
-                    <SelectItem value="junior" className="text-xs">Junior</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] font-medium text-[#8A8A98]">Date Range</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                    className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs"
-                  />
-                  <Input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                    className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] font-medium text-[#8A8A98]">Sort By</Label>
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="newest" className="text-xs">Newest First</SelectItem>
-                    <SelectItem value="oldest" className="text-xs">Oldest First</SelectItem>
-                    <SelectItem value="amount_high" className="text-xs">Amount High to Low</SelectItem>
-                    <SelectItem value="amount_low" className="text-xs">Amount Low to High</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <div className="hidden md:flex md:items-center justify-between gap-3 w-full">
-            <div className="flex items-center gap-3 flex-wrap flex-1">
-              {!isMemberScoped && (
-                <div className="relative w-full max-w-[280px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
-                  <Input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search member or description..."
-                    className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
-                  />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger
-                  className={cn(
-                    "bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[140px] rounded-lg cursor-pointer text-xs",
-                    typeFilter !== "all" && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]",
-                  )}
-                >
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="all" className="text-xs">
-                    All Types
-                  </SelectItem>
-                  <SelectItem value="credit" className="text-xs">
-                    Credit
-                  </SelectItem>
-                  <SelectItem value="refund" className="text-xs">
-                    Refund
-                  </SelectItem>
-                  <SelectItem value="debit" className="text-xs">
-                    Debit
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={memberTypeFilter} onValueChange={setMemberTypeFilter}>
-                <SelectTrigger
-                  className={cn(
-                    "bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[140px] rounded-lg cursor-pointer text-xs",
-                    memberTypeFilter !== "all" && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]",
-                  )}
-                >
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="all" className="text-xs">
-                    All
-                  </SelectItem>
-                  <SelectItem value="adult" className="text-xs">
-                    Adult
-                  </SelectItem>
-                  <SelectItem value="junior" className="text-xs">
-                    Junior
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "flex items-center gap-2 border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] hover:bg-white/5 text-[#F1F0EE] h-10 rounded-lg px-3.5 text-xs cursor-pointer",
-                      (fromDate || toDate) && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]",
-                    )}
-                  >
-                    <Calendar className="size-4 text-[#8A8A98]" />
-                    <span>
-                      {fromDate && toDate
-                        ? `${fmtDate(fromDate)} – ${fmtDate(toDate)}`
-                        : fromDate
-                          ? `From ${fmtDate(fromDate)}`
-                          : toDate
-                            ? `To ${fmtDate(toDate)}`
-                            : "Date Range"}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  className="w-[300px] bg-[#131916] border-[rgba(255,255,255,0.1)] p-4 text-[#F1F0EE] rounded-lg shadow-xl"
-                >
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-xs text-[#8A8A98] tracking-wider uppercase">
-                      Filter by Date Range
-                    </h4>
-                    <div className="grid gap-2">
-                      <div className="grid gap-1">
-                        <Label htmlFor="txn-from" className="text-[10px] text-[#8A8A98]">
-                          From Date
-                        </Label>
-                        <Input
-                          id="txn-from"
-                          type="date"
-                          value={fromDate}
-                          onChange={(e) => setFromDate(e.target.value)}
-                          className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-9 rounded-md text-xs"
-                        />
-                      </div>
-                      <div className="grid gap-1">
-                        <Label htmlFor="txn-to" className="text-[10px] text-[#8A8A98]">
-                          To Date
-                        </Label>
-                        <Input
-                          id="txn-to"
-                          type="date"
-                          value={toDate}
-                          onChange={(e) => setToDate(e.target.value)}
-                          className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-9 rounded-md text-xs"
-                        />
-                      </div>
-                    </div>
-                    {(fromDate || toDate) && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setFromDate("");
-                          setToDate("");
-                        }}
-                        className="w-full text-xs text-red-400 hover:text-red-300 hover:bg-red-400/5 h-8 cursor-pointer"
-                      >
-                        Clear Date Filter
-                      </Button>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[180px] rounded-lg cursor-pointer text-xs">
-                  <SelectValue placeholder="Sort By" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="newest" className="text-xs">
-                    Newest First
-                  </SelectItem>
-                  <SelectItem value="oldest" className="text-xs">
-                    Oldest First
-                  </SelectItem>
-                  <SelectItem value="amount_high" className="text-xs">
-                    Amount High to Low
-                  </SelectItem>
-                  <SelectItem value="amount_low" className="text-xs">
-                    Amount Low to High
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        {hasActiveFilters && (
-          <div className="flex flex-wrap items-center gap-2 px-6 pb-4 bg-[#131916]">
-            <span className="text-[11px] font-medium text-[#8A8A98]">Active Filters:</span>
-            {searchTerm && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
-                <span>Search: {searchTerm}</span>
-                <button onClick={() => setSearchTerm("")} className="hover:text-white transition-colors cursor-pointer">
-                  <X className="size-3 text-[#10B981]" />
-                </button>
-              </span>
-            )}
-            {typeFilter !== "all" && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
-                <span className="capitalize">Type: {typeFilter}</span>
-                <button onClick={() => setTypeFilter("all")} className="hover:text-white transition-colors cursor-pointer">
-                  <X className="size-3 text-[#10B981]" />
-                </button>
-              </span>
-            )}
-            {memberTypeFilter !== "all" && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
-                <span className="capitalize">Member Type: {memberTypeFilter}</span>
-                <button onClick={() => setMemberTypeFilter("all")} className="hover:text-white transition-colors cursor-pointer">
-                  <X className="size-3 text-[#10B981]" />
-                </button>
-              </span>
-            )}
-            {(fromDate || toDate) && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
-                <span>
-                  Date:{" "}
-                  {fromDate && toDate
-                    ? `${fmtDate(fromDate)} – ${fmtDate(toDate)}`
-                    : fromDate
-                      ? `From ${fmtDate(fromDate)}`
-                      : `To ${fmtDate(toDate)}`}
-                </span>
-                <button
-                  onClick={() => {
-                    setFromDate("");
-                    setToDate("");
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer"
-                >
-                  <X className="size-3 text-[#10B981]" />
-                </button>
-              </span>
-            )}
-            <button
-              onClick={resetFilters}
-              className="text-[11px] font-medium text-[#8A8A98] hover:text-[#EEF2F0] underline underline-offset-4 ml-1 cursor-pointer transition-colors"
-            >
-              Clear all
-            </button>
-          </div>
-        )}
 
         <CardContent className="p-0">
           {/* Mobile Cards View (< md) */}
@@ -985,6 +871,166 @@ function Txns() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={expenseOpen} onOpenChange={setExpenseOpen}>
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md overflow-visible">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE]">Add expense</DialogTitle>
+            <DialogDescription className="text-[#8A8A98]">
+              {focusMember
+                ? `Deduct an expense from ${walletMember?.firstName ?? focusMember.firstName} ${walletMember?.lastName ?? focusMember.lastName}'s wallet. This creates a debit transaction.`
+                : "Deduct an expense from a member's wallet. This creates a debit transaction in the ledger."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitExpense} className="space-y-4">
+            <div className="space-y-2">
+              <Label
+                htmlFor="txn-expense-member"
+                className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]"
+              >
+                Member
+              </Label>
+              {focusMember ? (
+                <div className="flex h-[38px] items-center rounded-md border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E] px-3 text-sm text-[#F1F0EE]">
+                  {walletMember && walletMember.id !== focusMember.id ? (
+                    <>
+                      {walletMember.firstName} {walletMember.lastName}
+                      <span className="ml-2 text-[#8A8A98]">— bal {fmtMoney(walletMember.credit || 0)}</span>
+                      <span className="ml-2 text-[10px] text-[#6B7F78]">(parent wallet for {focusMember.firstName})</span>
+                    </>
+                  ) : (
+                    <>
+                      {focusMember.firstName} {focusMember.lastName}
+                      <span className="ml-2 text-[#8A8A98]">— bal {fmtMoney(focusMember.credit || 0)}</span>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <MemberCombobox
+                  id="txn-expense-member"
+                  members={expenseMembers}
+                  value={expenseMemberId}
+                  onValueChange={setExpenseMemberId}
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
+                Category <span className="text-[#EF4444]">*</span>
+              </Label>
+              <Select
+                value={expenseCategory}
+                onValueChange={(v) => setExpenseCategory(v as ExpenseCategory)}
+              >
+                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px] cursor-pointer">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  {EXPENSE_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat} className="text-sm">
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
+                Amount <span className="text-[#EF4444]">*</span>
+              </Label>
+              <Input
+                type="number"
+                min="1"
+                step="0.01"
+                required
+                value={expenseAmount}
+                onChange={(e) => setExpenseAmount(e.target.value)}
+                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
+                Reason <span className="text-[#EF4444]">*</span>
+              </Label>
+              <Textarea
+                rows={3}
+                value={expenseReason}
+                onChange={(e) => {
+                  setExpenseReason(e.target.value);
+                  if (expenseReasonError) setExpenseReasonError(null);
+                }}
+                placeholder="Describe this expense…"
+                className={cn(
+                  "bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] resize-none focus-visible:ring-1 focus-visible:ring-[#10B981]",
+                  expenseReasonError && "border-[#EF4444] focus-visible:ring-[#EF4444]",
+                )}
+              />
+              {expenseReasonError && (
+                <p className="text-xs text-[#EF4444] mt-1 font-medium">{expenseReasonError}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
+                Date <span className="text-[#EF4444]">*</span>
+              </Label>
+              <Input
+                type="date"
+                value={expenseDate}
+                onChange={(e) => setExpenseDate(e.target.value)}
+                className="bg-[#0C0F0E] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-[38px] cursor-pointer"
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="btn-premium-outline cursor-pointer"
+                onClick={() => setExpenseOpen(false)}
+                disabled={expenseSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="btn-premium-solid cursor-pointer"
+                disabled={expenseSubmitting || !(focusMember?.id || expenseMemberId)}
+              >
+                {expenseSubmitting ? "Saving…" : "Add expense"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ReportDialog
+        open={report.open}
+        onOpenChange={report.setOpen}
+        values={report.values}
+        onValuesChange={report.setValues}
+        previewCount={reportPreviewCount}
+        exporting={report.exporting}
+        onExport={exportReport}
+        config={{
+          entityLabel: "transactions",
+          showDateRange: true,
+          showMember: !isMemberScoped,
+          memberLocked: isMemberScoped,
+          members: adultMembers,
+          typeOptions: [
+            { value: "all", label: "All types" },
+            { value: "credit", label: "Credit" },
+            { value: "debit", label: "Debit" },
+            { value: "refund", label: "Refund" },
+          ],
+          categoryOptions: [
+            { value: "all", label: "All categories" },
+            { value: "play", label: "Play" },
+            { value: "training", label: "Training" },
+            { value: "other", label: "Other / Wallet" },
+          ],
+          typeLabel: "Transaction type",
+        }}
+      />
     </div>
   );
 }

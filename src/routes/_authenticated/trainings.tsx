@@ -8,17 +8,28 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDateTime, fmtMoney } from "@/lib/format";
 import { generateWeeklyDates, generateTrainingProgramDates } from "@/lib/rotation";
-import { Plus, LayoutGrid, List, Search, X, Calendar, MapPin, Trash2 } from "lucide-react";
+import { Plus, LayoutGrid, List, Calendar, MapPin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
+import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  ReportDialog,
+  ReportTriggerButton,
+  runReportExport,
+  useReportDialog,
+} from "@/components/ReportDialog";
+import {
+  TRAINING_REPORT_STATUS,
+  TRAINING_REPORT_TYPE,
+  exportTrainingsReport,
+  filterTrainingsForReport,
+} from "@/lib/module-reports";
 import {
   ConfirmDeleteDialog,
   type ConfirmDeleteRequest,
@@ -89,6 +100,7 @@ function TrainingsList() {
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const report = useReportDialog();
 
   // Group training sessions by series and month -> Monthly Cards
   const allMonthCards = useMemo(() => {
@@ -278,13 +290,79 @@ function TrainingsList() {
     });
   };
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setSearchTerm("");
     setStatusFilter("all");
     setSortBy("newest");
+  }, []);
+
+  const handleFilterChange = useCallback((key: string, value: string) => {
+    if (key === "status") setStatusFilter(value);
+  }, []);
+
+  const trainingLocationOptions = useMemo(() => {
+    const locs = [...new Set(s.trainings.map((t) => t.location).filter(Boolean))].sort();
+    return [{ value: "all", label: "All locations" }, ...locs.map((loc) => ({ value: loc, label: loc }))];
+  }, [s.trainings]);
+
+  const trainingFilterConfig = useMemo(
+    () => [
+      {
+        key: "status",
+        label: "Status",
+        options: [
+          { value: "all", label: "All Statuses" },
+          { value: "created", label: "Draft" },
+          { value: "open", label: "Enrollment Open" },
+          { value: "released", label: "Released" },
+          { value: "closed", label: "Closed" },
+        ],
+      },
+    ],
+    [],
+  );
+
+  const trainingSortOptions = useMemo(
+    () => [
+      { value: "newest", label: "Newest Date" },
+      { value: "oldest", label: "Oldest Date" },
+      { value: "fees_high", label: "Fees (High-Low)" },
+      { value: "fees_low", label: "Fees (Low-High)" },
+    ],
+    [],
+  );
+
+  const reportPreviewCount = useMemo(
+    () => filterTrainingsForReport(s.trainings, s.trainingInvites ?? [], report.values).length,
+    [s.trainings, s.trainingInvites, report.values],
+  );
+
+  const openTrainingsReport = () => {
+    report.openWith({
+      status: statusFilter !== "all" ? statusFilter : "all",
+      type: "all",
+      category: "all",
+      memberId: "all",
+    });
   };
 
-  const hasActiveFilters = searchTerm !== "" || statusFilter !== "all";
+  const exportTrainings = (format: "csv" | "pdf") =>
+    runReportExport({
+      count: reportPreviewCount,
+      format,
+      setExporting: report.setExporting,
+      setOpen: report.setOpen,
+      exportFn: (fmt) =>
+        exportTrainingsReport(
+          s.trainings,
+          s.trainingInvites ?? [],
+          s.members,
+          report.values,
+          fmt,
+          s.appName,
+          trainingLocationOptions,
+        ),
+    });
 
   return (
     <div>
@@ -299,122 +377,59 @@ function TrainingsList() {
       <PageHeader
         title="Training programs"
         description="Coach-led monthly training programs."
-        actions={user.role === "admin" && canCreateTraining && <Button asChild><Link to="/trainings/new"><Plus /> New training</Link></Button>}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <ReportTriggerButton onClick={openTrainingsReport} />
+            {user.role === "admin" && canCreateTraining && (
+              <Button asChild>
+                <Link to="/trainings/new"><Plus /> New training</Link>
+              </Button>
+            )}
+          </div>
+        }
       />
 
       {s.trainings.length > 0 && (
-        <>
-          {/* Filter Toolbar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-3.5 rounded-xl mt-6">
-            <div className="flex items-center gap-3 flex-1 flex-wrap w-full">
-              {/* Search */}
-              <div className="relative w-full sm:max-w-[320px] sm:flex-1 min-w-0">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
-                <Input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search program, coach, or location..."
-                  className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Status Dropdown */}
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className={cn(
-                  "bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[150px] rounded-lg cursor-pointer text-xs",
-                  statusFilter !== "all" && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]"
-                )}>
-                  <SelectValue placeholder="All Statuses" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
-                  <SelectItem value="created" className="text-xs">Draft</SelectItem>
-                  <SelectItem value="open" className="text-xs">Enrollment Open</SelectItem>
-                  <SelectItem value="released" className="text-xs">Released</SelectItem>
-                  <SelectItem value="closed" className="text-xs">Closed</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Sort By */}
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[180px] rounded-lg cursor-pointer text-xs">
-                  <SelectValue placeholder="Sort By" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="newest" className="text-xs">Newest Date</SelectItem>
-                  <SelectItem value="oldest" className="text-xs">Oldest Date</SelectItem>
-                  <SelectItem value="fees_high" className="text-xs">Fees (High-Low)</SelectItem>
-                  <SelectItem value="fees_low" className="text-xs">Fees (Low-High)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* View Mode Toggle */}
-            <div className="flex items-center gap-1 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-10">
+        <SearchFilterBar
+          searchPlaceholder="Search program, coach, or location..."
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          filters={trainingFilterConfig}
+          activeFilters={{ status: statusFilter }}
+          onFilterChange={handleFilterChange}
+          onClearAll={resetFilters}
+          sortOptions={trainingSortOptions}
+          currentSort={sortBy}
+          onSortChange={setSortBy}
+          actions={
+            <div className="flex items-center gap-0.5 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-8">
               <button
                 type="button"
                 onClick={() => setViewMode("grid")}
                 className={cn(
-                  "px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center",
+                  "px-2 h-full rounded-md transition-all cursor-pointer flex items-center",
                   viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
                 )}
                 title="Grid view"
               >
-                <LayoutGrid className="size-4" />
+                <LayoutGrid className="size-3.5" />
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("list")}
                 disabled={isMobile}
                 className={cn(
-                  "px-2.5 h-full rounded-md transition-all flex items-center",
+                  "px-2 h-full rounded-md transition-all flex items-center",
                   viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
                   isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
                 )}
                 title={isMobile ? "List view available on larger screens" : "List view"}
               >
-                <List className="size-4" />
+                <List className="size-3.5" />
               </button>
             </div>
-          </div>
-
-          {/* Active Chips Row */}
-          {hasActiveFilters && (
-            <div className="flex flex-wrap items-center gap-2 mb-6 bg-[#131916] p-3 border border-[rgba(255,255,255,0.06)] rounded-xl">
-              <span className="text-[11px] font-medium text-[#8A8A98]">Active Filters:</span>
-              {searchTerm && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
-                  <span>Search: {searchTerm}</span>
-                  <button onClick={() => setSearchTerm("")} className="hover:text-white transition-colors cursor-pointer">
-                    <X className="size-3 text-[#10B981]" />
-                  </button>
-                </span>
-              )}
-              {statusFilter !== "all" && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
-                  <span>Status: {statusFilter === "created" ? "Draft" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}</span>
-                  <button onClick={() => setStatusFilter("all")} className="hover:text-white transition-colors cursor-pointer">
-                    <X className="size-3 text-[#10B981]" />
-                  </button>
-                </span>
-              )}
-              <button
-                onClick={resetFilters}
-                className="text-[11px] font-medium text-[#8A8A98] hover:text-[#EEF2F0] underline underline-offset-4 ml-1 cursor-pointer transition-colors"
-              >
-                Clear all
-              </button>
-            </div>
-          )}
-        </>
+          }
+        />
       )}
 
       {s.trainings.length === 0 ? (
@@ -748,6 +763,27 @@ function TrainingsList() {
           )}
         </>
       )}
+
+      <ReportDialog
+        open={report.open}
+        onOpenChange={report.setOpen}
+        values={report.values}
+        onValuesChange={report.setValues}
+        previewCount={reportPreviewCount}
+        exporting={report.exporting}
+        onExport={exportTrainings}
+        config={{
+          entityLabel: "training sessions",
+          showDateRange: true,
+          showMember: true,
+          members: s.members,
+          statusOptions: TRAINING_REPORT_STATUS,
+          typeOptions: TRAINING_REPORT_TYPE,
+          categoryOptions: trainingLocationOptions,
+          typeLabel: "Audience",
+          categoryLabel: "Location",
+        }}
+      />
     </div>
   );
 }
