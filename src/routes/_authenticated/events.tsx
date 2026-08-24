@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CourtRotationView } from "@/components/CourtRotationView";
-import { useSearchFilters } from "@/components/SearchFilterBar";
-import { ScheduleFilters } from "@/components/ScheduleFilters";
+import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -742,19 +741,83 @@ function Events() {
       />
 
       {uniquePlaySessions.length > 0 && (
-        <ScheduleFilters
-          search={search}
-          onSearchChange={setSearch}
-          filters={filters}
-          onFilterChange={setFilter}
-          onClearAll={clearFilters}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          sortOptions={sortOptions}
-          locations={locationList}
-          totalCount={uniquePlaySessions.length}
-          filteredCount={filteredPlaySessions.length}
-        />
+        <>
+          <SearchFilterBar
+            searchPlaceholder="Search schedules..."
+            searchValue={search}
+            onSearchChange={setSearch}
+            filters={[
+              {
+                key: "status",
+                label: "Status",
+                options: [
+                  { value: "all", label: "All" },
+                  { value: "open", label: "Open" },
+                  { value: "released", label: "Released" },
+                  { value: "rotated", label: "Rotated" },
+                  { value: "published", label: "Published" },
+                  { value: "closed", label: "Closed" },
+                  { value: "cancelled", label: "Cancelled" },
+                ],
+              },
+              {
+                key: "date",
+                label: "When",
+                options: [
+                  { value: "all", label: "Any time" },
+                  { value: "upcoming", label: "Upcoming" },
+                  { value: "past", label: "Past" },
+                  { value: "today", label: "Today" },
+                  { value: "this-week", label: "This week" },
+                  { value: "this-month", label: "This month" },
+                ],
+              },
+              {
+                key: "location",
+                label: "Venue",
+                options: [
+                  { value: "all", label: "All venues" },
+                  ...locationList.map((loc) => ({ value: loc, label: loc })),
+                ],
+              },
+              {
+                key: "courts",
+                label: "Courts",
+                options: [
+                  { value: "all", label: "Any" },
+                  { value: "1", label: "1" },
+                  { value: "2", label: "2" },
+                  { value: "3", label: "3" },
+                  { value: "4+", label: "4+" },
+                ],
+              },
+              {
+                key: "capacity",
+                label: "Capacity",
+                options: [
+                  { value: "all", label: "Any" },
+                  { value: "full", label: "Full" },
+                  { value: "has-space", label: "Has space" },
+                  { value: "low", label: "< 50%" },
+                  { value: "empty", label: "Empty" },
+                ],
+              },
+            ]}
+            activeFilters={filters}
+            onFilterChange={setFilter}
+            onClearAll={clearFilters}
+            sortOptions={sortOptions}
+            currentSort={sortBy}
+            onSortChange={setSortBy}
+          />
+          <div className="text-sm text-[#8FA89F] -mt-2 mb-4">
+            Showing <span className="text-[#EEF2F0] font-semibold">{filteredPlaySessions.length}</span>
+            {filteredPlaySessions.length !== uniquePlaySessions.length && (
+              <> of <span className="text-[#EEF2F0] font-semibold">{uniquePlaySessions.length}</span></>
+            )}{" "}
+            schedules
+          </div>
+        </>
       )}
 
       <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">

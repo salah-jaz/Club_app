@@ -1,0 +1,19 @@
+﻿# Wallet Report
+# Filters: Status: Approved · Type: Credit · Category: All categories
+# Generated: 24 Aug 2026, 05:22 pm
+# Rows: 13
+
+Date,Member,Type,Status,Amount,Reason
+24 Aug 2026,Filter Adult081614,credit,approved,$12.34,—
+24 Aug 2026,Filter Beta081614,credit,approved,$40.00,—
+24 Aug 2026,Filter Adult081614,credit,approved,$25.50,—
+24 Aug 2026,Filter Adult629305,credit,approved,$12.34,—
+24 Aug 2026,Filter Beta872287,credit,approved,$40.00,—
+24 Aug 2026,Filter Adult872287,credit,approved,$25.50,—
+24 Aug 2026,Filter Adult629305,credit,approved,$12.34,—
+24 Aug 2026,Filter Beta700691,credit,approved,$40.00,—
+24 Aug 2026,Filter Adult700691,credit,approved,$25.50,—
+24 Aug 2026,Filter Adult651198,credit,approved,$25.50,—
+24 Aug 2026,Filter Adult629305,credit,approved,$25.50,—
+20 Aug 2026,Member 02,credit,approved,$500.00,—
+20 Aug 2026,Member 01,credit,approved,$500.00,—

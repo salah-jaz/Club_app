@@ -1,7 +1,7 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import type { Variants } from "framer-motion";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
@@ -21,6 +21,20 @@ import type { Member, MemberType, User } from "@/lib/types";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { ResponsiveTable } from "@/components/ResponsiveTable";
+import {
+  ReportDialog,
+  ReportTriggerButton,
+  runReportExport,
+  useReportDialog,
+} from "@/components/ReportDialog";
+import {
+  APPROVAL_REPORT_CATEGORY,
+  APPROVAL_REPORT_STATUS,
+  APPROVAL_REPORT_TYPE,
+  buildApprovalReportRows,
+  exportApprovalsReport,
+  filterApprovalsForReport,
+} from "@/lib/module-reports";
 
 export const Route = createFileRoute("/_authenticated/approvals")({ component: Approvals });
 
@@ -86,6 +100,31 @@ function Approvals() {
   const [rejectingUserId, setRejectingUserId] = useState<string | null>(null);
   const [approvingCreditId, setApprovingCreditId] = useState<string | null>(null);
   const [rejectingCreditId, setRejectingCreditId] = useState<string | null>(null);
+  const report = useReportDialog();
+
+  const approvalRows = useMemo(
+    () => buildApprovalReportRows(s.users, s.members, s.creditRequests),
+    [s.users, s.members, s.creditRequests],
+  );
+
+  const reportPreviewCount = useMemo(
+    () => filterApprovalsForReport(approvalRows, report.values, s.members).length,
+    [approvalRows, report.values, s.members],
+  );
+
+  const openApprovalsReport = () => {
+    report.openWith({ status: "pending", type: "all", category: "all", memberId: "all" });
+  };
+
+  const exportApprovals = (format: "csv" | "pdf") =>
+    runReportExport({
+      count: reportPreviewCount,
+      format,
+      setExporting: report.setExporting,
+      setOpen: report.setOpen,
+      exportFn: (fmt) =>
+        exportApprovalsReport(approvalRows, s.members, report.values, fmt, s.appName),
+    });
 
   const openApprove = (u: User) => {
     setApproveTarget(u);
@@ -186,7 +225,11 @@ function Approvals() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Approvals" description="Review and authorize pending registrations, juniors, and credit additions." />
+      <PageHeader
+        title="Approvals"
+        description="Review and authorize pending registrations, juniors, and credit additions."
+        actions={<ReportTriggerButton onClick={openApprovalsReport} />}
+      />
 
       <Tabs defaultValue="users" className="w-full">
         <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
@@ -882,6 +925,25 @@ function Approvals() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ReportDialog
+        open={report.open}
+        onOpenChange={report.setOpen}
+        values={report.values}
+        onValuesChange={report.setValues}
+        previewCount={reportPreviewCount}
+        exporting={report.exporting}
+        onExport={exportApprovals}
+        config={{
+          entityLabel: "approval records",
+          showDateRange: true,
+          showMember: true,
+          members: s.members.filter((m) => m.memberType === "adult"),
+          statusOptions: APPROVAL_REPORT_STATUS,
+          typeOptions: APPROVAL_REPORT_TYPE,
+          categoryOptions: APPROVAL_REPORT_CATEGORY,
+        }}
+      />
     </div>
   );
 }

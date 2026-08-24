@@ -135,12 +135,12 @@ export function LeagueGroupSelector({
       {/* Top Compact Bar: Search + Quick Actions */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
         <div className="relative flex-1">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none z-[1]" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search teams or members..."
-            className="pl-8 h-8 bg-secondary border-border text-xs text-foreground focus:border-primary rounded-lg"
+            className="search-filter-input h-8 bg-secondary border-border text-xs text-foreground focus:border-primary rounded-lg"
           />
         </div>
 

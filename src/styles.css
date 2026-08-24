@@ -541,6 +541,26 @@ select {
   transition: border-color 150ms ease, box-shadow 150ms ease !important;
 }
 
+/*
+ * Compact SearchFilterBar controls.
+ * Must match/exceed the global input:not(...) specificity, otherwise
+ * `padding: 0 12px !important` wins and the placeholder overlaps the icon.
+ */
+input.search-filter-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) {
+  min-height: 2rem !important;
+  height: 2rem !important;
+  font-size: 12px !important;
+  /* left-3 (12px) + icon 14px + 12px gap ≈ 38px; clear btn room on the right */
+  padding: 0 2.25rem 0 2.5rem !important;
+}
+
+input.search-filter-date:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) {
+  min-height: 2rem !important;
+  height: 2rem !important;
+  font-size: 12px !important;
+  padding: 0 0.625rem !important;
+}
+
 /* Custom premium styling for color pickers (selected color box instead of a line) */
 input[type="color"] {
   width: 44px !important;
