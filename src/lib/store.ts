@@ -166,6 +166,7 @@ interface State {
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
   updateMemberTrainingInvitation: (trainingId: string, memberId: string, sessionIds: string[], forceAccept?: boolean) => Promise<{ message?: string }>;
   processTrainingRefund: (dateId: string, refundType: "none" | "half" | "full") => Promise<void>;
+  processOverpaymentRefund: (trainingId: string, memberId: string, amount: number) => Promise<{ message: string }>;
   sendTrainingUpdateRequest: (
     trainingId: string,
     memberId: string,
@@ -928,6 +929,15 @@ export const useStore = create<State>((set, get) => ({
   processTrainingRefund: async (dateId, refundType) => {
     await api.post(`/training-dates/${dateId}/process-refund`, { refundType });
     await get().syncData();
+  },
+
+  processOverpaymentRefund: async (trainingId, memberId, amount) => {
+    const res = await api.post<{ message: string }>(`/trainings/${trainingId}/process-overpayment-refund`, {
+      memberId,
+      amount,
+    });
+    await get().syncData();
+    return res;
   },
 
   sendTrainingUpdateRequest: async (

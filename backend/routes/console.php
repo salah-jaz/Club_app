@@ -24,7 +24,7 @@ Artisan::command('debit:cancellations', function () {
     $now = Carbon::now();
     $targetTime = Carbon::now()->addHours($debitTimingHours);
 
-    $schedules = PlaySchedule::whereIn('status', ['released', 'open'])
+    $schedules = PlaySchedule::whereIn('status', ['released', 'rotated', 'published'])
         ->where('date', '>=', $now)
         ->where('date', '<=', $targetTime)
         ->get();
@@ -56,7 +56,7 @@ Artisan::command('debit:cancellations', function () {
                         'member_id' => $walletMember->id,
                         'type' => 'debit',
                         'amount' => $memberFee,
-                        'description' => "Auto Debit - Play session: " . $schedule->name,
+                        'description' => "Auto Debit - Play session: " . $schedule->name . " - " . $member->name,
                         'date' => now(),
                     ]);
 
