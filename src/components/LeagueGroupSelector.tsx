@@ -18,25 +18,43 @@ interface LeagueGroupSelectorProps {
   allMembers: Member[];
 }
 
+function getGroupMemberIds(group: LeagueGroup): string[] {
+  if (!group) return [];
+  if (Array.isArray(group.memberIds) && group.memberIds.length > 0) {
+    return group.memberIds.filter((id): id is string => Boolean(id));
+  }
+  if (Array.isArray(group.members)) {
+    return group.members
+      .map((m) => m?.id)
+      .filter((id): id is string => Boolean(id));
+  }
+  return [];
+}
+
 export function LeagueGroupSelector({
-  selectedGroupIds,
+  selectedGroupIds = [],
   onSelectionChange,
-  leagueGroups,
-  allMembers,
+  leagueGroups = [],
+  allMembers = [],
 }: LeagueGroupSelectorProps) {
   const [search, setSearch] = useState("");
+
+  const safeLeagueGroups = useMemo(() => Array.isArray(leagueGroups) ? leagueGroups : [], [leagueGroups]);
+  const safeAllMembers = useMemo(() => Array.isArray(allMembers) ? allMembers : [], [allMembers]);
+  const safeSelectedGroupIds = useMemo(() => Array.isArray(selectedGroupIds) ? selectedGroupIds : [], [selectedGroupIds]);
 
   // Map memberId -> display name helper
   const memberNameMap = useMemo(() => {
     const map = new Map<string, string>();
-    for (const m of allMembers) {
+    for (const m of safeAllMembers) {
+      if (!m) continue;
       const full = `${m.firstName || ""} ${m.lastName || ""}`.trim();
-      if (full) map.set(m.id, full);
+      if (full && m.id) map.set(m.id, full);
     }
-    for (const group of leagueGroups) {
-      if (group.members) {
+    for (const group of safeLeagueGroups) {
+      if (Array.isArray(group?.members)) {
         for (const gm of group.members) {
-          if (gm.id && !map.has(gm.id)) {
+          if (gm?.id && !map.has(gm.id)) {
             const full = `${gm.firstName || ""} ${gm.lastName || ""}`.trim();
             if (full) map.set(gm.id, full);
           }
@@ -44,16 +62,16 @@ export function LeagueGroupSelector({
       }
     }
     return map;
-  }, [allMembers, leagueGroups]);
+  }, [safeAllMembers, safeLeagueGroups]);
 
   const getMemberName = (id: string) => memberNameMap.get(id) || id;
 
   // Map memberId -> list of selected teams containing this member
   const memberSelectedTeamsMap = useMemo(() => {
     const map = new Map<string, LeagueGroup[]>();
-    const selectedGroups = leagueGroups.filter((g) => selectedGroupIds.includes(g.id));
+    const selectedGroups = safeLeagueGroups.filter((g) => g?.id && safeSelectedGroupIds.includes(g.id));
     for (const group of selectedGroups) {
-      const ids = group.memberIds || group.members?.map((m) => m.id) || [];
+      const ids = getGroupMemberIds(group);
       for (const mid of ids) {
         if (!mid) continue;
         const current = map.get(mid) || [];
@@ -64,7 +82,7 @@ export function LeagueGroupSelector({
       }
     }
     return map;
-  }, [leagueGroups, selectedGroupIds]);
+  }, [safeLeagueGroups, safeSelectedGroupIds]);
 
   // List of shared members across selected teams
   const sharedMembersInSelection = useMemo(() => {
@@ -86,25 +104,26 @@ export function LeagueGroupSelector({
 
   // Filter groups by search query (team name or member name)
   const filteredGroups = useMemo(() => {
-    if (!search.trim()) return leagueGroups;
+    if (!search.trim()) return safeLeagueGroups;
     const q = search.toLowerCase();
-    return leagueGroups.filter((g) => {
-      if (g.name.toLowerCase().includes(q)) return true;
-      const ids = g.memberIds || g.members?.map((m) => m.id) || [];
+    return safeLeagueGroups.filter((g) => {
+      if (!g) return false;
+      if (g.name && g.name.toLowerCase().includes(q)) return true;
+      const ids = getGroupMemberIds(g);
       return ids.some((mid) => getMemberName(mid).toLowerCase().includes(q));
     });
-  }, [leagueGroups, search, memberNameMap]);
+  }, [safeLeagueGroups, search, memberNameMap]);
 
   const toggleSelectGroup = (groupId: string) => {
-    if (selectedGroupIds.includes(groupId)) {
-      onSelectionChange(selectedGroupIds.filter((id) => id !== groupId));
+    if (safeSelectedGroupIds.includes(groupId)) {
+      onSelectionChange(safeSelectedGroupIds.filter((id) => id !== groupId));
     } else {
-      onSelectionChange([...selectedGroupIds, groupId]);
+      onSelectionChange([...safeSelectedGroupIds, groupId]);
     }
   };
 
   const handleSelectAll = () => {
-    onSelectionChange(leagueGroups.map((g) => g.id));
+    onSelectionChange(safeLeagueGroups.map((g) => g.id).filter(Boolean));
   };
 
   const handleDeselectAll = () => {
@@ -116,12 +135,12 @@ export function LeagueGroupSelector({
       {/* Top Compact Bar: Search + Quick Actions */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
         <div className="relative flex-1">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none z-[1]" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search teams or members..."
-            className="pl-8 h-8 bg-secondary border-border text-xs text-foreground focus:border-primary rounded-lg"
+            className="search-filter-input h-8 bg-secondary border-border text-xs text-foreground focus:border-primary rounded-lg"
           />
         </div>
 
@@ -169,8 +188,8 @@ export function LeagueGroupSelector({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
           {filteredGroups.map((g) => {
-            const isSelected = selectedGroupIds.includes(g.id);
-            const memberIds = g.memberIds || g.members?.map((m) => m.id) || [];
+            const isSelected = safeSelectedGroupIds.includes(g.id);
+            const memberIds = getGroupMemberIds(g);
 
             // Check if this group contains any member shared across selected teams
             const sharedCountInThisGroup = isSelected

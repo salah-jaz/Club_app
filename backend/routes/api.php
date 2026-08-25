@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Route;
 // Public auth routes
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/verify-reset-otp', [AuthController::class, 'verifyResetOtp']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/settings', [SettingController::class, 'index']);
 
 // Authenticated API routes
@@ -86,6 +89,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/trainings/{id}', [TrainingController::class, 'destroy']);
     Route::post('/trainings/{id}/release', [TrainingController::class, 'release']);
     Route::post('/trainings/{id}/update-member-invitation', [TrainingController::class, 'updateMemberInvitation']);
+    Route::post('/trainings/{id}/process-overpayment-refund', [TrainingController::class, 'processOverpaymentRefund']);
     Route::post('/trainings/{id}/enroll', [TrainingController::class, 'enroll']);
     Route::post('/trainings/{id}/cancel', [TrainingController::class, 'cancel']);
     

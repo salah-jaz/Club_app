@@ -218,9 +218,11 @@ function TrainingModule() {
 
         const repeatWeeks = Math.max(1, training.repeatWeeks || 3);
         const discountedMonthlyFee = applyMemberFee(training.fees || 0, member, discountsFromStore(s));
-        const feePerWeek = discountedMonthlyFee / repeatWeeks;
         const invitedWeeksCount = invitedMonthSessions.length;
-        const totalFee = feePerWeek * invitedWeeksCount;
+        const totalFee = invitedWeeksCount === repeatWeeks
+          ? discountedMonthlyFee
+          : Math.round((discountedMonthlyFee / repeatWeeks) * invitedWeeksCount * 100) / 100;
+        const feePerWeek = invitedWeeksCount > 0 ? Math.round((totalFee / invitedWeeksCount) * 100) / 100 : 0;
         const balanceAfter = walletMember.credit - totalFee;
 
         return (

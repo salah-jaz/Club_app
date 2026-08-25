@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Send, UserCheck, AlertTriangle, Lock, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { Send, UserCheck, AlertTriangle, Lock, RefreshCw, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtMoney } from "@/lib/format";
 import { applyMemberFee, discountsFromStore } from "@/lib/fees";
@@ -41,6 +41,13 @@ function TrainingPage() {
     refundType: "none" | "half" | "full";
   } | null>(null);
   const [processingRefund, setProcessingRefund] = useState(false);
+
+  // Overpayment Refund dialog state
+  const [overpaymentRefundDialog, setOverpaymentRefundDialog] = useState<{
+    member: Member;
+    refundAmount: number;
+  } | null>(null);
+  const [processingOverpaymentRefund, setProcessingOverpaymentRefund] = useState(false);
 
   // Send Update Request Dialog state
   const [sendUpdateDialog, setSendUpdateDialog] = useState<{
@@ -131,7 +138,12 @@ function TrainingPage() {
       (i) => sessionIds.includes(i.trainingId) && i.memberId === memberId
     );
     if (existingInvs.length > 0) {
-      return existingInvs.map((i) => i.trainingId);
+      const activeSids = existingInvs
+        .filter((i) => i.status === "open" || i.status === "accepted" || i.status === "pending" || i.status === "waiting")
+        .map((i) => i.trainingId);
+      if (activeSids.length > 0) {
+        return activeSids;
+      }
     }
     return sessionIds;
   };
@@ -212,6 +224,24 @@ function TrainingPage() {
       toast.error(error.message || "Failed to process refund.");
     } finally {
       setProcessingRefund(false);
+    }
+  };
+
+  const handleOverpaymentRefundSubmit = async () => {
+    if (!overpaymentRefundDialog) return;
+    setProcessingOverpaymentRefund(true);
+    try {
+      const res = await s.processOverpaymentRefund(
+        t.id,
+        overpaymentRefundDialog.member.id,
+        overpaymentRefundDialog.refundAmount
+      );
+      toast.success(res.message || `Refund of ${fmtMoney(overpaymentRefundDialog.refundAmount)} credited to wallet.`);
+      setOverpaymentRefundDialog(null);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to process overpayment refund.");
+    } finally {
+      setProcessingOverpaymentRefund(false);
     }
   };
 
@@ -381,6 +411,63 @@ function TrainingPage() {
               onClick={handleProcessRefundSubmit}
             >
               {processingRefund ? "Processing…" : "Confirm Refund"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Overpayment Refund Confirmation Dialog */}
+      <Dialog open={!!overpaymentRefundDialog} onOpenChange={(open) => !open && setOverpaymentRefundDialog(null)}>
+        <DialogContent className="bg-[#131916] border border-white/10 text-[#F1F0EE] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#F1F0EE] flex items-center gap-2">
+              <RotateCcw className="size-5 text-[#A78BFA]" />
+              Issue Overpayment Wallet Refund
+            </DialogTitle>
+            <DialogDescription className="text-[#8A8A98]">
+              Process an overpayment refund to the member's wallet balance.
+            </DialogDescription>
+          </DialogHeader>
+
+          {overpaymentRefundDialog && (
+            <div className="space-y-4 py-2 text-xs">
+              <div className="bg-[#1A2120] p-3 rounded-lg border border-white/5 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-[#8A8A98]">Member Name:</span>
+                  <span className="font-medium text-[#F1F0EE]">{overpaymentRefundDialog.member.firstName} {overpaymentRefundDialog.member.lastName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8A8A98]">Training Program:</span>
+                  <span className="font-medium text-[#F1F0EE]">{t.name}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-white/10 font-semibold text-sm">
+                  <span className="text-[#A78BFA]">Wallet Refund Amount:</span>
+                  <span className="text-[#A78BFA]">{fmtMoney(overpaymentRefundDialog.refundAmount)}</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-[#8A8A98] italic">
+                This will credit {fmtMoney(overpaymentRefundDialog.refundAmount)} directly back into {overpaymentRefundDialog.member.firstName}'s account wallet balance.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={processingOverpaymentRefund}
+              onClick={() => setOverpaymentRefundDialog(null)}
+              className="btn-premium-outline text-xs cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={processingOverpaymentRefund}
+              onClick={handleOverpaymentRefundSubmit}
+              className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white text-xs font-semibold cursor-pointer"
+            >
+              {processingOverpaymentRefund ? "Processing…" : "Confirm & Credit Wallet"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -634,11 +721,22 @@ function TrainingPage() {
                       : initialOrPreviousPaid;
 
                     const updatedMonthlyFeeVal = applyMemberFee(t.fees, m, discountsFromStore(s));
-                    const remainingPayable = updatedMonthlyFeeVal - totalAlreadyPaid;
 
-                    const totalPayable = isAccepted
-                      ? remainingPayable
-                      : selectedSids.length * baseMemberWeekFee;
+                    let targetTotalFee: number;
+                    if (isAccepted) {
+                      if (acceptedInvs.length >= repeatWeeks) {
+                        targetTotalFee = updatedMonthlyFeeVal;
+                      } else {
+                        targetTotalFee = totalAlreadyPaid;
+                      }
+                    } else {
+                      targetTotalFee = selectedSids.length === repeatWeeks
+                        ? updatedMonthlyFeeVal
+                        : Math.round(selectedSids.length * baseMemberWeekFee * 100) / 100;
+                    }
+
+                    const remainingPayable = Math.round((targetTotalFee - totalAlreadyPaid) * 100) / 100;
+                    const totalPayable = isAccepted ? remainingPayable : targetTotalFee;
                     const countWeeksDisplay = isAccepted ? acceptedInvs.length : selectedSids.length;
 
                     const additionalAmountForUpdate = unacceptedMonthSessions.length * baseMemberWeekFee;
@@ -764,6 +862,20 @@ function TrainingPage() {
                                 ) : (
                                   <><Send className="size-3 mr-1" /> Send Update</>
                                 )}
+                              </Button>
+                            ) : remainingPayable < -0.009 ? (
+                              <Button
+                                size="sm"
+                                disabled={t.status === "cancelled" || processingOverpaymentRefund}
+                                className="h-8 text-[11px] px-3 font-semibold bg-[#8B5CF6] hover:bg-[#7C3AED] text-white cursor-pointer"
+                                onClick={() => {
+                                  setOverpaymentRefundDialog({
+                                    member: m,
+                                    refundAmount: Math.abs(remainingPayable),
+                                  });
+                                }}
+                              >
+                                <RotateCcw className="size-3 mr-1" /> Issue Refund ({fmtMoney(Math.abs(remainingPayable))})
                               </Button>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[11px] text-[#10B981] font-semibold">

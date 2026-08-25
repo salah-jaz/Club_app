@@ -29,7 +29,7 @@ function EmailTemplatesPage() {
   const [footerText, setFooterText] = useState(store.emailFooterText || "");
 
   // Preview options state
-  const [previewType, setPreviewType] = useState<"approval" | "rejection" | "transaction" | "schedule" | "training">("transaction");
+  const [previewType, setPreviewType] = useState<"registration" | "approval" | "rejection" | "transaction" | "schedule" | "training" | "reset_password" | "reset_password_success">("transaction");
 
   // Sync state if store settings change later
   useEffect(() => {
@@ -86,6 +86,20 @@ function EmailTemplatesPage() {
   // Render dummy contents matching the helpers in MailHelper.php
   const renderPreviewContent = () => {
     switch (previewType) {
+      case "registration":
+        return (
+          <>
+            <h2 style={{ color: primaryColor, fontSize: "18px", marginTop: 0, fontWeight: "bold" }}>Registration Received</h2>
+            <p style={{ margin: "14px 0 8px 0" }}>Hello John,</p>
+            <p style={{ margin: "8px 0 16px 0", lineHeight: "1.5" }}>
+              Thank you for registering your account with ClubConnect.
+            </p>
+            <p style={{ margin: "8px 0 16px 0", lineHeight: "1.5" }}>
+              Your registration details have been received and are currently awaiting review by the club administrator. You will receive another email notification once your account is reviewed.
+            </p>
+          </>
+        );
+
       case "approval":
         return (
           <>
@@ -217,6 +231,60 @@ function EmailTemplatesPage() {
                 </tr>
               </tbody>
             </table>
+          </>
+        );
+
+      case "reset_password":
+        return (
+          <>
+            <h2 style={{ color: primaryColor, fontSize: "18px", marginTop: 0, fontWeight: "bold" }}>Reset Password Request</h2>
+            <p style={{ margin: "14px 0 8px 0" }}>Hello John,</p>
+            <p style={{ margin: "8px 0 16px 0", lineHeight: "1.5" }}>
+              We received a request to reset your password for your account.
+            </p>
+            <p style={{ margin: "8px 0 12px 0", lineHeight: "1.5" }}>
+              Your 6-digit verification code (OTP) is:
+            </p>
+            <div style={{ margin: "20px 0", textAlign: "center", background: "rgba(255,255,255,0.03)", padding: "16px", borderRadius: "6px", border: `1px dashed ${primaryColor}` }}>
+              <span style={{ fontSize: "28px", fontWeight: "bold", letterSpacing: "6px", color: primaryColor }}>849201</span>
+            </div>
+            <p style={{ fontSize: "12px", color: "#8A9E98", margin: "15px 0 0 0" }}>
+              This OTP code will expire in 15 minutes. If you did not request a password reset, please ignore this email.
+            </p>
+          </>
+        );
+
+      case "reset_password_success":
+        return (
+          <>
+            <h2 style={{ color: primaryColor, fontSize: "18px", marginTop: 0, fontWeight: "bold" }}>Password Reset Successfully</h2>
+            <p style={{ margin: "14px 0 8px 0" }}>Hello John,</p>
+            <p style={{ margin: "8px 0 16px 0", lineHeight: "1.5" }}>
+              Your password for your account has been successfully reset.
+            </p>
+            <p style={{ margin: "8px 0 16px 0", lineHeight: "1.5" }}>
+              You can now sign in to your account using your new password.
+            </p>
+            <div style={{ marginTop: "25px", textAlign: "center" }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  backgroundColor: primaryColor,
+                  color: "#000000",
+                  fontWeight: "bold",
+                  textDecoration: "none",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  fontSize: "13px",
+                  fontFamily: "sans-serif",
+                }}
+              >
+                Sign In to Account
+              </span>
+            </div>
+            <p style={{ fontSize: "12px", color: "#8A9E98", margin: "20px 0 0 0" }}>
+              If you did not perform this action, please contact the club administrator immediately.
+            </p>
           </>
         );
 
@@ -400,11 +468,14 @@ function EmailTemplatesPage() {
                   <SelectValue placeholder="Preview Email" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="registration" className="cursor-pointer text-xs hover:bg-white/5">Registration Received</SelectItem>
                   <SelectItem value="approval" className="cursor-pointer text-xs hover:bg-white/5">Account Approved</SelectItem>
                   <SelectItem value="rejection" className="cursor-pointer text-xs hover:bg-white/5">Account Registration</SelectItem>
                   <SelectItem value="transaction" className="cursor-pointer text-xs hover:bg-white/5">Transaction Alert</SelectItem>
                   <SelectItem value="schedule" className="cursor-pointer text-xs hover:bg-white/5">Play Schedule released</SelectItem>
                   <SelectItem value="training" className="cursor-pointer text-xs hover:bg-white/5">Training session released</SelectItem>
+                  <SelectItem value="reset_password" className="cursor-pointer text-xs hover:bg-white/5">Reset Password OTP</SelectItem>
+                  <SelectItem value="reset_password_success" className="cursor-pointer text-xs hover:bg-white/5">Password Reset Successfully</SelectItem>
                 </SelectContent>
               </Select>
             </div>

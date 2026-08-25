@@ -48,6 +48,12 @@ class User extends Authenticatable
         ];
     }
 
+    public function getNameAttribute(): string
+    {
+        $name = trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+        return $name ?: ($this->email ?? 'User');
+    }
+
     public function adminRole(): BelongsTo
     {
         return $this->belongsTo(AdminRole::class, 'admin_role_id');

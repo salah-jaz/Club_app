@@ -494,8 +494,9 @@ class PlayScheduleController extends Controller
         if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
             $walletMember = $this->resolveWalletMember($member);
             $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
+            $currency = \App\Models\Setting::where('key', 'currency')->value('value') ?? '$';
             if ($walletMember->credit < $estimatedFee) {
-                return "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule.";
+                return "Insufficient credits. You need at least {$currency}{$estimatedFee} to accept this schedule.";
             }
         }
 
@@ -1203,7 +1204,8 @@ class PlayScheduleController extends Controller
     public function listInvitations()
     {
         self::processAutoPublishAndRotation();
-        $invites = PlayInvitation::orderBy('updated_at')->get();
+        $openScheduleIds = PlaySchedule::where('status', 'open')->pluck('id')->all();
+        $invites = PlayInvitation::whereNotIn('schedule_id', $openScheduleIds)->orderBy('updated_at')->get();
         $payload = $invites->map(fn(PlayInvitation $i) => $this->formatInvitation($i))->values()->all();
 
         // Guests appear in Accepted only after rotation has been generated.
@@ -1286,9 +1288,10 @@ class PlayScheduleController extends Controller
             if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
                 $walletMember = $this->resolveWalletMember($member);
                 $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
+                $currency = \App\Models\Setting::where('key', 'currency')->value('value') ?? '$';
                 if ($walletMember->credit < $estimatedFee) {
                     return response()->json([
-                        'message' => "Insufficient credits. You need at least \${$estimatedFee} to accept this schedule."
+                        'message' => "Insufficient credits. You need at least {$currency}{$estimatedFee} to accept this schedule."
                     ], 422);
                 }
             }
@@ -1316,6 +1319,12 @@ class PlayScheduleController extends Controller
             if (!in_array($previous, ['accepted', 'waiting'], true)) {
                 return response()->json([
                     'message' => 'This invitation cannot be declined in its current state.',
+                ], 422);
+            }
+
+            if ($sch->is_league_match || (!empty($sch->league_group_ids) && count((array)$sch->league_group_ids) > 0)) {
+                return response()->json([
+                    'message' => 'League play session invitations cannot be declined.',
                 ], 422);
             }
 
@@ -1440,7 +1449,7 @@ class PlayScheduleController extends Controller
                 'member_id' => $freshWallet->id,
                 'type' => 'debit',
                 'amount' => $memberFee,
-                'description' => 'Play session: ' . $schedule->name,
+                'description' => 'Play session: ' . $schedule->name . ' - ' . $member->name,
                 'date' => now(),
             ]);
 
@@ -1492,7 +1501,7 @@ class PlayScheduleController extends Controller
                 'member_id' => $freshWallet->id,
                 'type' => 'refund',
                 'amount' => $memberFee,
-                'description' => 'Refund — cancelled play session: ' . $schedule->name,
+                'description' => 'Refund — cancelled play session: ' . $schedule->name . ' - ' . $member->name,
                 'date' => now(),
             ]);
 

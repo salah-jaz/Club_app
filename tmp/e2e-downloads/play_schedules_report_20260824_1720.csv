@@ -1,0 +1,22 @@
+﻿# Play Schedules Report
+# Filters: Status: Open · Type: Regular play · Location: All locations
+# Generated: 24 Aug 2026, 05:20 pm
+# Rows: 16
+
+Name,Date,Location,Status,Type,Courts,Players,Session rate
+Wednesday · 16 Sep 2026 · 7:00 PM,"16 Sept 2026, 07:00 pm",Main Hall,open,Regular,2,0/16,$8.00
+Wednesday · 9 Sep 2026 · 7:00 PM,"9 Sept 2026, 07:00 pm",Main Hall,open,Regular,2,0/16,$8.00
+Wednesday · 2 Sep 2026 · 7:00 PM,"2 Sept 2026, 07:00 pm",Main Hall,open,Regular,2,0/16,$8.00
+Filter North 700691,"1 Sept 2026, 06:00 pm",North Court,open,Regular,3,0/16,$10.00
+Filter North 629305,"1 Sept 2026, 06:00 pm",North Court,open,Regular,3,0/16,$10.00
+Filter North 651198,"1 Sept 2026, 06:00 pm",North Court,open,Regular,3,0/16,$10.00
+Filter North 081614,"1 Sept 2026, 06:00 pm",North Court,open,Regular,3,0/16,$10.00
+Filter North 872287,"1 Sept 2026, 06:00 pm",North Court,open,Regular,3,0/16,$10.00
+Filter Session 629305,"29 Aug 2026, 07:00 pm",Main Hall,open,Regular,2,0/12,$8.00
+Filter Session 651198,"29 Aug 2026, 07:00 pm",Main Hall,open,Regular,2,0/12,$8.00
+Filter Session 700691,"29 Aug 2026, 07:00 pm",Main Hall,open,Regular,2,0/12,$8.00
+Filter Session 081614,"29 Aug 2026, 07:00 pm",Main Hall,open,Regular,2,0/12,$8.00
+Filter Session 872287,"29 Aug 2026, 07:00 pm",Main Hall,open,Regular,2,0/12,$8.00
+"Wednesday · Aug 26, 2026 · 7:00 PM","26 Aug 2026, 07:00 pm",Main Hall,open,Regular,2,0/16,$8.00
+UI Schedule 872287U,"24 Aug 2026, 07:00 pm",Main Hall,open,Regular,2,0/16,$8.00
+UI Schedule 081614U,"24 Aug 2026, 07:00 pm",Main Hall,open,Regular,2,0/16,$8.00

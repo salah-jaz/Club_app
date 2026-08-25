@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CourtRotationView } from "@/components/CourtRotationView";
-import { useSearchFilters } from "@/components/SearchFilterBar";
-import { ScheduleFilters } from "@/components/ScheduleFilters";
+import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -138,7 +137,11 @@ function Events() {
   const adultPlayers = myMembers.filter(
     (m) => m.memberType === "adult" && m.status === "active",
   );
-  const playInvs = s.playInvites.filter((i) => myIds.includes(i.memberId));
+  const playInvs = s.playInvites.filter((i) => {
+    if (!myIds.includes(i.memberId)) return false;
+    const sch = s.schedules.find((x) => x.id === i.scheduleId);
+    return sch && sch.status !== "open";
+  });
   const releasedSchedules = s.schedules.filter((sch) => sch.status === "released");
   const [courtsPopup, setCourtsPopup] = useState<{
     schedule: PlaySchedule;
@@ -280,7 +283,10 @@ function Events() {
     ...releasedSchedules,
     ...playInvs
       .map((i) => s.schedules.find((sch) => sch.id === i.scheduleId))
-      .filter((sch): sch is PlaySchedule => !!sch && !releasedSchedules.some((r) => r.id === sch.id)),
+      .filter(
+        (sch): sch is PlaySchedule =>
+          !!sch && sch.status !== "open" && !releasedSchedules.some((r) => r.id === sch.id),
+      ),
   ];
 
   const uniquePlaySessions = playSessions.filter(
@@ -433,6 +439,8 @@ function Events() {
       Date.now() < matchStartMs - lockHours * 60 * 60 * 1000;
     const hoursLabel = lockHours === 1 ? "1 hour" : `${lockHours} hours`;
 
+    const isLeagueMatch = !!(sch.isLeagueMatch || (sch.leagueGroupIds && sch.leagueGroupIds.length > 0));
+
     const canAccept =
       !isCancelled &&
       !isHoliday &&
@@ -441,8 +449,9 @@ function Events() {
       !sessionFinished &&
       (i.status === "open" || i.status === "declined");
     const canDeclineWaiting =
-      !isCancelled && !isHoliday && !responsesLocked && !sessionFinished && i.status === "waiting";
+      !isLeagueMatch && !isCancelled && !isHoliday && !responsesLocked && !sessionFinished && i.status === "waiting";
     const canDeclineAccepted =
+      !isLeagueMatch &&
       !isCancelled &&
       !isHoliday &&
       !responsesLocked &&
@@ -451,7 +460,7 @@ function Events() {
       withinCancelWindow;
     const canDecline = canDeclineWaiting || canDeclineAccepted;
     const declineLockedByTime =
-      !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
+      !isLeagueMatch && !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
 
     const memberTypeLabel = member?.memberType === "junior" ? "Child" : "Player";
 
@@ -739,19 +748,83 @@ function Events() {
       />
 
       {uniquePlaySessions.length > 0 && (
-        <ScheduleFilters
-          search={search}
-          onSearchChange={setSearch}
-          filters={filters}
-          onFilterChange={setFilter}
-          onClearAll={clearFilters}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          sortOptions={sortOptions}
-          locations={locationList}
-          totalCount={uniquePlaySessions.length}
-          filteredCount={filteredPlaySessions.length}
-        />
+        <>
+          <SearchFilterBar
+            searchPlaceholder="Search schedules..."
+            searchValue={search}
+            onSearchChange={setSearch}
+            filters={[
+              {
+                key: "status",
+                label: "Status",
+                options: [
+                  { value: "all", label: "All" },
+                  { value: "open", label: "Open" },
+                  { value: "released", label: "Released" },
+                  { value: "rotated", label: "Rotated" },
+                  { value: "published", label: "Published" },
+                  { value: "closed", label: "Closed" },
+                  { value: "cancelled", label: "Cancelled" },
+                ],
+              },
+              {
+                key: "date",
+                label: "When",
+                options: [
+                  { value: "all", label: "Any time" },
+                  { value: "upcoming", label: "Upcoming" },
+                  { value: "past", label: "Past" },
+                  { value: "today", label: "Today" },
+                  { value: "this-week", label: "This week" },
+                  { value: "this-month", label: "This month" },
+                ],
+              },
+              {
+                key: "location",
+                label: "Venue",
+                options: [
+                  { value: "all", label: "All venues" },
+                  ...locationList.map((loc) => ({ value: loc, label: loc })),
+                ],
+              },
+              {
+                key: "courts",
+                label: "Courts",
+                options: [
+                  { value: "all", label: "Any" },
+                  { value: "1", label: "1" },
+                  { value: "2", label: "2" },
+                  { value: "3", label: "3" },
+                  { value: "4+", label: "4+" },
+                ],
+              },
+              {
+                key: "capacity",
+                label: "Capacity",
+                options: [
+                  { value: "all", label: "Any" },
+                  { value: "full", label: "Full" },
+                  { value: "has-space", label: "Has space" },
+                  { value: "low", label: "< 50%" },
+                  { value: "empty", label: "Empty" },
+                ],
+              },
+            ]}
+            activeFilters={filters}
+            onFilterChange={setFilter}
+            onClearAll={clearFilters}
+            sortOptions={sortOptions}
+            currentSort={sortBy}
+            onSortChange={setSortBy}
+          />
+          <div className="text-sm text-[#8FA89F] -mt-2 mb-4">
+            Showing <span className="text-[#EEF2F0] font-semibold">{filteredPlaySessions.length}</span>
+            {filteredPlaySessions.length !== uniquePlaySessions.length && (
+              <> of <span className="text-[#EEF2F0] font-semibold">{uniquePlaySessions.length}</span></>
+            )}{" "}
+            schedules
+          </div>
+        </>
       )}
 
       <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
@@ -934,28 +1007,9 @@ function Events() {
                   </p>
                 )}
 
-                {canEnroll && !sch.isLeagueMatch && availableJuniors.length > 0 && (
+                {canEnroll && !sch.isLeagueMatch && !isCancelled && !isHoliday && availableJuniors.length > 0 && (
                   <div className="space-y-2 pt-2 border-t border-white/[0.04]">
-                    {isCancelled ? (
-                      <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
-                        <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
-                        <div className="space-y-0.5">
-                          <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
-                          <div className="text-[#EF4444]/90 font-light">{sch.cancelReason || "No reason specified."}</div>
-                        </div>
-                      </div>
-                    ) : isHoliday ? (
-                      <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
-                        <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#FBBF24]" />
-                        <div className="space-y-0.5">
-                          <div className="font-semibold text-[#FBBF24]">Holiday: {holidayName}</div>
-                          <div className="text-[#FBBF24]/90 font-light">
-                            Accept and decline are closed for this session.
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid gap-2">
+                    <div className="grid gap-2">
                         {availableJuniors.map((child) => {
                           const estimatedFee = isHoliday
                             ? 0
@@ -1025,7 +1079,6 @@ function Events() {
                           );
                         })}
                       </div>
-                    )}
                   </div>
                 )}
 

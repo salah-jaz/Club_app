@@ -87,6 +87,14 @@ interface State {
   register: (u: Omit<User, "id" | "role" | "status" | "createdAt">) => Promise<string>;
   verifyOtp: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<{ message: string; maskedEmail: string }>;
+  verifyResetOtp: (email: string, otp: string) => Promise<{ message: string }>;
+  resetPassword: (
+    email: string,
+    otp: string,
+    password: string,
+    passwordConfirmation: string
+  ) => Promise<{ message: string }>;
   login: (email: string, password: string) => Promise<User | null>;
   loginAs: (memberId: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -123,7 +131,7 @@ interface State {
   rejectJunior: (id: string) => Promise<void>;
 
   // credits
-  requestCredit: (memberId: string, amount: number, date: string, type?: "credit" | "debit" | "refund", reason?: string) => Promise<void>;
+  requestCredit: (memberId: string | undefined | null, amount: number, date: string, type?: "credit" | "debit" | "refund" | "expense", reason?: string) => Promise<void>;
   approveCredit: (id: string) => Promise<void>;
   approveAllCredits: () => Promise<void>;
   rejectCredit: (id: string) => Promise<void>;
@@ -158,6 +166,7 @@ interface State {
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
   updateMemberTrainingInvitation: (trainingId: string, memberId: string, sessionIds: string[], forceAccept?: boolean) => Promise<{ message?: string }>;
   processTrainingRefund: (dateId: string, refundType: "none" | "half" | "full") => Promise<void>;
+  processOverpaymentRefund: (trainingId: string, memberId: string, amount: number) => Promise<{ message: string }>;
   sendTrainingUpdateRequest: (
     trainingId: string,
     memberId: string,
@@ -557,6 +566,23 @@ export const useStore = create<State>((set, get) => ({
     await api.post("/register/resend-otp", { email });
   },
 
+  forgotPassword: async (email) => {
+    return await api.post<{ message: string; maskedEmail: string }>("/forgot-password", { email });
+  },
+
+  verifyResetOtp: async (email, otp) => {
+    return await api.post<{ message: string; verified?: boolean }>("/verify-reset-otp", { email, otp });
+  },
+
+  resetPassword: async (email, otp, password, passwordConfirmation) => {
+    return await api.post<{ message: string }>("/reset-password", {
+      email,
+      otp,
+      password,
+      password_confirmation: passwordConfirmation,
+    });
+  },
+
   login: async (email, password) => {
     const res = await api.post<{ token: string; user: User }>("/login", { email, password });
     if (typeof window !== "undefined") {
@@ -655,7 +681,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   requestCredit: async (memberId, amount, date, type = "credit", reason) => {
-    await api.post<CreditRequest>("/credit-requests", { memberId, amount, date, type, reason });
+    await api.post<CreditRequest>("/credit-requests", { memberId: memberId || undefined, amount, date, type, reason });
     await get().syncData();
   },
 
@@ -903,6 +929,15 @@ export const useStore = create<State>((set, get) => ({
   processTrainingRefund: async (dateId, refundType) => {
     await api.post(`/training-dates/${dateId}/process-refund`, { refundType });
     await get().syncData();
+  },
+
+  processOverpaymentRefund: async (trainingId, memberId, amount) => {
+    const res = await api.post<{ message: string }>(`/trainings/${trainingId}/process-overpayment-refund`, {
+      memberId,
+      amount,
+    });
+    await get().syncData();
+    return res;
   },
 
   sendTrainingUpdateRequest: async (

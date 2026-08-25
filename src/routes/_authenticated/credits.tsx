@@ -1,6 +1,6 @@
 import { useCan } from "@/lib/permissions";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useCurrentUser, useStore } from "@/lib/store";
 import type { CreditRequest } from "@/lib/types";
@@ -16,14 +16,27 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { Search, X, SlidersHorizontal, Calendar, Plus, Wallet, Clock3, CheckCircle2, CircleDollarSign, ArrowDownLeft, ArrowUpRight, Trash2, RotateCcw } from "lucide-react";
+import { Plus, Wallet, Clock3, CheckCircle2, CircleDollarSign, ArrowDownLeft, ArrowUpRight, Trash2, RotateCcw } from "lucide-react";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
+import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { cn } from "@/lib/utils";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { MemberCombobox } from "@/components/MemberCombobox";
+import {
+  ReportDialog,
+  ReportTriggerButton,
+  runReportExport,
+  useReportDialog,
+} from "@/components/ReportDialog";
+import {
+  WALLET_REPORT_CATEGORY,
+  WALLET_REPORT_STATUS,
+  WALLET_REPORT_TYPE,
+  exportWalletReport,
+  filterWalletForReport,
+} from "@/lib/module-reports";
 import {
   Dialog,
   DialogContent,
@@ -215,7 +228,7 @@ function CreditsPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [sortBy, setSortBy] = useState("newest");
-  const [showFilters, setShowFilters] = useState(false);
+  const report = useReportDialog();
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -224,6 +237,40 @@ function CreditsPage() {
     setToDate("");
     setSortBy("newest");
   };
+
+  const creditsFilterConfig = useMemo(
+    () => [
+      {
+        key: "status",
+        label: "Status",
+        options: [
+          { value: "all", label: "All Statuses" },
+          { value: "created", label: "Pending" },
+          { value: "approved", label: "Approved" },
+          { value: "rejected", label: "Rejected" },
+        ],
+      },
+      { key: "fromDate", label: "From", type: "date" as const },
+      { key: "toDate", label: "To", type: "date" as const },
+    ],
+    [],
+  );
+
+  const creditsSortOptions = useMemo(
+    () => [
+      { value: "newest", label: "Newest First" },
+      { value: "oldest", label: "Oldest First" },
+      { value: "amount_high", label: "Amount High to Low" },
+      { value: "amount_low", label: "Amount Low to High" },
+    ],
+    [],
+  );
+
+  const handleCreditsFilterChange = useCallback((key: string, value: string) => {
+    if (key === "status") setStatusFilter(value);
+    else if (key === "fromDate") setFromDate(value);
+    else if (key === "toDate") setToDate(value);
+  }, []);
 
   const hasActiveFilters =
     searchTerm !== "" || statusFilter !== "all" || fromDate !== "" || toDate !== "" || sortBy !== "newest";
@@ -272,6 +319,32 @@ function CreditsPage() {
         return 0;
       });
   }, [tabReqs, s.members, searchTerm, statusFilter, fromDate, toDate, sortBy]);
+
+  const reportPreviewCount = useMemo(
+    () => filterWalletForReport(scopedReqs, report.values).length,
+    [scopedReqs, report.values],
+  );
+
+  const openWalletReport = () => {
+    report.openWith({
+      fromDate,
+      toDate,
+      memberId: walletMember?.id ?? focusMember?.id ?? "all",
+      status: statusFilter !== "all" ? statusFilter : "all",
+      type: typeTab === "all" ? "all" : typeTab,
+      category: "all",
+    });
+  };
+
+  const exportWallet = (format: "csv" | "pdf") =>
+    runReportExport({
+      count: reportPreviewCount,
+      format,
+      setExporting: report.setExporting,
+      setOpen: report.setOpen,
+      exportFn: (fmt) =>
+        exportWalletReport(scopedReqs, s.members, report.values, fmt, s.appName),
+    });
 
   const openAddDialog = (type: EntryType) => {
     if (type === "debit" && !isAdmin) return;
@@ -369,6 +442,7 @@ function CreditsPage() {
         backTo={focusMember ? "/members" : undefined}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
+            <ReportTriggerButton onClick={openWalletReport} />
             {isAdmin && canAddCredits && (typeTab === "debit" || typeTab === "all") && (
               <Button
                 type="button"
@@ -603,6 +677,24 @@ function CreditsPage() {
         </DialogContent>
       </Dialog>
 
+      <SearchFilterBar
+        searchPlaceholder="Search member..."
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        showSearch={!isMemberScoped}
+        filters={creditsFilterConfig}
+        activeFilters={{
+          status: statusFilter,
+          fromDate,
+          toDate,
+        }}
+        onFilterChange={handleCreditsFilterChange}
+        onClearAll={resetFilters}
+        sortOptions={creditsSortOptions}
+        currentSort={sortBy}
+        onSortChange={setSortBy}
+      />
+
       <Card className="border-[rgba(255,255,255,0.06)] bg-[#131916] overflow-hidden">
         <CardHeader className="border-b border-[rgba(255,255,255,0.06)] py-4.5 px-4 sm:px-6 flex flex-row items-center justify-between">
           <CardTitle className="text-[13px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
@@ -614,293 +706,7 @@ function CreditsPage() {
             )}
           </CardTitle>
         </CardHeader>
-        <div className="px-4 sm:px-6 py-4 border-b border-[rgba(255,255,255,0.06)] bg-[#131916]">
-          <div className="flex items-center gap-2 md:hidden">
-            {!isMemberScoped && (
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
-                <Input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search member..."
-                  className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
-              </div>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className={cn(
-                "flex items-center justify-center gap-2 border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] hover:bg-white/5 text-[#F1F0EE] h-10 rounded-lg text-xs px-4 cursor-pointer",
-                isMemberScoped && "flex-1",
-                showFilters && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]",
-              )}
-            >
-              <SlidersHorizontal className="size-3.5" />
-              <span>Filters</span>
-              {hasActiveFilters && <span className="size-1.5 rounded-full bg-[#10B981]" />}
-            </Button>
-          </div>
 
-          {showFilters && (
-            <div className="flex flex-col gap-3 mt-3 md:hidden p-3 bg-[#0C0F0E]/50 rounded-lg border border-[rgba(255,255,255,0.06)]">
-              <div className="space-y-1">
-                <Label className="text-[10px] font-medium text-[#8A8A98]">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="created">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[10px] font-medium text-[#8A8A98]">Date Range</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                    className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs"
-                  />
-                  <Input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                    className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[10px] font-medium text-[#8A8A98]">Sort By</Label>
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="newest">Newest First</SelectItem>
-                    <SelectItem value="oldest">Oldest First</SelectItem>
-                    <SelectItem value="amount_high">Amount High to Low</SelectItem>
-                    <SelectItem value="amount_low">Amount Low to High</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <div className="hidden md:flex md:items-center justify-between gap-3 w-full">
-            <div className="flex items-center gap-3 flex-wrap flex-1">
-              {!isMemberScoped && (
-                <div className="relative w-full max-w-[280px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
-                  <Input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search member..."
-                    className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
-                  />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger
-                  className={cn(
-                    "bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-[140px] rounded-lg cursor-pointer text-xs",
-                    statusFilter !== "all" && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]",
-                  )}
-                >
-                  <SelectValue placeholder="All Statuses" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="all" className="text-xs">
-                    All Statuses
-                  </SelectItem>
-                  <SelectItem value="created" className="text-xs">
-                    Pending
-                  </SelectItem>
-                  <SelectItem value="approved" className="text-xs">
-                    Approved
-                  </SelectItem>
-                  <SelectItem value="rejected" className="text-xs">
-                    Rejected
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "flex items-center gap-2 border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] hover:bg-white/5 text-[#F1F0EE] h-10 rounded-lg px-3.5 text-xs cursor-pointer",
-                      (fromDate || toDate) && "border-[#10B981] bg-[#10B981]/5 text-[#10B981]",
-                    )}
-                  >
-                    <Calendar className="size-4 text-[#8A8A98]" />
-                    <span>
-                      {fromDate && toDate
-                        ? `${fmtDate(fromDate)} – ${fmtDate(toDate)}`
-                        : fromDate
-                          ? `From ${fmtDate(fromDate)}`
-                          : toDate
-                            ? `To ${fmtDate(toDate)}`
-                            : "Date Range"}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  className="w-[300px] bg-[#131916] border-[rgba(255,255,255,0.1)] p-4 text-[#F1F0EE] rounded-lg shadow-xl"
-                >
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-xs text-[#8A8A98] tracking-wider uppercase">
-                      Filter by Date Range
-                    </h4>
-                    <div className="grid gap-2">
-                      <div className="grid gap-1">
-                        <Label htmlFor="from" className="text-[10px] text-[#8A8A98]">
-                          From Date
-                        </Label>
-                        <Input
-                          id="from"
-                          type="date"
-                          value={fromDate}
-                          onChange={(e) => setFromDate(e.target.value)}
-                          className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-9 rounded-md text-xs"
-                        />
-                      </div>
-                      <div className="grid gap-1">
-                        <Label htmlFor="to" className="text-[10px] text-[#8A8A98]">
-                          To Date
-                        </Label>
-                        <Input
-                          id="to"
-                          type="date"
-                          value={toDate}
-                          onChange={(e) => setToDate(e.target.value)}
-                          className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-9 rounded-md text-xs"
-                        />
-                      </div>
-                    </div>
-                    {(fromDate || toDate) && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setFromDate("");
-                          setToDate("");
-                        }}
-                        className="w-full text-xs text-red-400 hover:text-red-300 hover:bg-red-400/5 h-8 cursor-pointer"
-                      >
-                        Clear Date Filter
-                      </Button>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[180px] rounded-lg cursor-pointer text-xs">
-                  <SelectValue placeholder="Sort By" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="newest" className="text-xs">
-                    Newest First
-                  </SelectItem>
-                  <SelectItem value="oldest" className="text-xs">
-                    Oldest First
-                  </SelectItem>
-                  <SelectItem value="amount_high" className="text-xs">
-                    Amount High to Low
-                  </SelectItem>
-                  <SelectItem value="amount_low" className="text-xs">
-                    Amount Low to High
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        {hasActiveFilters && (
-          <div className="flex flex-wrap items-center gap-2 px-6 pb-4 bg-[#131916]">
-            <span className="text-[11px] font-medium text-[#8A8A98]">Active Filters:</span>
-            {searchTerm && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
-                <span>Search: {searchTerm}</span>
-                <button onClick={() => setSearchTerm("")} className="hover:text-white transition-colors cursor-pointer">
-                  <X className="size-3 text-[#10B981]" />
-                </button>
-              </span>
-            )}
-            {statusFilter !== "all" && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
-                <span>
-                  Status:{" "}
-                  {statusFilter === "created"
-                    ? "Pending"
-                    : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
-                </span>
-                <button
-                  onClick={() => setStatusFilter("all")}
-                  className="hover:text-white transition-colors cursor-pointer"
-                >
-                  <X className="size-3 text-[#10B981]" />
-                </button>
-              </span>
-            )}
-            {(fromDate || toDate) && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[#10B981]/15 text-[#10B981] rounded-full border border-[#10B981]/20">
-                <span>
-                  Date:{" "}
-                  {fromDate && toDate
-                    ? `${fmtDate(fromDate)} – ${fmtDate(toDate)}`
-                    : fromDate
-                      ? `From ${fmtDate(fromDate)}`
-                      : `To ${fmtDate(toDate)}`}
-                </span>
-                <button
-                  onClick={() => {
-                    setFromDate("");
-                    setToDate("");
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer"
-                >
-                  <X className="size-3 text-[#10B981]" />
-                </button>
-              </span>
-            )}
-            <button
-              onClick={resetFilters}
-              className="text-[11px] font-medium text-[#8A8A98] hover:text-[#EEF2F0] underline underline-offset-4 ml-1 cursor-pointer transition-colors"
-            >
-              Clear all
-            </button>
-          </div>
-        )}
         <CardContent className="p-0">
           {/* Mobile / Tablet Cards View (< md) */}
           <div className="block md:hidden p-4 space-y-3">
@@ -1285,6 +1091,26 @@ function CreditsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ReportDialog
+        open={report.open}
+        onOpenChange={report.setOpen}
+        values={report.values}
+        onValuesChange={report.setValues}
+        previewCount={reportPreviewCount}
+        exporting={report.exporting}
+        onExport={exportWallet}
+        config={{
+          entityLabel: "wallet entries",
+          showDateRange: true,
+          showMember: !isMemberScoped,
+          memberLocked: isMemberScoped,
+          members: adultMembers,
+          statusOptions: WALLET_REPORT_STATUS,
+          typeOptions: WALLET_REPORT_TYPE,
+          categoryOptions: WALLET_REPORT_CATEGORY,
+        }}
+      />
     </div>
   );
 }

@@ -435,12 +435,10 @@ class TrainingController extends Controller
             ->orderBy('start_date', 'asc')
             ->get();
 
-        $idx = $series->search(fn($item) => $item->id === $tr->id);
-        if ($idx === false) $idx = 0;
-
-        $repeatWeeks = max(1, (int)($tr->repeat_weeks ?? 3));
-        $monthIndex = intdiv($idx, $repeatWeeks);
-        $monthSessions = $series->slice($monthIndex * $repeatWeeks, $repeatWeeks);
+        $trYearMonth = \Carbon\Carbon::parse($tr->start_date)->format('Y-m');
+        $monthSessions = $series->filter(function ($sItem) use ($trYearMonth) {
+            return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $trYearMonth;
+        });
         $monthSessionIds = $monthSessions->pluck('id')->all();
 
         $memberId = $request->memberId;
@@ -452,6 +450,8 @@ class TrainingController extends Controller
         $existingInvs = TrainingInvitation::whereIn('training_id', $monthSessionIds)
             ->where('member_id', $memberId)
             ->get();
+
+        $hadExistingSentInvs = $existingInvs->contains(fn($i) => $i->status !== 'pending');
 
         $hasAccepted = $existingInvs->contains(fn($i) => $i->status === 'accepted');
 
@@ -479,8 +479,14 @@ class TrainingController extends Controller
                     'message' => 'Invalid monthly fee configured for this training program.',
                 ], 422);
             }
-            $basePerWeekFee = (float) $tr->fees / $repeatWeeks;
-            $totalFeeToDeduct = FeeHelper::forMember($basePerWeekFee * count($selectedSids), $member);
+            $appDisc = (bool)$member->apply_discount;
+            $discountedMonthlyFee = FeeHelper::forMember((float)$tr->fees, $member, $appDisc);
+            $count = count($selectedSids);
+            if ($count === $repeatWeeks) {
+                $totalFeeToDeduct = $discountedMonthlyFee;
+            } else {
+                $totalFeeToDeduct = round(($discountedMonthlyFee / $repeatWeeks) * $count, 2);
+            }
 
             return DB::transaction(function () use ($tr, $monthSessions, $selectedSids, $member, $totalFeeToDeduct, $existingInvs) {
                 if ($totalFeeToDeduct > 0) {
@@ -501,7 +507,7 @@ class TrainingController extends Controller
                             'member_id' => $freshWallet->id,
                             'type' => 'debit',
                             'amount' => $totalFeeToDeduct,
-                            'description' => 'Training program invitation force accepted: ' . $tr->name,
+                            'description' => 'Training program invitation force accepted for ' . $member->name . ': ' . $tr->name,
                             'date' => now(),
                         ]);
 
@@ -519,15 +525,17 @@ class TrainingController extends Controller
                     }
                 }
 
+                $countSids = count($selectedSids);
+                $basePerSession = $countSids > 0 ? floor(($totalFeeToDeduct / $countSids) * 100) / 100 : 0;
+                $remainderCents = $countSids > 0 ? (int) round(($totalFeeToDeduct - ($basePerSession * $countSids)) * 100) : 0;
+
                 $holidayDates = Holiday::pluck('date')->toArray();
-                foreach ($selectedSids as $sid) {
+                foreach (array_values($selectedSids) as $index => $sid) {
                     $sessionObj = Training::find($sid);
                     $repW = max(1, (int)($sessionObj->repeat_weeks ?? $tr->repeat_weeks ?? 1));
                     $bPerW = (float)($sessionObj->fees ?? $tr->fees ?? 0) / $repW;
                     $inv = TrainingInvitation::where('training_id', $sid)->where('member_id', $member->id)->first();
-                    $appDisc = $inv && $inv->apply_discount !== null ? (bool)$inv->apply_discount : (bool)$member->apply_discount;
-                    $discountedMonthlyFee = $inv && $inv->calculated_monthly_fee !== null ? (float)$inv->calculated_monthly_fee : FeeHelper::forMember((float)($sessionObj->fees ?? $tr->fees ?? 0), $member, $appDisc);
-                    $perSessAmount = round($discountedMonthlyFee / $repW, 2);
+                    $perSessAmount = round($basePerSession + ($index < $remainderCents ? 0.01 : 0.0), 2);
                     if (!$inv) {
                         $inv = TrainingInvitation::create([
                             'id' => 'ti_' . Str::random(8),
@@ -536,14 +544,14 @@ class TrainingController extends Controller
                             'status' => 'accepted',
                             'accepted_monthly_fee' => (float)($sessionObj->fees ?? $tr->fees ?? 0),
                             'accepted_repeat_weeks' => $repW,
-                            'accepted_per_session_fee' => $bPerW,
+                            'accepted_per_session_fee' => $perSessAmount,
                             'accepted_amount' => $perSessAmount,
                         ]);
                     } else {
                         $inv->status = 'accepted';
                         $inv->accepted_monthly_fee = (float)($sessionObj->fees ?? $tr->fees ?? 0);
                         $inv->accepted_repeat_weeks = $repW;
-                        $inv->accepted_per_session_fee = $bPerW;
+                        $inv->accepted_per_session_fee = $perSessAmount;
                         $inv->accepted_amount = $perSessAmount;
                         $inv->save();
                     }
@@ -579,35 +587,31 @@ class TrainingController extends Controller
         foreach ($selectedSids as $sid) {
             $inv = TrainingInvitation::where('training_id', $sid)->where('member_id', $member->id)->first();
             if (!$inv) {
-                $inv = TrainingInvitation::create([
+                TrainingInvitation::create([
                     'id' => 'ti_' . Str::random(8),
                     'training_id' => $sid,
                     'member_id' => $member->id,
                     'status' => 'open',
                 ]);
-
-                try {
-                    $sessionObj = Training::find($sid);
-                    if ($sessionObj) {
-                        MailHelper::sendTrainingNotification($member, $sessionObj, 'open', 'release');
-                    }
-                } catch (\Exception $e) {
-                    logger()->error("Training invite email error: " . $e->getMessage());
-                }
             } else {
-                if ($inv->status === 'pending') {
+                if ($inv->status !== 'accepted') {
                     $inv->status = 'open';
                     $inv->save();
-
-                    try {
-                        $sessionObj = Training::find($sid);
-                        if ($sessionObj) {
-                            MailHelper::sendTrainingNotification($member, $sessionObj, 'open', 'release');
-                        }
-                    } catch (\Exception $e) {
-                        logger()->error("Training invite email error: " . $e->getMessage());
-                    }
                 }
+            }
+        }
+
+        if (count($selectedSids) > 0) {
+            try {
+                $selectedTrainings = Training::whereIn('id', $selectedSids)
+                    ->orderBy('start_date', 'asc')
+                    ->get();
+                if ($selectedTrainings->count() > 0) {
+                    $actionType = $hadExistingSentInvs ? 'update' : 'release';
+                    MailHelper::sendTrainingNotification($member, $selectedTrainings, 'open', $actionType);
+                }
+            } catch (\Exception $e) {
+                logger()->error("Training invite email error: " . $e->getMessage());
             }
         }
 
@@ -715,7 +719,7 @@ class TrainingController extends Controller
                             'member_id' => $freshWalletMember->id,
                             'type' => 'debit',
                             'amount' => $feeToDeduct,
-                            'description' => 'Training program invitation accepted: ' . $tr->name,
+                            'description' => 'Training program invitation accepted for ' . $member->name . ': ' . $tr->name,
                             'date' => now(),
                         ]);
 
@@ -832,7 +836,18 @@ class TrainingController extends Controller
         }
         $appDisc = $invite->apply_discount !== null ? (bool)$invite->apply_discount : (bool)$member->apply_discount;
         $discountedMonthlyFee = $invite->calculated_monthly_fee !== null ? (float)$invite->calculated_monthly_fee : FeeHelper::forMember((float) $tr->fees, $member, $appDisc);
-        $feeToDeduct = round($discountedMonthlyFee / $repeatWeeks, 2);
+
+        $parentId = $tr->parent_id ?: $tr->id;
+        $seriesSessionIds = Training::where('parent_id', $parentId)->orWhere('id', $parentId)->pluck('id')->all();
+        $otherAcceptedInvs = TrainingInvitation::whereIn('training_id', $seriesSessionIds)->where('member_id', $member->id)->where('status', 'accepted')->where('id', '!=', $invite->id)->get();
+
+        if ($otherAcceptedInvs->count() + 1 === $repeatWeeks) {
+            $alreadyPaidSum = (float) $otherAcceptedInvs->sum('accepted_amount');
+            $feeToDeduct = round(max(0, $discountedMonthlyFee - $alreadyPaidSum), 2);
+        } else {
+            $feeToDeduct = round($discountedMonthlyFee / $repeatWeeks, 2);
+        }
+
         $originalFee = round((float) $tr->fees / $repeatWeeks, 2);
         $discountApplied = round(max(0, $originalFee - $feeToDeduct), 2);
 
@@ -855,7 +870,8 @@ class TrainingController extends Controller
                 $freshWalletMember->credit = round($freshWalletMember->credit - $feeToDeduct, 2);
                 $freshWalletMember->save();
 
-                $description = 'Training program invitation accepted: ' . $tr->name . ' (Training Fee: $' . number_format($originalFee, 2) . ', Discount: $' . number_format($discountApplied, 2) . ', Amount Debited: $' . number_format($feeToDeduct, 2) . ')';
+                $currency = Setting::where('key', 'currency')->value('value') ?? '$';
+                $description = 'Training program invitation accepted for ' . $member->name . ': ' . $tr->name . ' (Training Fee: ' . $currency . number_format($originalFee, 2) . ', Discount: ' . $currency . number_format($discountApplied, 2) . ', Amount Debited: ' . $currency . number_format($feeToDeduct, 2) . ')';
 
                 $transaction = Transaction::create([
                     'id' => 't_' . Str::random(8),
@@ -970,29 +986,26 @@ class TrainingController extends Controller
                     $member = Member::find($memberId);
                     if (!$member) continue;
 
-                    $totalFeeToDeduct = 0.0;
-                    $totalOriginalFee = 0.0;
+                    $firstInv = $mInvites->first();
+                    $trFirst = Training::find($firstInv->training_id);
+                    $repeatWeeks = max(1, (int)($trFirst->repeat_weeks ?? 3));
+                    $appDisc = $firstInv->apply_discount !== null ? (bool)$firstInv->apply_discount : (bool)$member->apply_discount;
+                    $discountedMonthlyFee = $firstInv->calculated_monthly_fee !== null ? (float)$firstInv->calculated_monthly_fee : FeeHelper::forMember((float) $trFirst->fees, $member, $appDisc);
+
+                    $count = $mInvites->count();
+                    if ($count === $repeatWeeks) {
+                        $totalFeeToDeduct = $discountedMonthlyFee;
+                        $totalOriginalFee = (float) $trFirst->fees;
+                    } else {
+                        $totalFeeToDeduct = round(($discountedMonthlyFee / $repeatWeeks) * $count, 2);
+                        $totalOriginalFee = round(((float) $trFirst->fees / $repeatWeeks) * $count, 2);
+                    }
+
                     $trainingNames = [];
                     foreach ($mInvites as $inv) {
                         $tr = Training::find($inv->training_id);
-                        if ($tr) {
-                            $repeatWeeks = (int)($tr->repeat_weeks ?? 0);
-                            if ($repeatWeeks <= 0) {
-                                throw new \Exception('Invalid or missing Repeat for Weeks configured for training program: ' . $tr->name);
-                            }
-                            if ($tr->fees === null || (float)$tr->fees < 0) {
-                                throw new \Exception('Invalid monthly fee configured for training program: ' . $tr->name);
-                            }
-                            $appDisc = $inv->apply_discount !== null ? (bool)$inv->apply_discount : (bool)$member->apply_discount;
-                            $discountedMonthlyFee = $inv->calculated_monthly_fee !== null ? (float)$inv->calculated_monthly_fee : FeeHelper::forMember((float) $tr->fees, $member, $appDisc);
-                            $perSessFee = round($discountedMonthlyFee / $repeatWeeks, 2);
-                            $origSessFee = round((float) $tr->fees / $repeatWeeks, 2);
-
-                            $totalFeeToDeduct += $perSessFee;
-                            $totalOriginalFee += $origSessFee;
-                            if (!in_array($tr->name, $trainingNames)) {
-                                $trainingNames[] = $tr->name;
-                            }
+                        if ($tr && !in_array($tr->name, $trainingNames)) {
+                            $trainingNames[] = $tr->name;
                         }
                     }
 
@@ -1007,8 +1020,9 @@ class TrainingController extends Controller
                             $freshWalletMember->credit = round($freshWalletMember->credit - $totalFeeToDeduct, 2);
                             $freshWalletMember->save();
 
+                            $currency = Setting::where('key', 'currency')->value('value') ?? '$';
                             $discountApplied = round(max(0, $totalOriginalFee - $totalFeeToDeduct), 2);
-                            $description = 'Training program invitation accepted: ' . implode(', ', $trainingNames) . ' (Training Fee: $' . number_format($totalOriginalFee, 2) . ', Discount: $' . number_format($discountApplied, 2) . ', Amount Debited: $' . number_format($totalFeeToDeduct, 2) . ')';
+                            $description = 'Training program invitation accepted for ' . $member->name . ': ' . implode(', ', $trainingNames) . ' (Training Fee: ' . $currency . number_format($totalOriginalFee, 2) . ', Discount: ' . $currency . number_format($discountApplied, 2) . ', Amount Debited: ' . $currency . number_format($totalFeeToDeduct, 2) . ')';
                             if (strlen($description) > 255) {
                                 $description = substr($description, 0, 252) . '...';
                             }
@@ -1030,14 +1044,17 @@ class TrainingController extends Controller
                         }
                     }
 
+                    $basePerSession = $count > 0 ? floor(($totalFeeToDeduct / $count) * 100) / 100 : 0;
+                    $remainderCents = $count > 0 ? (int) round(($totalFeeToDeduct - ($basePerSession * $count)) * 100) : 0;
+
                     $holidayDates = Holiday::pluck('date')->toArray();
-                    foreach ($mInvites as $inv) {
+                    foreach ($mInvites->values() as $index => $inv) {
                         $trSession = Training::find($inv->training_id);
                         if ($trSession) {
                             $repW = max(1, (int)($trSession->repeat_weeks ?? 1));
                             $appDisc = $inv->apply_discount !== null ? (bool)$inv->apply_discount : (bool)$member->apply_discount;
                             $discountedMonthlyFee = $inv->calculated_monthly_fee !== null ? (float)$inv->calculated_monthly_fee : FeeHelper::forMember((float) $trSession->fees, $member, $appDisc);
-                            $perSessAmount = round($discountedMonthlyFee / $repW, 2);
+                            $perSessAmount = round($basePerSession + ($index < $remainderCents ? 0.01 : 0.0), 2);
 
                             $inv->status = 'accepted';
                             $inv->accepted_monthly_fee = (float) $trSession->fees;
@@ -1231,7 +1248,7 @@ class TrainingController extends Controller
                         'member_id' => $freshWalletMember->id,
                         'type' => 'debit',
                         'amount' => $additionalAmount,
-                        'description' => 'Training program update request accepted: ' . $tr->name,
+                        'description' => 'Training program update request accepted for ' . $member->name . ': ' . $tr->name,
                         'date' => now(),
                     ]);
 
@@ -1256,7 +1273,7 @@ class TrainingController extends Controller
                         'member_id' => $freshWalletMember->id,
                         'type' => 'refund',
                         'amount' => $refundAmount,
-                        'description' => 'Training program update refund: ' . $tr->name,
+                        'description' => 'Training program update refund for ' . $member->name . ': ' . $tr->name,
                         'date' => now(),
                     ]);
 
@@ -1440,7 +1457,7 @@ class TrainingController extends Controller
                     'member_id' => $freshWallet->id,
                     'type' => 'refund',
                     'amount' => $refundAmount,
-                    'description' => "Training session absent ({$refundLabel}): {$tr->name}",
+                    'description' => "Training session absent ({$refundLabel}) for {$member->name}: {$tr->name}",
                     'date' => now(),
                 ]);
 
@@ -1480,6 +1497,15 @@ class TrainingController extends Controller
             $dates = [];
         }
 
+        $parentId = $tr->parent_id ?: $tr->id;
+        $seriesTrainings = Training::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('start_date', 'asc')
+            ->get();
+        if ($seriesTrainings->count() === 0) {
+            $seriesTrainings = collect([$tr]);
+        }
+
         $invites = [];
         foreach ($memberIds as $mid) {
             $existingInv = TrainingInvitation::where('training_id', $tr->id)
@@ -1496,7 +1522,7 @@ class TrainingController extends Controller
                     $member = Member::find($mid);
                     if ($member) {
                         try {
-                            MailHelper::sendTrainingNotification($member, $tr, 'open', 'release');
+                            MailHelper::sendTrainingNotification($member, $seriesTrainings, 'open', 'release');
                         } catch (\Exception $e) {
                             logger()->error("Training release email failed for member {$mid}: " . $e->getMessage());
                         }
@@ -1523,7 +1549,7 @@ class TrainingController extends Controller
                 $member = Member::find($mid);
                 if ($member) {
                     try {
-                        MailHelper::sendTrainingNotification($member, $tr, $inviteStatus, 'release');
+                        MailHelper::sendTrainingNotification($member, $seriesTrainings, $inviteStatus, 'release');
                     } catch (\Exception $e) {
                         logger()->error("Training release email failed for member {$mid}: " . $e->getMessage());
                     }
@@ -1575,6 +1601,101 @@ class TrainingController extends Controller
         return [$invites, $trainingDates];
     }
 
+    public function processOverpaymentRefund(Request $request, $id)
+    {
+        $request->validate([
+            'memberId' => 'required|string',
+            'amount' => 'required|numeric|min:0.01',
+        ]);
+
+        $tr = Training::findOrFail($id);
+        $member = Member::findOrFail($request->memberId);
+        $refundAmount = round((float)$request->amount, 2);
+
+        $parentId = $tr->parent_id ?: $tr->id;
+        $series = Training::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('start_date', 'asc')
+            ->get();
+
+        $trYearMonth = \Carbon\Carbon::parse($tr->start_date)->format('Y-m');
+        $monthSessions = $series->filter(function ($sItem) use ($trYearMonth) {
+            return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $trYearMonth;
+        });
+        $monthSessionIds = $monthSessions->pluck('id')->all();
+
+        return DB::transaction(function () use ($tr, $member, $refundAmount, $parentId, $monthSessionIds) {
+            $walletMember = $this->getWalletMember($member, 0);
+            $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+            $freshWallet->credit = round($freshWallet->credit + $refundAmount, 2);
+            $freshWallet->save();
+
+            $transaction = Transaction::create([
+                'id' => 't_' . Str::random(8),
+                'member_id' => $freshWallet->id,
+                'type' => 'refund',
+                'amount' => $refundAmount,
+                'description' => "Training program overpayment refund for {$member->name}: {$tr->name}",
+                'date' => now(),
+            ]);
+
+            try {
+                MailHelper::sendTransactionEmail($freshWallet, $transaction);
+            } catch (\Exception $e) {
+                logger()->error("Transaction email failed: " . $e->getMessage());
+            }
+
+            $existingUpdateReq = TrainingUpdateRequest::where('member_id', $member->id)
+                ->whereIn('training_id', array_merge([$tr->id, $parentId], $monthSessionIds))
+                ->where('status', 'accepted')
+                ->latest()
+                ->first();
+
+            $invs = TrainingInvitation::whereIn('training_id', $monthSessionIds)
+                ->where('member_id', $member->id)
+                ->get();
+
+            $prevPaidSum = $existingUpdateReq
+                ? (float)($existingUpdateReq->updated_monthly_fee ?? 0)
+                : $invs->reduce(fn($sum, $i) => $sum + (float)($i->accepted_per_session_fee ?? $i->accepted_amount ?? 0), 0.0);
+
+            $targetFee = max(0, round($prevPaidSum - $refundAmount, 2));
+
+            if ($existingUpdateReq) {
+                $existingUpdateReq->updated_monthly_fee = $targetFee;
+                $existingUpdateReq->save();
+            } else {
+                TrainingUpdateRequest::create([
+                    'id' => 'tur_' . Str::random(8),
+                    'training_id' => $tr->id,
+                    'member_id' => $member->id,
+                    'existing_session_ids' => $invs->pluck('training_id')->all(),
+                    'new_session_ids' => $invs->pluck('training_id')->all(),
+                    'previously_paid_amount' => $prevPaidSum,
+                    'updated_monthly_fee' => $targetFee,
+                    'new_per_session_fee' => count($monthSessionIds) > 0 ? round($targetFee / count($monthSessionIds), 2) : 0,
+                    'additional_amount' => -$refundAmount,
+                    'status' => 'accepted',
+                ]);
+            }
+
+            foreach ($invs as $inv) {
+                if ($inv->status === 'accepted') {
+                    $acceptedCount = $invs->where('status', 'accepted')->count();
+                    $perSess = $acceptedCount > 0 ? round($targetFee / $acceptedCount, 2) : 0;
+                    $inv->accepted_per_session_fee = $perSess;
+                    $inv->accepted_amount = $perSess;
+                    $inv->save();
+                }
+            }
+
+            $currency = Setting::where('key', 'currency')->value('value') ?? '$';
+            return response()->json([
+                'message' => "Refund of {$currency}" . number_format($refundAmount, 2) . " processed successfully to {$member->name}'s wallet.",
+            ]);
+        });
+    }
+
     public function destroy($id)
     {
         if ($response = PermissionHelper::denyAdminUnless(request(), 'trainings.delete')) {
@@ -1589,15 +1710,10 @@ class TrainingController extends Controller
             ->orderBy('start_date', 'asc')
             ->get();
 
-        $idx = $series->search(fn($item) => $item->id === $t->id);
-        if ($idx === false) {
-            $idx = 0;
-        }
-
-        $repeatWeeks = max(1, (int)($t->repeat_weeks ?? 3));
-        $monthIndex = intdiv($idx, $repeatWeeks);
-
-        $monthSessions = $series->slice($monthIndex * $repeatWeeks, $repeatWeeks);
+        $tYearMonth = \Carbon\Carbon::parse($t->start_date)->format('Y-m');
+        $monthSessions = $series->filter(function ($sItem) use ($tYearMonth) {
+            return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $tYearMonth;
+        });
         $sessionIds = $monthSessions->pluck('id')->all();
 
         if ($t->status !== 'cancelled') {
@@ -1795,9 +1911,9 @@ class TrainingController extends Controller
                         'member_id' => $freshWallet->id,
                         'type' => 'refund',
                         'amount' => $remainingRefund,
-                        'description' => $isDeletion
-                            ? 'Refund — deleted training session: ' . $session->name
-                            : 'Refund — cancelled training session: ' . $session->name,
+                        'description' => ($isDeletion
+                            ? 'Refund — deleted training session for '
+                            : 'Refund — cancelled training session for ') . $member->name . ': ' . $session->name,
                         'date' => now(),
                     ]);
 

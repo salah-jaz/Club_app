@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck, LayoutGrid, List, Search, Eye } from "lucide-react";
+import { SearchFilterBar } from "@/components/SearchFilterBar";
+import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck, LayoutGrid, List, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -186,67 +187,51 @@ function MemberLeagueGroupsView() {
         description="View your league groups, positions, and teammates."
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-3.5 rounded-xl">
-        <div className="flex items-center gap-3 flex-1 flex-wrap">
-          <div className="relative w-full sm:max-w-[320px] min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98] pointer-events-none" />
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search groups or members..."
-              className="pl-10 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm("")}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
-              >
-                <X className="size-3.5" />
-              </button>
-            )}
+      <SearchFilterBar
+        searchPlaceholder="Search groups or members..."
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        filters={[]}
+        activeFilters={{}}
+        onFilterChange={() => {}}
+        onClearAll={() => setSearchTerm("")}
+        sortOptions={[
+          { value: "name_asc", label: "Name (A-Z)" },
+          { value: "name_desc", label: "Name (Z-A)" },
+          { value: "members_desc", label: "Members Count (High-Low)" },
+          { value: "members_asc", label: "Members Count (Low-High)" },
+        ]}
+        currentSort={sortBy}
+        onSortChange={setSortBy}
+        actions={
+          <div className="flex items-center gap-0.5 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-8">
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              className={cn(
+                "px-2 h-full rounded-md transition-all cursor-pointer flex items-center",
+                viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+              )}
+              title="Grid view"
+            >
+              <LayoutGrid className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              disabled={isMobile}
+              className={cn(
+                "px-2 h-full rounded-md transition-all flex items-center",
+                viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+              )}
+              title={isMobile ? "List view available on larger screens" : "List view"}
+            >
+              <List className="size-3.5" />
+            </button>
           </div>
-
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[180px] rounded-lg cursor-pointer text-xs">
-              <SelectValue placeholder="Sort By" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-              <SelectItem value="name_asc" className="text-xs">Name (A-Z)</SelectItem>
-              <SelectItem value="name_desc" className="text-xs">Name (Z-A)</SelectItem>
-              <SelectItem value="members_desc" className="text-xs">Members Count (High-Low)</SelectItem>
-              <SelectItem value="members_asc" className="text-xs">Members Count (Low-High)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-1 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-10">
-          <button
-            type="button"
-            onClick={() => setViewMode("grid")}
-            className={cn(
-              "px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center",
-              viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
-            )}
-            title="Grid view"
-          >
-            <LayoutGrid className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("list")}
-            disabled={isMobile}
-            className={cn(
-              "px-2.5 h-full rounded-md transition-all flex items-center",
-              viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
-              isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
-            )}
-            title={isMobile ? "List view available on larger screens" : "List view"}
-          >
-            <List className="size-4" />
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {filteredGroups.length === 0 ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -703,66 +688,51 @@ function AdminLeagueGroupsView() {
         </Card>
       ) : (
         <>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-3.5 rounded-xl">
-            <div className="flex items-center gap-3 flex-1 flex-wrap">
-              <div className="relative w-full sm:max-w-[320px] min-w-0">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#8A8A98]" />
-                <Input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search groups or members..."
-                  className="pl-9 pr-9 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 rounded-lg text-xs focus-visible:ring-1 focus-visible:ring-[#10B981]"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-white cursor-pointer"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
+          <SearchFilterBar
+            searchPlaceholder="Search groups or members..."
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            filters={[]}
+            activeFilters={{}}
+            onFilterChange={() => {}}
+            onClearAll={() => setSearchTerm("")}
+            sortOptions={[
+              { value: "name_asc", label: "Name (A-Z)" },
+              { value: "name_desc", label: "Name (Z-A)" },
+              { value: "members_desc", label: "Members Count (High-Low)" },
+              { value: "members_asc", label: "Members Count (Low-High)" },
+            ]}
+            currentSort={sortBy}
+            onSortChange={setSortBy}
+            actions={
+              <div className="flex items-center gap-0.5 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-8">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  className={cn(
+                    "px-2 h-full rounded-md transition-all cursor-pointer flex items-center",
+                    viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                  )}
+                  title="Grid view"
+                >
+                  <LayoutGrid className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  disabled={isMobile}
+                  className={cn(
+                    "px-2 h-full rounded-md transition-all flex items-center",
+                    viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                    isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
+                  )}
+                  title={isMobile ? "List view available on larger screens" : "List view"}
+                >
+                  <List className="size-3.5" />
+                </button>
               </div>
-
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] h-10 w-full sm:w-[180px] rounded-lg cursor-pointer text-xs">
-                  <SelectValue placeholder="Sort By" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="name_asc" className="text-xs">Name (A-Z)</SelectItem>
-                  <SelectItem value="name_desc" className="text-xs">Name (Z-A)</SelectItem>
-                  <SelectItem value="members_desc" className="text-xs">Members Count (High-Low)</SelectItem>
-                  <SelectItem value="members_asc" className="text-xs">Members Count (Low-High)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-1 bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0 h-10">
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={cn(
-                  "px-2.5 h-full rounded-md transition-all cursor-pointer flex items-center",
-                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
-                )}
-                title="Grid view"
-              >
-                <LayoutGrid className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("list")}
-                disabled={isMobile}
-                className={cn(
-                  "px-2.5 h-full rounded-md transition-all flex items-center",
-                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
-                  isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
-                )}
-                title={isMobile ? "List view available on larger screens" : "List view"}
-              >
-                <List className="size-4" />
-              </button>
-            </div>
-          </div>
+            }
+          />
 
           {filteredGroups.length === 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
