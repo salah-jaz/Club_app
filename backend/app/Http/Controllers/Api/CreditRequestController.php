@@ -44,15 +44,19 @@ class CreditRequestController extends Controller
         }
 
         $request->validate([
-            'memberId' => 'required|string',
+            'memberId' => 'nullable|string',
             'amount' => 'required|numeric|min:0.01',
             'date' => 'required|date',
-            'type' => 'nullable|in:credit,debit,refund',
+            'type' => 'nullable|in:credit,debit,refund,expense',
         ]);
 
         $user = $request->user();
         $isAdmin = $user && $user->role === 'admin';
         $type = $request->input('type', 'credit');
+
+        if ($type === 'expense') {
+            return $this->storeExpense($request, $user, $isAdmin);
+        }
 
         if ($type === 'debit') {
             return $this->storeDebit($request, $user, $isAdmin);
@@ -210,6 +214,63 @@ class CreditRequestController extends Controller
         return response()->json($this->formatRequest($cr), 201);
     }
 
+    private function storeExpense(Request $request, $user, bool $isAdmin)
+    {
+        if (!$isAdmin) {
+            return response()->json(['message' => 'Only admins can record expenses.'], 403);
+        }
+
+        $rawReason = $request->input('reason');
+        $reason = is_string($rawReason) ? trim($rawReason) : '';
+
+        if ($reason === '') {
+            return response()->json([
+                'message' => 'Reason is required.',
+                'errors' => ['reason' => ['Reason is required.']]
+            ], 422);
+        }
+
+        if (mb_strlen($reason) < 5) {
+            return response()->json([
+                'message' => 'Reason must be at least 5 characters.',
+                'errors' => ['reason' => ['Reason must be at least 5 characters.']]
+            ], 422);
+        }
+
+        if (mb_strlen($reason) > 500) {
+            return response()->json([
+                'message' => 'Reason must not exceed 500 characters.',
+                'errors' => ['reason' => ['Reason must not exceed 500 characters.']]
+            ], 422);
+        }
+
+        $memberId = $request->input('memberId');
+
+        $cr = CreditRequest::create([
+            'id' => 'c_' . Str::random(8),
+            'member_id' => $memberId,
+            'type' => 'expense',
+            'amount' => $request->amount,
+            'date' => $request->date,
+            'status' => 'approved',
+            'reason' => $reason,
+        ]);
+
+        // Note: Expenses only log in ledger and do NOT deduct member balance.
+        Transaction::create([
+            'id' => 't_' . Str::random(8),
+            'member_id' => $memberId,
+            'credit_request_id' => $cr->id,
+            'type' => 'expense',
+            'amount' => $request->amount,
+            'description' => $reason,
+            'reason' => $reason,
+            'date' => $request->date,
+        ]);
+
+        return response()->json($this->formatRequest($cr), 201);
+    }
+
     public function approve($id)
     {
         if ($response = PermissionHelper::requireAdminPermission(request(), 'credits.edit')) {
@@ -341,7 +402,7 @@ class CreditRequestController extends Controller
     {
         $type = $r->type ?? 'credit';
         // Normalise: only valid types exposed to the frontend
-        if (!in_array($type, ['credit', 'debit', 'refund'])) {
+        if (!in_array($type, ['credit', 'debit', 'refund', 'expense'])) {
             $type = 'credit';
         }
         return [

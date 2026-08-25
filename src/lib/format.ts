@@ -31,9 +31,9 @@ export function formatTxnDescription(t: Transaction): string {
   return t.description || t.reason || "N/A";
 }
 
-/** Resolve display type. Historical refunds may still be stored as credit. */
-export function txnDisplayType(t: Transaction): "credit" | "debit" | "refund" {
-  if (t.type === "refund" || t.type === "debit") return t.type;
+export function txnDisplayType(t: Transaction): "credit" | "debit" | "refund" | "expense" {
+  if (t.type === "refund" || t.type === "debit" || t.type === "expense") return t.type;
+  if (/expense/i.test(t.description || "")) return "expense";
   if (/refund/i.test(t.description || "")) return "refund";
   return "credit";
 }
@@ -43,8 +43,9 @@ export function isTxnInflow(t: Transaction): boolean {
   return type === "credit" || type === "refund";
 }
 
-/** Whether a ledger row came from play schedules, trainings, or other wallet activity. */
-export function txnSource(t: Transaction): "play" | "training" | "other" {
+/** Whether a ledger row came from play schedules, trainings, expenses, or other wallet activity. */
+export function txnSource(t: Transaction): "play" | "training" | "expense" | "other" {
+  if (t.type === "expense" || /expense/i.test(t.description || "")) return "expense";
   const desc = (t.description || "").toLowerCase();
   if (desc.includes("training")) return "training";
   if (desc.includes("play session")) return "play";

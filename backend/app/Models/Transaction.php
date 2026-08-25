@@ -42,8 +42,11 @@ class Transaction extends Model
      */
     public function resolvedType(): string
     {
-        if ($this->type === 'debit' || $this->type === 'refund') {
+        if ($this->type === 'debit' || $this->type === 'refund' || $this->type === 'expense') {
             return $this->type;
+        }
+        if (is_string($this->description) && stripos($this->description, 'expense') !== false) {
+            return 'expense';
         }
         if (is_string($this->description) && stripos($this->description, 'refund') !== false) {
             return 'refund';

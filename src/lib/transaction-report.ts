@@ -10,7 +10,7 @@ import {
 } from "@/lib/report-export";
 
 export type TxnReportCategory = "all" | "play" | "training" | "other";
-export type TxnReportType = "all" | "credit" | "debit" | "refund";
+export type TxnReportType = "all" | "credit" | "debit" | "refund" | "expense";
 
 export type TxnReportFilters = {
   fromDate: string;
@@ -40,6 +40,7 @@ export function formatExpenseReason(category: ExpenseCategory, reason: string): 
 export function categoryLabel(source: ReturnType<typeof txnSource>): string {
   if (source === "play") return "Play";
   if (source === "training") return "Training";
+  if (source === "expense") return "Expense";
   return "Other";
 }
 
@@ -60,9 +61,10 @@ export function filterTransactionsForReport(
   });
 }
 
-function memberName(members: Member[], memberId: string): string {
+function memberName(members: Member[], memberId?: string | null): string {
+  if (!memberId) return "—";
   const m = members.find((x) => x.id === memberId);
-  return m ? `${m.firstName} ${m.lastName}` : "Unknown Member";
+  return m ? `${m.firstName} ${m.lastName}` : "—";
 }
 
 function filterSummary(filters: TxnReportFilters, members: Member[]): string {
@@ -101,7 +103,7 @@ export function buildTransactionsCsv(
   const rows = txns.map((t) => {
     const displayType = txnDisplayType(t);
     const signed =
-      displayType === "debit" ? `-${t.amount.toFixed(2)}` : `+${t.amount.toFixed(2)}`;
+      displayType === "debit" || displayType === "expense" ? `-${t.amount.toFixed(2)}` : `+${t.amount.toFixed(2)}`;
     return [
       fmtDateTime(t.date),
       memberName(members, t.memberId),
@@ -147,7 +149,7 @@ export function downloadTransactionsCsv(
     rows: txns.map((t) => {
       const displayType = txnDisplayType(t);
       const signed =
-        displayType === "debit" ? `-${t.amount.toFixed(2)}` : `+${t.amount.toFixed(2)}`;
+        displayType === "debit" || displayType === "expense" ? `-${t.amount.toFixed(2)}` : `+${t.amount.toFixed(2)}`;
       return {
         date: fmtDateTime(t.date),
         member: memberName(members, t.memberId),

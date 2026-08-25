@@ -20,9 +20,10 @@ import {
 } from "@/lib/report-export";
 import { fmtMoney } from "@/lib/format";
 
-function memberLabel(members: Member[], id: string): string {
+function memberLabel(members: Member[], id?: string | null): string {
+  if (!id) return "—";
   const m = members.find((x) => x.id === id);
-  return m ? `${m.firstName} ${m.lastName}` : "Unknown";
+  return m ? `${m.firstName} ${m.lastName}` : "—";
 }
 
 function optionLabel(
@@ -552,7 +553,7 @@ export function buildApprovalReportRows(
       status: mapCreditStatus(r.status),
       detail: r.reason || "Credit top-up",
       amount: fmtMoney(r.amount),
-      memberId: r.memberId,
+      memberId: r.memberId || undefined,
     });
   }
 
