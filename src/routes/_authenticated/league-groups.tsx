@@ -38,17 +38,19 @@ function memberDisplayName(
   memberId: string,
   allMembers: { id: string; firstName: string; lastName: string; grade?: string }[],
 ) {
-  const fromApi = group.members?.find((m) => m.id === memberId);
+  if (!group || !memberId) return { name: memberId || "Unknown", grade: null, position: null };
+  const fromApi = group.members?.find((m) => m && m.id === memberId);
   if (fromApi) {
     return {
-      name: `${fromApi.firstName} ${fromApi.lastName}`.trim(),
+      name: `${fromApi.firstName || ""} ${fromApi.lastName || ""}`.trim() || memberId,
       grade: fromApi.grade ?? null,
       position: fromApi.position ?? group.memberPositions?.[memberId] ?? null,
     };
   }
-  const m = allMembers.find((x) => x.id === memberId);
+  const safeMembers = Array.isArray(allMembers) ? allMembers : [];
+  const m = safeMembers.find((x) => x && x.id === memberId);
   return {
-    name: m ? `${m.firstName} ${m.lastName}`.trim() : memberId,
+    name: m ? `${m.firstName || ""} ${m.lastName || ""}`.trim() : memberId,
     grade: m?.grade ?? null,
     position: group.memberPositions?.[memberId] ?? null,
   };
@@ -56,7 +58,7 @@ function memberDisplayName(
 
 function LeagueGroupsPage() {
   const user = useCurrentUser()!;
-  const activeRole = useStore((s) => s.activeRole) || user.role;
+  const activeRole = useStore((s) => s.activeRole) || user?.role;
   const isAdmin = activeRole === "admin";
 
   if (!isAdmin) {
@@ -69,7 +71,7 @@ function LeagueGroupsPage() {
 /** Members: same list/grid UI as admin, view-only (no create/edit/delete). */
 function MemberLeagueGroupsView() {
   const user = useCurrentUser()!;
-  const allMembers = useStore((s) => s.members);
+  const allMembers = useStore((s) => s.members) || [];
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("name_asc");
@@ -80,8 +82,8 @@ function MemberLeagueGroupsView() {
   );
 
   const myMemberIds = useMemo(
-    () => new Set(allMembers.filter((m) => m.userId === user.id).map((m) => m.id)),
-    [allMembers, user.id],
+    () => new Set((allMembers || []).filter((m) => m && m.userId === user?.id).map((m) => m.id)),
+    [allMembers, user?.id],
   );
 
   const filteredGroups = useMemo(() => {
@@ -401,12 +403,13 @@ function AdminLeagueGroupsView() {
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter((g) => {
-        if (g.name.toLowerCase().includes(term)) return true;
+        if (!g) return false;
+        if ((g.name || "").toLowerCase().includes(term)) return true;
         if (g.description?.toLowerCase().includes(term)) return true;
         const hasMember = (g.memberIds || []).some((id) => {
-          const m = allMembers.find((x) => x.id === id);
+          const m = (allMembers || []).find((x) => x && x.id === id);
           if (!m) return false;
-          return `${m.firstName} ${m.lastName}`.toLowerCase().includes(term);
+          return `${m.firstName || ""} ${m.lastName || ""}`.toLowerCase().includes(term);
         });
         return hasMember;
       });

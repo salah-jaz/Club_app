@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Trash2,
   Plus,
+  CircleDollarSign,
 } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
@@ -332,16 +333,28 @@ function Txns() {
   const trainingCount = baseTxns.filter((t) => txnSource(t) === "training").length;
 
   const stats = useMemo(() => {
-    const creditTxns = filteredTxns.filter((t) => isTxnInflow(t));
-    const debitTxns = filteredTxns.filter((t) => t.type === "debit");
-    const totalCredited = creditTxns.reduce((sum, t) => sum + t.amount, 0);
-    const totalDebited = debitTxns.reduce((sum, t) => sum + t.amount, 0);
+    const creditTxns = filteredTxns.filter((t) => txnDisplayType(t) === "credit");
+    const debitTxns = filteredTxns.filter((t) => txnDisplayType(t) === "debit");
+    const refundTxns = filteredTxns.filter((t) => txnDisplayType(t) === "refund");
+
+    const creditSum = creditTxns.reduce((sum, t) => sum + t.amount, 0);
+    const debitSum = debitTxns.reduce((sum, t) => sum + t.amount, 0);
+    const refundSum = refundTxns.reduce((sum, t) => sum + t.amount, 0);
+
+    const totalCredited = creditSum;
+    const totalDebited = Math.max(0, debitSum - refundSum);
+
+    const balanceTotal = focusMember
+      ? (walletMember?.credit ?? focusMember.credit ?? 0)
+      : adultMembers.reduce((sum, m) => sum + (m.credit || 0), 0);
+
     return {
       total: filteredTxns.length,
       totalCredited,
       totalDebited,
+      balanceTotal,
     };
-  }, [filteredTxns]);
+  }, [filteredTxns, focusMember, walletMember, adultMembers]);
 
   const openExpenseDialog = () => {
     if (!canAddExpense) return;
@@ -470,7 +483,7 @@ function Txns() {
         variants={staggerContainer}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
       >
         <TxnStatCard
           label="Total"
@@ -493,6 +506,18 @@ function Txns() {
           hint="Debits from members"
           icon={ArrowDownLeft}
           index={2}
+          format={fmtMoney}
+        />
+        <TxnStatCard
+          label="Total Balance"
+          value={stats.balanceTotal}
+          hint={
+            focusMember
+              ? `Current balance for ${focusMember.firstName}`
+              : `${fmtMoney(stats.totalCredited)} approved credits`
+          }
+          icon={CircleDollarSign}
+          index={3}
           format={fmtMoney}
         />
       </motion.div>
@@ -576,11 +601,23 @@ function Txns() {
             ) : (
               filteredTxns.map((t, i) => {
                 const m = s.members.find((x) => x.id === t.memberId);
-                const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "—";
+                const isExpenseOrNoMember = t.type === "expense" || !t.memberId;
+                const initials = m
+                  ? `${m.firstName[0]}${m.lastName[0]}`
+                  : isExpenseOrNoMember
+                    ? "AD"
+                    : "—";
+                const memberDisplayName = m
+                  ? `${m.firstName} ${m.lastName}`
+                  : isExpenseOrNoMember
+                    ? "Admin"
+                    : "—";
                 const avatarBgClass =
                   m?.memberType.toLowerCase() === "junior"
                     ? "bg-[#1A1A0A] text-[#F59E0B]"
-                    : "bg-[#0D2E22] text-[#10B981]";
+                    : isExpenseOrNoMember
+                      ? "bg-[#1E293B] text-[#94A3B8]"
+                      : "bg-[#0D2E22] text-[#10B981]";
                 const isInflow = isTxnInflow(t);
 
                 return (
@@ -600,7 +637,7 @@ function Txns() {
                         </Avatar>
                         <div className="min-w-0">
                           <span className="font-bold text-sm text-[#EEF2F0] block truncate">
-                            {m ? `${m.firstName} ${m.lastName}` : "—"}
+                            {memberDisplayName}
                           </span>
                           <span className="text-[11px] text-[#8A8A98] font-mono block">
                             {fmtDateTime(t.date)}
@@ -682,11 +719,23 @@ function Txns() {
                 ) : (
                   filteredTxns.map((t, i) => {
                     const m = s.members.find((x) => x.id === t.memberId);
-                    const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "—";
+                    const isExpenseOrNoMember = t.type === "expense" || !t.memberId;
+                    const initials = m
+                      ? `${m.firstName[0]}${m.lastName[0]}`
+                      : isExpenseOrNoMember
+                        ? "AD"
+                        : "—";
+                    const memberDisplayName = m
+                      ? `${m.firstName} ${m.lastName}`
+                      : isExpenseOrNoMember
+                        ? "Admin"
+                        : "—";
                     const avatarBgClass =
                       m?.memberType.toLowerCase() === "junior"
                         ? "bg-[#1A1A0A] text-[#F59E0B]"
-                        : "bg-[#0D2E22] text-[#10B981]";
+                        : isExpenseOrNoMember
+                          ? "bg-[#1E293B] text-[#94A3B8]"
+                          : "bg-[#0D2E22] text-[#10B981]";
                     const isInflow = isTxnInflow(t);
 
                     return (
@@ -708,7 +757,7 @@ function Txns() {
                               </AvatarFallback>
                             </Avatar>
                             <span className="font-bold text-[14px] text-[#EEF2F0]">
-                              {m ? `${m.firstName} ${m.lastName}` : "—"}
+                              {memberDisplayName}
                             </span>
                           </div>
                         </TableCell>
@@ -784,7 +833,7 @@ function Txns() {
             const tmName = tm
               ? `${tm.firstName} ${tm.lastName}`
               : isExpenseOrNoMember
-                ? "Club Expense"
+                ? "Admin"
                 : "Unknown Member";
             return (
               <div className="space-y-4 py-2">

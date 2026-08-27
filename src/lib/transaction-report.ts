@@ -62,9 +62,9 @@ export function filterTransactionsForReport(
 }
 
 function memberName(members: Member[], memberId?: string | null): string {
-  if (!memberId) return "—";
+  if (!memberId) return "Admin";
   const m = members.find((x) => x.id === memberId);
-  return m ? `${m.firstName} ${m.lastName}` : "—";
+  return m ? `${m.firstName} ${m.lastName}` : "Admin";
 }
 
 function filterSummary(filters: TxnReportFilters, members: Member[]): string {
@@ -192,12 +192,18 @@ export function downloadTransactionsPdf(
   doc.text(filterSummary(filters, members), marginX, 28);
   doc.text(`Generated ${fmtDateTime(new Date().toISOString())} · ${txns.length} row(s)`, marginX, 33);
 
-  const totalCredited = txns
-    .filter((t) => txnDisplayType(t) !== "debit")
+  const creditSum = txns
+    .filter((t) => txnDisplayType(t) === "credit")
     .reduce((sum, t) => sum + t.amount, 0);
-  const totalDebited = txns
+  const debitSum = txns
     .filter((t) => txnDisplayType(t) === "debit")
     .reduce((sum, t) => sum + t.amount, 0);
+  const refundSum = txns
+    .filter((t) => txnDisplayType(t) === "refund")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalCredited = creditSum;
+  const totalDebited = Math.max(0, debitSum - refundSum);
 
   doc.setTextColor(...ink);
   doc.setFontSize(9);
