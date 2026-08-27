@@ -737,12 +737,24 @@ function CreditsPage() {
             ) : (
               filteredReqs.map((r, i) => {
                 const m = s.members.find((x) => x.id === r.memberId);
-                const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                const reqType: EntryType = (r.type || "credit") as EntryType;
+                const isExpenseOrNoMember = r.type === "expense" || !r.memberId;
+                const initials = m
+                  ? `${m.firstName[0]}${m.lastName[0]}`
+                  : isExpenseOrNoMember
+                    ? "CE"
+                    : "??";
+                const memberDisplayName = m
+                  ? `${m.firstName} ${m.lastName}`
+                  : isExpenseOrNoMember
+                    ? "Club Expense"
+                    : "Unknown Member";
                 const avatarBgClass =
                   m?.memberType.toLowerCase() === "junior"
                     ? "bg-[#1A1A0A] text-[#F59E0B]"
-                    : "bg-[#0D2E22] text-[#10B981]";
-                const reqType: EntryType = (r.type || "credit") as EntryType;
+                    : isExpenseOrNoMember
+                      ? "bg-[#1E293B] text-[#94A3B8]"
+                      : "bg-[#0D2E22] text-[#10B981]";
                 const canApprove = reqType === "credit" && r.status === "created";
 
                 return (
@@ -762,7 +774,7 @@ function CreditsPage() {
                         </Avatar>
                         <div className="min-w-0">
                           <span className="font-bold text-sm text-[#EEF2F0] block truncate">
-                            {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                            {memberDisplayName}
                           </span>
                           <span className="text-[11px] text-[#8A8A98] block">
                             {fmtDate(r.date)}
@@ -888,12 +900,24 @@ function CreditsPage() {
                 ) : (
                   filteredReqs.map((r, i) => {
                     const m = s.members.find((x) => x.id === r.memberId);
-                    const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                    const reqType: EntryType = (r.type || "credit") as EntryType;
+                    const isExpenseOrNoMember = r.type === "expense" || !r.memberId;
+                    const initials = m
+                      ? `${m.firstName[0]}${m.lastName[0]}`
+                      : isExpenseOrNoMember
+                        ? "CE"
+                        : "??";
+                    const memberDisplayName = m
+                      ? `${m.firstName} ${m.lastName}`
+                      : isExpenseOrNoMember
+                        ? "Club Expense"
+                        : "Unknown Member";
                     const avatarBgClass =
                       m?.memberType.toLowerCase() === "junior"
                         ? "bg-[#1A1A0A] text-[#F59E0B]"
-                        : "bg-[#0D2E22] text-[#10B981]";
-                    const reqType: EntryType = (r.type || "credit") as EntryType;
+                        : isExpenseOrNoMember
+                          ? "bg-[#1E293B] text-[#94A3B8]"
+                          : "bg-[#0D2E22] text-[#10B981]";
                     const canApprove = reqType === "credit" && r.status === "created";
 
                     return (
@@ -913,7 +937,7 @@ function CreditsPage() {
                             </Avatar>
                             <div>
                               <span className="font-bold text-[14px] text-[#EEF2F0] block">
-                                {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                                {memberDisplayName}
                               </span>
                               {r.reason && (
                                 <button
@@ -1013,12 +1037,18 @@ function CreditsPage() {
           </DialogHeader>
           {selectedDebitDetail && (() => {
             const dm = s.members.find((x) => x.id === selectedDebitDetail.memberId);
+            const isExpenseOrNoMember = selectedDebitDetail.type === "expense" || !selectedDebitDetail.memberId;
+            const dmName = dm
+              ? `${dm.firstName} ${dm.lastName}`
+              : isExpenseOrNoMember
+                ? "Club Expense"
+                : "Unknown Member";
             return (
               <div className="space-y-4 py-2">
                 <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
                   <span className="text-xs text-[#8A8A98]">Member</span>
                   <span className="text-sm font-semibold text-[#EEF2F0]">
-                    {dm ? `${dm.firstName} ${dm.lastName}` : "Unknown Member"}
+                    {dmName}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">

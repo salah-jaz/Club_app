@@ -780,12 +780,18 @@ function Txns() {
             const tm = s.members.find((x) => x.id === selectedTxnDetail.memberId);
             const isInflow = isTxnInflow(selectedTxnDetail);
             const displayType = txnDisplayType(selectedTxnDetail);
+            const isExpenseOrNoMember = selectedTxnDetail.type === "expense" || !selectedTxnDetail.memberId;
+            const tmName = tm
+              ? `${tm.firstName} ${tm.lastName}`
+              : isExpenseOrNoMember
+                ? "Club Expense"
+                : "Unknown Member";
             return (
               <div className="space-y-4 py-2">
                 <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
                   <span className="text-xs text-[#8A8A98]">Member</span>
                   <span className="text-sm font-semibold text-[#EEF2F0]">
-                    {tm ? `${tm.firstName} ${tm.lastName}` : "Unknown Member"}
+                    {tmName}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
