@@ -137,7 +137,11 @@ function Events() {
   const adultPlayers = myMembers.filter(
     (m) => m.memberType === "adult" && m.status === "active",
   );
-  const playInvs = s.playInvites.filter((i) => myIds.includes(i.memberId));
+  const playInvs = s.playInvites.filter((i) => {
+    if (!myIds.includes(i.memberId)) return false;
+    const sch = s.schedules.find((x) => x.id === i.scheduleId);
+    return sch && sch.status !== "open";
+  });
   const releasedSchedules = s.schedules.filter((sch) => sch.status === "released");
   const [courtsPopup, setCourtsPopup] = useState<{
     schedule: PlaySchedule;
@@ -279,7 +283,10 @@ function Events() {
     ...releasedSchedules,
     ...playInvs
       .map((i) => s.schedules.find((sch) => sch.id === i.scheduleId))
-      .filter((sch): sch is PlaySchedule => !!sch && !releasedSchedules.some((r) => r.id === sch.id)),
+      .filter(
+        (sch): sch is PlaySchedule =>
+          !!sch && sch.status !== "open" && !releasedSchedules.some((r) => r.id === sch.id),
+      ),
   ];
 
   const uniquePlaySessions = playSessions.filter(
@@ -1000,28 +1007,9 @@ function Events() {
                   </p>
                 )}
 
-                {canEnroll && !sch.isLeagueMatch && availableJuniors.length > 0 && (
+                {canEnroll && !sch.isLeagueMatch && !isCancelled && !isHoliday && availableJuniors.length > 0 && (
                   <div className="space-y-2 pt-2 border-t border-white/[0.04]">
-                    {isCancelled ? (
-                      <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
-                        <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
-                        <div className="space-y-0.5">
-                          <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
-                          <div className="text-[#EF4444]/90 font-light">{sch.cancelReason || "No reason specified."}</div>
-                        </div>
-                      </div>
-                    ) : isHoliday ? (
-                      <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
-                        <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#FBBF24]" />
-                        <div className="space-y-0.5">
-                          <div className="font-semibold text-[#FBBF24]">Holiday: {holidayName}</div>
-                          <div className="text-[#FBBF24]/90 font-light">
-                            Accept and decline are closed for this session.
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid gap-2">
+                    <div className="grid gap-2">
                         {availableJuniors.map((child) => {
                           const estimatedFee = isHoliday
                             ? 0
@@ -1091,7 +1079,6 @@ function Events() {
                           );
                         })}
                       </div>
-                    )}
                   </div>
                 )}
 

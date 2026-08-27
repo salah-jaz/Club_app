@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->string('id')->primary();
-            $table->string('member_id');
+            $table->string('member_id')->nullable();
             $table->foreign('member_id')->references('id')->on('members')->onDelete('cascade');
             $table->string('type'); // 'credit' or 'debit'
             $table->decimal('amount', 10, 2);

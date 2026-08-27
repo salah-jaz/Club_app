@@ -66,6 +66,7 @@ class DatabaseSeeder extends Seeder
             'status' => 'active',
         ]);
 
+        /*
         // 5. Seed Member Users
         $memberUsers = [
             [
@@ -134,5 +135,6 @@ class DatabaseSeeder extends Seeder
                 'credit' => 100.00,
             ]);
         }
+        */
     }
 }

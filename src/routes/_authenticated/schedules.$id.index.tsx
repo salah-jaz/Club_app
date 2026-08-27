@@ -401,6 +401,33 @@ function SchedulePage() {
     }
   };
 
+  const requestReleaseSchedule = (scheduleToRelease: PlaySchedule) => {
+    setActionRequest({
+      title: "Release session?",
+      description: (
+        <>
+          <span className="block">
+            Release <strong className="text-[#F1F0EE]">“{scheduleToRelease.name}”</strong> and send invitations to
+            eligible members?
+          </span>
+          <span className="block text-[#8A8A98]">
+            Members will be able to accept or decline from Events.
+          </span>
+        </>
+      ),
+      confirmLabel: "Release",
+      onConfirm: async () => {
+        try {
+          await s.releaseSchedule(scheduleToRelease.id);
+          toast.success("Session released — invitations sent");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to release schedule.");
+          throw error;
+        }
+      },
+    });
+  };
+
   const memberName = (mid: string) => {
     if (typeof mid === "string" && mid.startsWith("guest_")) {
       return `Guest Player ${mid.split("_")[1]}`;
@@ -682,6 +709,14 @@ function SchedulePage() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={sch.status} />
+            {sch.status === "open" && (
+              <Button
+                className="btn-premium-solid h-9 px-4 text-xs font-semibold cursor-pointer w-full sm:w-auto"
+                onClick={() => requestReleaseSchedule(sch)}
+              >
+                <Send className="size-3.5 mr-1" /> Release Session
+              </Button>
+            )}
             {sch.status === "released" && realAccepted.length > 0 && (
               <div className="flex flex-col items-stretch sm:items-end gap-1 w-full sm:w-auto">
                 <Button
@@ -780,6 +815,24 @@ function SchedulePage() {
         </DialogContent>
       </Dialog>
 
+      {sch.status === "open" && (
+        <div className="rounded-lg border border-[#34D399]/30 bg-[#34D399]/10 p-4 text-[#34D399] flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h4 className="font-semibold text-sm">Session Not Released Yet</h4>
+            <p className="text-xs text-[#34D399]/90 font-light mt-0.5">
+              Invitations and eligible members will be generated once you click <strong>Release Session</strong>.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            className="btn-premium-solid h-8 px-3 text-xs font-semibold cursor-pointer shrink-0"
+            onClick={() => requestReleaseSchedule(sch)}
+          >
+            <Send className="size-3.5 mr-1" /> Release Session
+          </Button>
+        </div>
+      )}
+
       {sch.status === "cancelled" && (
         <div className="rounded-lg border border-[#EF4444]/30 bg-[#EF4444]/10 p-4 text-[#EF4444] flex items-start gap-2.5">
           <AlertTriangle className="size-4 shrink-0 mt-0.5" />
@@ -800,13 +853,15 @@ function SchedulePage() {
                 <span>{col.label}</span>
                 <span className={cn("font-mono text-xs", col.color)}>
                   ({grouped[col.key].length}
-                  {col.key === "accepted" ? ` / ${sch.players}` : ""})
+                  {col.key === "accepted" ? ` / ${sch.players}` : ""}
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-2.5 max-h-[280px] overflow-y-auto">
               {grouped[col.key].length === 0 ? (
-                <p className="text-[13px] font-light text-[#4A5E58] py-3 text-center">No members listed.</p>
+                <p className="text-[13px] font-light text-[#4A5E58] py-3 text-center">
+                  {sch.status === "open" ? "Session not released yet." : "No members listed."}
+                </p>
               ) : (
                 grouped[col.key].map((i, idx) => (
                   <div

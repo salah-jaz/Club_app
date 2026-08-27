@@ -90,6 +90,7 @@ function TxnTypeBadge({ t }: { t: import("@/lib/types").Transaction }) {
   const displayType = txnDisplayType(t);
   const isCredit = displayType === "credit";
   const isRefund = displayType === "refund";
+  const isExpense = displayType === "expense";
   return (
     <span
       className={cn(
@@ -98,7 +99,9 @@ function TxnTypeBadge({ t }: { t: import("@/lib/types").Transaction }) {
           ? "static-financial-credit-bg-dim static-financial-credit-text border static-financial-credit-border-dim"
           : isRefund
             ? "bg-[#818CF8]/12 text-[#818CF8] border border-[#818CF8]/25"
-            : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20",
+            : isExpense
+              ? "bg-[#F59E0B]/12 text-[#FBBF24] border border-[#F59E0B]/25"
+              : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20",
       )}
     >
       {isCredit ? <ArrowUpLeft className="size-3" /> : isRefund ? <RotateCcw className="size-3" /> : <ArrowDownRight className="size-3" />}
@@ -225,6 +228,7 @@ function Txns() {
           { value: "credit", label: "Credit" },
           { value: "refund", label: "Refund" },
           { value: "debit", label: "Debit" },
+          { value: "expense", label: "Expense" },
         ],
       },
       {
@@ -268,7 +272,7 @@ function Txns() {
     sortBy !== "newest";
 
   const baseTxns = useMemo(() => {
-    let list = user.role === "admin" ? s.transactions : s.transactions.filter((t) => myMemberIds.includes(t.memberId));
+    let list = user.role === "admin" ? s.transactions : s.transactions.filter((t) => Boolean(t.memberId && myMemberIds.includes(t.memberId)));
     if (focusMember) {
       // Show transactions for the wallet member (parent for juniors)
       const wid = walletMember?.id ?? focusMember.id;
@@ -341,13 +345,6 @@ function Txns() {
 
   const openExpenseDialog = () => {
     if (!canAddExpense) return;
-    if (focusMember) {
-      setExpenseMemberId(walletMember?.id ?? focusMember.id);
-    } else if (expenseMembers[0]) {
-      setExpenseMemberId(expenseMembers[0].id);
-    } else {
-      setExpenseMemberId("");
-    }
     setExpenseAmount("");
     setExpenseCategory("Other");
     setExpenseReason("");
@@ -358,8 +355,7 @@ function Txns() {
 
   const submitExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetMemberId = focusMember ? (walletMember?.id ?? focusMember.id) : expenseMemberId;
-    if (!targetMemberId || !expenseAmount) return;
+    if (!expenseAmount) return;
 
     const trimmedReason = expenseReason.trim();
     if (!trimmedReason) {
@@ -379,8 +375,8 @@ function Txns() {
     setExpenseReasonError(null);
     try {
       const reason = formatExpenseReason(expenseCategory, trimmedReason);
-      await s.requestCredit(targetMemberId, parseFloat(expenseAmount), expenseDate, "debit", reason);
-      toast.success("Expense recorded — member balance reduced");
+      await s.requestCredit(undefined, parseFloat(expenseAmount), expenseDate, "expense", reason);
+      toast.success("Expense recorded");
       setExpenseOpen(false);
       setExpenseAmount("");
       setExpenseReason("");
@@ -461,7 +457,6 @@ function Txns() {
                 type="button"
                 className="btn-premium-solid cursor-pointer"
                 onClick={openExpenseDialog}
-                disabled={expenseMembers.length === 0}
               >
                 <Plus className="size-4 mr-1.5" />
                 Add Expense
@@ -581,7 +576,7 @@ function Txns() {
             ) : (
               filteredTxns.map((t, i) => {
                 const m = s.members.find((x) => x.id === t.memberId);
-                const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "—";
                 const avatarBgClass =
                   m?.memberType.toLowerCase() === "junior"
                     ? "bg-[#1A1A0A] text-[#F59E0B]"
@@ -605,7 +600,7 @@ function Txns() {
                         </Avatar>
                         <div className="min-w-0">
                           <span className="font-bold text-sm text-[#EEF2F0] block truncate">
-                            {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                            {m ? `${m.firstName} ${m.lastName}` : "—"}
                           </span>
                           <span className="text-[11px] text-[#8A8A98] font-mono block">
                             {fmtDateTime(t.date)}
@@ -687,7 +682,7 @@ function Txns() {
                 ) : (
                   filteredTxns.map((t, i) => {
                     const m = s.members.find((x) => x.id === t.memberId);
-                    const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "??";
+                    const initials = m ? `${m.firstName[0]}${m.lastName[0]}` : "—";
                     const avatarBgClass =
                       m?.memberType.toLowerCase() === "junior"
                         ? "bg-[#1A1A0A] text-[#F59E0B]"
@@ -713,7 +708,7 @@ function Txns() {
                               </AvatarFallback>
                             </Avatar>
                             <span className="font-bold text-[14px] text-[#EEF2F0]">
-                              {m ? `${m.firstName} ${m.lastName}` : "Unknown Member"}
+                              {m ? `${m.firstName} ${m.lastName}` : "—"}
                             </span>
                           </div>
                         </TableCell>
@@ -877,43 +872,10 @@ function Txns() {
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">Add expense</DialogTitle>
             <DialogDescription className="text-[#8A8A98]">
-              {focusMember
-                ? `Deduct an expense from ${walletMember?.firstName ?? focusMember.firstName} ${walletMember?.lastName ?? focusMember.lastName}'s wallet. This creates a debit transaction.`
-                : "Deduct an expense from a member's wallet. This creates a debit transaction in the ledger."}
+              Record a club expense entry in the ledger.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitExpense} className="space-y-4">
-            <div className="space-y-2">
-              <Label
-                htmlFor="txn-expense-member"
-                className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]"
-              >
-                Member
-              </Label>
-              {focusMember ? (
-                <div className="flex h-[38px] items-center rounded-md border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E] px-3 text-sm text-[#F1F0EE]">
-                  {walletMember && walletMember.id !== focusMember.id ? (
-                    <>
-                      {walletMember.firstName} {walletMember.lastName}
-                      <span className="ml-2 text-[#8A8A98]">— bal {fmtMoney(walletMember.credit || 0)}</span>
-                      <span className="ml-2 text-[10px] text-[#6B7F78]">(parent wallet for {focusMember.firstName})</span>
-                    </>
-                  ) : (
-                    <>
-                      {focusMember.firstName} {focusMember.lastName}
-                      <span className="ml-2 text-[#8A8A98]">— bal {fmtMoney(focusMember.credit || 0)}</span>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <MemberCombobox
-                  id="txn-expense-member"
-                  members={expenseMembers}
-                  value={expenseMemberId}
-                  onValueChange={setExpenseMemberId}
-                />
-              )}
-            </div>
             <div className="space-y-2">
               <Label className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
                 Category <span className="text-[#EF4444]">*</span>
@@ -940,7 +902,7 @@ function Txns() {
               </Label>
               <Input
                 type="number"
-                min="1"
+                min="0.01"
                 step="0.01"
                 required
                 value={expenseAmount}
@@ -993,7 +955,7 @@ function Txns() {
               <Button
                 type="submit"
                 className="btn-premium-solid cursor-pointer"
-                disabled={expenseSubmitting || !(focusMember?.id || expenseMemberId)}
+                disabled={expenseSubmitting}
               >
                 {expenseSubmitting ? "Saving…" : "Add expense"}
               </Button>

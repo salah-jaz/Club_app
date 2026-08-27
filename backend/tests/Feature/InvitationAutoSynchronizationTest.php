@@ -10,12 +10,12 @@ use App\Models\Training;
 use App\Models\TrainingInvitation;
 use App\Models\User;
 use App\Models\Location;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class InvitationAutoSynchronizationTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     protected User $admin;
     protected Member $parentMember;
@@ -499,7 +499,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'member_id' => $this->parentMember->id,
             'type' => 'refund',
             'amount' => 20.00,
-            'description' => 'Refund — cancelled play session: Competitive Play',
+            'description' => 'Refund — cancelled play session: Competitive Play - ' . $juniorAcc->name,
         ]);
 
         // 4. Waiting player promoted to accepted
@@ -651,7 +651,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'member_id' => $this->parentMember->id,
             'type' => 'refund',
             'amount' => 80.00,
-            'description' => 'Refund — cancelled training session: Elite Training',
+            'description' => 'Refund — cancelled training session for Acc Tr: Elite Training',
         ]);
 
         // 4. Future attendance record deleted

@@ -146,6 +146,7 @@ class MailHelper
 
     public static function sendTransactionEmail($member, $transaction)
     {
+        $currency = Setting::where('key', 'currency')->value('value') ?? '$';
         $subject = "New Account Transaction Alert";
         $isRefund = $transaction->type === 'refund';
         $isInflow = in_array($transaction->type, ['credit', 'refund'], true);
@@ -167,11 +168,11 @@ class MailHelper
                 </tr>
                 <tr>
                     <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Amount:</td>
-                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">\${$transaction->amount}</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">{$currency}{$transaction->amount}</td>
                 </tr>
                 <tr>
                     <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;\">Account Balance:</td>
-                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">\${$member->credit}</td>
+                    <td style=\"padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;\">{$currency}{$member->credit}</td>
                 </tr>
             </table>
         ";
@@ -180,6 +181,7 @@ class MailHelper
 
     public static function sendScheduleNotification($member, $schedule, $status, $actionType = 'update')
     {
+        $currency = Setting::where('key', 'currency')->value('value') ?? '$';
         $isUpdate = in_array($actionType, ['update', 'update_request'], true);
         $subject = $isUpdate
             ? "Play Schedule Update Notification: " . $schedule->name
@@ -193,7 +195,7 @@ class MailHelper
             1,
             $member
         );
-        $feeFormatted = '$' . number_format($estimatedFee, 2);
+        $feeFormatted = $currency . number_format($estimatedFee, 2);
 
         $content = "
             <h2 style=\"color: #34D399; font-size: 18px; margin-top: 0;\">$title</h2>

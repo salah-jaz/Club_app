@@ -279,7 +279,7 @@ function Layout() {
             className="flex-1 w-full min-w-0 px-3 py-4 sm:px-6 sm:py-6 lg:px-8 pb-24 md:pb-6 outline-none"
           >
             <AnimatePresence mode="wait">
-              {isPageLoading ? (
+              {isNavigating ? (
                 <MotionWrapper key="page-loading">
                   <ModuleLoadingSpinner />
                 </MotionWrapper>

@@ -44,7 +44,13 @@ class InvitationSyncService
      */
     public static function syncMemberPlayInvitations(Member $member): void
     {
-        $schedules = PlaySchedule::whereIn('status', ['released', 'open'])->get();
+        // Ensure no invitations exist for unreleased ('open') schedules
+        $openScheduleIds = PlaySchedule::where('status', 'open')->pluck('id');
+        if ($openScheduleIds->isNotEmpty()) {
+            PlayInvitation::whereIn('schedule_id', $openScheduleIds)->delete();
+        }
+
+        $schedules = PlaySchedule::whereIn('status', ['released', 'rotated', 'published'])->get();
 
         foreach ($schedules as $sch) {
             $isEligible = false;
@@ -137,12 +143,10 @@ class InvitationSyncService
                         ->orderBy('start_date', 'asc')
                         ->get();
 
-                    $idx = $series->search(fn($item) => $item->id === $tr->id);
-                    if ($idx === false) $idx = 0;
-
-                    $repeatWeeks = max(1, (int)($tr->repeat_weeks ?? 3));
-                    $monthIndex = intdiv($idx, $repeatWeeks);
-                    $monthSessions = $series->slice($monthIndex * $repeatWeeks, $repeatWeeks);
+                    $trYearMonth = \Carbon\Carbon::parse($tr->start_date)->format('Y-m');
+                    $monthSessions = $series->filter(function ($sItem) use ($trYearMonth) {
+                        return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $trYearMonth;
+                    });
                     $monthSessionIds = $monthSessions->pluck('id')->all();
 
                     $hasConfiguredInvites = TrainingInvitation::whereIn('training_id', $monthSessionIds)
@@ -195,12 +199,10 @@ class InvitationSyncService
             ->orderBy('start_date', 'asc')
             ->get();
 
-        $idx = $series->search(fn($item) => $item->id === $tr->id);
-        if ($idx === false) $idx = 0;
-
-        $repeatWeeks = max(1, (int)($tr->repeat_weeks ?? 3));
-        $monthIndex = intdiv($idx, $repeatWeeks);
-        $monthSessions = $series->slice($monthIndex * $repeatWeeks, $repeatWeeks);
+        $trYearMonth = \Carbon\Carbon::parse($tr->start_date)->format('Y-m');
+        $monthSessions = $series->filter(function ($sItem) use ($trYearMonth) {
+            return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $trYearMonth;
+        });
         $monthSessionIds = $monthSessions->pluck('id')->all();
 
         foreach ($eligibleMembers as $member) {
@@ -246,11 +248,19 @@ class InvitationSyncService
         }
     }
 
+    private static ?float $lastSyncTime = null;
+
     /**
      * Synchronize all active Training Program invitations across all members.
      */
-    public static function syncAllTrainingInvitations(): void
+    public static function syncAllTrainingInvitations(bool $force = false): void
     {
+        $now = microtime(true);
+        if (!$force && self::$lastSyncTime !== null && ($now - self::$lastSyncTime) < 5.0) {
+            return;
+        }
+        self::$lastSyncTime = $now;
+
         $trainings = Training::whereIn('status', ['released', 'open', 'created'])->get();
         foreach ($trainings as $tr) {
             self::syncTrainingInvitationsForProgram($tr);
@@ -281,7 +291,7 @@ class InvitationSyncService
                 'member_id' => $walletMember->id,
                 'type' => 'refund',
                 'amount' => $memberFee,
-                'description' => 'Refund — cancelled play session: ' . $schedule->name,
+                'description' => 'Refund — cancelled play session: ' . $schedule->name . ' - ' . $member->name,
                 'date' => now(),
             ]);
 
@@ -378,7 +388,7 @@ class InvitationSyncService
                 'member_id' => $walletMember->id,
                 'type' => 'debit',
                 'amount' => $memberFee,
-                'description' => 'Play session: ' . $schedule->name,
+                'description' => 'Play session: ' . $schedule->name . ' - ' . $member->name,
                 'date' => now(),
             ]);
 

@@ -65,10 +65,10 @@ export interface Member {
 
 export interface CreditRequest {
   id: string;
-  memberId: string;
+  memberId?: string | null;
   amount: number;
   date: string;
-  type: "credit" | "debit" | "refund";
+  type: "credit" | "debit" | "refund" | "expense";
   status: "created" | "approved" | "rejected";
   reason?: string;
   createdAt: string;
@@ -76,8 +76,8 @@ export interface CreditRequest {
 
 export interface Transaction {
   id: string;
-  memberId: string;
-  type: "credit" | "debit" | "refund";
+  memberId?: string | null;
+  type: "credit" | "debit" | "refund" | "expense";
   amount: number;
   description: string;
   reason?: string;
