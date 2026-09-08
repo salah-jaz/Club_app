@@ -185,6 +185,49 @@ class TrainingWalletDeductionTest extends TestCase
         $this->assertEquals(0, $txn);
     }
 
+    public function test_force_accept_allows_negative_wallet_when_credit_insufficient()
+    {
+        $this->juniorMember->update(['credit' => 0.0]);
+
+        $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Elite Junior Training',
+            'startDate' => '2026-09-01 19:00:00',
+            'endDate' => '2026-09-01 20:00:00',
+            'repeatWeeks' => 3,
+            'repeatMonths' => 1,
+            'slots' => 10,
+            'duration' => '1 hour',
+            'fees' => 60,
+            'coach' => 'Coach Lee',
+            'location' => 'Main Hall',
+            'targetType' => 'junior',
+        ])->assertStatus(201);
+
+        $sep1 = Training::orderBy('start_date', 'asc')->firstOrFail();
+        $sessionIds = Training::orderBy('start_date', 'asc')->pluck('id')->all();
+
+        $res = $this->actingAs($this->admin)->postJson("/api/trainings/{$sep1->id}/update-member-invitation", [
+            'memberId' => $this->juniorMember->id,
+            'sessionIds' => $sessionIds,
+            'forceAccept' => true,
+        ]);
+
+        $res->assertStatus(200);
+        $res->assertJsonFragment(['message' => 'Training invitation force accepted successfully.']);
+
+        $this->juniorMember->refresh();
+        $this->assertEquals(-60.0, $this->juniorMember->credit);
+
+        $acceptedCount = TrainingInvitation::where('member_id', $this->juniorMember->id)
+            ->where('status', 'accepted')
+            ->count();
+        $this->assertEquals(3, $acceptedCount);
+
+        $txn = Transaction::where('member_id', $this->juniorMember->id)->where('type', 'debit')->first();
+        $this->assertNotNull($txn);
+        $this->assertEquals(60.0, (float) $txn->amount);
+    }
+
     public function test_prevents_duplicate_deduction_on_re_accept()
     {
         $this->actingAs($this->admin)->postJson('/api/trainings', [

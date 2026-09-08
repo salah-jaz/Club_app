@@ -13,11 +13,13 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useState, useMemo, useCallback } from "react";
 import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
+import { useNow } from "@/hooks/useNow";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { aggregateOpenInvitePhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
 import {
   ReportDialog,
   ReportTriggerButton,
@@ -91,6 +93,7 @@ export function isTrainingCardDeletable(card: MonthlyCardItem): boolean {
 function TrainingsList() {
   const s = useStore();
   const user = useCurrentUser()!;
+  const now = useNow();
   const canCreateTraining = useCan("trainings.create");
   const canDeleteTraining = useCan("trainings.delete");
   const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-trainings", "list");
@@ -544,6 +547,10 @@ function TrainingsList() {
                 const pct = fillRate(accepted, maxPlayers);
                 const t = card.training;
                 const isDeletable = isTrainingCardDeletable(card);
+                const sessionPhase =
+                  card.status !== "cancelled"
+                    ? aggregateOpenInvitePhase(card.weeklySessions, now)
+                    : null;
 
                 return (
                   <motion.div
@@ -613,7 +620,7 @@ function TrainingsList() {
                         <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
                         <div className="flex-1 flex flex-col md:items-end gap-2">
-                          <StatusBadge status={card.status} />
+                          <StatusBadge status={resolveTrainingDisplayStatus(card.status, sessionPhase)} />
                           <div className="flex items-center gap-1.5 mt-1 md:mt-0 flex-wrap justify-end">
                             {user.role === "admin" && (
                               <>
@@ -656,6 +663,10 @@ function TrainingsList() {
                 const pct = fillRate(accepted, maxPlayers);
                 const t = card.training;
                 const isDeletable = isTrainingCardDeletable(card);
+                const sessionPhase =
+                  card.status !== "cancelled"
+                    ? aggregateOpenInvitePhase(card.weeklySessions, now)
+                    : null;
 
                 return (
                   <motion.div
@@ -693,7 +704,9 @@ function TrainingsList() {
                                 </div>
                               </div>
                             </div>
-                            <StatusBadge status={card.status} />
+                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                              <StatusBadge status={resolveTrainingDisplayStatus(card.status, sessionPhase)} />
+                            </div>
                           </div>
 
                           <div className="mt-3 space-y-1.5">

@@ -179,7 +179,7 @@ export function LeagueGroupSelector({
       {leagueGroups.length === 0 ? (
         <div className="p-4 text-center rounded-lg bg-muted/50 border border-dashed border-border">
           <Users className="w-5 h-5 text-muted-foreground mx-auto mb-1 opacity-50" />
-          <p className="text-xs text-muted-foreground">No league groups found.</p>
+          <p className="text-xs text-muted-foreground">No groups found.</p>
         </div>
       ) : filteredGroups.length === 0 ? (
         <div className="p-4 text-center rounded-lg bg-muted/50 border border-dashed border-border">

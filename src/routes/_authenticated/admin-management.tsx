@@ -510,6 +510,16 @@ function AdminManagement() {
   const s = useStore();
   const { adminRoles, allPermissions, adminUsers } = s;
 
+  const visibleAdminUsers = useMemo(() => {
+    if (user.isSuperAdmin) return adminUsers;
+    return adminUsers.filter((au) => !au.isSuperAdmin);
+  }, [adminUsers, user.isSuperAdmin]);
+
+  const visibleAdminRoles = useMemo(() => {
+    if (user.isSuperAdmin) return adminRoles;
+    return adminRoles.filter((r) => !r.isSuper);
+  }, [adminRoles, user.isSuperAdmin]);
+
   useEffect(() => {
     s.fetchAdminRoles();
     s.fetchAllPermissions();
@@ -565,9 +575,9 @@ function AdminManagement() {
 
   const roleById = useMemo(() => {
     const m = new Map<string, AdminRole>();
-    for (const r of adminRoles) m.set(r.id, r);
+    for (const r of visibleAdminRoles) m.set(r.id, r);
     return m;
-  }, [adminRoles]);
+  }, [visibleAdminRoles]);
 
   const canViewAdmin = useCanModule("admin_management");
   const canAddAdmin = useCan("admin_management.create");
@@ -589,13 +599,13 @@ function AdminManagement() {
             value="users"
             className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all whitespace-nowrap"
           >
-            Admin Users ({adminUsers.length})
+            Admin Users ({visibleAdminUsers.length})
           </TabsTrigger>
           <TabsTrigger
             value="roles"
             className="text-[13px] font-medium px-3 sm:px-4 py-1.5 rounded-md cursor-pointer text-[#8A8A98] data-[state=active]:bg-[#1A2120] data-[state=active]:text-[#F1F0EE] transition-all whitespace-nowrap"
           >
-            Roles ({adminRoles.length})
+            Roles ({visibleAdminRoles.length})
           </TabsTrigger>
         </TabsList>
 
@@ -609,7 +619,7 @@ function AdminManagement() {
             </Button>
             )}
           </div>
-          {adminUsers.length === 0 ? (
+          {visibleAdminUsers.length === 0 ? (
             <EmptyIllustration title="No admin users found" description="Create an admin user to get started." />
           ) : (
             <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
@@ -625,7 +635,7 @@ function AdminManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {adminUsers.map((au) => {
+                    {visibleAdminUsers.map((au) => {
                       const role = au.adminRoleId ? roleById.get(au.adminRoleId) : null;
                       const isSelf = au.id === user.id;
                       return (
@@ -717,11 +727,11 @@ function AdminManagement() {
             </Button>
             )}
           </div>
-          {adminRoles.length === 0 ? (
+          {visibleAdminRoles.length === 0 ? (
             <EmptyIllustration title="No roles found" description="Create an admin role to get started." />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {adminRoles.map((r) => (
+              {visibleAdminRoles.map((r) => (
                 <Card key={r.id} className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[#10B981]/20 transition-colors">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
@@ -799,7 +809,7 @@ function AdminManagement() {
         open={userDialogOpen}
         onOpenChange={setUserDialogOpen}
         adminUser={editUser}
-        roles={adminRoles}
+        roles={visibleAdminRoles}
       />
 
       <ResetPasswordDialog

@@ -19,10 +19,16 @@ class AdminUserController extends Controller
             return $response;
         }
 
-        $users = User::with('adminRole')
+        $query = User::with('adminRole')
             ->where('role', 'admin')
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->orderBy('created_at', 'desc');
+
+        // Super Admin accounts are only visible to other Super Admins.
+        if (!$request->user()?->is_super_admin) {
+            $query->where('is_super_admin', false);
+        }
+
+        $users = $query->get();
 
         return response()->json($users->map(fn (User $user) => $this->formatAdminUser($user)));
     }
