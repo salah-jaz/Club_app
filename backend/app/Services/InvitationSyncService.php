@@ -149,6 +149,8 @@ class InvitationSyncService
                     });
                     $monthSessionIds = $monthSessions->pluck('id')->all();
 
+                    // Only create a pending placeholder if admin has not already sent
+                    // configured weeks for this member. Sending stays manual via Send.
                     $hasConfiguredInvites = TrainingInvitation::whereIn('training_id', $monthSessionIds)
                         ->where('member_id', $member->id)
                         ->whereIn('status', ['open', 'accepted', 'waiting', 'declined'])

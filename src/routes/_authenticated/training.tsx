@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
@@ -17,10 +17,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { toast } from "sonner";
-import { GraduationCap, Plus, Wallet, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-react";
+import { GraduationCap, Wallet, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-react";
 import type { Member, Training, TrainingInvitation, TrainingUpdateRequest } from "@/lib/types";
 import { applyMemberFee, discountsFromStore, resolveWalletMember } from "@/lib/fees";
-import { getTrainingSessionPhase } from "@/lib/sessionTiming";
+import { getTrainingSessionPhase, aggregateOpenInvitePhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
 import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 
@@ -42,12 +42,6 @@ function TrainingModule() {
 
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const myIds = myMembers.map((m) => m.id);
-  const juniorChildren = myMembers.filter(
-    (m) => m.memberType === "junior" && m.status === "active",
-  );
-  const adultPlayers = myMembers.filter(
-    (m) => m.memberType === "adult" && m.status === "active",
-  );
 
   const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId));
   const invitedTrainingIds = new Set(trainInvs.map((i) => i.trainingId));
@@ -469,11 +463,6 @@ function TrainingModule() {
                     </>
                   )}
                 </div>
-                {updateSessionPhase === "in_progress" && (
-                  <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md">
-                    This session is in progress. Accept and payment are no longer available.
-                  </div>
-                )}
                 {updateSessionPhase === "finished" && (
                   <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">
                     This session has finished. No further actions are available.
@@ -488,18 +477,6 @@ function TrainingModule() {
               <p className="text-[13px] font-light text-[#8A8A98] text-center">
                 No training programs are open yet.
               </p>
-              {juniorChildren.length === 0 && (
-                <div className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 rounded-lg p-4 flex flex-col items-center gap-3">
-                  <p className="text-[13px] text-muted-foreground text-center">
-                    Add a junior family member to enroll when a program opens.
-                  </p>
-                  <Button asChild size="sm" className="btn-premium-solid h-8 text-[11px]">
-                    <Link to="/members/add">
-                      <Plus className="size-3.5 mr-1" /> Add family member
-                    </Link>
-                  </Button>
-                </div>
-              )}
             </div>
           )}
 
@@ -520,9 +497,10 @@ function TrainingModule() {
               memberInvitesMap.get(inv.memberId)!.push(inv);
             }
 
-            const canEnroll = !isCancelled && (t.status === "open" || t.status === "released");
             const holidayName = getHolidayName(t.startDate);
-            const familyMatchingMembers = targetType === "adult" ? adultPlayers : juniorChildren;
+            const sessionPhase = !isCancelled && !holidayName
+              ? aggregateOpenInvitePhase(monthSessions, now)
+              : null;
 
             const monthDate = new Date(t.startDate);
             const monthLabel = Number.isNaN(monthDate.getTime())
@@ -565,7 +543,13 @@ function TrainingModule() {
                       )}
                     </div>
                   </div>
-                  <StatusBadge status={isCancelled ? "cancelled" : t.status} />
+                  <StatusBadge
+                    status={
+                      isCancelled
+                        ? "cancelled"
+                        : resolveTrainingDisplayStatus(t.status, sessionPhase)
+                    }
+                  />
                 </div>
 
                 {isCancelled && familyMonthInvites.length === 0 && (
@@ -575,26 +559,6 @@ function TrainingModule() {
                       <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
                       <div className="text-[#EF4444]/90 font-light">{cancelReason}</div>
                     </div>
-                  </div>
-                )}
-
-                {canEnroll && familyMatchingMembers.length === 0 && (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.04]">
-                    <p className="text-[12px] text-muted-foreground">
-                      {targetType === "adult"
-                        ? "Add an adult family member to enroll."
-                        : "Add a junior family member to enroll."}
-                    </p>
-                    <Button
-                      asChild
-                      size="sm"
-                      variant="outline"
-                      className="btn-premium-outline h-7 text-[11px] shrink-0"
-                    >
-                      <Link to="/members/add">
-                        <Plus className="size-3.5 mr-1" /> Add family member
-                      </Link>
-                    </Button>
                   </div>
                 )}
 
@@ -613,12 +577,16 @@ function TrainingModule() {
                     mInvites.some((i) => i.trainingId === ms.id && i.status === "open")
                   );
                   const openSessionPhases = openInvitedSessions.map((ms) => getTrainingSessionPhase(ms, now));
+                  const invitedSessionPhases = invitedMonthSessions.map((ms) => getTrainingSessionPhase(ms, now));
                   const upcomingOpenSessions = openInvitedSessions.filter(
                     (_ms, idx) => openSessionPhases[idx] === "upcoming",
                   );
                   const canRespondToInvites = hasOpen && upcomingOpenSessions.length > 0;
-                  const showInProgress = hasOpen && openSessionPhases.some((p) => p === "in_progress");
-                  const showFinished = hasOpen && openSessionPhases.length > 0 && openSessionPhases.every((p) => p === "finished");
+                  const showInProgress = !isCancelled && invitedSessionPhases.some((p) => p === "in_progress");
+                  const showFinished =
+                    !isCancelled &&
+                    invitedSessionPhases.length > 0 &&
+                    invitedSessionPhases.every((p) => p === "finished");
                   const canDeclineInvites = hasOpen && !showFinished;
 
                   return (
@@ -684,11 +652,6 @@ function TrainingModule() {
                         </div>
                       </div>
 
-                      {showInProgress && (
-                        <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md">
-                          This session is in progress. Accept and payment are no longer available.
-                        </div>
-                      )}
                       {showFinished && (
                         <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">
                           This session has finished. No further actions are available.

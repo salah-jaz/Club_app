@@ -90,6 +90,16 @@ export function sessionPhaseLabel(phase: SessionPhase): string {
   return "";
 }
 
+/** Prefer live session phase over workflow status so UI shows one badge. */
+export function resolveTrainingDisplayStatus(
+  workflowStatus: string,
+  sessionPhase: SessionPhase | null | undefined,
+): string {
+  if (workflowStatus === "cancelled") return "cancelled";
+  if (sessionPhase === "in_progress" || sessionPhase === "finished") return sessionPhase;
+  return workflowStatus;
+}
+
 export function aggregateOpenInvitePhase(
   sessions: Array<Pick<Training, "startDate" | "endDate" | "duration">>,
   nowMs?: number,

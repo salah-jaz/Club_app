@@ -131,7 +131,7 @@ function NewSchedule() {
           return;
         }
         if (f.isLeagueMatch && f.leagueGroupIds.length === 0) {
-          toast.error("Please select at least one league group for the league schedule.");
+          toast.error("Please select at least one group for the league schedule.");
           return;
         }
         if (isScheduleDateTimeInPast(f.date)) {
@@ -246,7 +246,7 @@ function NewSchedule() {
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
                 <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable League</Label>
-                <p className="text-xs text-muted-foreground">Limit invitations to specific league groups</p>
+                <p className="text-xs text-muted-foreground">Limit invitations to specific groups</p>
               </div>
               <Switch checked={f.isLeagueMatch} onCheckedChange={(v) => set("isLeagueMatch", v)} />
             </div>
@@ -291,7 +291,7 @@ function NewSchedule() {
               {f.isLeagueMatch && (
                 <p className="text-[11px] text-[#34D399] leading-relaxed">
                   {f.leagueGroupIds.length === 0
-                    ? "Select league groups above to calculate max players."
+                    ? "Select groups above to calculate max players."
                     : `Dynamic: ${leagueStats.uniqueCount} unique player${leagueStats.uniqueCount === 1 ? "" : "s"} across ${f.leagueGroupIds.length} selected team${f.leagueGroupIds.length === 1 ? "" : "s"}${
                         leagueStats.sharedCount > 0
                           ? ` (${leagueStats.totalSlots} total slots - ${leagueStats.sharedCount} shared member${leagueStats.sharedCount === 1 ? "" : "s"} counted once).`

@@ -21,6 +21,8 @@ import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import type { PlaySchedule, Training } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useNow } from "@/hooks/useNow";
+import { getTrainingSessionPhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
@@ -243,6 +245,8 @@ function TrainingListCard({
   viewAllLabel?: string;
   footer?: ReactNode;
 }) {
+  const now = useNow();
+
   return (
     <Card className="signature-card-top flex flex-col">
       <CardHeader className="px-6 pt-5 pb-2 flex flex-row items-center justify-between gap-3 space-y-0">
@@ -270,6 +274,8 @@ function TrainingListCard({
                 ? fmtDateTime(tr.startDate)
                 : fmtDate(tr.startDate);
               const rowTarget = viewAllTo || "/trainings";
+              const sessionPhase =
+                tr.status !== "cancelled" ? getTrainingSessionPhase(tr, now) : null;
               return (
                 <motion.div
                   key={tr.id}
@@ -289,7 +295,9 @@ function TrainingListCard({
                         {dateTimeStr} · {tr.location}
                       </div>
                     </div>
-                    <StatusBadge status={tr.status} />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <StatusBadge status={resolveTrainingDisplayStatus(tr.status, sessionPhase)} />
+                    </div>
                   </Link>
                 </motion.div>
               );

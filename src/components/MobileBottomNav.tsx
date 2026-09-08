@@ -76,7 +76,7 @@ export function MobileBottomNav() {
     { to: "/events", label: "Play Sessions", icon: CalendarDays, show: isMember },
     { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin && canSchedules },
     { to: "/members", label: "Members", icon: Users, show: isMember || (isAdmin && canMembers) },
-    { to: "/league-groups", label: "League Groups", icon: Users, show: isMember || (isAdmin && canLeagueGroups) },
+    { to: "/league-groups", label: "Groups", icon: Users, show: isMember || (isAdmin && canLeagueGroups) },
     { to: "/transactions", label: "Transactions", icon: Receipt, show: isMember || isVol || (isAdmin && canTransactions) },
   ].filter((i) => i.show);
 
