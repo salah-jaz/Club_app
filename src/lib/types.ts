@@ -129,6 +129,7 @@ export interface PlaySchedule {
   cancelReason?: string | null;
   isLeagueMatch?: boolean;
   leagueGroupIds?: string[];
+  autoAcceptLeague?: boolean;
 }
 
 export type InviteStatus = "pending" | "open" | "accepted" | "declined" | "waiting";

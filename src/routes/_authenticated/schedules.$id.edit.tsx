@@ -62,6 +62,7 @@ function EditSchedule() {
     location: "",
     isLeagueMatch: false,
     leagueGroupIds: [] as string[],
+    autoAcceptLeague: false,
     repeatWeeks: 1,
   });
   const [nameTouched, setNameTouched] = useState(true);
@@ -82,6 +83,7 @@ function EditSchedule() {
         location: sch.location,
         isLeagueMatch: sch.isLeagueMatch ?? false,
         leagueGroupIds: sch.leagueGroupIds ?? [],
+        autoAcceptLeague: sch.autoAcceptLeague ?? false,
         repeatWeeks: sch.repeatWeeks ?? 1,
       });
       setNameTouched(true);
@@ -337,13 +339,23 @@ function EditSchedule() {
             </div>
 
             {f.isLeagueMatch && (
-              <div className="pt-2">
-                <LeagueGroupSelector
-                  selectedGroupIds={f.leagueGroupIds}
-                  onSelectionChange={(nextIds) => set("leagueGroupIds", nextIds)}
-                  leagueGroups={leagueGroups}
-                  allMembers={allMembers}
-                />
+              <div className="space-y-4 pt-1">
+                <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+                  <div>
+                    <Label className="text-[11px] font-medium text-[#F1F0EE]">Auto Accept League Members</Label>
+                    <p className="text-xs text-muted-foreground">Automatically accept invitations for selected league group members upon release</p>
+                  </div>
+                  <Switch checked={f.autoAcceptLeague} onCheckedChange={(v) => set("autoAcceptLeague", v)} />
+                </div>
+
+                <div className="pt-1">
+                  <LeagueGroupSelector
+                    selectedGroupIds={f.leagueGroupIds}
+                    onSelectionChange={(nextIds) => set("leagueGroupIds", nextIds)}
+                    leagueGroups={leagueGroups}
+                    allMembers={allMembers}
+                  />
+                </div>
               </div>
             )}
           </CardContent>
