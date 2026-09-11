@@ -28,6 +28,7 @@ class PlaySchedule extends Model
         'cancel_reason',
         'is_league_match',
         'league_group_ids',
+        'auto_accept_league',
     ];
 
     protected $casts = [
@@ -38,6 +39,7 @@ class PlaySchedule extends Model
         'hall_rate' => 'float',
         'is_league_match' => 'boolean',
         'league_group_ids' => 'array',
+        'auto_accept_league' => 'boolean',
         'repeat_weeks' => 'integer',
     ];
 

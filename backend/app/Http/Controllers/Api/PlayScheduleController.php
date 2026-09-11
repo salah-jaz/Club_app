@@ -48,6 +48,8 @@ class PlayScheduleController extends Controller
             'isLeagueMatch' => 'sometimes|boolean',
             'leagueGroupIds' => 'sometimes|array',
             'leagueGroupIds.*' => 'string',
+            'autoAcceptLeague' => 'sometimes|boolean',
+            'auto_accept_league' => 'sometimes|boolean',
             'repeatWeeks' => 'sometimes|integer|min:1|max:52',
         ]);
 
@@ -82,6 +84,7 @@ class PlayScheduleController extends Controller
                 'status' => 'open',
                 'is_league_match' => $request->boolean('isLeagueMatch'),
                 'league_group_ids' => $request->leagueGroupIds,
+                'auto_accept_league' => $request->has('autoAcceptLeague') ? $request->boolean('autoAcceptLeague') : $request->boolean('auto_accept_league'),
             ]);
 
             $created[] = $this->formatSchedule($sch);
@@ -213,6 +216,7 @@ class PlayScheduleController extends Controller
                             'status' => 'open',
                             'is_league_match' => $request->has('isLeagueMatch') ? $request->boolean('isLeagueMatch') : $sch->is_league_match,
                             'league_group_ids' => $request->input('leagueGroupIds', $sch->league_group_ids),
+                            'auto_accept_league' => $request->has('autoAcceptLeague') ? $request->boolean('autoAcceptLeague') : ($request->has('auto_accept_league') ? $request->boolean('auto_accept_league') : $sch->auto_accept_league),
                         ]);
                     }
                 }
@@ -237,6 +241,8 @@ class PlayScheduleController extends Controller
         if ($request->has('status')) $data['status'] = $request->status;
         if ($request->has('isLeagueMatch')) $data['is_league_match'] = $request->boolean('isLeagueMatch');
         if ($request->has('leagueGroupIds')) $data['league_group_ids'] = $request->leagueGroupIds;
+        if ($request->has('autoAcceptLeague')) $data['auto_accept_league'] = $request->boolean('autoAcceptLeague');
+        else if ($request->has('auto_accept_league')) $data['auto_accept_league'] = $request->boolean('auto_accept_league');
 
         $sch->update($data);
 
@@ -297,15 +303,18 @@ class PlayScheduleController extends Controller
         PlayInvitation::where('schedule_id', $id)->delete();
 
         $isLeague = (bool) $sch->is_league_match;
+        $autoAccept = (bool) $sch->auto_accept_league;
+        $shouldAutoAccept = $isLeague && $autoAccept && !empty($sch->league_group_ids);
+
         $capacity = max((int) $sch->players, 1);
         $acceptedCount = 0;
 
-        // Create new invitations (league matches auto-accept up to capacity)
+        // Create new invitations (auto-accept if league schedule has auto_accept_league enabled)
         $invites = [];
         foreach ($eligible as $member) {
             $status = 'open';
             $acceptedAt = null;
-            if ($isLeague) {
+            if ($shouldAutoAccept) {
                 if ($acceptedCount < $capacity) {
                     $status = 'accepted';
                     $acceptedAt = now();
@@ -345,7 +354,7 @@ class PlayScheduleController extends Controller
         }
 
         return response()->json([
-            'message' => $isLeague
+            'message' => $shouldAutoAccept
                 ? 'League schedule released; invitations auto-accepted for ' . $acceptedCount . ' players.'
                 : 'Schedule released and invitations sent to ' . count($invites) . ' participants.',
             'inviteCount' => count($invites),
@@ -801,6 +810,7 @@ class PlayScheduleController extends Controller
             'status' => 'open',
             'is_league_match' => (bool) $schedule->is_league_match,
             'league_group_ids' => $schedule->league_group_ids,
+            'auto_accept_league' => (bool) $schedule->auto_accept_league,
         ]);
 
         PlaySchedule::where('parent_id', $parentId)
@@ -1657,6 +1667,7 @@ class PlayScheduleController extends Controller
             'cancelReason' => $s->cancel_reason,
             'isLeagueMatch' => (bool)$s->is_league_match,
             'leagueGroupIds' => $s->league_group_ids ?? [],
+            'autoAcceptLeague' => (bool)$s->auto_accept_league,
             'repeatWeeks' => $remainingWeeks,
         ];
     }
