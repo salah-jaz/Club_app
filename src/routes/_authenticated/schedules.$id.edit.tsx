@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useStore } from "@/lib/store";
 import { fmtMoney, parseScheduleDateTime } from "@/lib/format";
 import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
@@ -10,9 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
+import { ChevronDown } from "lucide-react";
 import { LeagueGroupSelector } from "@/components/LeagueGroupSelector";
 import {
   AlertDialog,
@@ -31,13 +30,13 @@ export const Route = createFileRoute("/_authenticated/schedules/$id/edit")({
 
 function EditSchedule() {
   const { id } = Route.useParams();
-  const s = useStore();
-  const sch = s.schedules.find((x) => x.id === id);
+  const sch = useStore((state) => state.schedules.find((x) => x.id === id));
   const update = useStore((state) => state.updateSchedule);
   const locations = useStore((state) => state.locations);
-  const leagueGroups = useStore((state) => state.leagueGroups || []);
-  const allMembers = useStore((state) => state.members || []);
+  const leagueGroups = useStore((state) => state.leagueGroups);
+  const allMembers = useStore((state) => state.members);
   const navigate = useNavigate();
+  const isInitialized = useRef(false);
 
   // Helper to convert date format to datetime-local expected string
   const formatDateTimeLocal = (dateStr: string) => {
@@ -69,7 +68,8 @@ function EditSchedule() {
   const [dialogState, setDialogState] = useState<{ open: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    if (sch) {
+    if (sch && !isInitialized.current) {
+      isInitialized.current = true;
       setF({
         name: sch.name,
         date: formatDateTimeLocal(sch.date),
@@ -95,7 +95,8 @@ function EditSchedule() {
       return { uniqueCount: 0, totalSlots: 0, sharedCount: 0 };
     const memberCounts = new Map<string, number>();
     let totalSlots = 0;
-    for (const group of leagueGroups) {
+    const safeGroups = Array.isArray(leagueGroups) ? leagueGroups : [];
+    for (const group of safeGroups) {
       if (f.leagueGroupIds.includes(group.id)) {
         const ids =
           Array.isArray(group.memberIds) && group.memberIds.length > 0
@@ -119,12 +120,6 @@ function EditSchedule() {
   }, [f.isLeagueMatch, f.leagueGroupIds, leagueGroups]);
 
   const leagueUniqueMemberCount = leagueStats.uniqueCount;
-
-  useEffect(() => {
-    if (f.isLeagueMatch) {
-      setF((prev) => (prev.players === leagueUniqueMemberCount ? prev : { ...prev, players: leagueUniqueMemberCount }));
-    }
-  }, [f.isLeagueMatch, leagueUniqueMemberCount]);
 
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
@@ -152,7 +147,9 @@ function EditSchedule() {
     return <Navigate to="/schedules/$id" params={{ id: sch.id }} />;
   }
 
-  const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
+  const set = useCallback((k: keyof typeof f, v: any) => {
+    setF((p) => (p[k] === v ? p : { ...p, [k]: v }));
+  }, []);
 
   const onDateChange = (value: string) => {
     const parsed = parseScheduleDateTime(value);
@@ -172,6 +169,7 @@ function EditSchedule() {
     try {
       await update(sch.id, {
         ...f,
+        players: f.isLeagueMatch ? leagueUniqueMemberCount : f.players,
         repeatWeeks: Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1)),
       });
       toast.success("Schedule updated successfully");
@@ -301,19 +299,21 @@ function EditSchedule() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Club Location</Label>
-              {locations.length > 0 && f.location ? (
-                <Select value={f.location} onValueChange={(v) => set("location", v)}>
-                  <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    {locations.map((l) => (
-                      <SelectItem key={l} value={l}>
+              {f.location || (locations && locations.length > 0) ? (
+                <div className="relative">
+                  <select
+                    value={f.location || locations[0]}
+                    onChange={(e) => set("location", e.target.value)}
+                    className="w-full h-10 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120] px-3 pr-9 py-2 text-sm text-[#F1F0EE] appearance-none focus:outline-none focus:border-[#10B981] transition-colors cursor-pointer"
+                  >
+                    {(locations && locations.length > 0 ? locations : [f.location]).map((l) => (
+                      <option key={l} value={l} className="bg-[#1A2120] text-[#F1F0EE]">
                         {l}
-                      </SelectItem>
+                      </option>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-[#8A8A98] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               ) : (
                 <div className="h-10 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] rounded-lg animate-pulse" />
               )}
@@ -324,13 +324,13 @@ function EditSchedule() {
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-              League Configuration
+              Group Configuration
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
-                <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable League</Label>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable Group Match</Label>
                 <p className="text-xs text-muted-foreground">Limit invitations to specific groups</p>
               </div>
               <Switch checked={f.isLeagueMatch} onCheckedChange={(v) => set("isLeagueMatch", v)} />
@@ -384,7 +384,7 @@ function EditSchedule() {
                 <p className="text-[11px] text-[#34D399] leading-relaxed">
                   {f.leagueGroupIds.length === 0
                     ? "Select groups above to calculate max players."
-                    : `Dynamic: ${leagueStats.uniqueCount} unique player${leagueStats.uniqueCount === 1 ? "" : "s"} across ${f.leagueGroupIds.length} selected team${f.leagueGroupIds.length === 1 ? "" : "s"}${
+                    : `Dynamic: ${leagueStats.uniqueCount} unique player${leagueStats.uniqueCount === 1 ? "" : "s"} across ${f.leagueGroupIds.length} selected group${f.leagueGroupIds.length === 1 ? "" : "s"}${
                         leagueStats.sharedCount > 0
                           ? ` (${leagueStats.totalSlots} total slots - ${leagueStats.sharedCount} shared member${leagueStats.sharedCount === 1 ? "" : "s"} counted once).`
                           : "."

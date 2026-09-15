@@ -902,7 +902,7 @@ function Events() {
                       {sch.isLeagueMatch && (
                         <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
                           <Trophy className="size-3" />
-                          League
+                          Group
                         </span>
                       )}
                       {sch.status === "cancelled" ? (

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
@@ -148,6 +149,9 @@ function SettingsPage() {
   const [appName, setAppName] = useState(store.appName);
   const [appLogoText, setAppLogoText] = useState(store.appLogoText);
   const [appLogoBase64, setAppLogoBase64] = useState<string | null>(store.appLogoBase64);
+  const [portalEyebrow, setPortalEyebrow] = useState(store.portalEyebrow);
+  const [portalTitle, setPortalTitle] = useState(store.portalTitle);
+  const [portalDescription, setPortalDescription] = useState(store.portalDescription);
   const [currency, setCurrency] = useState(store.currency);
   const [timezone, setTimezone] = useState(resolveTimezone(store.timezone));
   const [skipCreditConsumption, setSkipCreditConsumption] = useState(store.skipCreditConsumption);
@@ -170,6 +174,12 @@ function SettingsPage() {
   useEffect(() => {
     setCurrency(store.currency);
   }, [store.currency]);
+
+  useEffect(() => {
+    setPortalEyebrow(store.portalEyebrow);
+    setPortalTitle(store.portalTitle);
+    setPortalDescription(store.portalDescription);
+  }, [store.portalEyebrow, store.portalTitle, store.portalDescription]);
   const [cancellationLockHours, setCancellationLockHours] = useState(store.cancellationLockHours);
   const [autoPublishRotation, setAutoPublishRotation] = useState(store.autoPublishRotation);
   const [adultDiscountPercent, setAdultDiscountPercent] = useState(store.adultDiscountPercent);
@@ -363,9 +373,7 @@ function SettingsPage() {
       root.style.removeProperty('--success-bg');
       root.style.removeProperty('--success-border');
       
-      if (color !== "sapphire") {
-        document.documentElement.classList.add(`theme-${color}`);
-      }
+      document.documentElement.classList.add(`theme-${color}`);
     }
     
     window.dispatchEvent(new Event("clubapp-color-theme-changed"));
@@ -565,6 +573,9 @@ function SettingsPage() {
         skipCreditConsumption,
         cancellationLockHours,
         autoPublishRotation,
+        portalEyebrow,
+        portalTitle,
+        portalDescription,
       });
       toast.success("Branding settings saved successfully");
     } catch (err: any) {
@@ -832,7 +843,7 @@ function SettingsPage() {
       p.name === posName ? { ...p, skipLeagueFee } : p,
     );
     setPlayerPositionItems(updated);
-    void saveUpdatedList({ playerPositionItems: updated }, "Position league fee setting updated");
+    void saveUpdatedList({ playerPositionItems: updated }, "Position group fee setting updated");
   };
 
   const handleDeletePlayerPosition = (pos: string) => {
@@ -842,14 +853,14 @@ function SettingsPage() {
     setDeleteRequest({
       title: "Delete player position",
       entityName: pos,
-      related: [{ label: usageCount === 1 ? "league group" : "league groups", count: usageCount }],
+      related: [{ label: usageCount === 1 ? "group" : "groups", count: usageCount }],
       warning:
         usageCount > 0
-          ? "Positions are protected by a foreign key (restrict). Clear this position from league members first."
+          ? "Positions are protected by a foreign key (restrict). Clear this position from group members first."
           : undefined,
       onConfirm: async () => {
         if (usageCount > 0) {
-          toast.error("Cannot delete position while league groups still use it.");
+          toast.error("Cannot delete position while groups still use it.");
           throw new Error("Position in use");
         }
         const updated = playerPositionItems.filter((p) => p.name !== pos);
@@ -1065,6 +1076,53 @@ function SettingsPage() {
                     <p className="text-[10px] text-muted-foreground/60 font-light leading-relaxed">
                       Hours before match start when accepted members can no longer cancel. {autoPublishRotation ? `At that time court rotation is generated and published automatically (${cancellationLockHours || 0} hour(s) before start).` : "Automatic generate and publish is off: rotation stays manual, but cancellations still close at this window."}
                     </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-white/[0.03] pt-4 mt-4 space-y-4">
+                  <div>
+                    <h4 className="text-[11px] font-medium tracking-[0.1em] text-[#34D399] uppercase">
+                      Member Portal / Login Page Content
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground/70 font-light mt-0.5">
+                      Customize the branding hero headline and tagline shown to members on the login and registration portal.
+                    </p>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        Portal Tagline / Eyebrow
+                      </Label>
+                      <Input
+                        value={portalEyebrow}
+                        onChange={(e) => setPortalEyebrow(e.target.value)}
+                        placeholder="Private Member Portal"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        Portal Hero Title
+                      </Label>
+                      <Input
+                        value={portalTitle}
+                        onChange={(e) => setPortalTitle(e.target.value)}
+                        placeholder="Run your badminton club without the spreadsheet chaos."
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Portal Hero Description
+                    </Label>
+                    <Textarea
+                      rows={2}
+                      value={portalDescription}
+                      onChange={(e) => setPortalDescription(e.target.value)}
+                      placeholder="Manage memberships, credits, court rotations, and training schedules in one premium, unified interface."
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg resize-none text-xs"
+                    />
                   </div>
                 </div>
 
@@ -1864,8 +1922,8 @@ function SettingsPage() {
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
                 <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
-                  Enable <span className="text-[#EEF2F0]">Skip league fee</span> so members with that
-                  position are not charged for league match schedules.
+                  Enable <span className="text-[#EEF2F0]">Skip group fee</span> so members with that
+                  position are not charged for group match schedules.
                 </p>
                 <div className="flex gap-2 mb-4">
                   <Input
@@ -1912,7 +1970,7 @@ function SettingsPage() {
                               htmlFor={`skip-league-${pos.name}`}
                               className="text-[10px] text-[#8A8A98] font-normal cursor-pointer"
                             >
-                              Skip league fee
+                              Skip group fee
                             </Label>
                             <Switch
                               id={`skip-league-${pos.name}`}

@@ -524,19 +524,19 @@ function CreditsPage() {
         <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-0 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
           <TabsTrigger
             value="all"
-            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+            className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer transition-colors"
           >
             All ({scopedReqs.length})
           </TabsTrigger>
           <TabsTrigger
             value="debit"
-            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+            className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer transition-colors"
           >
             Debit ({debitCount})
           </TabsTrigger>
           <TabsTrigger
             value="credit"
-            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+            className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer transition-colors"
           >
             Credit ({creditCount})
           </TabsTrigger>

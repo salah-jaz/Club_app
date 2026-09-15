@@ -595,7 +595,7 @@ function AdminLeagueGroupsView() {
       />
       <PageHeader
         title="Groups"
-        description="Organize league participants into groups to filter play invitations."
+        description="Organize participants into groups to filter play invitations."
         actions={
           !isCreating && !editingId && canCreateGroup && (
             <Button onClick={handleStartCreate} className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
@@ -621,7 +621,7 @@ function AdminLeagueGroupsView() {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Division A, Weekend League"
+                    placeholder="e.g. Division A, Weekend Group"
                     className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
                   />
                 </div>
@@ -654,7 +654,7 @@ function AdminLeagueGroupsView() {
                     </div>
                   </div>
                   {members.length === 0 ? (
-                    <p className="text-[12px] text-muted-foreground italic">No eligible league participants found in members.</p>
+                    <p className="text-[12px] text-muted-foreground italic">No eligible participants found in members.</p>
                   ) : (
                     <div className="space-y-2">
                       <div className="relative">

@@ -17,6 +17,7 @@ import type {
   LeagueGroup,
   PlayerPositionItem,
   HolidayItem,
+  EmailTemplateDefinition,
 } from "./types";
 import { api } from "./api";
 
@@ -51,6 +52,9 @@ interface State {
   appName: string;
   appLogoText: string;
   appLogoBase64: string | null;
+  portalEyebrow: string;
+  portalTitle: string;
+  portalDescription: string;
   currency: string;
   timezone: string;
   mailHost: string;
@@ -77,6 +81,7 @@ interface State {
   juniorDiscountPercent: number;
   juniorDiscountAmount: number;
   juniorDiscountMode: "percent" | "amount";
+  emailTemplates: Record<string, EmailTemplateDefinition>;
 
   // sync
   fetchSettings: () => Promise<void>;
@@ -219,6 +224,7 @@ interface State {
     juniorDiscountPercent?: number;
     juniorDiscountAmount?: number;
     juniorDiscountMode?: "percent" | "amount";
+    emailTemplates?: Record<string, Partial<EmailTemplateDefinition>>;
   }) => Promise<void>;
   updateProfile: (profile: {
     firstName: string;
@@ -304,6 +310,9 @@ export const useStore = create<State>((set, get) => ({
   appName: "Connect App",
   appLogoText: "C",
   appLogoBase64: "/logo.png",
+  portalEyebrow: "Private Member Portal",
+  portalTitle: "Run your badminton club without the spreadsheet chaos.",
+  portalDescription: "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
   currency: "$",
   timezone: "Asia/Kolkata",
   mailHost: "",
@@ -329,6 +338,7 @@ export const useStore = create<State>((set, get) => ({
   juniorDiscountPercent: 0,
   juniorDiscountAmount: 0,
   juniorDiscountMode: "percent",
+  emailTemplates: {},
 
   fetchSettings: async () => {
     try {
@@ -348,6 +358,9 @@ export const useStore = create<State>((set, get) => ({
         appName: settings.appName || "Connect App",
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || "/logo.png",
+        portalEyebrow: settings.portalEyebrow || "Private Member Portal",
+        portalTitle: settings.portalTitle || "Run your badminton club without the spreadsheet chaos.",
+        portalDescription: settings.portalDescription || "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
         currency: settings.currency || "$",
         timezone: settings.timezone || "Asia/Kolkata",
         mailHost: settings.mailHost || "",
@@ -383,6 +396,7 @@ export const useStore = create<State>((set, get) => ({
             : (settings.juniorDiscountAmount ?? 0) > 0 && (settings.juniorDiscountPercent ?? 0) <= 0
               ? "amount"
               : "percent",
+        emailTemplates: settings.emailTemplates || {},
       });
     } catch {
       // Ignore if unauthenticated or network error
@@ -500,6 +514,9 @@ export const useStore = create<State>((set, get) => ({
         appName: settings.appName || "Connect App",
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || "/logo.png",
+        portalEyebrow: settings.portalEyebrow || "Private Member Portal",
+        portalTitle: settings.portalTitle || "Run your badminton club without the spreadsheet chaos.",
+        portalDescription: settings.portalDescription || "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
         currency: settings.currency || "$",
         timezone: settings.timezone || "Asia/Kolkata",
         mailHost: settings.mailHost || "",
@@ -535,6 +552,7 @@ export const useStore = create<State>((set, get) => ({
             : (settings.juniorDiscountAmount ?? 0) > 0 && (settings.juniorDiscountPercent ?? 0) <= 0
               ? "amount"
               : "percent",
+        emailTemplates: settings.emailTemplates || {},
         users,
         creditRequests,
         leagueGroups,
@@ -1010,6 +1028,7 @@ export const useStore = create<State>((set, get) => ({
       juniorDiscountPercent: number;
       juniorDiscountAmount: number;
       juniorDiscountMode: "percent" | "amount";
+      emailTemplates?: Record<string, EmailTemplateDefinition>;
     }>("/settings", settings);
     set({
       locations: updated.locations,
@@ -1057,6 +1076,7 @@ export const useStore = create<State>((set, get) => ({
         updated.juniorDiscountMode === "amount" || updated.juniorDiscountMode === "percent"
           ? updated.juniorDiscountMode
           : "percent",
+      emailTemplates: updated.emailTemplates || {},
     });
     await get().syncData();
   },
