@@ -3,6 +3,14 @@ import { useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 
+function toTitleCase(str: string): string {
+  if (!str) return "";
+  if (str === str.toUpperCase()) {
+    return str.replace(/\b([a-zA-Z])([a-zA-Z]*)/g, (_, first, rest) => first.toUpperCase() + rest.toLowerCase());
+  }
+  return str.replace(/\b([a-zA-Z])/g, (c) => c.toUpperCase());
+}
+
 export function AuthShell({
   title,
   subtitle,
@@ -16,11 +24,17 @@ export function AuthShell({
 }) {
   const appName = useStore((s) => s.appName);
   const appLogoBase64 = useStore((s) => s.appLogoBase64);
+  const portalEyebrow = useStore((s) => s.portalEyebrow) || "Private Member Portal";
+  const portalTitle = useStore((s) => s.portalTitle) || "Run your badminton club without the spreadsheet chaos.";
+  const portalDescription = useStore((s) => s.portalDescription) || "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.";
   const fetchSettings = useStore((s) => s.fetchSettings);
 
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
+
+  const displayAppName = toTitleCase(appName);
+  const displayEyebrow = toTitleCase(portalEyebrow);
 
   return (
     <div className="min-h-dvh min-h-screen flex flex-col lg:grid lg:grid-cols-2 bg-background">
@@ -36,22 +50,22 @@ export function AuthShell({
         <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-[var(--violet-dim)] rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[var(--gold-dim)] rounded-full blur-[100px] pointer-events-none" />
 
-        <Link to="/" className="flex items-center gap-4 text-xl font-medium tracking-[0.12em] text-[var(--gold)] uppercase z-10">
+        <Link to="/" className="flex items-center gap-4 text-xl font-medium tracking-[0.04em] text-[var(--gold)] z-10">
           {appLogoBase64 || "/logo.png" ? (
-            <img src={appLogoBase64 || "/logo.png"} alt={appName} className="size-24 rounded-xl object-contain bg-white/5 p-1" />
+            <img src={appLogoBase64 || "/logo.png"} alt={displayAppName} className="size-24 rounded-xl object-contain bg-white/5 p-1" />
           ) : null}
-          <span>{appName}</span>
+          <span className="font-semibold">{displayAppName}</span>
         </Link>
         <div className="space-y-6 z-10 max-w-lg">
-          <span className="text-[11px] font-medium tracking-[0.14em] text-[#8A8A98] uppercase block">
-            PRIVATE MEMBER PORTAL
+          <span className="text-[11px] font-medium tracking-[0.08em] text-[#8FA89F] block">
+            {displayEyebrow}
           </span>
           <h2 className="text-4xl font-playfair font-normal leading-tight text-[#F1F0EE]">
-            Run your badminton club without the spreadsheet chaos.
+            {portalTitle}
           </h2>
           <div className="signature-divider !w-24 my-4" />
           <p className="text-[15px] font-light text-[#8A8A9A] leading-relaxed">
-            Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.
+            {portalDescription}
           </p>
         </div>
       </div>
@@ -75,16 +89,16 @@ export function AuthShell({
             {appLogoBase64 || "/logo.png" ? (
               <img
                 src={appLogoBase64 || "/logo.png"}
-                alt={appName}
+                alt={displayAppName}
                 className="w-[72px] h-[72px] rounded-2xl object-contain bg-white/5 p-1 shadow-2xl shadow-black/50 border border-white/10"
               />
             ) : null}
-            <span className="text-[15px] font-semibold tracking-[0.14em] text-[var(--gold)] uppercase">
-              {appName}
+            <span className="text-[15px] font-semibold tracking-[0.06em] text-[var(--gold)]">
+              {displayAppName}
             </span>
           </Link>
-          <span className="text-[10px] font-medium tracking-[0.14em] text-[#8A8A98] uppercase mt-0.5">
-            Private Member Portal
+          <span className="text-[11px] font-medium tracking-[0.08em] text-[#8FA89F] mt-0.5">
+            {displayEyebrow}
           </span>
         </div>
       </div>

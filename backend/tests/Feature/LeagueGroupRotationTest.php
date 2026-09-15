@@ -326,7 +326,7 @@ class LeagueGroupRotationTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJson([
-            'message' => 'League play session invitations cannot be declined.',
+            'message' => 'Group play session invitations cannot be declined.',
         ]);
     }
 }

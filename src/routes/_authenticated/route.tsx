@@ -13,7 +13,10 @@ import { MotionWrapper } from "@/components/MotionWrapper";
 import { ModuleLoadingSpinner } from "@/components/ModuleLoadingSpinner";
 import { formatClockTime } from "@/lib/timezones";
 
-export const Route = createFileRoute("/_authenticated")({ component: Layout });
+export const Route = createFileRoute("/_authenticated")({
+  ssr: false,
+  component: Layout,
+});
 
 function Layout() {
   const userId = useStore((s) => s.currentUserId);
@@ -42,6 +45,7 @@ function Layout() {
 
   const syncCurrentUser = useStore((s) => s.syncCurrentUser);
   const syncData = useStore((s) => s.syncData);
+  const appName = useStore((s) => s.appName);
   const [loading, setLoading] = useState(true);
   const [isModuleSyncing, setIsModuleSyncing] = useState(false);
   const skipNextModuleSync = useRef(true);
@@ -130,9 +134,7 @@ function Layout() {
       root.style.removeProperty('--success-bg');
       root.style.removeProperty('--success-border');
       
-      if (colorTheme !== "sapphire") {
-        document.documentElement.classList.add(`theme-${colorTheme}`);
-      }
+      document.documentElement.classList.add(`theme-${colorTheme}`);
     }
   };
 
@@ -189,7 +191,7 @@ function Layout() {
           <div className="animate-spin size-8 rounded-full border-2 border-[#10B981] border-t-transparent" />
         </div>
         <div className="flex flex-col items-center gap-1">
-          <div className="text-[#E8F0EE] font-medium text-sm">Connect App</div>
+          <div className="text-[#E8F0EE] font-medium text-sm">{appName}</div>
           <div className="text-[#8A8A98] font-light text-xs tracking-widest uppercase">
             Syncing club records...
           </div>
@@ -237,7 +239,7 @@ function Layout() {
               <SidebarTrigger className="hidden md:flex text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0 size-9 sm:size-7" />
               <Separator orientation="vertical" className="h-4 bg-border hidden sm:block" />
               <div className="breadcrumbs text-[13px] font-normal text-muted-foreground/60 flex items-center gap-2 min-w-0 truncate">
-                <span className="hidden sm:inline">Connect App</span>
+                <span className="hidden sm:inline">{appName}</span>
                 <span className="breadcrumbs-separator opacity-40 hidden sm:inline">/</span>
                 <span className="breadcrumbs-current text-muted-foreground truncate">{screenName}</span>
               </div>

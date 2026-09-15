@@ -17,6 +17,7 @@ import {
   Trash2,
   Plus,
   CircleDollarSign,
+  TrendingDown,
 } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
@@ -80,12 +81,13 @@ export const Route = createFileRoute("/_authenticated/transactions")({
   component: Txns,
 });
 
-const STAT_ACCENTS = [
-  { border: "var(--primary)", iconBg: "var(--violet-dim)", iconColor: "var(--primary)" },
-  { border: "#10B981", iconBg: "rgba(16,185,129,0.12)", iconColor: "#34D399" },
-  { border: "#EF4444", iconBg: "rgba(239,68,68,0.12)", iconColor: "#EF4444" },
-  { border: "#818CF8", iconBg: "rgba(129,140,248,0.12)", iconColor: "#818CF8" },
-];
+const STAT_ACCENTS = {
+  total: { border: "var(--primary)", iconBg: "var(--violet-dim)", iconColor: "var(--primary)" },
+  credited: { border: "#10B981", iconBg: "rgba(16,185,129,0.12)", iconColor: "#34D399" },
+  debited: { border: "#EF4444", iconBg: "rgba(239,68,68,0.12)", iconColor: "#EF4444" },
+  expense: { border: "#F59E0B", iconBg: "rgba(245,158,11,0.12)", iconColor: "#FBBF24" },
+  balance: { border: "#818CF8", iconBg: "rgba(129,140,248,0.12)", iconColor: "#818CF8" },
+};
 
 function TxnTypeBadge({ t }: { t: import("@/lib/types").Transaction }) {
   const displayType = txnDisplayType(t);
@@ -116,19 +118,25 @@ function TxnStatCard({
   value,
   hint,
   icon: Icon,
-  index,
+  index = 0,
   format,
+  accentKey,
+  className,
 }: {
   label: string;
   value: number;
   hint?: string;
   icon: typeof Receipt;
-  index: number;
+  index?: number;
   format?: (n: number) => string;
+  accentKey?: keyof typeof STAT_ACCENTS;
+  className?: string;
 }) {
-  const accent = STAT_ACCENTS[index % STAT_ACCENTS.length];
+  const accent = accentKey
+    ? STAT_ACCENTS[accentKey]
+    : Object.values(STAT_ACCENTS)[index % Object.values(STAT_ACCENTS).length];
   return (
-    <motion.div variants={staggerItem} className="h-full">
+    <motion.div variants={staggerItem} className={cn("h-full", className)}>
       <Card
         className="signature-card-top h-full bg-[#131916] border-[rgba(255,255,255,0.06)]"
         style={{ borderTopColor: accent.border, borderTopWidth: 1, borderImage: "none" }}
@@ -336,13 +344,20 @@ function Txns() {
     const creditTxns = filteredTxns.filter((t) => txnDisplayType(t) === "credit");
     const debitTxns = filteredTxns.filter((t) => txnDisplayType(t) === "debit");
     const refundTxns = filteredTxns.filter((t) => txnDisplayType(t) === "refund");
+    const expenseTxns = filteredTxns.filter((t) => txnDisplayType(t) === "expense");
 
     const creditSum = creditTxns.reduce((sum, t) => sum + t.amount, 0);
     const debitSum = debitTxns.reduce((sum, t) => sum + t.amount, 0);
     const refundSum = refundTxns.reduce((sum, t) => sum + t.amount, 0);
+    const expenseSum = expenseTxns.reduce((sum, t) => sum + t.amount, 0);
 
     const totalCredited = creditSum;
-    const totalDebited = Math.max(0, debitSum - refundSum);
+    const totalExpense = expenseSum;
+    const rawNetDebited = Math.max(0, debitSum - refundSum);
+    const totalDebited =
+      isAdmin && !isMemberScoped
+        ? Math.max(0, rawNetDebited - totalExpense)
+        : rawNetDebited;
 
     const balanceTotal = focusMember
       ? (walletMember?.credit ?? focusMember.credit ?? 0)
@@ -352,9 +367,10 @@ function Txns() {
       total: filteredTxns.length,
       totalCredited,
       totalDebited,
+      totalExpense,
       balanceTotal,
     };
-  }, [filteredTxns, focusMember, walletMember, adultMembers]);
+  }, [filteredTxns, focusMember, walletMember, adultMembers, isAdmin, isMemberScoped]);
 
   const openExpenseDialog = () => {
     if (!canAddExpense) return;
@@ -483,21 +499,26 @@ function Txns() {
         variants={staggerContainer}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
+        className={cn(
+          "grid gap-3 sm:gap-4",
+          isAdmin && !isMemberScoped
+            ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
+            : "grid-cols-2 lg:grid-cols-4",
+        )}
       >
         <TxnStatCard
           label="Total"
           value={stats.total}
           hint={isMemberScoped ? "Entries for this member" : "All transactions"}
           icon={Receipt}
-          index={0}
+          accentKey="total"
         />
         <TxnStatCard
           label="Credited"
           value={stats.totalCredited}
           hint="From member credit recharges"
           icon={ArrowUpRight}
-          index={1}
+          accentKey="credited"
           format={fmtMoney}
         />
         <TxnStatCard
@@ -505,9 +526,19 @@ function Txns() {
           value={stats.totalDebited}
           hint="Debits from members"
           icon={ArrowDownLeft}
-          index={2}
+          accentKey="debited"
           format={fmtMoney}
         />
+        {isAdmin && !isMemberScoped && (
+          <TxnStatCard
+            label="Total Expense"
+            value={stats.totalExpense}
+            hint="Club expenses recorded"
+            icon={TrendingDown}
+            accentKey="expense"
+            format={fmtMoney}
+          />
+        )}
         <TxnStatCard
           label="Total Balance"
           value={stats.balanceTotal}
@@ -517,8 +548,9 @@ function Txns() {
               : `${fmtMoney(stats.totalCredited)} approved credits`
           }
           icon={CircleDollarSign}
-          index={3}
+          accentKey="balance"
           format={fmtMoney}
+          className={isAdmin && !isMemberScoped ? "col-span-2 sm:col-span-1 md:col-span-1" : undefined}
         />
       </motion.div>
 
@@ -526,19 +558,19 @@ function Txns() {
         <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-0 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
           <TabsTrigger
             value="all"
-            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+            className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer transition-colors"
           >
             All ({baseTxns.length})
           </TabsTrigger>
           <TabsTrigger
             value="play"
-            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+            className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer transition-colors"
           >
             Play Schedules ({playCount})
           </TabsTrigger>
           <TabsTrigger
             value="training"
-            className="data-[state=active]:bg-[#10B981]/15 data-[state=active]:text-[#10B981] text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer"
+            className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-[#8A8A98] rounded-md px-4 py-2 text-xs font-medium cursor-pointer transition-colors"
           >
             Trainings ({trainingCount})
           </TabsTrigger>
@@ -1038,6 +1070,7 @@ function Txns() {
             { value: "credit", label: "Credit" },
             { value: "debit", label: "Debit" },
             { value: "refund", label: "Refund" },
+            ...(isAdmin ? [{ value: "expense", label: "Expense" }] : []),
           ],
           categoryOptions: [
             { value: "all", label: "All categories" },

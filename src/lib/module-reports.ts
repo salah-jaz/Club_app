@@ -120,8 +120,8 @@ export const MEMBER_REPORT_CATEGORY = [
   { value: "all", label: "All categories" },
   { value: "membership", label: "Membership" },
   { value: "non-membership", label: "Non-membership" },
-  { value: "league", label: "In league" },
-  { value: "non-league", label: "Not in league" },
+  { value: "league", label: "In group" },
+  { value: "non-league", label: "Not in group" },
 ];
 
 export function filterMembersForReport(
@@ -179,7 +179,7 @@ export function exportMembersReport(
       { key: "grade", header: "Grade", width: 16 },
       { key: "biId", header: "BI ID", width: 22 },
       { key: "membership", header: "Membership", width: 22 },
-      { key: "league", header: "League", width: 18 },
+      { key: "league", header: "Group", width: 18 },
       { key: "balance", header: "Balance", width: 22, align: "right" },
       { key: "joined", header: "Joined", width: 24 },
     ],
@@ -209,7 +209,7 @@ export const SCHEDULE_REPORT_STATUS = [
 
 export const SCHEDULE_REPORT_TYPE = [
   { value: "all", label: "All types" },
-  { value: "league", label: "League match" },
+  { value: "league", label: "Group match" },
   { value: "regular", label: "Regular play" },
 ];
 
@@ -251,7 +251,7 @@ export function exportSchedulesReport(
       date: formatReportDateTime(sch.date),
       location: sch.location || "—",
       status: sch.status,
-      type: sch.isLeagueMatch ? "League" : "Regular",
+      type: sch.isLeagueMatch ? "Group" : "Regular",
       courts: sch.courts,
       players: `${accepted}/${sch.players || 12}`,
       rate: fmtMoney(sch.sessionRate || 0),
