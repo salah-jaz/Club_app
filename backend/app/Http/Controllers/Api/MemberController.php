@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Helpers\PermissionHelper;
 use App\Http\Controllers\Controller;
+use App\Models\Grade;
 use App\Models\Member;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -80,6 +81,9 @@ class MemberController extends Controller
             'parentMemberId' => 'nullable|string|exists:members,id',
         ];
 
+        $biMemberId = trim((string) ($request->input('biMemberId') ?? ''));
+        $biMemberId = $biMemberId !== '' ? $biMemberId : null;
+
         if ($createLogin) {
             $request->validate(array_merge($memberRules, [
                 'password' => 'required|string|min:6',
@@ -88,7 +92,7 @@ class MemberController extends Controller
                 'email' => 'required|email|max:255|unique:users,email',
             ]));
 
-            $member = DB::transaction(function () use ($request) {
+            $member = DB::transaction(function () use ($request, $biMemberId) {
                 $parentId = $request->input('parentMemberId');
                 $parent = $parentId ? Member::find($parentId) : null;
                 if ($request->memberType === 'junior' && $parent && $parent->member_type !== 'adult') {
@@ -112,7 +116,7 @@ class MemberController extends Controller
                         'training_eligible' => $this->resolveTrainingEligible($request),
                         'play_eligible' => $this->resolvePlayEligible($request),
                         'grade' => $request->grade,
-                        'bi_member_id' => $request->biMemberId,
+                        'bi_member_id' => $biMemberId,
                         'nickname' => $request->nickname,
                         'status' => $request->status,
                         'credit' => 0.00,
@@ -150,7 +154,7 @@ class MemberController extends Controller
                     'training_eligible' => $this->resolveTrainingEligible($request),
                     'play_eligible' => $this->resolvePlayEligible($request),
                     'grade' => $request->grade,
-                    'bi_member_id' => $request->biMemberId,
+                    'bi_member_id' => $biMemberId,
                     'nickname' => $request->nickname,
                     'status' => $request->status,
                     'credit' => 0.00,
@@ -162,11 +166,6 @@ class MemberController extends Controller
             $request->validate(array_merge($memberRules, [
                 'userId' => ($isAdmin && $request->memberType !== 'junior') ? 'required|string' : 'nullable|string',
             ]));
-
-            $biMemberId = $request->biMemberId;
-            if (empty($biMemberId)) {
-                $biMemberId = $this->nextBiMemberId()->getData()->nextBiMemberId ?? null;
-            }
 
             // Members may only add juniors under their own account (pending approval).
             if (!$isAdmin) {
@@ -271,6 +270,9 @@ class MemberController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
+        $originalUserId = $member->user_id;
+        $originalType = strtolower((string) $member->member_type);
+
         $data = [];
         if ($request->has('firstName')) $data['first_name'] = $request->firstName;
         if ($request->has('lastName')) $data['last_name'] = $request->lastName;
@@ -279,8 +281,20 @@ class MemberController extends Controller
         if ($request->has('mobile')) $data['mobile'] = $request->mobile;
         if ($request->has('sex')) $data['sex'] = $request->sex;
         if ($request->has('grade')) $data['grade'] = $request->grade;
-        if ($request->has('biMemberId')) $data['bi_member_id'] = $request->biMemberId;
+        if ($request->has('biMemberId')) {
+            $bi = trim((string) ($request->biMemberId ?? ''));
+            $data['bi_member_id'] = $bi !== '' ? $bi : null;
+        }
         if ($request->has('nickname')) $data['nickname'] = $request->nickname;
+
+        $newType = $originalType;
+        if ($isAdmin && $request->has('memberType')) {
+            $newType = strtolower((string) $request->memberType);
+            if (!in_array($newType, ['adult', 'junior'], true)) {
+                return response()->json(['message' => 'Invalid member type.'], 422);
+            }
+            $data['member_type'] = $newType;
+        }
 
         if ($isAdmin) {
             if ($request->has('membership')) $data['membership'] = $request->boolean('membership');
@@ -294,33 +308,80 @@ class MemberController extends Controller
             }
             if ($request->has('credit')) {
                 // Juniors share the parent wallet — their own credit column stays at 0.
-                $data['credit'] = $member->member_type === 'junior' ? 0.00 : $request->credit;
+                $data['credit'] = $newType === 'junior' ? 0.00 : $request->credit;
             }
             if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->boolean('skipCreditConsumption');
             if ($request->has('applyDiscount')) $data['apply_discount'] = $request->boolean('applyDiscount');
-            if ($request->has('parentMemberId')) {
-                $parentId = $request->input('parentMemberId') ?: null;
-                if ($parentId) {
-                    $parent = Member::find($parentId);
-                    if (!$parent || $parent->member_type !== 'adult') {
-                        return response()->json(['message' => 'Parent must be an adult member.'], 422);
-                    }
-                    if ($parent->id === $member->id) {
-                        return response()->json(['message' => 'A member cannot be their own parent.'], 422);
-                    }
-                    $data['parent_member_id'] = $parent->id;
-                    if ($parent->user_id) {
-                        $data['user_id'] = $parent->user_id;
-                    }
-                } else {
-                    $data['parent_member_id'] = null;
+
+            // Parent link applies to juniors only
+            if ($newType === 'junior') {
+                $parentId = $request->has('parentMemberId')
+                    ? ($request->input('parentMemberId') ?: null)
+                    : $member->parent_member_id;
+
+                if (!$parentId) {
+                    return response()->json([
+                        'message' => 'A parent adult member is required when member type is junior.',
+                    ], 422);
                 }
+
+                $parent = Member::find($parentId);
+                if (!$parent || $parent->member_type !== 'adult') {
+                    return response()->json(['message' => 'Parent must be an adult member.'], 422);
+                }
+                if ($parent->id === $member->id) {
+                    return response()->json(['message' => 'A member cannot be their own parent.'], 422);
+                }
+
+                $data['parent_member_id'] = $parent->id;
+                // Move any adult wallet balance to the parent before zeroing junior credit
+                if ($originalType === 'adult') {
+                    $priorCredit = (float) $member->credit;
+                    if (abs($priorCredit) > 0.00001) {
+                        $parent->credit = round((float) $parent->credit + $priorCredit, 2);
+                        $parent->save();
+                    }
+                }
+                $data['credit'] = 0.00;
+                if ($parent->user_id) {
+                    $data['user_id'] = $parent->user_id;
+                }
+                // Junior email should follow the parent account email when available
+                if ($parent->email) {
+                    $data['email'] = $parent->email;
+                } elseif ($parent->user_id) {
+                    $parentUser = User::find($parent->user_id);
+                    if ($parentUser?->email) {
+                        $data['email'] = $parentUser->email;
+                    }
+                }
+            } elseif ($request->has('parentMemberId') || ($request->has('memberType') && $newType === 'adult')) {
+                // Adult members are not nested under a parent
+                $data['parent_member_id'] = null;
+            }
+        }
+
+        // Validate grade against the resulting member type when provided
+        if (array_key_exists('grade', $data) && $data['grade'] !== null && $data['grade'] !== '') {
+            $gradeOk = Grade::where('name', $data['grade'])->where('type', $newType)->exists();
+            if (!$gradeOk) {
+                return response()->json([
+                    'message' => 'Grade must match the member type (' . $newType . ').',
+                ], 422);
             }
         }
 
         $member->update($data);
+        $member = $member->fresh();
 
-        if ($isAdmin && $member->user_id && $member->member_type === 'adult') {
+        // Sync login account only for adults that still own that login.
+        // Never push profile/email onto a parent user after converting to junior.
+        if (
+            $isAdmin
+            && $member->member_type === 'adult'
+            && $member->user_id
+            && $member->user_id === $originalUserId
+        ) {
             $account = User::find($member->user_id);
             if ($account) {
                 $userUpdates = [];
@@ -333,13 +394,25 @@ class MemberController extends Controller
                 if ($request->has('password') && !empty($request->password)) {
                     $userUpdates['password'] = Hash::make($request->password);
                 }
+
+                if (isset($userUpdates['email'])) {
+                    $emailTaken = User::where('email', $userUpdates['email'])
+                        ->where('id', '!=', $account->id)
+                        ->exists();
+                    if ($emailTaken) {
+                        return response()->json([
+                            'message' => 'This email is already used by another login account.',
+                        ], 422);
+                    }
+                }
+
                 if (!empty($userUpdates)) {
                     $account->update($userUpdates);
                 }
             }
         }
 
-        return response()->json($this->formatMember($member->fresh()));
+        return response()->json($this->formatMember($member));
     }
 
     /**

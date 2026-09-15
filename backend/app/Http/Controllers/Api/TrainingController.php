@@ -489,15 +489,12 @@ class TrainingController extends Controller
             }
 
             return DB::transaction(function () use ($tr, $monthSessions, $selectedSids, $member, $totalFeeToDeduct, $existingInvs) {
+                // Force Accept is an admin override: always debit the fee even if the
+                // wallet balance is insufficient (balance may go negative).
                 if ($totalFeeToDeduct > 0) {
                     $walletMember = $this->getWalletMember($member, $totalFeeToDeduct);
                     if (!$walletMember->skip_credit_consumption) {
                         $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
-                        if ($freshWallet->credit < $totalFeeToDeduct) {
-                            return response()->json([
-                                'message' => 'Insufficient wallet balance to accept this training program.',
-                            ], 422);
-                        }
 
                         $freshWallet->credit = round($freshWallet->credit - $totalFeeToDeduct, 2);
                         $freshWallet->save();
@@ -1366,18 +1363,65 @@ class TrainingController extends Controller
         ]);
 
         $tDate = TrainingDate::findOrFail($id);
-        $tDate->attended = $request->attended;
-        $tDate->save();
+        $attended = $request->boolean('attended');
 
-        return response()->json([
-            'id' => $tDate->id,
-            'trainingId' => $tDate->training_id,
-            'memberId' => $tDate->member_id,
-            'date' => $tDate->date,
-            'attended' => (bool)$tDate->attended,
-            'refundStatus' => $tDate->refund_status,
-            'refundAmount' => $tDate->refund_amount !== null ? (float)$tDate->refund_amount : null,
-        ]);
+        return DB::transaction(function () use ($tDate, $attended) {
+            $tDate = TrainingDate::where('id', $tDate->id)->lockForUpdate()->firstOrFail();
+
+            if ($attended === true) {
+                $priorRefundStatus = $tDate->refund_status;
+                $priorRefundAmount = $tDate->refund_amount !== null ? (float) $tDate->refund_amount : 0.0;
+
+                // Marking Present after a paid refund: claw back the refunded credits.
+                if (in_array($priorRefundStatus, ['half', 'full'], true) && $priorRefundAmount > 0) {
+                    $member = Member::find($tDate->member_id);
+                    $tr = Training::find($tDate->training_id);
+                    if ($member && $tr && !$member->skip_credit_consumption) {
+                        $walletMember = $this->getWalletMember($member, 0);
+                        $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                        if ($freshWallet) {
+                            $freshWallet->credit = round($freshWallet->credit - $priorRefundAmount, 2);
+                            $freshWallet->save();
+
+                            $refundLabel = $priorRefundStatus === 'half' ? '50% Refund' : 'Full Refund';
+                            $transaction = Transaction::create([
+                                'id' => 't_' . Str::random(8),
+                                'member_id' => $freshWallet->id,
+                                'type' => 'debit',
+                                'amount' => $priorRefundAmount,
+                                'description' => "Reversed training absent {$refundLabel} (marked Present) for {$member->name}: {$tr->name}",
+                                'date' => now(),
+                            ]);
+
+                            try {
+                                MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                            } catch (\Exception $e) {
+                                logger()->error("Transaction reverse-refund email error: " . $e->getMessage());
+                            }
+                        }
+                    }
+                }
+
+                $tDate->attended = true;
+                $tDate->refund_status = null;
+                $tDate->refund_amount = null;
+                $tDate->save();
+            } else {
+                $tDate->attended = false;
+                // Keep existing refund lock if already processed; otherwise leave open for refund popup.
+                $tDate->save();
+            }
+
+            return response()->json([
+                'id' => $tDate->id,
+                'trainingId' => $tDate->training_id,
+                'memberId' => $tDate->member_id,
+                'date' => $tDate->date,
+                'attended' => $tDate->attended === null ? null : (bool) $tDate->attended,
+                'refundStatus' => $tDate->refund_status,
+                'refundAmount' => $tDate->refund_amount !== null ? (float) $tDate->refund_amount : null,
+            ]);
+        });
     }
 
     public function processRefund(Request $request, $id)

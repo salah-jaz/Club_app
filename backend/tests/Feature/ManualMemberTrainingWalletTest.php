@@ -96,7 +96,7 @@ class ManualMemberTrainingWalletTest extends TestCase
         $juniorMember = Member::findOrFail($juniorMemberId);
 
         // Verify required values were auto-initialized
-        $this->assertNotEmpty($juniorMember->bi_member_id);
+        $this->assertNull($juniorMember->bi_member_id);
         $this->assertEquals($parentUser->id, $juniorMember->user_id);
         $this->assertEquals($parentMemberId, $juniorMember->parent_member_id);
         $this->assertTrue($juniorMember->training_eligible);

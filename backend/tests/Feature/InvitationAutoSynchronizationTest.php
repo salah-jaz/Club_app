@@ -255,7 +255,7 @@ class InvitationAutoSynchronizationTest extends TestCase
         ]);
         $updateRes->assertStatus(200);
 
-        // Verify training invitation automatically created
+        // Verify training invitation automatically created as pending (admin must Send)
         $this->assertDatabaseHas('training_invitations', [
             'training_id' => $training->id,
             'member_id' => $junior->id,

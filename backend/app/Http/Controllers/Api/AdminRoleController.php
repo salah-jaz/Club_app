@@ -20,6 +20,11 @@ class AdminRoleController extends Controller
 
         $roles = AdminRole::with('permissions')->orderBy('name')->get();
 
+        // Super Admin role is only visible to Super Admins.
+        if (!$request->user()?->is_super_admin) {
+            $roles = $roles->where('is_super', false)->values();
+        }
+
         return response()->json($roles->map(fn (AdminRole $role) => $this->formatRole($role)));
     }
 

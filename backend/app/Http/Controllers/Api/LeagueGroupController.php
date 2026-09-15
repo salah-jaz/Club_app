@@ -18,6 +18,9 @@ class LeagueGroupController extends Controller
 
         // Members only see groups they (or their family profiles) belong to
         if (!$user || $user->role !== 'admin') {
+            if (!$user) {
+                return response()->json([]);
+            }
             $myMemberIds = Member::where('user_id', $user->id)->pluck('id')->all();
             $groups = $groups->filter(function ($g) use ($myMemberIds) {
                 return $g->members->contains(fn ($m) => in_array($m->id, $myMemberIds, true));

@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
-import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck, LayoutGrid, List, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck, LayoutGrid, List, Eye, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -38,17 +38,19 @@ function memberDisplayName(
   memberId: string,
   allMembers: { id: string; firstName: string; lastName: string; grade?: string }[],
 ) {
-  const fromApi = group.members?.find((m) => m.id === memberId);
+  if (!group || !memberId) return { name: memberId || "Unknown", grade: null, position: null };
+  const fromApi = group.members?.find((m) => m && m.id === memberId);
   if (fromApi) {
     return {
-      name: `${fromApi.firstName} ${fromApi.lastName}`.trim(),
+      name: `${fromApi.firstName || ""} ${fromApi.lastName || ""}`.trim() || memberId,
       grade: fromApi.grade ?? null,
       position: fromApi.position ?? group.memberPositions?.[memberId] ?? null,
     };
   }
-  const m = allMembers.find((x) => x.id === memberId);
+  const safeMembers = Array.isArray(allMembers) ? allMembers : [];
+  const m = safeMembers.find((x) => x && x.id === memberId);
   return {
-    name: m ? `${m.firstName} ${m.lastName}`.trim() : memberId,
+    name: m ? `${m.firstName || ""} ${m.lastName || ""}`.trim() : memberId,
     grade: m?.grade ?? null,
     position: group.memberPositions?.[memberId] ?? null,
   };
@@ -56,7 +58,7 @@ function memberDisplayName(
 
 function LeagueGroupsPage() {
   const user = useCurrentUser()!;
-  const activeRole = useStore((s) => s.activeRole) || user.role;
+  const activeRole = useStore((s) => s.activeRole) || user?.role;
   const isAdmin = activeRole === "admin";
 
   if (!isAdmin) {
@@ -69,7 +71,7 @@ function LeagueGroupsPage() {
 /** Members: same list/grid UI as admin, view-only (no create/edit/delete). */
 function MemberLeagueGroupsView() {
   const user = useCurrentUser()!;
-  const allMembers = useStore((s) => s.members);
+  const allMembers = useStore((s) => s.members) || [];
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("name_asc");
@@ -80,8 +82,8 @@ function MemberLeagueGroupsView() {
   );
 
   const myMemberIds = useMemo(
-    () => new Set(allMembers.filter((m) => m.userId === user.id).map((m) => m.id)),
-    [allMembers, user.id],
+    () => new Set((allMembers || []).filter((m) => m && m.userId === user?.id).map((m) => m.id)),
+    [allMembers, user?.id],
   );
 
   const filteredGroups = useMemo(() => {
@@ -131,7 +133,7 @@ function MemberLeagueGroupsView() {
             <DialogDescription className="text-[#8A8A98]">
               {viewingGroup?.description?.trim()
                 ? viewingGroup.description
-                : `${viewingGroup?.memberIds?.length ?? 0} members in this league group`}
+                : `${viewingGroup?.memberIds?.length ?? 0} members in this group`}
             </DialogDescription>
           </DialogHeader>
           {viewingGroup && (
@@ -183,8 +185,8 @@ function MemberLeagueGroupsView() {
       </Dialog>
 
       <PageHeader
-        title="League Groups"
-        description="View your league groups, positions, and teammates."
+        title="Groups"
+        description="View your groups, positions, and teammates."
       />
 
       <SearchFilterBar
@@ -240,12 +242,12 @@ function MemberLeagueGroupsView() {
               <div className="flex flex-col items-center justify-center gap-3">
                 <Users className="size-12 text-[#4A4A5A]" />
                 <h3 className="text-[14px] font-normal text-[#8A8A98]">
-                  {searchTerm ? "No matching league groups found." : "You are not in any league groups yet."}
+                  {searchTerm ? "No matching groups found." : "You are not in any groups yet."}
                 </h3>
                 <p className="text-[12px] font-light text-[#4A4A5A] max-w-[280px]">
                   {searchTerm
                     ? "Try adjusting your search terms."
-                    : "When an admin adds you to a league group, it will appear here."}
+                    : "When an admin adds you to a group, it will appear here."}
                 </p>
                 {searchTerm && (
                   <Button
@@ -401,12 +403,13 @@ function AdminLeagueGroupsView() {
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter((g) => {
-        if (g.name.toLowerCase().includes(term)) return true;
+        if (!g) return false;
+        if ((g.name || "").toLowerCase().includes(term)) return true;
         if (g.description?.toLowerCase().includes(term)) return true;
         const hasMember = (g.memberIds || []).some((id) => {
-          const m = allMembers.find((x) => x.id === id);
+          const m = (allMembers || []).find((x) => x && x.id === id);
           if (!m) return false;
-          return `${m.firstName} ${m.lastName}`.toLowerCase().includes(term);
+          return `${m.firstName || ""} ${m.lastName || ""}`.toLowerCase().includes(term);
         });
         return hasMember;
       });
@@ -437,12 +440,41 @@ function AdminLeagueGroupsView() {
   const [description, setDescription] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [memberPositions, setMemberPositions] = useState<Record<string, string>>({});
+  const [memberSearch, setMemberSearch] = useState("");
+
+  const displayedMembers = useMemo(() => {
+    const term = memberSearch.trim().toLowerCase();
+    const matchesSearch = (m: (typeof members)[number]) => {
+      if (!term) return true;
+      const fullName = `${m.firstName || ""} ${m.lastName || ""}`.toLowerCase();
+      const grade = (m.grade || "").toLowerCase();
+      return fullName.includes(term) || grade.includes(term);
+    };
+
+    const selected = members
+      .filter((m) => selectedMembers.includes(m.id))
+      .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+
+    const unselected = members
+      .filter((m) => !selectedMembers.includes(m.id) && matchesSearch(m))
+      .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+
+    // Always keep selected members at the top (matching search first, then the rest).
+    if (term) {
+      const selectedMatching = selected.filter(matchesSearch);
+      const selectedNonMatching = selected.filter((m) => !matchesSearch(m));
+      return [...selectedMatching, ...selectedNonMatching, ...unselected];
+    }
+
+    return [...selected, ...unselected];
+  }, [members, memberSearch, selectedMembers]);
 
   const handleStartCreate = () => {
     setName("");
     setDescription("");
     setSelectedMembers([]);
     setMemberPositions({});
+    setMemberSearch("");
     setIsCreating(true);
     setEditingId(null);
   };
@@ -459,12 +491,14 @@ function AdminLeagueGroupsView() {
       }
     }
     setMemberPositions(positions);
+    setMemberSearch("");
     setIsCreating(false);
   };
 
   const handleCancel = () => {
     setIsCreating(false);
     setEditingId(null);
+    setMemberSearch("");
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -487,7 +521,7 @@ function AdminLeagueGroupsView() {
           memberIds: selectedMembers,
           memberPositions: positionsForSelected,
         });
-        toast.success("League group created successfully");
+        toast.success("Group created successfully");
       } else if (editingId) {
         await store.updateLeagueGroup(editingId, {
           name,
@@ -495,12 +529,13 @@ function AdminLeagueGroupsView() {
           memberIds: selectedMembers,
           memberPositions: positionsForSelected,
         });
-        toast.success("League group updated successfully");
+        toast.success("Group updated successfully");
       }
       setIsCreating(false);
       setEditingId(null);
+      setMemberSearch("");
     } catch (error: any) {
-      toast.error(error.message || "Failed to save league group");
+      toast.error(error.message || "Failed to save group");
     }
   };
 
@@ -512,7 +547,7 @@ function AdminLeagueGroupsView() {
       sch.leagueGroupIds?.includes(id),
     ).length;
     setDeleteRequest({
-      title: "Delete league group",
+      title: "Delete group",
       entityName: group.name,
       related: [
         { label: memberCount === 1 ? "member" : "members", count: memberCount },
@@ -525,7 +560,7 @@ function AdminLeagueGroupsView() {
       onConfirm: async () => {
         try {
           await store.deleteLeagueGroup(id);
-          toast.success("League group deleted");
+          toast.success("Group deleted");
         } catch (error: unknown) {
           toast.error(error instanceof Error ? error.message : "Failed to delete group");
           throw error;
@@ -559,8 +594,8 @@ function AdminLeagueGroupsView() {
         onOpenChange={(open) => !open && setDeleteRequest(null)}
       />
       <PageHeader
-        title="League Groups"
-        description="Organize league participants into groups to filter play invitations."
+        title="Groups"
+        description="Organize participants into groups to filter play invitations."
         actions={
           !isCreating && !editingId && canCreateGroup && (
             <Button onClick={handleStartCreate} className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
@@ -574,7 +609,7 @@ function AdminLeagueGroupsView() {
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader>
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-              {isCreating ? "Create New League Group" : "Edit League Group"}
+              {isCreating ? "Create New Group" : "Edit Group"}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -586,7 +621,7 @@ function AdminLeagueGroupsView() {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Division A, Weekend League"
+                    placeholder="e.g. Division A, Weekend Group"
                     className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
                   />
                 </div>
@@ -601,75 +636,99 @@ function AdminLeagueGroupsView() {
                 </div>
 
                 <div className="space-y-2 pt-2">
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-1 gap-2">
                     <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                       Select Group Members
                     </Label>
-                    {playerPositions.length === 0 && (
-                      <span className="text-[9px] text-amber-400/70 font-light italic">
-                        No positions defined — configure in Settings
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {selectedMembers.length > 0 && (
+                        <span className="text-[10px] text-[#10B981] font-mono">
+                          {selectedMembers.length} selected
+                        </span>
+                      )}
+                      {playerPositions.length === 0 && (
+                        <span className="text-[9px] text-amber-400/70 font-light italic">
+                          No positions defined — configure in Settings
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {members.length === 0 ? (
-                    <p className="text-[12px] text-muted-foreground italic">No eligible league participants found in members.</p>
+                    <p className="text-[12px] text-muted-foreground italic">No eligible participants found in members.</p>
                   ) : (
-                    <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-                      {members.map((m) => {
-                        const isSelected = selectedMembers.includes(m.id);
-                        return (
-                          <div
-                            key={m.id}
-                            className={`flex flex-col sm:flex-row sm:items-center gap-3 p-2.5 bg-[#1A2120] border rounded-lg transition-all ${
-                              isSelected
-                                ? "border-[#10B981] bg-[#1A2120]/80"
-                                : "border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => toggleMember(m.id)}
-                                className="border-[rgba(255,255,255,0.2)] data-[state=checked]:bg-[#10B981] data-[state=checked]:border-[#10B981] shrink-0"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
-                                  {m.firstName} {m.lastName}
-                                </div>
-                                <div className="text-[10px] text-muted-foreground">{m.grade}</div>
-                              </div>
-                            </div>
-                            {isSelected && (
-                              <div className="w-full sm:w-[160px] sm:shrink-0 pl-8 sm:pl-0">
-                                {playerPositions.length > 0 ? (
-                                  <Select
-                                    value={memberPositions[m.id] || ""}
-                                    onValueChange={(val) => setPosition(m.id, val)}
-                                  >
-                                    <SelectTrigger className="h-8 text-[11px] bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] rounded-md cursor-pointer w-full">
-                                      <SelectValue placeholder="Assign position…" />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                                      {playerPositions.map((pos) => (
-                                        <SelectItem key={pos} value={pos} className="text-[11px] cursor-pointer hover:bg-white/5">
-                                          {pos}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <Input
-                                    value={memberPositions[m.id] || ""}
-                                    onChange={(e) => setPosition(m.id, e.target.value)}
-                                    placeholder="Enter position…"
-                                    className="h-8 text-[11px] bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] rounded-md"
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none z-[1]" />
+                        <Input
+                          value={memberSearch}
+                          onChange={(e) => setMemberSearch(e.target.value)}
+                          placeholder="Search members by name or grade..."
+                          className="search-filter-input h-8 bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] text-xs rounded-lg"
+                        />
+                      </div>
+                      {displayedMembers.length === 0 ? (
+                        <p className="text-[12px] text-muted-foreground italic py-4 text-center">
+                          No members match "{memberSearch}".
+                        </p>
+                      ) : (
+                        <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                          {displayedMembers.map((m) => {
+                            const isSelected = selectedMembers.includes(m.id);
+                            return (
+                              <div
+                                key={m.id}
+                                className={`flex flex-col sm:flex-row sm:items-center gap-3 p-2.5 bg-[#1A2120] border rounded-lg transition-all ${
+                                  isSelected
+                                    ? "border-[#10B981] bg-[#1A2120]/80"
+                                    : "border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleMember(m.id)}
+                                    className="border-[rgba(255,255,255,0.2)] data-[state=checked]:bg-[#10B981] data-[state=checked]:border-[#10B981] shrink-0"
                                   />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
+                                      {m.firstName} {m.lastName}
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground">{m.grade}</div>
+                                  </div>
+                                </div>
+                                {isSelected && (
+                                  <div className="w-full sm:w-[160px] sm:shrink-0 pl-8 sm:pl-0">
+                                    {playerPositions.length > 0 ? (
+                                      <Select
+                                        value={memberPositions[m.id] || ""}
+                                        onValueChange={(val) => setPosition(m.id, val)}
+                                      >
+                                        <SelectTrigger className="h-8 text-[11px] bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] rounded-md cursor-pointer w-full">
+                                          <SelectValue placeholder="Assign position…" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                                          {playerPositions.map((pos) => (
+                                            <SelectItem key={pos} value={pos} className="text-[11px] cursor-pointer hover:bg-white/5">
+                                              {pos}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    ) : (
+                                      <Input
+                                        value={memberPositions[m.id] || ""}
+                                        onChange={(e) => setPosition(m.id, e.target.value)}
+                                        placeholder="Enter position…"
+                                        className="h-8 text-[11px] bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] rounded-md"
+                                      />
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -741,7 +800,7 @@ function AdminLeagueGroupsView() {
                   <div className="flex flex-col items-center justify-center gap-3">
                     <Users className="size-12 text-[#4A4A5A]" />
                     <h3 className="text-[14px] font-normal text-[#8A8A98]">
-                      {searchTerm ? "No matching league groups found." : "No league groups created yet."}
+                      {searchTerm ? "No matching groups found." : "No groups created yet."}
                     </h3>
                     <p className="text-[12px] font-light text-[#4A4A5A] max-w-[280px]">
                       {searchTerm ? "Try adjusting your search terms." : "Create groups to target specific match invitations to a subset of players."}

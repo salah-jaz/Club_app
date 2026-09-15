@@ -50,6 +50,9 @@ class SettingController extends Controller
         'juniorDiscountAmount' => 'junior_discount_amount',
         'juniorDiscountMode' => 'junior_discount_mode',
         'timezone' => 'timezone',
+        'portalEyebrow' => 'portal_eyebrow',
+        'portalTitle' => 'portal_title',
+        'portalDescription' => 'portal_description',
     ];
 
     public function index()
@@ -95,6 +98,9 @@ class SettingController extends Controller
         if (empty($data['appName'])) $data['appName'] = 'Connect App';
         if (empty($data['appLogoText'])) $data['appLogoText'] = 'C';
         if (empty($data['appLogoBase64'])) $data['appLogoBase64'] = '/logo.png';
+        if (empty($data['portalEyebrow'])) $data['portalEyebrow'] = 'Private Member Portal';
+        if (empty($data['portalTitle'])) $data['portalTitle'] = 'Run your badminton club without the spreadsheet chaos.';
+        if (empty($data['portalDescription'])) $data['portalDescription'] = 'Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.';
         if (empty($data['currency'])) $data['currency'] = '$';
         if (empty($data['timezone'])) {
             $data['timezone'] = 'Asia/Kolkata';
@@ -113,6 +119,14 @@ class SettingController extends Controller
                 $data[$modeKey] = (($data[$amountKey] ?? 0) > 0 && ($data[$percentKey] ?? 0) <= 0) ? 'amount' : 'percent';
             }
         }
+
+        $defaultTemplates = MailHelper::getDefaultTemplates();
+        $customTemplates = json_decode($dbSettings->get('email_templates') ?? '', true) ?: [];
+        $mergedTemplates = [];
+        foreach ($defaultTemplates as $key => $tpl) {
+            $mergedTemplates[$key] = array_merge($tpl, $customTemplates[$key] ?? []);
+        }
+        $data['emailTemplates'] = $mergedTemplates;
 
         return response()->json($data);
     }
@@ -138,6 +152,13 @@ class SettingController extends Controller
         }
 
         // 2. Save lists if provided
+        if ($request->has('emailTemplates')) {
+            $templates = $request->input('emailTemplates');
+            if (is_array($templates)) {
+                Setting::updateOrCreate(['key' => 'email_templates'], ['value' => json_encode($templates)]);
+            }
+        }
+
         if ($request->has('coaches')) {
             $newCoaches = array_values(array_filter($request->coaches ?? [], fn($c) => is_string($c) && trim($c) !== ''));
             Setting::updateOrCreate(['key' => 'coaches'], ['value' => json_encode($newCoaches)]);

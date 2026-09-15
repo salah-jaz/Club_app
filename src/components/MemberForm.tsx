@@ -10,6 +10,7 @@ import type { Member } from "@/lib/types";
 import { useStore, useCurrentUser } from "@/lib/store";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
+import { toast } from "sonner";
 
 export type MemberFormValues = Omit<Member, "id" | "credit"> & {
   credit?: number;
@@ -75,11 +76,22 @@ export function MemberForm({
   );
 
   const getParentEmail = () => {
-    if (v.userId) {
-      const parent = users.find((u) => u.id === v.userId);
-      if (parent) return parent.email;
+    // Prefer selected parent adult member's linked login email
+    if (v.parentMemberId) {
+      const parentMember = members.find((m) => m.id === v.parentMemberId);
+      if (parentMember?.userId) {
+        const parentUser = users.find((u) => u.id === parentMember.userId);
+        if (parentUser?.email) return parentUser.email;
+      }
+      if (parentMember?.email) return parentMember.email;
     }
-    if (currentUser) return currentUser.email;
+    // Creating a junior under the current login (family add flow)
+    if (showLoginFields === false && familyMemberMode && currentUser) {
+      return currentUser.email;
+    }
+    if (currentUser?.role === "member" && currentUser.email) {
+      return currentUser.email;
+    }
     return "";
   };
 
@@ -90,8 +102,13 @@ export function MemberForm({
     try {
       let finalV = { ...v };
       if (v.memberType === "junior") {
-        finalV.email = getParentEmail();
+        // Use selected parent's email — never the member's own previous adult login email
+        finalV.email = getParentEmail() || finalV.email;
         finalV.password = "";
+        if (!finalV.parentMemberId) {
+          toast.error("Select a parent adult when member type is Junior.");
+          return;
+        }
       }
       const payload = familyMemberMode
         ? {
@@ -137,10 +154,11 @@ export function MemberForm({
             </CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-4">
-            <FormField label="BI Member ID">
+            <FormField label="BI Member ID (optional)">
               <Input
                 value={v.biMemberId}
                 onChange={(e) => set("biMemberId", e.target.value)}
+                placeholder="Leave blank if none"
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg transition-colors duration-150"
               />
             </FormField>

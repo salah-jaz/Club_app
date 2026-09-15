@@ -214,3 +214,15 @@ export interface TrainingUpdateRequest {
   createdAt?: string | null;
   updatedAt?: string | null;
 }
+
+export interface EmailTemplateDefinition {
+  name: string;
+  description: string;
+  subject: string;
+  heading?: string;
+  message?: string;
+  button_text?: string;
+  buttonText?: string;
+  body: string;
+  variables: string[];
+}

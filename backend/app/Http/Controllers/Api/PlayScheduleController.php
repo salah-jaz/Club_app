@@ -1324,7 +1324,7 @@ class PlayScheduleController extends Controller
 
             if ($sch->is_league_match || (!empty($sch->league_group_ids) && count((array)$sch->league_group_ids) > 0)) {
                 return response()->json([
-                    'message' => 'League play session invitations cannot be declined.',
+                    'message' => 'Group play session invitations cannot be declined.',
                 ], 422);
             }
 

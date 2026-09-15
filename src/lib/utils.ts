@@ -54,6 +54,9 @@ export function applyCustomTheme(hex: string, secHex: string, isLight: boolean) 
     root.style.setProperty('--success-color', primaryColor);
 
     const [r, g, b] = rgb;
+    const isDarkText = (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
+    root.style.setProperty('--primary-foreground', isDarkText ? '#000000' : '#FFFFFF');
+
     root.style.setProperty('--border-accent', `rgba(${r}, ${g}, ${b}, ${isLight ? 0.25 : 0.35})`);
     root.style.setProperty('--violet-dim', `rgba(${r}, ${g}, ${b}, ${isLight ? 0.08 : 0.12})`);
     root.style.setProperty('--bg-glass', `rgba(${r}, ${g}, ${b}, ${isLight ? 0.02 : 0.03})`);
