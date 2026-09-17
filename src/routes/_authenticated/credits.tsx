@@ -167,6 +167,8 @@ function CreditsPage() {
   const [deleting, setDeleting] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
+  const [processingCreditId, setProcessingCreditId] = useState<string | null>(null);
+  const [processingCreditAction, setProcessingCreditAction] = useState<"approve" | "reject" | null>(null);
 
   useEffect(() => {
     if (search.memberId) {
@@ -661,7 +663,12 @@ function CreditsPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" className="btn-premium-solid cursor-pointer" disabled={submitting || !(focusMember?.id || memberId)}>
+              <Button
+                type="submit"
+                className="btn-premium-solid cursor-pointer"
+                disabled={submitting || !(focusMember?.id || memberId)}
+                loading={submitting}
+              >
                 {submitting
                   ? "Saving…"
                   : entryType === "debit"
@@ -806,32 +813,51 @@ function CreditsPage() {
                         <div className="flex items-center gap-2">
                           {canApprove ? (
                             <>
-                              <button
+                              <Button
+                                size="sm"
+                                disabled={processingCreditId !== null}
+                                loading={processingCreditId === r.id && processingCreditAction === "approve"}
                                 onClick={async () => {
+                                  if (processingCreditId) return;
+                                  setProcessingCreditId(r.id);
+                                  setProcessingCreditAction("approve");
                                   try {
                                     await s.approveCredit(r.id);
                                     toast.success("Request approved successfully");
                                   } catch (error: any) {
                                     toast.error(error.message || "Failed to approve request.");
+                                  } finally {
+                                    setProcessingCreditId(null);
+                                    setProcessingCreditAction(null);
                                   }
                                 }}
-                                className="px-3 py-1.5 text-xs font-semibold rounded-md border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer"
+                                className="h-7 px-2.5 text-xs font-semibold rounded-md border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer"
                               >
                                 Approve
-                              </button>
-                              <button
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={processingCreditId !== null}
+                                loading={processingCreditId === r.id && processingCreditAction === "reject"}
                                 onClick={async () => {
+                                  if (processingCreditId) return;
+                                  setProcessingCreditId(r.id);
+                                  setProcessingCreditAction("reject");
                                   try {
                                     await s.rejectCredit(r.id);
                                     toast.success("Request rejected successfully");
                                   } catch (error: any) {
                                     toast.error(error.message || "Failed to reject request.");
+                                  } finally {
+                                    setProcessingCreditId(null);
+                                    setProcessingCreditAction(null);
                                   }
                                 }}
-                                className="px-3 py-1.5 text-xs font-semibold rounded-md border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer"
+                                className="h-7 px-2.5 text-xs font-semibold rounded-md border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer"
                               >
                                 Reject
-                              </button>
+                              </Button>
                             </>
                           ) : (
                             <span className="text-xs text-[#4A5E58]">Processed</span>
@@ -965,32 +991,51 @@ function CreditsPage() {
                             <div className="flex items-center gap-2">
                               {canApprove ? (
                                 <>
-                                  <button
-                                    onClick={async () => {
-                                      try {
-                                        await s.approveCredit(r.id);
-                                        toast.success("Request approved successfully");
-                                      } catch (error: any) {
-                                        toast.error(error.message || "Failed to approve request.");
-                                      }
-                                    }}
-                                    className="px-3 py-1 text-[11.5px] font-medium rounded border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer transition-all"
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      try {
-                                        await s.rejectCredit(r.id);
-                                        toast.success("Request rejected successfully");
-                                      } catch (error: any) {
-                                        toast.error(error.message || "Failed to reject request.");
-                                      }
-                                    }}
-                                    className="px-3 py-1 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
-                                  >
-                                    Reject
-                                  </button>
+                              <Button
+                                size="sm"
+                                disabled={processingCreditId !== null}
+                                loading={processingCreditId === r.id && processingCreditAction === "approve"}
+                                onClick={async () => {
+                                  if (processingCreditId) return;
+                                  setProcessingCreditId(r.id);
+                                  setProcessingCreditAction("approve");
+                                  try {
+                                    await s.approveCredit(r.id);
+                                    toast.success("Request approved successfully");
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to approve request.");
+                                  } finally {
+                                    setProcessingCreditId(null);
+                                    setProcessingCreditAction(null);
+                                  }
+                                }}
+                                className="h-7 px-2.5 text-[11.5px] font-medium rounded border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer transition-all"
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={processingCreditId !== null}
+                                loading={processingCreditId === r.id && processingCreditAction === "reject"}
+                                onClick={async () => {
+                                  if (processingCreditId) return;
+                                  setProcessingCreditId(r.id);
+                                  setProcessingCreditAction("reject");
+                                  try {
+                                    await s.rejectCredit(r.id);
+                                    toast.success("Request rejected successfully");
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to reject request.");
+                                  } finally {
+                                    setProcessingCreditId(null);
+                                    setProcessingCreditAction(null);
+                                  }
+                                }}
+                                className="h-7 px-2.5 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
+                              >
+                                Reject
+                              </Button>
                                 </>
                               ) : (
                                 <>
