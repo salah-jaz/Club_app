@@ -150,6 +150,8 @@ function Events() {
   const [playersPopup, setPlayersPopup] = useState<PlaySchedule | null>(null);
 
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
+  const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
+  const [respondingAction, setRespondingAction] = useState<"accepted" | "declined" | null>(null);
   const [autoInviting, setAutoInviting] = useState(false);
   const autoInviteAttempted = useRef<Set<string>>(new Set());
   const navigate = useNavigate();
@@ -494,8 +496,11 @@ function Events() {
             {canAccept && (
               <Button
                 size="sm"
+                disabled={respondingInviteId !== null || enrollingId !== null}
+                loading={respondingInviteId === i.id && respondingAction === "accepted"}
                 className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                 onClick={async () => {
+                  if (respondingInviteId) return;
                   if (hasInsufficientCredits && member && walletMember) {
                     setCreditGap({
                       memberId: member.id,
@@ -504,6 +509,8 @@ function Events() {
                     });
                     return;
                   }
+                  setRespondingInviteId(i.id);
+                  setRespondingAction("accepted");
                   try {
                     const res = await s.respondPlay(i.id, "accepted");
                     if (res.status === "waiting") {
@@ -522,6 +529,9 @@ function Events() {
                       return;
                     }
                     toast.error(msg);
+                  } finally {
+                    setRespondingInviteId(null);
+                    setRespondingAction(null);
                   }
                 }}
               >
@@ -532,8 +542,13 @@ function Events() {
               <Button
                 size="sm"
                 variant="outline"
+                disabled={respondingInviteId !== null || enrollingId !== null}
+                loading={respondingInviteId === i.id && respondingAction === "declined"}
                 className="btn-premium-danger h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                 onClick={async () => {
+                  if (respondingInviteId) return;
+                  setRespondingInviteId(i.id);
+                  setRespondingAction("declined");
                   try {
                     await s.respondPlay(i.id, "declined");
                     toast.success(
@@ -543,6 +558,9 @@ function Events() {
                     );
                   } catch (error: any) {
                     toast.error(error.message || "Failed to cancel invitation.");
+                  } finally {
+                    setRespondingInviteId(null);
+                    setRespondingAction(null);
                   }
                 }}
               >
@@ -1040,9 +1058,11 @@ function Events() {
                               </div>
                               <Button
                                 size="sm"
-                                disabled={enrollingId === acceptingKey}
+                                disabled={enrollingId !== null || respondingInviteId !== null}
+                                loading={enrollingId === acceptingKey}
                                 className="btn-premium-solid h-7.5 px-3.5 text-[11px] font-semibold cursor-pointer shrink-0"
                                 onClick={async () => {
+                                  if (enrollingId) return;
                                   if (hasInsufficientCredits) {
                                     setCreditGap({
                                       memberId: child.id,
