@@ -280,6 +280,10 @@ function SettingsPage() {
   const [address, setAddress] = useState(currentUser?.address || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingCredentials, setSavingCredentials] = useState(false);
+  const [savingMailSettings, setSavingMailSettings] = useState(false);
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [savingDiscounts, setSavingDiscounts] = useState(false);
 
   const [localTheme, setLocalTheme] = useState<"dark" | "light">(() => {
     if (typeof window !== "undefined") {
@@ -477,10 +481,12 @@ function SettingsPage() {
 
   const handleSaveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingCredentials) return;
     if (password && password !== confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
+    setSavingCredentials(true);
     try {
       await updateProfile({
         firstName,
@@ -497,11 +503,15 @@ function SettingsPage() {
       setConfirmPassword("");
     } catch (err: any) {
       toast.error(err.message || "Failed to save credentials");
+    } finally {
+      setSavingCredentials(false);
     }
   };
 
   const handleSaveMailSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingMailSettings) return;
+    setSavingMailSettings(true);
     try {
       await updateSettings({
         mailHost,
@@ -515,11 +525,14 @@ function SettingsPage() {
       toast.success("SMTP settings saved successfully");
     } catch (err: any) {
       toast.error(err.message || "Failed to save SMTP settings");
+    } finally {
+      setSavingMailSettings(false);
     }
   };
 
   const handleTestSmtp = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (testingSmtp) return;
     if (!mailHost || !mailPort || !mailFromAddress || !mailFromName) {
       toast.error("Please fill in SMTP Host, Port, From Name, and From Address first.");
       return;
@@ -563,6 +576,8 @@ function SettingsPage() {
 
   const handleSaveBranding = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingBranding) return;
+    setSavingBranding(true);
     try {
       await updateSettings({
         appName,
@@ -580,11 +595,15 @@ function SettingsPage() {
       toast.success("Branding settings saved successfully");
     } catch (err: any) {
       toast.error(err.message || "Failed to save branding");
+    } finally {
+      setSavingBranding(false);
     }
   };
 
   const handleSaveDiscounts = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingDiscounts) return;
+    setSavingDiscounts(true);
     try {
       await updateSettings({
         adultDiscountMode,
@@ -597,6 +616,8 @@ function SettingsPage() {
       toast.success("Discount settings saved successfully");
     } catch (err: any) {
       toast.error(err.message || "Failed to save discounts");
+    } finally {
+      setSavingDiscounts(false);
     }
   };
 
@@ -1127,7 +1148,12 @@ function SettingsPage() {
                 </div>
 
                 <div className="flex justify-end pt-2">
-                  <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                  <Button
+                    type="submit"
+                    disabled={savingBranding}
+                    loading={savingBranding}
+                    className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                  >
                     Save Branding
                   </Button>
                 </div>
@@ -1246,7 +1272,12 @@ function SettingsPage() {
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
-                  <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                  <Button
+                    type="submit"
+                    disabled={savingDiscounts}
+                    loading={savingDiscounts}
+                    className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                  >
                     Save Discounts
                   </Button>
                 </div>
@@ -1379,7 +1410,12 @@ function SettingsPage() {
               </div>
 
               <div className="flex justify-end pt-2">
-                <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                <Button
+                  type="submit"
+                  disabled={savingCredentials}
+                  loading={savingCredentials}
+                  className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                >
                   Save Credentials
                 </Button>
               </div>
@@ -1582,12 +1618,18 @@ function SettingsPage() {
                     <Button
                       type="button"
                       onClick={handleTestSmtp}
-                      disabled={testingSmtp}
+                      disabled={testingSmtp || savingMailSettings}
+                      loading={testingSmtp}
                       className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer disabled:opacity-50"
                     >
                       {testingSmtp ? "Testing..." : "Test Connection"}
                     </Button>
-                    <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                    <Button
+                      type="submit"
+                      disabled={savingMailSettings || testingSmtp}
+                      loading={savingMailSettings}
+                      className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                    >
                       Save SMTP Settings
                     </Button>
                   </div>
