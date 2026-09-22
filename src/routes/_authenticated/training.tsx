@@ -66,11 +66,6 @@ function TrainingModule() {
     required: number;
   } | null>(null);
 
-  const [isAcceptingBulk, setIsAcceptingBulk] = useState(false);
-  const [respondingUpdateRequestId, setRespondingUpdateRequestId] = useState<string | null>(null);
-  const [respondingUpdateAction, setRespondingUpdateAction] = useState<"accepted" | "declined" | null>(null);
-  const [decliningMemberKey, setDecliningMemberKey] = useState<string | null>(null);
-
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -278,18 +273,12 @@ function TrainingModule() {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel
-                  disabled={isAcceptingBulk}
-                  className="btn-premium-outline cursor-pointer mt-0"
-                >
+                <AlertDialogCancel className="btn-premium-outline cursor-pointer mt-0">
                   Cancel
                 </AlertDialogCancel>
                 <Button
                   className="btn-premium-solid cursor-pointer"
-                  disabled={isAcceptingBulk}
-                  loading={isAcceptingBulk}
                   onClick={async () => {
-                    if (isAcceptingBulk) return;
                     if (balanceAfter < 0 && !member.skipCreditConsumption) {
                       setBulkAcceptPopup(null);
                       setCreditGap({
@@ -300,15 +289,12 @@ function TrainingModule() {
                       return;
                     }
 
-                    setIsAcceptingBulk(true);
                     try {
                       await s.respondTrainingBulk(invites.map(i => i.id), "accepted");
                       toast.success("Training program accepted successfully!");
                       setBulkAcceptPopup(null);
                     } catch (error: any) {
                       toast.error(error.message || "Failed to accept training program.");
-                    } finally {
-                      setIsAcceptingBulk(false);
                     }
                   }}
                 >
@@ -434,20 +420,12 @@ function TrainingModule() {
                     size="sm"
                     variant="outline"
                     className="btn-premium-outline h-8 text-xs cursor-pointer"
-                    disabled={respondingUpdateRequestId !== null}
-                    loading={respondingUpdateRequestId === ur.id && respondingUpdateAction === "declined"}
                     onClick={async () => {
-                      if (respondingUpdateRequestId) return;
-                      setRespondingUpdateRequestId(ur.id);
-                      setRespondingUpdateAction("declined");
                       try {
                         await s.respondTrainingUpdateRequest(ur.id, "declined");
                         toast.success("Training update request declined. Original invitation remains unchanged.");
                       } catch (error: any) {
                         toast.error(error.message || "Failed to decline update request.");
-                      } finally {
-                        setRespondingUpdateRequestId(null);
-                        setRespondingUpdateAction(null);
                       }
                     }}
                   >
@@ -456,10 +434,8 @@ function TrainingModule() {
                   <Button
                     size="sm"
                     className="btn-premium-solid h-8 text-xs font-semibold cursor-pointer"
-                    disabled={updateAcceptBlocked || respondingUpdateRequestId !== null}
-                    loading={respondingUpdateRequestId === ur.id && respondingUpdateAction === "accepted"}
+                    disabled={updateAcceptBlocked}
                     onClick={async () => {
-                      if (respondingUpdateRequestId) return;
                       if (ur.additionalAmount > 0 && ur.additionalAmount > walletMember.credit && !member.skipCreditConsumption) {
                         setCreditGap({
                           memberId: member.id,
@@ -468,8 +444,6 @@ function TrainingModule() {
                         });
                         return;
                       }
-                      setRespondingUpdateRequestId(ur.id);
-                      setRespondingUpdateAction("accepted");
                       try {
                         await s.respondTrainingUpdateRequest(ur.id, "accepted");
                         if (ur.additionalAmount > 0) {
@@ -481,9 +455,6 @@ function TrainingModule() {
                         }
                       } catch (error: any) {
                         toast.error(error.message || "Failed to accept update request.");
-                      } finally {
-                        setRespondingUpdateRequestId(null);
-                        setRespondingUpdateAction(null);
                       }
                     }}
                   >
@@ -661,12 +632,7 @@ function TrainingModule() {
                                 size="sm"
                                 variant="outline"
                                 className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
-                                disabled={decliningMemberKey !== null}
-                                loading={decliningMemberKey === `${t.id}-${member.id}`}
                                 onClick={async () => {
-                                  const key = `${t.id}-${member.id}`;
-                                  if (decliningMemberKey) return;
-                                  setDecliningMemberKey(key);
                                   try {
                                     await s.respondTrainingBulk(
                                       mInvites.filter((i) => i.status === "open").map((i) => i.id),
@@ -675,8 +641,6 @@ function TrainingModule() {
                                     toast.success("Declined invitation");
                                   } catch (error: any) {
                                     toast.error(error.message || "Failed to decline invitation.");
-                                  } finally {
-                                    setDecliningMemberKey(null);
                                   }
                                 }}
                               >

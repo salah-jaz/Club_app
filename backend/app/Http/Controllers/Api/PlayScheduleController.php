@@ -48,8 +48,6 @@ class PlayScheduleController extends Controller
             'isLeagueMatch' => 'sometimes|boolean',
             'leagueGroupIds' => 'sometimes|array',
             'leagueGroupIds.*' => 'string',
-            'autoAcceptLeague' => 'sometimes|boolean',
-            'auto_accept_league' => 'sometimes|boolean',
             'repeatWeeks' => 'sometimes|integer|min:1|max:52',
         ]);
 
@@ -84,7 +82,6 @@ class PlayScheduleController extends Controller
                 'status' => 'open',
                 'is_league_match' => $request->boolean('isLeagueMatch'),
                 'league_group_ids' => $request->leagueGroupIds,
-                'auto_accept_league' => $request->has('autoAcceptLeague') ? $request->boolean('autoAcceptLeague') : $request->boolean('auto_accept_league'),
             ]);
 
             $created[] = $this->formatSchedule($sch);
@@ -216,7 +213,6 @@ class PlayScheduleController extends Controller
                             'status' => 'open',
                             'is_league_match' => $request->has('isLeagueMatch') ? $request->boolean('isLeagueMatch') : $sch->is_league_match,
                             'league_group_ids' => $request->input('leagueGroupIds', $sch->league_group_ids),
-                            'auto_accept_league' => $request->has('autoAcceptLeague') ? $request->boolean('autoAcceptLeague') : ($request->has('auto_accept_league') ? $request->boolean('auto_accept_league') : $sch->auto_accept_league),
                         ]);
                     }
                 }
@@ -241,8 +237,6 @@ class PlayScheduleController extends Controller
         if ($request->has('status')) $data['status'] = $request->status;
         if ($request->has('isLeagueMatch')) $data['is_league_match'] = $request->boolean('isLeagueMatch');
         if ($request->has('leagueGroupIds')) $data['league_group_ids'] = $request->leagueGroupIds;
-        if ($request->has('autoAcceptLeague')) $data['auto_accept_league'] = $request->boolean('autoAcceptLeague');
-        else if ($request->has('auto_accept_league')) $data['auto_accept_league'] = $request->boolean('auto_accept_league');
 
         $sch->update($data);
 
@@ -303,18 +297,15 @@ class PlayScheduleController extends Controller
         PlayInvitation::where('schedule_id', $id)->delete();
 
         $isLeague = (bool) $sch->is_league_match;
-        $autoAccept = (bool) $sch->auto_accept_league;
-        $shouldAutoAccept = $isLeague && $autoAccept && !empty($sch->league_group_ids);
-
         $capacity = max((int) $sch->players, 1);
         $acceptedCount = 0;
 
-        // Create new invitations (auto-accept if league schedule has auto_accept_league enabled)
+        // Create new invitations (league matches auto-accept up to capacity)
         $invites = [];
         foreach ($eligible as $member) {
             $status = 'open';
             $acceptedAt = null;
-            if ($shouldAutoAccept) {
+            if ($isLeague) {
                 if ($acceptedCount < $capacity) {
                     $status = 'accepted';
                     $acceptedAt = now();
@@ -354,7 +345,7 @@ class PlayScheduleController extends Controller
         }
 
         return response()->json([
-            'message' => $shouldAutoAccept
+            'message' => $isLeague
                 ? 'League schedule released; invitations auto-accepted for ' . $acceptedCount . ' players.'
                 : 'Schedule released and invitations sent to ' . count($invites) . ' participants.',
             'inviteCount' => count($invites),
@@ -810,7 +801,6 @@ class PlayScheduleController extends Controller
             'status' => 'open',
             'is_league_match' => (bool) $schedule->is_league_match,
             'league_group_ids' => $schedule->league_group_ids,
-            'auto_accept_league' => (bool) $schedule->auto_accept_league,
         ]);
 
         PlaySchedule::where('parent_id', $parentId)
@@ -1282,138 +1272,127 @@ class PlayScheduleController extends Controller
             return response()->json(['message' => $message], 422);
         }
 
-        $response = DB::transaction(function () use ($id, $desired, $sch, $sessionPhase, &$promoted, &$invite) {
-            $invite = PlayInvitation::where('id', $id)->lockForUpdate()->firstOrFail();
+        if ($desired === 'accepted') {
+            if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
+                return response()->json(['message' => $message], 422);
+            }
+            if (!in_array($invite->status, ['open', 'declined'], true)) {
+                return response()->json([
+                    'message' => 'This invitation is already accepted or on the waiting list.',
+                ], 422);
+            }
 
-            if ($desired === 'accepted') {
-                if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
-                    return response()->json(['message' => $message], 422);
-                }
-                if (!in_array($invite->status, ['open', 'declined'], true)) {
+            $member = Member::find($invite->member_id);
+            $skipsLeagueFee = $member && $this->memberSkipsLeagueFee($sch, $member->id);
+            // League matches: always allow accept (debit may go negative). Non-league: require credit.
+            if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
+                $walletMember = $this->resolveWalletMember($member);
+                $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
+                $currency = \App\Models\Setting::where('key', 'currency')->value('value') ?? '$';
+                if ($walletMember->credit < $estimatedFee) {
                     return response()->json([
-                        'message' => 'This invitation is already accepted or on the waiting list.',
+                        'message' => "Insufficient credits. You need at least {$currency}{$estimatedFee} to accept this schedule."
                     ], 422);
-                }
-
-                $member = Member::find($invite->member_id);
-                $skipsLeagueFee = $member && $this->memberSkipsLeagueFee($sch, $member->id);
-                // League matches: always allow accept (debit may go negative). Non-league: require credit.
-                if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
-                    $walletMember = $this->resolveWalletMember($member);
-                    $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
-                    $currency = \App\Models\Setting::where('key', 'currency')->value('value') ?? '$';
-                    if ($walletMember->credit < $estimatedFee) {
-                        return response()->json([
-                            'message' => "Insufficient credits. You need at least {$currency}{$estimatedFee} to accept this schedule."
-                        ], 422);
-                    }
-                }
-
-                $acceptedCount = PlayInvitation::where('schedule_id', $sch->id)
-                    ->where('status', 'accepted')
-                    ->count();
-                $capacity = max((int) $sch->players, 1);
-
-                $invite->status = $acceptedCount < $capacity ? 'accepted' : 'waiting';
-                if ($invite->status === 'accepted') {
-                    $invite->accepted_at = now();
-                    $invite->save();
-                    // Charge session fee immediately on accept
-                    $this->debitPlayInvite($sch, $invite);
-                } else {
-                    $invite->accepted_at = null;
-                    $invite->save();
-                }
-            } else {
-                // Decline / cancel → return to Yet to Accept (open)
-                $previous = $invite->status;
-                $wasAccepted = $previous === 'accepted';
-
-                if (!in_array($previous, ['accepted', 'waiting'], true)) {
-                    return response()->json([
-                        'message' => 'This invitation cannot be declined in its current state.',
-                    ], 422);
-                }
-
-                if ($sch->is_league_match || (!empty($sch->league_group_ids) && count((array)$sch->league_group_ids) > 0)) {
-                    return response()->json([
-                        'message' => 'League play session invitations cannot be declined.',
-                    ], 422);
-                }
-
-                // Accepted players cannot cancel once the Cancellation Lock Window is reached
-                if ($wasAccepted) {
-                    $lockHours = (int) (Setting::where('key', 'cancellation_lock_hours')->value('value') ?? 24);
-                    if ($lockHours < 0) {
-                        $lockHours = 0;
-                    }
-                    $matchStart = SessionTimingHelper::parseDateTime($sch->date);
-                    $cancelDeadline = $matchStart->copy()->subHours($lockHours);
-                    if (SessionTimingHelper::now()->greaterThanOrEqualTo($cancelDeadline)) {
-                        $hoursLabel = $lockHours === 1 ? '1 hour' : "{$lockHours} hours";
-                        return response()->json([
-                            'message' => "Decline is no longer available. Cancellations close {$hoursLabel} before the match starts.",
-                        ], 422);
-                    }
-                }
-
-                // Refund if they were charged on accept
-                if ($wasAccepted) {
-                    $this->refundPlayInvite($sch, $invite);
-                }
-
-                $invite->status = 'open';
-                $invite->accepted_at = null;
-                $invite->debited = false;
-                $invite->save();
-
-                // Free seat in Accepted → promote earliest waiting member (first come) to end of Accepted
-                if ($wasAccepted) {
-                    $next = PlayInvitation::where('schedule_id', $sch->id)
-                        ->where('status', 'waiting')
-                        ->lockForUpdate()
-                        ->orderBy('updated_at', 'asc')
-                        ->orderBy('id', 'asc')
-                        ->first();
-
-                    if ($next) {
-                        $nextMember = Member::find($next->member_id);
-                        // Non-league: require enough credit to promote. League: always promote (may go negative).
-                        if (
-                            $nextMember
-                            && !$nextMember->skip_credit_consumption
-                            && !$this->memberSkipsLeagueFee($sch, $nextMember->id)
-                            && !(bool) $sch->is_league_match
-                        ) {
-                            $estimatedFee = FeeHelper::playSessionFee(
-                                (float) $sch->session_rate,
-                                0,
-                                1,
-                                $nextMember
-                            );
-                            $walletMember = $this->resolveWalletMember($nextMember);
-                            if ($walletMember->credit < $estimatedFee) {
-                                // Keep them waiting; do not promote without credits
-                                $next = null;
-                            }
-                        }
-
-                        if ($next) {
-                            $next->status = 'accepted';
-                            $next->accepted_at = now();
-                            $next->save();
-                            $this->debitPlayInvite($sch, $next);
-                            $promoted = $this->formatInvitation($next->fresh());
-                        }
-                    }
                 }
             }
 
-            return null;
-        });
+            $acceptedCount = PlayInvitation::where('schedule_id', $sch->id)
+                ->where('status', 'accepted')
+                ->count();
+            $capacity = max((int) $sch->players, 1);
 
-        if ($response instanceof \Illuminate\Http\JsonResponse) {
-            return $response;
+            $invite->status = $acceptedCount < $capacity ? 'accepted' : 'waiting';
+            if ($invite->status === 'accepted') {
+                $invite->accepted_at = now();
+                $invite->save();
+                // Charge session fee immediately on accept
+                $this->debitPlayInvite($sch, $invite);
+            } else {
+                $invite->accepted_at = null;
+                $invite->save();
+            }
+        } else {
+            // Decline / cancel → return to Yet to Accept (open)
+            $previous = $invite->status;
+            $wasAccepted = $previous === 'accepted';
+
+            if (!in_array($previous, ['accepted', 'waiting'], true)) {
+                return response()->json([
+                    'message' => 'This invitation cannot be declined in its current state.',
+                ], 422);
+            }
+
+            if ($sch->is_league_match || (!empty($sch->league_group_ids) && count((array)$sch->league_group_ids) > 0)) {
+                return response()->json([
+                    'message' => 'League play session invitations cannot be declined.',
+                ], 422);
+            }
+
+            // Accepted players cannot cancel once the Cancellation Lock Window is reached
+            if ($wasAccepted) {
+                $lockHours = (int) (Setting::where('key', 'cancellation_lock_hours')->value('value') ?? 24);
+                if ($lockHours < 0) {
+                    $lockHours = 0;
+                }
+                $matchStart = SessionTimingHelper::parseDateTime($sch->date);
+                $cancelDeadline = $matchStart->copy()->subHours($lockHours);
+                if (SessionTimingHelper::now()->greaterThanOrEqualTo($cancelDeadline)) {
+                    $hoursLabel = $lockHours === 1 ? '1 hour' : "{$lockHours} hours";
+                    return response()->json([
+                        'message' => "Decline is no longer available. Cancellations close {$hoursLabel} before the match starts.",
+                    ], 422);
+                }
+            }
+
+            // Refund if they were charged on accept
+            if ($wasAccepted) {
+                $this->refundPlayInvite($sch, $invite);
+            }
+
+            $invite->status = 'open';
+            $invite->accepted_at = null;
+            $invite->debited = false;
+            $invite->save();
+
+            // Free seat in Accepted → promote earliest waiting member (first come) to end of Accepted
+            if ($wasAccepted) {
+                $next = PlayInvitation::where('schedule_id', $sch->id)
+                    ->where('status', 'waiting')
+                    ->orderBy('updated_at', 'asc')
+                    ->orderBy('id', 'asc')
+                    ->first();
+
+                if ($next) {
+                    $nextMember = Member::find($next->member_id);
+                    // Non-league: require enough credit to promote. League: always promote (may go negative).
+                    if (
+                        $nextMember
+                        && !$nextMember->skip_credit_consumption
+                        && !$this->memberSkipsLeagueFee($sch, $nextMember->id)
+                        && !(bool) $sch->is_league_match
+                    ) {
+                        $estimatedFee = FeeHelper::playSessionFee(
+                            (float) $sch->session_rate,
+                            0,
+                            1,
+                            $nextMember
+                        );
+                        $walletMember = $this->resolveWalletMember($nextMember);
+                        if ($walletMember->credit < $estimatedFee) {
+                            // Keep them waiting; do not promote without credits
+                            $next = null;
+                        }
+                    }
+
+                    if ($next) {
+                        $next->status = 'accepted';
+                        $next->accepted_at = now();
+                        $next->save();
+                        $this->debitPlayInvite($sch, $next);
+                        $promoted = $this->formatInvitation($next->fresh());
+                    }
+                }
+            }
         }
 
         $payload = $this->formatInvitation($invite->fresh());
@@ -1678,7 +1657,6 @@ class PlayScheduleController extends Controller
             'cancelReason' => $s->cancel_reason,
             'isLeagueMatch' => (bool)$s->is_league_match,
             'leagueGroupIds' => $s->league_group_ids ?? [],
-            'autoAcceptLeague' => (bool)$s->auto_accept_league,
             'repeatWeeks' => $remainingWeeks,
         ];
     }
