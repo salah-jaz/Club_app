@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, Wallet, CalendarDays, GraduationCap,
   Inbox, Receipt, ShieldCheck, LogOut, User as UserIcon, Settings, UserCog,
+  FileText,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -12,6 +14,7 @@ import { useCurrentUser, useStore } from "@/lib/store";
 import { useCanModule } from "@/lib/permissions";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { MemberPolicyViewer } from "@/components/MemberPolicyViewer";
 
 export function AppSidebar() {
   const user = useCurrentUser();
@@ -25,6 +28,7 @@ export function AppSidebar() {
   const syncData = useStore((s) => s.syncData);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { setOpenMobile, isMobile } = useSidebar();
+  const [policyOpen, setPolicyOpen] = useState(false);
 
   if (!user) return null;
   const isAdmin = activeRole === "admin";
@@ -83,6 +87,7 @@ export function AppSidebar() {
   const activeAdminItem = adminItems.find((i) => pathname.startsWith(i.to));
 
   return (
+    <>
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-3 px-2 py-2">
@@ -206,6 +211,21 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {isMember && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  setPolicyOpen(true);
+                  closeSidebarMobile();
+                }}
+              >
+                <motion.span whileHover={{ scale: 1.15 }} transition={{ duration: 0.15 }} className="inline-flex">
+                  <FileText />
+                </motion.span>
+                <span>Member Policy</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={() => { logout(); navigate({ to: "/login" }); closeSidebarMobile(); }}
@@ -219,5 +239,9 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
+    {isMember && (
+      <MemberPolicyViewer open={policyOpen} onOpenChange={setPolicyOpen} />
+    )}
+    </>
   );
 }
