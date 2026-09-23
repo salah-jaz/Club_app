@@ -60,13 +60,13 @@ export function AuthShell({
             alt={displayAppName}
             className="auth-brand-logo size-20 xl:size-24 rounded-xl object-contain p-1"
           />
-          <span className="auth-brand-name text-lg xl:text-xl font-medium tracking-[0.12em] uppercase">
+          <span className="auth-brand-name text-lg xl:text-xl font-semibold tracking-[0.04em]">
             {displayAppName}
           </span>
         </Link>
 
         <div className="relative z-10 flex flex-col gap-3.5 xl:gap-4 max-w-lg">
-          <span className="auth-brand-eyebrow text-[10px] xl:text-[11px] font-medium tracking-[0.14em] uppercase block">
+          <span className="auth-brand-eyebrow text-[10px] xl:text-[11px] font-medium tracking-[0.08em] block">
             {displayEyebrow}
           </span>
           <h2 className="auth-brand-heading font-playfair font-normal leading-[1.25] text-3xl xl:text-4xl">
@@ -101,11 +101,11 @@ export function AuthShell({
               alt={displayAppName}
               className="auth-brand-logo w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-contain p-1"
             />
-            <span className="auth-brand-name text-sm sm:text-[15px] font-semibold tracking-[0.14em] uppercase">
+            <span className="auth-brand-name text-sm sm:text-[15px] font-semibold tracking-[0.06em]">
               {displayAppName}
             </span>
           </Link>
-          <span className="auth-brand-eyebrow text-[9px] sm:text-[10px] font-medium tracking-[0.14em] uppercase">
+          <span className="auth-brand-eyebrow text-[9px] sm:text-[10px] font-medium tracking-[0.08em]">
             {displayEyebrow}
           </span>
           <h2 className="auth-brand-heading font-playfair font-normal leading-snug text-[1.25rem] sm:text-2xl max-w-[18rem] sm:max-w-xs">
