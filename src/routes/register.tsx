@@ -2,7 +2,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AuthShell } from "@/components/AuthShell";
+import { PrivacyPolicyViewer } from "@/components/PrivacyPolicyViewer";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,10 +22,16 @@ function RegisterPage() {
     firstName: "", lastName: "", nickname: "", sex: "male" as "male" | "female", dob: "",
     email: "", mobile: "", address: "", password: "",
   });
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const update = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!agreedToPrivacy) {
+      toast.error("Please agree to the Club Privacy Policy to continue.");
+      return;
+    }
     try {
       await register(f);
       toast.success("Registration submitted. Awaiting admin approval.");
@@ -86,10 +94,42 @@ function RegisterPage() {
           <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Password</Label>
           <Input required type="password" name="password" autoComplete="new-password" value={f.password} onChange={(e) => update("password", e.target.value)} className="border-[rgba(255,255,255,0.06)] focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] rounded-lg" />
         </div>
-        <Button type="submit" className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">
+
+        <div className="flex items-start gap-2.5 pt-0.5">
+          <Checkbox
+            id="agree-privacy"
+            checked={agreedToPrivacy}
+            onCheckedChange={(v) => setAgreedToPrivacy(v === true)}
+            className="mt-0.5 border-[rgba(255,255,255,0.25)] data-[state=checked]:bg-[var(--primary)] data-[state=checked]:border-[var(--primary)]"
+            aria-required
+          />
+          <label htmlFor="agree-privacy" className="text-sm leading-snug text-[#C4D4CF] cursor-pointer select-none">
+            I agree to the Club{" "}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setPrivacyOpen(true);
+              }}
+              className="text-[var(--primary)] font-medium hover:underline underline-offset-2 cursor-pointer"
+            >
+              Privacy Policy
+            </button>
+            .
+          </label>
+        </div>
+
+        <Button
+          type="submit"
+          disabled={!agreedToPrivacy}
+          className="w-full btn-premium-solid h-10 font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           Submit registration
         </Button>
       </form>
+
+      <PrivacyPolicyViewer open={privacyOpen} onOpenChange={setPrivacyOpen} />
     </AuthShell>
   );
 }
