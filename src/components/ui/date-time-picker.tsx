@@ -1,14 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Calendar as CalendarIcon, Clock } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export interface DateTimePickerProps {
   value?: string; // Expects "YYYY-MM-DDTHH:mm" format or ISO string
@@ -217,18 +216,20 @@ export function DateTimePicker({
                   <span className="text-[10px] font-medium text-[#8A8A98] block text-center uppercase tracking-wide">
                     Hour
                   </span>
-                  <Select value={String(hour12)} onValueChange={handleHourChange}>
-                    <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.12)] text-[#F1F0EE] h-8 text-xs px-2 font-mono justify-between hover:border-[rgba(255,255,255,0.25)] transition-colors focus:ring-1 focus:ring-[#10B981]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.15)] text-[#F1F0EE] max-h-40 min-w-[4.5rem] shadow-xl">
+                  <div className="relative">
+                    <select
+                      value={String(hour12)}
+                      onChange={(e) => handleHourChange(e.target.value)}
+                      className="w-full bg-[#0C0F0E] border border-[rgba(255,255,255,0.12)] text-[#F1F0EE] h-8 text-xs pl-2 pr-6 font-mono rounded-md appearance-none hover:border-[rgba(255,255,255,0.25)] focus:outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-colors cursor-pointer"
+                    >
                       {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                        <SelectItem key={h} value={String(h)} className="text-xs font-mono cursor-pointer focus:bg-[#10B981]/20 focus:text-[#34D399]">
+                        <option key={h} value={String(h)} className="bg-[#1A2120] text-[#F1F0EE] font-mono">
                           {String(h).padStart(2, "0")}
-                        </SelectItem>
+                        </option>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </select>
+                    <ChevronDown className="w-3 h-3 text-[#8A8A98] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
                 {/* Minute */}
@@ -236,18 +237,20 @@ export function DateTimePicker({
                   <span className="text-[10px] font-medium text-[#8A8A98] block text-center uppercase tracking-wide">
                     Min
                   </span>
-                  <Select value={String(minute)} onValueChange={handleMinuteChange}>
-                    <SelectTrigger className="bg-[#0C0F0E] border-[rgba(255,255,255,0.12)] text-[#F1F0EE] h-8 text-xs px-2 font-mono justify-between hover:border-[rgba(255,255,255,0.25)] transition-colors focus:ring-1 focus:ring-[#10B981]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.15)] text-[#F1F0EE] max-h-40 min-w-[4.5rem] shadow-xl">
+                  <div className="relative">
+                    <select
+                      value={String(minute)}
+                      onChange={(e) => handleMinuteChange(e.target.value)}
+                      className="w-full bg-[#0C0F0E] border border-[rgba(255,255,255,0.12)] text-[#F1F0EE] h-8 text-xs pl-2 pr-6 font-mono rounded-md appearance-none hover:border-[rgba(255,255,255,0.25)] focus:outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-colors cursor-pointer"
+                    >
                       {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
-                        <SelectItem key={m} value={String(m)} className="text-xs font-mono cursor-pointer focus:bg-[#10B981]/20 focus:text-[#34D399]">
+                        <option key={m} value={String(m)} className="bg-[#1A2120] text-[#F1F0EE] font-mono">
                           {String(m).padStart(2, "0")}
-                        </SelectItem>
+                        </option>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </select>
+                    <ChevronDown className="w-3 h-3 text-[#8A8A98] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
                 {/* AM/PM Toggle */}

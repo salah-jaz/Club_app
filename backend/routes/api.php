@@ -28,6 +28,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Session / Info
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::get('/profile', [AuthController::class, 'me']);
+    Route::match(['post', 'put', 'patch'], '/profile', [AuthController::class, 'updateProfile']);
     
     // Settings constants
     Route::post('/settings', [SettingController::class, 'update']);

@@ -218,7 +218,7 @@ function buildMemberBulkTemplate(adultGradesIn: string[], juniorGradesIn: string
     {
       label: "NOTES",
       value:
-        "member_type must be adult or junior; grade must match that type; membership/training_eligible are true/false; status is active, disabled, pending, or rejected. Assign league players in Groups. Delete the REFERENCE section before uploading.",
+        "member_type must be adult or junior; grade must match that type; membership/training_eligible are true/false; status is active, disabled, pending, or rejected. Assign players in Groups. Delete the REFERENCE section before uploading.",
     },
   ];
 
@@ -877,7 +877,7 @@ function MembersList() {
     },
     {
       key: "league",
-      label: "League",
+      label: "Groups",
       options: [
         { value: "all", label: "Everyone" },
         { value: "league", label: "In Groups" },
@@ -1093,7 +1093,7 @@ function MembersList() {
     { id: "all", label: "All", apply: () => { clearFilters(); } },
     { id: "adult", label: "Adults", apply: () => setFilter("category", "adult") },
     { id: "junior", label: "Juniors", apply: () => setFilter("category", "junior") },
-    { id: "league", label: "League", apply: () => setFilter("league", "league") },
+    { id: "league", label: "In Groups", apply: () => setFilter("league", "league") },
     { id: "active", label: "Active", apply: () => setFilter("status", "active") },
   ];
 
@@ -1386,7 +1386,7 @@ function MembersList() {
       >
         <MemberStatCard label="Total" value={stats.total} hint="Registered members" icon={Users} index={0} />
         <MemberStatCard label="Adults" value={stats.adults} hint={`${stats.juniors} juniors`} icon={UserRound} index={1} />
-        <MemberStatCard label="League" value={stats.league} hint="In a group" icon={Trophy} index={2} />
+        <MemberStatCard label="In Groups" value={stats.league} hint="In a group" icon={Trophy} index={2} />
         <MemberStatCard label="Active" value={stats.active} hint="Currently active" icon={Users} index={3} />
       </motion.div>
 

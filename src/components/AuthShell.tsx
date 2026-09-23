@@ -3,6 +3,14 @@ import { useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 
+function toTitleCase(str: string): string {
+  if (!str) return "";
+  if (str === str.toUpperCase()) {
+    return str.replace(/\b([a-zA-Z])([a-zA-Z]*)/g, (_, first, rest) => first.toUpperCase() + rest.toLowerCase());
+  }
+  return str.replace(/\b([a-zA-Z])/g, (c) => c.toUpperCase());
+}
+
 export function AuthShell({
   title,
   subtitle,
@@ -16,6 +24,9 @@ export function AuthShell({
 }) {
   const appName = useStore((s) => s.appName);
   const appLogoBase64 = useStore((s) => s.appLogoBase64);
+  const portalEyebrow = useStore((s) => s.portalEyebrow) || "Private Member Portal";
+  const portalTitle = useStore((s) => s.portalTitle) || "Run your badminton club without the spreadsheet chaos.";
+  const portalDescription = useStore((s) => s.portalDescription) || "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.";
   const fetchSettings = useStore((s) => s.fetchSettings);
 
   useEffect(() => {
@@ -23,6 +34,8 @@ export function AuthShell({
   }, [fetchSettings]);
 
   const logoSrc = appLogoBase64 || "/logo.png";
+  const displayAppName = toTitleCase(appName);
+  const displayEyebrow = toTitleCase(portalEyebrow);
 
   return (
     <div className="min-h-dvh min-h-screen flex flex-col lg:grid lg:grid-cols-2 bg-background">
@@ -44,24 +57,24 @@ export function AuthShell({
         <Link to="/" className="auth-brand-logo-link relative z-10 flex items-center gap-3.5 xl:gap-4 shrink-0">
           <img
             src={logoSrc}
-            alt={appName}
+            alt={displayAppName}
             className="auth-brand-logo size-20 xl:size-24 rounded-xl object-contain p-1"
           />
           <span className="auth-brand-name text-lg xl:text-xl font-medium tracking-[0.12em] uppercase">
-            {appName}
+            {displayAppName}
           </span>
         </Link>
 
         <div className="relative z-10 flex flex-col gap-3.5 xl:gap-4 max-w-lg">
           <span className="auth-brand-eyebrow text-[10px] xl:text-[11px] font-medium tracking-[0.14em] uppercase block">
-            Private Member Portal
+            {displayEyebrow}
           </span>
           <h2 className="auth-brand-heading font-playfair font-normal leading-[1.25] text-3xl xl:text-4xl">
-            Run your badminton club without the spreadsheet chaos.
+            {portalTitle}
           </h2>
           <div className="signature-divider !w-20 xl:!w-24 shrink-0" />
           <p className="auth-brand-body text-sm xl:text-[15px] font-light leading-relaxed max-w-md">
-            Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.
+            {portalDescription}
           </p>
         </div>
       </div>
@@ -85,21 +98,21 @@ export function AuthShell({
           <Link to="/" className="auth-brand-logo-link flex flex-col items-center gap-2">
             <img
               src={logoSrc}
-              alt={appName}
+              alt={displayAppName}
               className="auth-brand-logo w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-contain p-1"
             />
             <span className="auth-brand-name text-sm sm:text-[15px] font-semibold tracking-[0.14em] uppercase">
-              {appName}
+              {displayAppName}
             </span>
           </Link>
           <span className="auth-brand-eyebrow text-[9px] sm:text-[10px] font-medium tracking-[0.14em] uppercase">
-            Private Member Portal
+            {displayEyebrow}
           </span>
           <h2 className="auth-brand-heading font-playfair font-normal leading-snug text-[1.25rem] sm:text-2xl max-w-[18rem] sm:max-w-xs">
-            Run your club without the spreadsheet chaos.
+            {portalTitle}
           </h2>
           <p className="auth-brand-body text-[12px] sm:text-[13px] font-light leading-relaxed max-w-[17rem] sm:max-w-sm">
-            Memberships, credits, courts, and training — in one place.
+            {portalDescription}
           </p>
         </div>
       </div>

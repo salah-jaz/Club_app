@@ -70,7 +70,7 @@
   --popover: #1A2120;
   --popover-foreground: #E8F0EE;
   --primary: #3B82F6;
-  --primary-foreground: #0C0F0E;
+  --primary-foreground: #FFFFFF;
   --secondary: #1A2120;
   --secondary-foreground: #8A9E98;
   --muted: #1A2120;
@@ -135,7 +135,7 @@
   --popover: #1A2120;
   --popover-foreground: #E8F0EE;
   --primary: #3B82F6;
-  --primary-foreground: #0C0F0E;
+  --primary-foreground: #FFFFFF;
   --secondary: #1A2120;
   --secondary-foreground: #8A9E98;
   --muted: #1A2120;
@@ -1144,6 +1144,7 @@ label:has(~ div select[required])::after {
 /* --- Emerald Theme (legacy green) --- */
 .theme-emerald {
   --primary: #10B981 !important;
+  --primary-foreground: #000000 !important;
   --accent-foreground: #10B981 !important;
   --ring: #10B981 !important;
   --sidebar-primary: #10B981 !important;
@@ -1162,6 +1163,7 @@ label:has(~ div select[required])::after {
 }
 .light.theme-emerald {
   --primary: #10B981 !important;
+  --primary-foreground: #FFFFFF !important;
   --accent-foreground: #10B981 !important;
   --ring: #10B981 !important;
   --sidebar-primary: #10B981 !important;
@@ -1179,9 +1181,21 @@ label:has(~ div select[required])::after {
   --success-color: #10B981 !important;
 }
 
+.theme-emerald [data-state="active"][class*="data-[state=active]:bg-primary"],
+.theme-emerald [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+.theme-emerald [data-state="active"][class*="data-[state=active]:bg-primary/15"],
+.theme-emerald [data-state="active"][class*="data-[state=active]:bg-[#10B981]/15"] {
+  background-color: var(--violet-dim) !important;
+  color: var(--primary) !important;
+}
+
 /* --- Sapphire Theme (Royal Blue) --- */
 .theme-sapphire {
   --primary: #3B82F6 !important;
+  --primary-foreground: #FFFFFF !important;
   --accent-foreground: #3B82F6 !important;
   --ring: #3B82F6 !important;
   --sidebar-primary: #3B82F6 !important;
@@ -1201,6 +1215,7 @@ label:has(~ div select[required])::after {
 }
 .light.theme-sapphire {
   --primary: #2563EB !important;
+  --primary-foreground: #FFFFFF !important;
   --accent-foreground: #2563EB !important;
   --ring: #2563EB !important;
   --sidebar-primary: #2563EB !important;
@@ -1223,6 +1238,16 @@ label:has(~ div select[required])::after {
 .theme-sapphire [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-sapphire [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
+}
+.theme-sapphire [data-state="active"][class*="data-[state=active]:bg-primary"],
+.theme-sapphire [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+.theme-sapphire [data-state="active"][class*="data-[state=active]:bg-primary/15"],
+.theme-sapphire [data-state="active"][class*="data-[state=active]:bg-[#10B981]/15"] {
+  background-color: var(--violet-dim) !important;
+  color: var(--primary) !important;
 }
 .theme-sapphire [class*="text-[#10B981]"],
 .theme-sapphire [class*="hover:text-[#10B981]"]:hover {
@@ -1309,6 +1334,7 @@ label:has(~ div select[required])::after {
 /* --- Ruby Theme (Royal Crimson) --- */
 .theme-ruby {
   --primary: #E11D48 !important;
+  --primary-foreground: #FFFFFF !important;
   --accent-foreground: #E11D48 !important;
   --ring: #E11D48 !important;
   --sidebar-primary: #E11D48 !important;
@@ -1328,6 +1354,7 @@ label:has(~ div select[required])::after {
 }
 .light.theme-ruby {
   --primary: #BE123C !important;
+  --primary-foreground: #FFFFFF !important;
   --accent-foreground: #BE123C !important;
   --ring: #BE123C !important;
   --sidebar-primary: #BE123C !important;
@@ -1350,6 +1377,16 @@ label:has(~ div select[required])::after {
 .theme-ruby [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-ruby [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
+}
+.theme-ruby [data-state="active"][class*="data-[state=active]:bg-primary"],
+.theme-ruby [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+.theme-ruby [data-state="active"][class*="data-[state=active]:bg-primary/15"],
+.theme-ruby [data-state="active"][class*="data-[state=active]:bg-[#10B981]/15"] {
+  background-color: var(--violet-dim) !important;
+  color: var(--primary) !important;
 }
 .theme-ruby [class*="text-[#10B981]"],
 .theme-ruby [class*="hover:text-[#10B981]"]:hover {
@@ -1436,6 +1473,7 @@ label:has(~ div select[required])::after {
 /* --- Amber Theme (Warm Amber) --- */
 .theme-amber {
   --primary: #F59E0B !important;
+  --primary-foreground: #000000 !important;
   --accent-foreground: #F59E0B !important;
   --ring: #F59E0B !important;
   --sidebar-primary: #F59E0B !important;
@@ -1455,6 +1493,7 @@ label:has(~ div select[required])::after {
 }
 .light.theme-amber {
   --primary: #D97706 !important;
+  --primary-foreground: #000000 !important;
   --accent-foreground: #D97706 !important;
   --ring: #D97706 !important;
   --sidebar-primary: #D97706 !important;
@@ -1477,6 +1516,16 @@ label:has(~ div select[required])::after {
 .theme-amber [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-amber [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
+}
+.theme-amber [data-state="active"][class*="data-[state=active]:bg-primary"],
+.theme-amber [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+.theme-amber [data-state="active"][class*="data-[state=active]:bg-primary/15"],
+.theme-amber [data-state="active"][class*="data-[state=active]:bg-[#10B981]/15"] {
+  background-color: var(--violet-dim) !important;
+  color: var(--primary) !important;
 }
 .theme-amber [class*="text-[#10B981]"],
 .theme-amber [class*="hover:text-[#10B981]"]:hover {
@@ -1563,6 +1612,7 @@ label:has(~ div select[required])::after {
 /* --- Amethyst Theme (Royal Purple) --- */
 .theme-amethyst {
   --primary: #8B5CF6 !important;
+  --primary-foreground: #FFFFFF !important;
   --accent-foreground: #8B5CF6 !important;
   --ring: #8B5CF6 !important;
   --sidebar-primary: #8B5CF6 !important;
@@ -1582,6 +1632,7 @@ label:has(~ div select[required])::after {
 }
 .light.theme-amethyst {
   --primary: #7C3AED !important;
+  --primary-foreground: #FFFFFF !important;
   --accent-foreground: #7C3AED !important;
   --ring: #7C3AED !important;
   --sidebar-primary: #7C3AED !important;
@@ -1604,6 +1655,16 @@ label:has(~ div select[required])::after {
 .theme-amethyst [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-amethyst [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
+}
+.theme-amethyst [data-state="active"][class*="data-[state=active]:bg-primary"],
+.theme-amethyst [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+.theme-amethyst [data-state="active"][class*="data-[state=active]:bg-primary/15"],
+.theme-amethyst [data-state="active"][class*="data-[state=active]:bg-[#10B981]/15"] {
+  background-color: var(--violet-dim) !important;
+  color: var(--primary) !important;
 }
 .theme-amethyst [class*="text-[#10B981]"],
 .theme-amethyst [class*="hover:text-[#10B981]"]:hover {
@@ -1693,6 +1754,16 @@ label:has(~ div select[required])::after {
 .theme-custom [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
 .theme-custom [class*="data-[selected-single=true]:bg-primary"] {
   background-color: var(--primary) !important;
+}
+.theme-custom [data-state="active"][class*="data-[state=active]:bg-primary"],
+.theme-custom [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+.theme-custom [data-state="active"][class*="data-[state=active]:bg-primary/15"],
+.theme-custom [data-state="active"][class*="data-[state=active]:bg-[#10B981]/15"] {
+  background-color: var(--violet-dim) !important;
+  color: var(--primary) !important;
 }
 .theme-custom [class*="text-[#10B981]"],
 .theme-custom [class*="hover:text-[#10B981]"]:hover {

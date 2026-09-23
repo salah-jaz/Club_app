@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
+import { useStore } from "@/lib/store";
 
 function NotFoundComponent() {
   return (
@@ -88,6 +89,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       {
+        rel: "icon",
+        href: "/logo.png",
+        type: "image/png",
+      },
+      {
         rel: "preconnect",
         href: "https://fonts.googleapis.com",
       },
@@ -124,6 +130,13 @@ function RootShell({ children }: { children: ReactNode }) {
             __html: `
               (function() {
                 try {
+                  var savedLogo = localStorage.getItem('clubapp-logo');
+                  if (savedLogo) {
+                    var iconLink = document.querySelector("link[rel~='icon']");
+                    if (iconLink) {
+                      iconLink.href = savedLogo;
+                    }
+                  }
                   var theme = localStorage.getItem('clubapp-theme');
                   if (theme === 'light') {
                     document.documentElement.classList.add('light');
@@ -204,12 +217,10 @@ function RootShell({ children }: { children: ReactNode }) {
                     root.style.setProperty('--gold', goldColor);
                     root.style.setProperty('--gold-dim', 'rgba(' + secR + ',' + secG + ',' + secB + ',' + (isLight ? 0.08 : 0.12) + ')');
                     
-                    root.style.setProperty('--success-bg', 'rgba(' + r + ',' + g + ',' + b + ',' + (isLight ? 0.08 : 0.1) + ')');
-                    root.style.setProperty('--success-border', 'rgba(' + r + ',' + g + ',' + b + ',' + (isLight ? 0.15 : 0.2) + ')');
+                    var isDarkText = (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
+                    root.style.setProperty('--primary-foreground', isDarkText ? '#000000' : '#FFFFFF');
                   } else {
-                    if (colorTheme !== 'sapphire') {
-                      document.documentElement.classList.add('theme-' + colorTheme);
-                    }
+                    document.documentElement.classList.add('theme-' + colorTheme);
                   }
                 } catch (e) {}
               })();
@@ -225,11 +236,50 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function DynamicFavicon() {
+  const appLogoBase64 = useStore((s) => s.appLogoBase64);
+  const appName = useStore((s) => s.appName);
+  const fetchSettings = useStore((s) => s.fetchSettings);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  useEffect(() => {
+    const iconUrl = appLogoBase64 || "/logo.png";
+    try {
+      localStorage.setItem("clubapp-logo", iconUrl);
+    } catch (e) {}
+
+    let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = iconUrl;
+    if (iconUrl.startsWith("data:image/svg+xml")) {
+      link.type = "image/svg+xml";
+    } else if (iconUrl.startsWith("data:image/png") || iconUrl.endsWith(".png")) {
+      link.type = "image/png";
+    } else if (iconUrl.startsWith("data:image/jpeg") || iconUrl.endsWith(".jpg") || iconUrl.endsWith(".jpeg")) {
+      link.type = "image/jpeg";
+    }
+
+    if (appName) {
+      document.title = `${appName} — Badminton Club Management`;
+    }
+  }, [appLogoBase64, appName]);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
+      <DynamicFavicon />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster position="top-right" richColors />

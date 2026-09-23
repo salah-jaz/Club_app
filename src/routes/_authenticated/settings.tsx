@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
@@ -148,6 +149,9 @@ function SettingsPage() {
   const [appName, setAppName] = useState(store.appName);
   const [appLogoText, setAppLogoText] = useState(store.appLogoText);
   const [appLogoBase64, setAppLogoBase64] = useState<string | null>(store.appLogoBase64);
+  const [portalEyebrow, setPortalEyebrow] = useState(store.portalEyebrow);
+  const [portalTitle, setPortalTitle] = useState(store.portalTitle);
+  const [portalDescription, setPortalDescription] = useState(store.portalDescription);
   const [currency, setCurrency] = useState(store.currency);
   const [timezone, setTimezone] = useState(resolveTimezone(store.timezone));
   const [skipCreditConsumption, setSkipCreditConsumption] = useState(store.skipCreditConsumption);
@@ -170,6 +174,12 @@ function SettingsPage() {
   useEffect(() => {
     setCurrency(store.currency);
   }, [store.currency]);
+
+  useEffect(() => {
+    setPortalEyebrow(store.portalEyebrow);
+    setPortalTitle(store.portalTitle);
+    setPortalDescription(store.portalDescription);
+  }, [store.portalEyebrow, store.portalTitle, store.portalDescription]);
   const [cancellationLockHours, setCancellationLockHours] = useState(store.cancellationLockHours);
   const [autoPublishRotation, setAutoPublishRotation] = useState(store.autoPublishRotation);
   const [adultDiscountPercent, setAdultDiscountPercent] = useState(store.adultDiscountPercent);
@@ -270,6 +280,10 @@ function SettingsPage() {
   const [address, setAddress] = useState(currentUser?.address || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingCredentials, setSavingCredentials] = useState(false);
+  const [savingMailSettings, setSavingMailSettings] = useState(false);
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [savingDiscounts, setSavingDiscounts] = useState(false);
 
   const [localTheme, setLocalTheme] = useState<"dark" | "light">(() => {
     if (typeof window !== "undefined") {
@@ -363,9 +377,7 @@ function SettingsPage() {
       root.style.removeProperty('--success-bg');
       root.style.removeProperty('--success-border');
       
-      if (color !== "sapphire") {
-        document.documentElement.classList.add(`theme-${color}`);
-      }
+      document.documentElement.classList.add(`theme-${color}`);
     }
     
     window.dispatchEvent(new Event("clubapp-color-theme-changed"));
@@ -469,10 +481,12 @@ function SettingsPage() {
 
   const handleSaveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingCredentials) return;
     if (password && password !== confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
+    setSavingCredentials(true);
     try {
       await updateProfile({
         firstName,
@@ -489,11 +503,15 @@ function SettingsPage() {
       setConfirmPassword("");
     } catch (err: any) {
       toast.error(err.message || "Failed to save credentials");
+    } finally {
+      setSavingCredentials(false);
     }
   };
 
   const handleSaveMailSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingMailSettings) return;
+    setSavingMailSettings(true);
     try {
       await updateSettings({
         mailHost,
@@ -507,11 +525,14 @@ function SettingsPage() {
       toast.success("SMTP settings saved successfully");
     } catch (err: any) {
       toast.error(err.message || "Failed to save SMTP settings");
+    } finally {
+      setSavingMailSettings(false);
     }
   };
 
   const handleTestSmtp = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (testingSmtp) return;
     if (!mailHost || !mailPort || !mailFromAddress || !mailFromName) {
       toast.error("Please fill in SMTP Host, Port, From Name, and From Address first.");
       return;
@@ -555,6 +576,8 @@ function SettingsPage() {
 
   const handleSaveBranding = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingBranding) return;
+    setSavingBranding(true);
     try {
       await updateSettings({
         appName,
@@ -565,15 +588,22 @@ function SettingsPage() {
         skipCreditConsumption,
         cancellationLockHours,
         autoPublishRotation,
+        portalEyebrow,
+        portalTitle,
+        portalDescription,
       });
       toast.success("Branding settings saved successfully");
     } catch (err: any) {
       toast.error(err.message || "Failed to save branding");
+    } finally {
+      setSavingBranding(false);
     }
   };
 
   const handleSaveDiscounts = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingDiscounts) return;
+    setSavingDiscounts(true);
     try {
       await updateSettings({
         adultDiscountMode,
@@ -586,6 +616,8 @@ function SettingsPage() {
       toast.success("Discount settings saved successfully");
     } catch (err: any) {
       toast.error(err.message || "Failed to save discounts");
+    } finally {
+      setSavingDiscounts(false);
     }
   };
 
@@ -832,7 +864,7 @@ function SettingsPage() {
       p.name === posName ? { ...p, skipLeagueFee } : p,
     );
     setPlayerPositionItems(updated);
-    void saveUpdatedList({ playerPositionItems: updated }, "Position league fee setting updated");
+    void saveUpdatedList({ playerPositionItems: updated }, "Position group fee setting updated");
   };
 
   const handleDeletePlayerPosition = (pos: string) => {
@@ -842,14 +874,14 @@ function SettingsPage() {
     setDeleteRequest({
       title: "Delete player position",
       entityName: pos,
-      related: [{ label: usageCount === 1 ? "league group" : "league groups", count: usageCount }],
+      related: [{ label: usageCount === 1 ? "group" : "groups", count: usageCount }],
       warning:
         usageCount > 0
-          ? "Positions are protected by a foreign key (restrict). Clear this position from league members first."
+          ? "Positions are protected by a foreign key (restrict). Clear this position from group members first."
           : undefined,
       onConfirm: async () => {
         if (usageCount > 0) {
-          toast.error("Cannot delete position while league groups still use it.");
+          toast.error("Cannot delete position while groups still use it.");
           throw new Error("Position in use");
         }
         const updated = playerPositionItems.filter((p) => p.name !== pos);
@@ -1068,8 +1100,60 @@ function SettingsPage() {
                   </div>
                 </div>
 
+                <div className="border-t border-white/[0.03] pt-4 mt-4 space-y-4">
+                  <div>
+                    <h4 className="text-[11px] font-medium tracking-[0.1em] text-[#34D399] uppercase">
+                      Member Portal / Login Page Content
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground/70 font-light mt-0.5">
+                      Customize the branding hero headline and tagline shown to members on the login and registration portal.
+                    </p>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        Portal Tagline / Eyebrow
+                      </Label>
+                      <Input
+                        value={portalEyebrow}
+                        onChange={(e) => setPortalEyebrow(e.target.value)}
+                        placeholder="Private Member Portal"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                        Portal Hero Title
+                      </Label>
+                      <Input
+                        value={portalTitle}
+                        onChange={(e) => setPortalTitle(e.target.value)}
+                        placeholder="Run your badminton club without the spreadsheet chaos."
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Portal Hero Description
+                    </Label>
+                    <Textarea
+                      rows={2}
+                      value={portalDescription}
+                      onChange={(e) => setPortalDescription(e.target.value)}
+                      placeholder="Manage memberships, credits, court rotations, and training schedules in one premium, unified interface."
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg resize-none text-xs"
+                    />
+                  </div>
+                </div>
+
                 <div className="flex justify-end pt-2">
-                  <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                  <Button
+                    type="submit"
+                    disabled={savingBranding}
+                    loading={savingBranding}
+                    className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                  >
                     Save Branding
                   </Button>
                 </div>
@@ -1188,7 +1272,12 @@ function SettingsPage() {
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
-                  <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                  <Button
+                    type="submit"
+                    disabled={savingDiscounts}
+                    loading={savingDiscounts}
+                    className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                  >
                     Save Discounts
                   </Button>
                 </div>
@@ -1321,7 +1410,12 @@ function SettingsPage() {
               </div>
 
               <div className="flex justify-end pt-2">
-                <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                <Button
+                  type="submit"
+                  disabled={savingCredentials}
+                  loading={savingCredentials}
+                  className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                >
                   Save Credentials
                 </Button>
               </div>
@@ -1524,12 +1618,18 @@ function SettingsPage() {
                     <Button
                       type="button"
                       onClick={handleTestSmtp}
-                      disabled={testingSmtp}
+                      disabled={testingSmtp || savingMailSettings}
+                      loading={testingSmtp}
                       className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer disabled:opacity-50"
                     >
                       {testingSmtp ? "Testing..." : "Test Connection"}
                     </Button>
-                    <Button type="submit" className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer">
+                    <Button
+                      type="submit"
+                      disabled={savingMailSettings || testingSmtp}
+                      loading={savingMailSettings}
+                      className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                    >
                       Save SMTP Settings
                     </Button>
                   </div>
@@ -1864,8 +1964,8 @@ function SettingsPage() {
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
                 <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
-                  Enable <span className="text-[#EEF2F0]">Skip league fee</span> so members with that
-                  position are not charged for league match schedules.
+                  Enable <span className="text-[#EEF2F0]">Skip group fee</span> so members with that
+                  position are not charged for group match schedules.
                 </p>
                 <div className="flex gap-2 mb-4">
                   <Input
@@ -1912,7 +2012,7 @@ function SettingsPage() {
                               htmlFor={`skip-league-${pos.name}`}
                               className="text-[10px] text-[#8A8A98] font-normal cursor-pointer"
                             >
-                              Skip league fee
+                              Skip group fee
                             </Label>
                             <Switch
                               id={`skip-league-${pos.name}`}
