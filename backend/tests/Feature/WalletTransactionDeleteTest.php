@@ -132,13 +132,11 @@ class WalletTransactionDeleteTest extends TestCase
         $this->assertDatabaseMissing('transactions', ['credit_request_id' => $crId]);
     }
 
-    public function test_delete_and_reverse_transaction_from_transactions_ledger()
+    public function test_transactions_ledger_rejects_delete_for_non_expense()
     {
-        // Member starting balance = $100
         $this->member->credit = 100.00;
         $this->member->save();
 
-        // Create debit -$30
         $response = $this->actingAs($this->admin)->postJson('/api/credit-requests', [
             'memberId' => $this->member->id,
             'amount' => 30.00,
@@ -151,16 +149,39 @@ class WalletTransactionDeleteTest extends TestCase
         $crId = $response->json('id');
         $txn = Transaction::where('credit_request_id', $crId)->firstOrFail();
 
+        $delResponse = $this->actingAs($this->admin)->deleteJson("/api/transactions/{$txn->id}");
+        $delResponse->assertStatus(403);
+        $delResponse->assertJson([
+            'message' => 'Only expense transactions can be deleted.',
+        ]);
+
         $this->member->refresh();
         $this->assertEquals(70.00, (float) $this->member->credit);
+        $this->assertDatabaseHas('transactions', ['id' => $txn->id]);
+        $this->assertDatabaseHas('credit_requests', ['id' => $crId]);
+    }
 
-        // Delete via transactions route
+    public function test_transactions_ledger_allows_delete_for_expense()
+    {
+        $initialCredit = (float) $this->member->credit;
+
+        $response = $this->actingAs($this->admin)->postJson('/api/credit-requests', [
+            'amount' => 50.00,
+            'date' => now()->toDateString(),
+            'type' => 'expense',
+            'reason' => '[Equipment] Purchased 2 new badminton nets',
+        ]);
+
+        $response->assertStatus(201);
+        $crId = $response->json('id');
+        $txn = Transaction::where('credit_request_id', $crId)->firstOrFail();
+        $this->assertEquals('expense', $txn->type);
+
         $delResponse = $this->actingAs($this->admin)->deleteJson("/api/transactions/{$txn->id}");
         $delResponse->assertStatus(200);
 
-        // Verify balance reversed back to $100, and both transaction and credit_request deleted
         $this->member->refresh();
-        $this->assertEquals(100.00, (float) $this->member->credit);
+        $this->assertEquals($initialCredit, (float) $this->member->credit);
         $this->assertDatabaseMissing('transactions', ['id' => $txn->id]);
         $this->assertDatabaseMissing('credit_requests', ['id' => $crId]);
     }

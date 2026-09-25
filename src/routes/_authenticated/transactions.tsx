@@ -697,19 +697,6 @@ function Txns() {
                         {fmtMoney(t.amount)}
                       </span>
                     </div>
-
-                    {isAdmin && (
-                      <div className="flex items-center justify-end pt-2 border-t border-white/[0.04]">
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(t)}
-                          className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded-lg cursor-pointer transition-all"
-                          title="Delete transaction"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    )}
                   </motion.div>
                 );
               })
@@ -726,15 +713,12 @@ function Txns() {
                   <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Description</TableHead>
                   <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Type</TableHead>
                   <TableHead className="type-table-head py-3.5 px-4 sm:px-6 text-right">Amount</TableHead>
-                  {isAdmin && (
-                    <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Actions</TableHead>
-                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredTxns.length === 0 ? (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={isAdmin ? 6 : 5} className="p-0">
+                    <TableCell colSpan={5} className="p-0">
                       <EmptyIllustration
                         icon="wallet"
                         title={hasActiveFilters ? "No transactions found" : "No transactions recorded"}
@@ -815,18 +799,6 @@ function Txns() {
                           {isInflow ? "+" : "−"}
                           {fmtMoney(t.amount)}
                         </TableCell>
-                        {isAdmin && (
-                          <TableCell className="py-3 px-6">
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(t)}
-                              className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded cursor-pointer transition-all"
-                              title="Delete transaction"
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
-                          </TableCell>
-                        )}
                       </motion.tr>
                     );
                   })
@@ -902,7 +874,17 @@ function Txns() {
               </div>
             );
           })()}
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:justify-between">
+            {isAdmin && selectedTxnDetail && txnDisplayType(selectedTxnDetail) === "expense" && (
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(selectedTxnDetail)}
+                className="p-1.5 text-[#8A8A98] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded cursor-pointer transition-all mr-auto"
+                title="Delete transaction"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -941,6 +923,7 @@ function Txns() {
                   await s.deleteTransaction(deleteTarget.id);
                   toast.success("Wallet transaction deleted and reversed successfully");
                   setDeleteTarget(null);
+                  setSelectedTxnDetail(null);
                 } catch (error: any) {
                   toast.error(error.message || "Failed to delete transaction.");
                 } finally {

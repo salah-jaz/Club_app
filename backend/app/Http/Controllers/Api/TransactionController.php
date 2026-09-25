@@ -37,6 +37,15 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Only admins can delete transactions.'], 403);
         }
 
+        $txn = Transaction::findOrFail($id);
+
+        // Only expense ledger entries may be deleted from the transactions module.
+        if ($txn->resolvedType() !== 'expense') {
+            return response()->json([
+                'message' => 'Only expense transactions can be deleted.',
+            ], 403);
+        }
+
         return DB::transaction(function () use ($id) {
             $txn = Transaction::findOrFail($id);
 
