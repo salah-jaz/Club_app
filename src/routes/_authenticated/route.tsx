@@ -10,7 +10,6 @@ import { useState, useEffect, useRef } from "react";
 import { Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MotionWrapper } from "@/components/MotionWrapper";
-import { ModuleLoadingSpinner } from "@/components/ModuleLoadingSpinner";
 import { formatClockTime } from "@/lib/timezones";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -280,17 +279,12 @@ function Layout() {
             tabIndex={-1}
             className="flex-1 w-full min-w-0 px-3 py-4 sm:px-6 sm:py-6 lg:px-8 pb-24 md:pb-6 outline-none"
           >
-            <AnimatePresence mode="wait">
-              {isNavigating ? (
-                <MotionWrapper key="page-loading">
-                  <ModuleLoadingSpinner />
-                </MotionWrapper>
-              ) : (
-                <MotionWrapper key={pathname}>
-                  <Outlet />
-                </MotionWrapper>
-              )}
-            </AnimatePresence>
+            {/* Always keep Outlet mounted. Replacing it while the router is
+                pending prevents lazy route modules from resolving and leaves
+                the page stuck on "Preparing page content". */}
+            <MotionWrapper key={pathname}>
+              <Outlet />
+            </MotionWrapper>
           </main>
         </SidebarInset>
 
