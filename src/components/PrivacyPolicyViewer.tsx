@@ -6,10 +6,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import privacyPolicyPdfUrl from "@/assets/privacy-policy.pdf?url";
+import { GoogleDocsEmbed } from "@/components/GoogleDocsEmbed";
 
-/** Bundled Club Privacy Policy PDF — served as a static asset, not an app route. */
-export const PRIVACY_POLICY_PDF_URL = privacyPolicyPdfUrl;
+/** Live Google Doc — always fetched from source, never stored locally. */
+export const PRIVACY_POLICY_URL =
+  "https://docs.google.com/document/d/1rwBQEUZle6zhx_Bx1dNFhBovVF9Ju7UurmUOUWbMOxU/edit";
 
 type Props = {
   open: boolean;
@@ -29,15 +30,11 @@ export function PrivacyPolicyViewer({ open, onOpenChange }: Props) {
             AeroShuttle Badminton Club – Privacy Policy
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 min-h-0 bg-[#0c100e]">
-          {open && (
-            <iframe
-              title="Privacy Policy PDF"
-              src={`${PRIVACY_POLICY_PDF_URL}#toolbar=1&navpanes=0`}
-              className="w-full h-full border-0"
-            />
-          )}
-        </div>
+        <GoogleDocsEmbed
+          title="Privacy Policy"
+          url={PRIVACY_POLICY_URL}
+          active={open}
+        />
       </DialogContent>
     </Dialog>
   );
