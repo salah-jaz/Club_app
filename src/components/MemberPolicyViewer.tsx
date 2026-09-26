@@ -6,10 +6,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import memberPolicyPdfUrl from "@/assets/member-policy.pdf?url";
+import { GoogleDocsEmbed } from "@/components/GoogleDocsEmbed";
 
-/** Bundled AeroShuttle member policy PDF — served as a static asset, not an app route. */
-export const MEMBER_POLICY_PDF_URL = memberPolicyPdfUrl;
+/**
+ * Live Google Doc — always fetched from source, never stored locally.
+ * Share/edit links are converted to an embeddable HTML view
+ * (Google blocks /edit pages from being framed).
+ */
+export const MEMBER_POLICY_URL =
+  "https://docs.google.com/document/d/14CVdnZgj97cX3JadjfeyU0U5Tbey_CKkTofJzPYChU8/edit";
 
 type Props = {
   open: boolean;
@@ -29,15 +34,11 @@ export function MemberPolicyViewer({ open, onOpenChange }: Props) {
             AeroShuttle Badminton Club – Policy for Club Members Charges
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 min-h-0 bg-[#0c100e]">
-          {open && (
-            <iframe
-              title="Member Policy PDF"
-              src={`${MEMBER_POLICY_PDF_URL}#toolbar=1&navpanes=0`}
-              className="w-full h-full border-0"
-            />
-          )}
-        </div>
+        <GoogleDocsEmbed
+          title="Member Policy"
+          url={MEMBER_POLICY_URL}
+          active={open}
+        />
       </DialogContent>
     </Dialog>
   );
