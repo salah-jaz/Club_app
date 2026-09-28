@@ -170,19 +170,19 @@ export function DateTimePicker({
       <PopoverContent
         align="start"
         sideOffset={6}
-        className="w-auto p-3 bg-[#131916] border-[rgba(255,255,255,0.12)] text-[#F1F0EE] shadow-2xl rounded-xl max-w-[95vw] sm:max-w-none"
+        className="w-auto p-3 bg-popover text-popover-foreground border border-border shadow-2xl rounded-xl max-w-[95vw] sm:max-w-none opacity-100"
       >
         {/* Compact Header Summary Bar */}
-        <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-[rgba(255,255,255,0.06)] px-1">
+        <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-border px-1">
           <div className="flex items-center gap-2">
-            <CalendarIcon className="w-3.5 h-3.5 text-[#34D399]" />
-            <span className="text-xs font-medium text-[#F1F0EE]">
+            <CalendarIcon className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-semibold text-foreground">
               {selectedDate ? format(selectedDate, "EEE, d MMM yyyy") : "Select Date"}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 bg-[#1A2120] px-2 py-0.5 rounded-md border border-[rgba(255,255,255,0.08)]">
-            <Clock className="w-3 h-3 text-[#34D399]" />
-            <span className="text-xs font-mono font-bold text-[#34D399]">
+          <div className="flex items-center gap-1.5 bg-muted px-2 py-0.5 rounded-md border border-border">
+            <Clock className="w-3 h-3 text-primary" />
+            <span className="text-xs font-mono font-bold text-primary">
               {String(hour12).padStart(2, "0")}:{String(minute).padStart(2, "0")} {ampm}
             </span>
           </div>
@@ -191,82 +191,82 @@ export function DateTimePicker({
         {/* Dual-Pane Layout: Calendar (Left) & Time Controls (Right) */}
         <div className="flex flex-col sm:flex-row gap-3 items-stretch">
           {/* Calendar Pane */}
-          <div className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#1A2120] p-1 flex items-center justify-center">
+          <div className="rounded-lg border border-border bg-card p-1 flex items-center justify-center">
             <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
               disabled={minDate ? { before: startOfDay(minDate) } : undefined}
               initialFocus
-              className="p-1 text-[#F1F0EE] [--cell-size:1.75rem]"
+              className="p-1 bg-card text-foreground [--cell-size:1.75rem]"
             />
           </div>
 
           {/* Time & Presets Controls Pane */}
-          <div className="flex flex-col justify-between rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#1A2120] p-3 sm:w-[220px] space-y-3">
+          <div className="flex flex-col justify-between rounded-lg border border-border bg-card p-3 sm:w-[220px] space-y-3">
             {/* Time Pickers */}
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-[#34D399] uppercase tracking-wider block">
+              <label className="text-[10px] font-bold text-primary uppercase tracking-wider block">
                 Time (12-Hour)
               </label>
 
               <div className="grid grid-cols-3 gap-1.5">
                 {/* Hour */}
                 <div className="space-y-1">
-                  <span className="text-[10px] font-medium text-[#8A8A98] block text-center uppercase tracking-wide">
+                  <span className="text-[10px] font-semibold text-muted-foreground block text-center uppercase tracking-wide">
                     Hour
                   </span>
                   <div className="relative">
                     <select
                       value={String(hour12)}
                       onChange={(e) => handleHourChange(e.target.value)}
-                      className="w-full bg-[#0C0F0E] border border-[rgba(255,255,255,0.12)] text-[#F1F0EE] h-8 text-xs pl-2 pr-6 font-mono rounded-md appearance-none hover:border-[rgba(255,255,255,0.25)] focus:outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-colors cursor-pointer"
+                      className="w-full bg-background border border-border text-foreground h-8 text-xs pl-2 pr-6 font-mono rounded-md appearance-none hover:border-ring focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer"
                     >
                       {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                        <option key={h} value={String(h)} className="bg-[#1A2120] text-[#F1F0EE] font-mono">
+                        <option key={h} value={String(h)} className="bg-popover text-foreground font-mono">
                           {String(h).padStart(2, "0")}
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="w-3 h-3 text-[#8A8A98] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <ChevronDown className="w-3 h-3 text-muted-foreground absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
                 </div>
 
                 {/* Minute */}
                 <div className="space-y-1">
-                  <span className="text-[10px] font-medium text-[#8A8A98] block text-center uppercase tracking-wide">
+                  <span className="text-[10px] font-semibold text-muted-foreground block text-center uppercase tracking-wide">
                     Min
                   </span>
                   <div className="relative">
                     <select
                       value={String(minute)}
                       onChange={(e) => handleMinuteChange(e.target.value)}
-                      className="w-full bg-[#0C0F0E] border border-[rgba(255,255,255,0.12)] text-[#F1F0EE] h-8 text-xs pl-2 pr-6 font-mono rounded-md appearance-none hover:border-[rgba(255,255,255,0.25)] focus:outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-colors cursor-pointer"
+                      className="w-full bg-background border border-border text-foreground h-8 text-xs pl-2 pr-6 font-mono rounded-md appearance-none hover:border-ring focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer"
                     >
                       {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
-                        <option key={m} value={String(m)} className="bg-[#1A2120] text-[#F1F0EE] font-mono">
+                        <option key={m} value={String(m)} className="bg-popover text-foreground font-mono">
                           {String(m).padStart(2, "0")}
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="w-3 h-3 text-[#8A8A98] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <ChevronDown className="w-3 h-3 text-muted-foreground absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
                 </div>
 
                 {/* AM/PM Toggle */}
                 <div className="space-y-1">
-                  <span className="text-[10px] font-medium text-[#8A8A98] block text-center uppercase tracking-wide">
+                  <span className="text-[10px] font-semibold text-muted-foreground block text-center uppercase tracking-wide">
                     Period
                   </span>
-                  <div className="grid grid-cols-2 p-0.5 bg-[#0C0F0E] border border-[rgba(255,255,255,0.12)] rounded-md h-8 items-center">
+                  <div className="grid grid-cols-2 p-0.5 bg-background border border-border rounded-md h-8 items-center">
                     <button
                       type="button"
                       onClick={() => handleAmPmChange("AM")}
                       className={cn(
                         "h-full text-[10px] font-bold rounded transition-all cursor-pointer flex items-center justify-center",
                         ampm === "AM"
-                          ? "bg-[#10B981] text-[#0C0F0E] shadow-sm"
-                          : "text-[#8A8A98] hover:text-[#F1F0EE]",
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                     >
                       AM
@@ -277,8 +277,8 @@ export function DateTimePicker({
                       className={cn(
                         "h-full text-[10px] font-bold rounded transition-all cursor-pointer flex items-center justify-center",
                         ampm === "PM"
-                          ? "bg-[#10B981] text-[#0C0F0E] shadow-sm"
-                          : "text-[#8A8A98] hover:text-[#F1F0EE]",
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                     >
                       PM
@@ -290,7 +290,7 @@ export function DateTimePicker({
 
             {/* Quick Presets */}
             <div className="space-y-1.5">
-              <span className="text-[10px] font-semibold text-[#8A8A98] uppercase tracking-wider block">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
                 Quick Presets
               </span>
               <div className="grid grid-cols-2 gap-1.5">
@@ -302,8 +302,8 @@ export function DateTimePicker({
                     className={cn(
                       "py-1 px-1.5 text-[10px] rounded-md border transition-all cursor-pointer font-mono text-center truncate font-medium",
                       hour12 === preset.h && minute === preset.m && ampm === preset.p
-                        ? "border-[#10B981] bg-[#10B981]/20 text-[#34D399] font-bold shadow-xs"
-                        : "border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] text-[#8A8A98] hover:border-[rgba(255,255,255,0.2)] hover:text-[#F1F0EE]",
+                        ? "border-primary bg-primary/15 text-primary font-bold shadow-xs"
+                        : "border-border bg-background text-foreground/80 hover:border-ring hover:text-foreground",
                     )}
                   >
                     {preset.label}
@@ -317,7 +317,7 @@ export function DateTimePicker({
               type="button"
               size="sm"
               onClick={() => setOpen(false)}
-              className="w-full h-8 text-xs font-bold bg-[#10B981] hover:bg-[#059669] text-[#0C0F0E] cursor-pointer mt-auto rounded-md shadow-xs active:scale-[0.98] transition-all"
+              className="w-full h-8 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer mt-auto rounded-md shadow-xs active:scale-[0.98] transition-all"
             >
               Done
             </Button>

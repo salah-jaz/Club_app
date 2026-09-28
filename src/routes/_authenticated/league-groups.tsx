@@ -1,6 +1,6 @@
 import { useCan } from "@/lib/permissions";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -435,6 +435,8 @@ function AdminLeagueGroupsView() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -503,6 +505,7 @@ function AdminLeagueGroupsView() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingRef.current) return;
     if (!name.trim()) {
       toast.error("Group name is required");
       return;
@@ -513,6 +516,8 @@ function AdminLeagueGroupsView() {
       positionsForSelected[id] = memberPositions[id] || null;
     });
 
+    isSavingRef.current = true;
+    setIsSaving(true);
     try {
       if (isCreating) {
         await store.createLeagueGroup({
@@ -536,6 +541,9 @@ function AdminLeagueGroupsView() {
       setMemberSearch("");
     } catch (error: any) {
       toast.error(error.message || "Failed to save group");
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -735,11 +743,21 @@ function AdminLeagueGroupsView() {
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row gap-2 justify-end">
-                <Button type="button" variant="outline" onClick={handleCancel} className="btn-premium-outline h-10 px-4 cursor-pointer w-full sm:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  className="btn-premium-outline h-10 px-4 cursor-pointer w-full sm:w-auto"
+                >
                   <X className="size-4 mr-1.5" /> Cancel
                 </Button>
-                <Button type="submit" className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer w-full sm:w-auto">
-                  <Save className="size-4 mr-1.5" /> Save Group
+                <Button
+                  type="submit"
+                  disabled={isSaving}
+                  className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer w-full sm:w-auto"
+                >
+                  <Save className="size-4 mr-1.5" /> {isSaving ? "Saving…" : "Save Group"}
                 </Button>
               </div>
             </form>
