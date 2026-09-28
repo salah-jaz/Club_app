@@ -30,9 +30,9 @@ function EditMember() {
       <PageHeader
         title={isAdmin ? `Edit ${member.firstName}` : `Edit family member`}
         description={
-          isAdmin
-            ? "Update member details. Juniors can be linked under a parent adult."
-            : "Update this junior’s club profile."
+          isJunior
+            ? "Update this junior’s club profile."
+            : "Update this adult’s club profile."
         }
         backTo="/members"
       />

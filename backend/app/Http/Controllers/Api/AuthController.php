@@ -56,6 +56,11 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        // Reclaim emails left behind by permanently deleted members (orphaned logins)
+        if ($request->filled('email')) {
+            User::releaseOrphanedMemberEmail((string) $request->email);
+        }
+
         $request->validate([
             'firstName' => 'required|string|max:255',
             'lastName' => 'required|string|max:255',

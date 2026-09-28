@@ -42,9 +42,16 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    const errorMsg = (data && typeof data === "object" && "message" in data)
-      ? (data.message as string)
-      : response.statusText || "Something went wrong";
+    let errorMsg = response.statusText || "Something went wrong";
+    if (data && typeof data === "object") {
+      const errors = "errors" in data ? (data as { errors?: Record<string, string[]> }).errors : undefined;
+      const firstFieldErrors = errors ? Object.values(errors)[0] : undefined;
+      if (Array.isArray(firstFieldErrors) && typeof firstFieldErrors[0] === "string" && firstFieldErrors[0]) {
+        errorMsg = firstFieldErrors[0];
+      } else if ("message" in data && typeof (data as { message?: unknown }).message === "string") {
+        errorMsg = (data as { message: string }).message;
+      }
+    }
     throw new Error(errorMsg);
   }
 

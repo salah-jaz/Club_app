@@ -15,6 +15,7 @@ import {
   Inbox,
   Settings,
   UserCog,
+  FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCurrentUser, useStore } from "@/lib/store";
@@ -26,6 +27,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { MemberPolicyViewer } from "@/components/MemberPolicyViewer";
 
 export function MobileBottomNav() {
   const user = useCurrentUser();
@@ -39,6 +41,7 @@ export function MobileBottomNav() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   const [moreOpen, setMoreOpen] = useState(false);
+  const [policyOpen, setPolicyOpen] = useState(false);
 
   if (!user) return null;
 
@@ -307,6 +310,24 @@ export function MobileBottomNav() {
                   </div>
                   <ChevronRight className={`size-4 opacity-60 ${pathname.startsWith("/profile") ? "text-primary" : "text-muted-foreground"}`} />
                 </button>
+                {isMember && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setPolicyOpen(true);
+                    }}
+                    className="flex items-center justify-between w-full p-3 rounded-xl text-left cursor-pointer transition-all hover:bg-accent/60 text-foreground"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-muted text-muted-foreground">
+                        <FileText className="size-5" />
+                      </div>
+                      <span className="text-sm font-medium">Member Policy</span>
+                    </div>
+                    <ChevronRight className="size-4 opacity-60 text-muted-foreground" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -331,6 +352,9 @@ export function MobileBottomNav() {
           </div>
         </SheetContent>
       </Sheet>
+      {isMember && (
+        <MemberPolicyViewer open={policyOpen} onOpenChange={setPolicyOpen} />
+      )}
     </>
   );
 }
