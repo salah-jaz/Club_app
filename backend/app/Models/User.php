@@ -86,4 +86,38 @@ class User extends Authenticatable
     {
         return $this->hasMany(Member::class);
     }
+
+    /**
+     * Permanently remove a member login account that no longer has any member profiles,
+     * freeing its email for re-registration. Pending/rejected signups keep the email.
+     */
+    public function releaseIfOrphanedMemberAccount(): void
+    {
+        if ($this->role !== 'member') {
+            return;
+        }
+
+        if ($this->members()->exists()) {
+            return;
+        }
+
+        // Registration requests (awaiting approval or rejected) still occupy the email
+        // until an admin handles them separately.
+        if (in_array($this->status, ['created', 'rejected'], true)) {
+            return;
+        }
+
+        $this->tokens()->delete();
+        $this->delete();
+    }
+
+    /**
+     * Free an email held only by an orphaned member login (no remaining member rows).
+     * Safe to call before unique-email validation on sign-up / member create.
+     */
+    public static function releaseOrphanedMemberEmail(string $email): void
+    {
+        $user = static::where('email', $email)->where('role', 'member')->first();
+        $user?->releaseIfOrphanedMemberAccount();
+    }
 }

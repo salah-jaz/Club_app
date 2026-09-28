@@ -23,6 +23,11 @@ class Member extends Model
             TrainingInvitation::where('member_id', $member->id)->delete();
             TrainingDate::where('member_id', $member->id)->delete();
             TrainingUpdateRequest::where('member_id', $member->id)->delete();
+
+            // Free the login email when this was the last member on the account
+            if ($member->user_id) {
+                User::find($member->user_id)?->releaseIfOrphanedMemberAccount();
+            }
         });
     }
 

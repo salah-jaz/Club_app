@@ -85,6 +85,10 @@ class MemberController extends Controller
         $biMemberId = $biMemberId !== '' ? $biMemberId : null;
 
         if ($createLogin) {
+            if ($request->filled('email')) {
+                User::releaseOrphanedMemberEmail((string) $request->email);
+            }
+
             $request->validate(array_merge($memberRules, [
                 'password' => 'required|string|min:6',
                 'mobile' => 'required|string|max:20',
@@ -517,7 +521,10 @@ class MemberController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        $member->delete();
+        DB::transaction(function () use ($member) {
+            // Member::deleted frees the linked login when no members remain on that account
+            $member->delete();
+        });
 
         return response()->json(['message' => 'Member deleted successfully.']);
     }

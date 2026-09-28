@@ -102,10 +102,19 @@ export function MemberForm({
     try {
       let finalV = { ...v };
       if (v.memberType === "junior") {
+        // Family add: parent picker is hidden — use the logged-in adult automatically
+        if (familyMemberMode && !finalV.parentMemberId) {
+          finalV.parentMemberId =
+            members.find(
+              (m) =>
+                m.userId === (finalV.userId || currentUser?.id) &&
+                m.memberType.toLowerCase() === "adult",
+            )?.id || null;
+        }
         // Use selected parent's email — never the member's own previous adult login email
         finalV.email = getParentEmail() || finalV.email;
         finalV.password = "";
-        if (!finalV.parentMemberId) {
+        if (!familyMemberMode && !finalV.parentMemberId) {
           toast.error("Select a parent adult when member type is Junior.");
           return;
         }
