@@ -9,6 +9,7 @@ use App\Models\TrainingDate;
 use App\Models\TrainingUpdateRequest;
 use App\Models\Holiday;
 use App\Models\Member;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Helpers\MailHelper;
 use App\Helpers\PermissionHelper;

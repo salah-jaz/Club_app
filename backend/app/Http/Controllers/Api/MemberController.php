@@ -522,7 +522,9 @@ class MemberController extends Controller
         }
 
         DB::transaction(function () use ($member) {
-            // Member::deleted frees the linked login when no members remain on that account
+            // Adult delete cascades to linked juniors via Member::deleting
+            // (ensures no orphaned juniors; FK alone would null parent_member_id).
+            // Member::deleted frees the linked login when no members remain on that account.
             $member->delete();
         });
 
@@ -548,8 +550,15 @@ class MemberController extends Controller
         $deleted = 0;
 
         DB::transaction(function () use ($ids, &$deleted) {
-            $members = Member::whereIn('id', $ids)->get();
+            // Prefer deleting adults first so cascade removes juniors in one pass
+            // and we do not double-count ids that were already cascade-deleted.
+            $members = Member::whereIn('id', $ids)
+                ->orderByRaw("CASE WHEN member_type = 'adult' THEN 0 ELSE 1 END")
+                ->get();
             foreach ($members as $member) {
+                if (!Member::whereKey($member->id)->exists()) {
+                    continue;
+                }
                 $member->delete();
                 $deleted++;
             }

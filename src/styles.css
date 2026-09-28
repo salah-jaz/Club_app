@@ -233,9 +233,13 @@
 .light .bg-\[\#1A2120\]\/40 { background-color: rgba(235, 239, 239, 0.40) !important; }
 .light .bg-\[\#1A2120\]\/50 { background-color: rgba(235, 239, 239, 0.50) !important; }
 .light .bg-\[\#1A2120\]\/80 { background-color: rgba(235, 239, 239, 0.80) !important; }
+/* Select dropdown panels (e.g. Real-time Email Preview) — keep light bg so remapped dark text stays readable */
+.light .bg-\[\#161C19\] { background-color: var(--popover) !important; }
 .light .border-\[rgba\(255\,255\,255\,0\.06\)\] { border-color: var(--border-subtle) !important; }
 .light .border-\[rgba\(255\,255\,255\,0\.04\)\] { border-color: rgba(12, 15, 14, 0.04) !important; }
 .light .border-\[rgba\(255\,255\,255\,0\.10\)\] { border-color: var(--border-medium) !important; }
+.light .border-\[rgba\(255\,255\,255\,0\.12\)\] { border-color: var(--border-medium) !important; }
+.light .border-\[rgba\(255\,255\,255\,0\.08\)\] { border-color: var(--border-subtle) !important; }
 .light .border-white\/5 { border-color: rgba(12, 15, 14, 0.06) !important; }
 .light .border-white\/\[0\.03\] { border-color: rgba(12, 15, 14, 0.03) !important; }
 .light .text-\[\#F1F0EE\] { color: var(--text-primary) !important; }
@@ -1236,8 +1240,9 @@ label:has(~ div select[required])::after {
 .theme-sapphire [class~="bg-[#10B981]"],
 .theme-sapphire [class~="hover:bg-[#10B981]"]:hover,
 .theme-sapphire [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
-.theme-sapphire [class*="data-[selected-single=true]:bg-primary"] {
+.theme-sapphire [data-selected-single="true"] {
   background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
 }
 .theme-sapphire [data-state="active"][class*="data-[state=active]:bg-primary"],
 .theme-sapphire [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
@@ -1375,8 +1380,9 @@ label:has(~ div select[required])::after {
 .theme-ruby [class~="bg-[#10B981]"],
 .theme-ruby [class~="hover:bg-[#10B981]"]:hover,
 .theme-ruby [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
-.theme-ruby [class*="data-[selected-single=true]:bg-primary"] {
+.theme-ruby [data-selected-single="true"] {
   background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
 }
 .theme-ruby [data-state="active"][class*="data-[state=active]:bg-primary"],
 .theme-ruby [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
@@ -1514,8 +1520,9 @@ label:has(~ div select[required])::after {
 .theme-amber [class~="bg-[#10B981]"],
 .theme-amber [class~="hover:bg-[#10B981]"]:hover,
 .theme-amber [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
-.theme-amber [class*="data-[selected-single=true]:bg-primary"] {
+.theme-amber [data-selected-single="true"] {
   background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
 }
 .theme-amber [data-state="active"][class*="data-[state=active]:bg-primary"],
 .theme-amber [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
@@ -1653,8 +1660,9 @@ label:has(~ div select[required])::after {
 .theme-amethyst [class~="bg-[#10B981]"],
 .theme-amethyst [class~="hover:bg-[#10B981]"]:hover,
 .theme-amethyst [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
-.theme-amethyst [class*="data-[selected-single=true]:bg-primary"] {
+.theme-amethyst [data-selected-single="true"] {
   background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
 }
 .theme-amethyst [data-state="active"][class*="data-[state=active]:bg-primary"],
 .theme-amethyst [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {
@@ -1752,8 +1760,9 @@ label:has(~ div select[required])::after {
 .theme-custom [class~="bg-[#10B981]"],
 .theme-custom [class~="hover:bg-[#10B981]"]:hover,
 .theme-custom [data-state="checked"][class*="data-[state=checked]:bg-[#10B981]"],
-.theme-custom [class*="data-[selected-single=true]:bg-primary"] {
+.theme-custom [data-selected-single="true"] {
   background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
 }
 .theme-custom [data-state="active"][class*="data-[state=active]:bg-primary"],
 .theme-custom [data-state="active"][class*="data-[state=active]:bg-[#10B981]"] {

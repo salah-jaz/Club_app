@@ -203,4 +203,56 @@ class DeletedMemberEmailReuseTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors(['email']);
     }
+
+    public function test_deleting_parent_adult_also_deletes_linked_juniors(): void
+    {
+        $email = 'parent_cascade_' . Str::random(6) . '@test.com';
+        [$user, $adult] = $this->makeAdultMember($email);
+
+        Grade::firstOrCreate(['name' => 'Beginner'], ['type' => 'junior']);
+
+        $juniorA = Member::create([
+            'id' => 'm_j_a_' . Str::random(6),
+            'user_id' => $user->id,
+            'parent_member_id' => $adult->id,
+            'first_name' => 'Kid',
+            'last_name' => 'One',
+            'dob' => '2015-01-01',
+            'email' => $email,
+            'sex' => 'male',
+            'member_type' => 'junior',
+            'membership' => false,
+            'training_eligible' => true,
+            'grade' => 'Beginner',
+            'status' => 'active',
+            'credit' => 0,
+        ]);
+
+        $juniorB = Member::create([
+            'id' => 'm_j_b_' . Str::random(6),
+            'user_id' => $user->id,
+            'parent_member_id' => $adult->id,
+            'first_name' => 'Kid',
+            'last_name' => 'Two',
+            'dob' => '2017-01-01',
+            'email' => $email,
+            'sex' => 'female',
+            'member_type' => 'junior',
+            'membership' => false,
+            'training_eligible' => true,
+            'grade' => 'Beginner',
+            'status' => 'active',
+            'credit' => 0,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->deleteJson("/api/members/{$adult->id}")
+            ->assertOk();
+
+        $this->assertDatabaseMissing('members', ['id' => $adult->id]);
+        $this->assertDatabaseMissing('members', ['id' => $juniorA->id]);
+        $this->assertDatabaseMissing('members', ['id' => $juniorB->id]);
+        $this->assertEquals(0, Member::where('parent_member_id', $adult->id)->count());
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+    }
 }

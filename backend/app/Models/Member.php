@@ -19,6 +19,14 @@ class Member extends Model
             InvitationSyncService::syncMemberInvitations($member);
         });
 
+        // Delete linked juniors before the parent row is removed.
+        // FK is nullOnDelete — without this cascade, juniors would be orphaned.
+        static::deleting(function (Member $member) {
+            $member->juniorMembers()->get()->each(function (Member $junior) {
+                $junior->delete();
+            });
+        });
+
         static::deleted(function (Member $member) {
             TrainingInvitation::where('member_id', $member->id)->delete();
             TrainingDate::where('member_id', $member->id)->delete();
