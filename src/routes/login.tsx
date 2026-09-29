@@ -36,6 +36,9 @@ function LoginPage() {
 
   const onLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setLoading(true);
     try {
       const u = await login(email, password);

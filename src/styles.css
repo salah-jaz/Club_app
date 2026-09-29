@@ -614,12 +614,11 @@ h2, h3 {
    ============================================================ */
 
 /* Base input — visible well, clear border, comfortable height */
-/* Base input — visible well, clear border, comfortable height */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
 textarea,
 select {
   font-family: var(--font-sans) !important;
-  font-size: 14px !important;
+  font-size: 16px !important; /* 16px baseline prevents iOS Safari input focus auto-zoom */
   font-weight: 400 !important;
   line-height: 1.5 !important;
   color: var(--input-text) !important;
@@ -631,6 +630,14 @@ select {
   transition: border-color 150ms ease, box-shadow 150ms ease !important;
 }
 
+@media screen and (min-width: 769px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  textarea,
+  select {
+    font-size: 14px !important;
+  }
+}
+
 /*
  * Compact SearchFilterBar controls.
  * Must match/exceed the global input:not(...) specificity, otherwise
@@ -639,16 +646,28 @@ select {
 input.search-filter-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) {
   min-height: 2rem !important;
   height: 2rem !important;
-  font-size: 12px !important;
+  font-size: 16px !important;
   /* left-3 (12px) + icon 14px + 12px gap ≈ 38px; clear btn room on the right */
   padding: 0 2.25rem 0 2.5rem !important;
+}
+
+@media screen and (min-width: 769px) {
+  input.search-filter-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) {
+    font-size: 12px !important;
+  }
 }
 
 input.search-filter-date:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) {
   min-height: 2rem !important;
   height: 2rem !important;
-  font-size: 12px !important;
+  font-size: 16px !important;
   padding: 0 0.625rem !important;
+}
+
+@media screen and (min-width: 769px) {
+  input.search-filter-date:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) {
+    font-size: 12px !important;
+  }
 }
 
 /* Custom premium styling for color pickers (selected color box instead of a line) */
@@ -1905,3 +1924,27 @@ button[role="switch"][data-state="checked"] {
 .light button[role="switch"][data-state="unchecked"] > span {
   background-color: #ffffff !important;
 }
+
+/* Prevent mobile browser (especially iOS Safari) input focus auto-zoom */
+@media screen and (max-width: 768px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"],
+  input[type="month"],
+  textarea,
+  select,
+  .auth-input,
+  .search-filter-input,
+  .search-filter-date {
+    font-size: 16px !important;
+  }
+}
+
