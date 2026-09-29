@@ -28,9 +28,13 @@ return [
         'http://127.0.0.1:8082',
         'http://localhost:5173',
         'http://127.0.0.1:5173',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
     ],
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^http://(127\.0\.0\.1|localhost|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+)(:\d+)?$#',
+    ],
 
     'allowed_headers' => ['*'],
 
@@ -41,3 +45,4 @@ return [
     'supports_credentials' => true,
 
 ];
+

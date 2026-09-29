@@ -28,6 +28,9 @@ function RegisterPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     if (!agreedToPrivacy) {
       toast.error("Please agree to the Club Privacy Policy to continue.");
       return;

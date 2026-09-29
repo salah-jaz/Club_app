@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -274,12 +275,36 @@ function DynamicFavicon() {
   return null;
 }
 
+function ViewportScaleManager() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    // Unfocus any active input/textarea to dismiss soft keyboard and release input focus zoom state
+    if (
+      document.activeElement &&
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement !== document.body
+    ) {
+      document.activeElement.blur();
+    }
+
+    // Reset visual viewport scale to 1.0 when navigating between routes (e.g. login -> dashboard)
+    const viewportMeta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (viewportMeta) {
+      viewportMeta.setAttribute("content", "width=device-width, initial-scale=1");
+    }
+  }, [pathname]);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
       <DynamicFavicon />
+      <ViewportScaleManager />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster position="top-right" richColors />
