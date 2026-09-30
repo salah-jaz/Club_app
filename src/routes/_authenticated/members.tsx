@@ -378,11 +378,14 @@ function MemberActions({
   const canLoginAs = activeRole === "admin" && useCan("members.edit");
   const btnClass = compact
     ? "h-8 text-xs px-2"
-    : "h-9 text-xs flex-1 basis-[calc(50%-0.25rem)] sm:basis-0 min-w-0";
+    : "h-9 text-xs flex-1 basis-[calc(50%-0.375rem)] min-w-[100px]";
 
   return (
     <div
-      className={cn("flex flex-wrap gap-2 min-w-0", compact ? "justify-end" : "w-full")}
+      className={cn(
+        "flex flex-wrap items-center gap-2 min-w-0",
+        compact ? "justify-end" : "w-full",
+      )}
       onClick={(e) => e.stopPropagation()}
     >
       {canLoginAs && !isJunior && (
@@ -434,7 +437,7 @@ function MemberActions({
           variant="destructive"
           className={cn(
             "btn-premium-danger hover:cursor-pointer shrink-0",
-            compact ? "h-8 w-8 p-0" : "h-9 w-9 p-0",
+            compact ? "h-8 w-8 p-0" : "h-9 w-9 p-0 flex-none",
           )}
           onClick={(e) => {
             e.stopPropagation();
@@ -1569,7 +1572,7 @@ function MembersList() {
           variants={staggerContainer}
           initial="hidden"
           animate="show"
-          className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 w-full min-w-0"
         >
           {visibleRows.map(({ member: m, depth, childCount = 0 }) => {
             const isJunior = m.memberType.toLowerCase() === "junior";
@@ -1581,7 +1584,7 @@ function MembersList() {
                 variants={staggerItem}
                 whileHover={{ y: -3 }}
                 transition={{ duration: 0.18 }}
-                className={cn(depth === 1 && "sm:col-span-2 xl:col-span-1 xl:ml-4")}
+                className={cn("w-full min-w-0", depth === 1 && "sm:col-span-2 xl:col-span-1 xl:ml-4")}
               >
                 <Card
                   tabIndex={0}
@@ -1596,14 +1599,14 @@ function MembersList() {
                     }
                   }}
                   className={cn(
-                    "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.22)] transition-all cursor-pointer h-full signature-card-top",
+                    "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.22)] transition-all cursor-pointer h-full signature-card-top w-full max-w-full overflow-hidden flex flex-col min-w-0",
                     selectedSet.has(m.id) && "border-[rgba(251,191,36,0.45)]",
                     depth === 1 && "border-l-2 border-l-[#F59E0B]/50 bg-[#131916]/90",
                   )}
                 >
-                  <CardContent className="p-5 flex flex-col gap-4 h-full">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
+                  <CardContent className="p-4 sm:p-5 flex flex-col gap-3.5 sm:gap-4 h-full min-w-0">
+                    <div className="flex items-start justify-between gap-2.5 sm:gap-3 min-w-0">
+                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                         {depth === 0 && childCount > 0 ? (
                           <button
                             type="button"
@@ -1621,11 +1624,9 @@ function MembersList() {
                               <ChevronRight className="size-4" />
                             )}
                           </button>
-                        ) : (
-                          <span className="size-7 shrink-0" aria-hidden />
-                        )}
+                        ) : null}
                         {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
-                          <div onClick={(e) => e.stopPropagation()}>
+                          <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center">
                             <Checkbox
                               checked={selectedSet.has(m.id)}
                               onCheckedChange={(v) => toggleSelect(m.id, v === true)}
@@ -1634,60 +1635,63 @@ function MembersList() {
                             />
                           </div>
                         )}
-                        <Avatar className={cn("border border-white/10 shrink-0", depth === 1 ? "size-9" : "size-11")}>
-                          <AvatarFallback className={cn(avatarBg, "font-semibold text-sm")}>
+                        <Avatar className={cn("border border-white/10 shrink-0", depth === 1 ? "size-9" : "size-10 sm:size-11")}>
+                          <AvatarFallback className={cn(avatarBg, "font-semibold text-xs sm:text-sm")}>
                             {m.firstName[0]}{m.lastName[0]}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-semibold text-[15px] text-[#EEF2F0] truncate">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <h3 className="font-semibold text-sm sm:text-[15px] text-[#EEF2F0] truncate">
                               {m.firstName} {m.lastName}
                             </h3>
                             {depth === 1 && (
-                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24]">
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24] shrink-0">
                                 Sub-member
                               </Badge>
                             )}
                             {depth === 0 && childCount > 0 && (
-                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]">
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F] shrink-0">
                                 {childCount} junior{childCount === 1 ? "" : "s"}
                               </Badge>
                             )}
                           </div>
-                          <p className="text-[12px] text-[#8FA89F] truncate flex items-center gap-1 mt-0.5">
-                            <Mail className="size-3 shrink-0" /> {m.email}
+                          <p className="text-[12px] text-[#8FA89F] flex items-center gap-1 mt-0.5 min-w-0">
+                            <Mail className="size-3 shrink-0" />
+                            <span className="truncate min-w-0">{m.email}</span>
                           </p>
                         </div>
                       </div>
-                      <StatusBadge status={m.status} />
+                      <div className="shrink-0 pt-0.5">
+                        <StatusBadge status={m.status} />
+                      </div>
                     </div>
 
                     <MemberTags member={m} />
 
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 text-xs min-w-0">
+                      <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5 min-w-0">
                         <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">Balance</p>
                         {m.memberType === "junior" ? (
                           <p className="font-mono text-[#6B7F78] text-sm" title="Junior members share the parent adult's wallet">
                             —
                           </p>
                         ) : (
-                          <p className={cn("font-mono font-semibold text-sm", m.credit < 0 ? "text-[#F87171]" : "text-[#34D399]")}>
+                          <p className={cn("font-mono font-semibold text-sm truncate min-w-0", m.credit < 0 ? "text-[#F87171]" : "text-[#34D399]")}>
                             {fmtMoney(m.credit)}
                           </p>
                         )}
                       </div>
-                      <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5">
+                      <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5 min-w-0">
                         <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">BI ID</p>
-                        <p className="font-mono text-[#C4D4CF] truncate flex items-center gap-1">
+                        <p className="font-mono text-[#C4D4CF] flex items-center gap-1 min-w-0">
                           <IdCard className="size-3 shrink-0 text-[#6B7F78]" />
-                          {m.biMemberId || "—"}
+                          <span className="truncate text-xs sm:text-sm min-w-0">{m.biMemberId || "—"}</span>
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-auto pt-1">
+                    <div className="mt-auto pt-1 min-w-0">
                       <MemberActions member={m} activeRole={activeRole} onRequestDelete={requestDeleteMember} />
                     </div>
                   </CardContent>
