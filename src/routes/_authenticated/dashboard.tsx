@@ -22,7 +22,12 @@ import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import type { PlaySchedule, Training } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useNow } from "@/hooks/useNow";
-import { getTrainingSessionPhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
+import {
+  getTrainingSessionPhase,
+  resolveTrainingDisplayStatus,
+  isSessionInFuture,
+  parseDateTimeMs,
+} from "@/lib/sessionTiming";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
@@ -313,17 +318,23 @@ function TrainingListCard({
 function Dashboard() {
   const user = useCurrentUser()!;
   const s = useStore();
+  const now = useNow();
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const totalCredit = myMembers.reduce((t, m) => t + m.credit, 0);
   const pendingUsers = s.users.filter((u) => u.status === "created").length;
   const pendingCredits = s.creditRequests.filter((c) => (c.type || "credit") === "credit" && c.status === "created").length;
 
-  const otherStatusSessions = useMemo(
+  const upcomingPlaySessions = useMemo(
     () =>
       [...s.schedules]
-        .filter((x) => x.status !== "open" && x.status !== "closed")
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
-    [s.schedules],
+        .filter(
+          (x) =>
+            x.status !== "open" &&
+            x.status !== "closed" &&
+            isSessionInFuture(x.date, now),
+        )
+        .sort((a, b) => (parseDateTimeMs(a.date) || 0) - (parseDateTimeMs(b.date) || 0)),
+    [s.schedules, now],
   );
 
   const myMemberIds = useMemo(() => new Set(myMembers.map((m) => m.id)), [myMembers]);
@@ -343,12 +354,13 @@ function Dashboard() {
         .filter(
           (x) =>
             x.status !== "closed" &&
+            isSessionInFuture(x.startDate, now) &&
             (user.role === "admin" || user.role === "volunteer"
               ? true
               : myTrainingInviteIds.has(x.id)),
         )
-        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
-    [s.trainings, user.role, myTrainingInviteIds],
+        .sort((a, b) => (parseDateTimeMs(a.startDate) || 0) - (parseDateTimeMs(b.startDate) || 0)),
+    [s.trainings, user.role, myTrainingInviteIds, now],
   );
 
   const myInvites = [
@@ -419,7 +431,7 @@ function Dashboard() {
             />
             <Stat
               label="Active Play Sessions"
-              value={otherStatusSessions.length}
+              value={upcomingPlaySessions.length}
               icon={CalendarDays}
               index={3}
               to="/schedules"
@@ -473,7 +485,7 @@ function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         <ScheduleListCard
           title="Upcoming Play Sessions"
-          schedules={otherStatusSessions}
+          schedules={upcomingPlaySessions}
           holidays={s.holidays ?? []}
           emptyTitle="No sessions scheduled"
           emptyDescription="Released and later sessions will appear here."

@@ -43,7 +43,7 @@ function TrainingModule() {
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const myIds = myMembers.map((m) => m.id);
 
-  const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId));
+  const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId) && i.status !== "pending");
   const invitedTrainingIds = new Set(trainInvs.map((i) => i.trainingId));
 
   const pendingTrainingUpdateRequests = useMemo(() => {
@@ -618,6 +618,10 @@ function TrainingModule() {
                     invitedSessionPhases.every((p) => p === "finished");
                   const canDeclineInvites = hasOpen && !showFinished;
 
+                  const displaySessionCount = isAllAccepted
+                    ? invitedMonthSessions.length
+                    : (hasOpen ? upcomingOpenSessions.length : invitedMonthSessions.length);
+
                   return (
                     <div key={memberId} className="pt-2.5 border-t border-white/[0.04] space-y-2">
                       <div className="flex items-center justify-between gap-3">
@@ -629,7 +633,7 @@ function TrainingModule() {
                             {name(memberId)}
                           </div>
                           <div className="text-[11px] text-[#8A8A98]">
-                            {invitedMonthSessions.length} invited session{invitedMonthSessions.length !== 1 ? "s" : ""} this month
+                            {displaySessionCount} invited session{displaySessionCount !== 1 ? "s" : ""} this month
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">

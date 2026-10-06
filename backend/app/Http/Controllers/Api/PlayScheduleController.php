@@ -16,6 +16,8 @@ use App\Helpers\MailHelper;
 use App\Helpers\PermissionHelper;
 use App\Helpers\FeeHelper;
 use App\Helpers\SessionTimingHelper;
+use App\Jobs\SendPlayScheduleReleaseNotifications;
+use App\Services\BackgroundQueueService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -291,58 +293,77 @@ class PlayScheduleController extends Controller
             $eligibleJuniorsList = Member::eligibleForPlayAsJunior()->get();
         }
 
-        $eligible = $eligibleAdultsList->concat($eligibleJuniorsList);
-
-        // Delete old invitations for this schedule (if any)
-        PlayInvitation::where('schedule_id', $id)->delete();
+        $eligible = $eligibleAdultsList->concat($eligibleJuniorsList)->unique('id');
 
         $isLeague = (bool) $sch->is_league_match;
         $capacity = max((int) $sch->players, 1);
         $acceptedCount = 0;
+        $releaseNotifications = [];
+        $transactionNotifications = [];
 
         // Create new invitations (league matches auto-accept up to capacity)
-        $invites = [];
-        foreach ($eligible as $member) {
-            $status = 'open';
-            $acceptedAt = null;
-            if ($isLeague) {
-                if ($acceptedCount < $capacity) {
-                    $status = 'accepted';
-                    $acceptedAt = now();
-                    $acceptedCount++;
-                } else {
-                    $status = 'waiting';
+        $invites = DB::transaction(function () use ($sch, $id, $eligible, $isLeague, $capacity, &$acceptedCount, &$releaseNotifications, &$transactionNotifications) {
+            PlayInvitation::where('schedule_id', $id)->delete();
+
+            $invites = [];
+            $processedMemberIds = [];
+
+            foreach ($eligible as $member) {
+                if (in_array($member->id, $processedMemberIds, true)) {
+                    continue;
                 }
+                $processedMemberIds[] = $member->id;
+
+                $status = 'open';
+                $acceptedAt = null;
+                if ($isLeague) {
+                    if ($acceptedCount < $capacity) {
+                        $status = 'accepted';
+                        $acceptedAt = now();
+                        $acceptedCount++;
+                    } else {
+                        $status = 'waiting';
+                    }
+                }
+
+                $inv = PlayInvitation::create([
+                    'id' => 'pi_' . Str::random(8),
+                    'schedule_id' => $id,
+                    'member_id' => $member->id,
+                    'status' => $status,
+                    'accepted_at' => $acceptedAt,
+                ]);
+
+                if ($status === 'accepted') {
+                    $this->debitPlayInvite($sch, $inv, true, $transactionNotifications);
+                    $inv->refresh();
+                }
+
+                $invites[] = [
+                    'id' => $inv->id,
+                    'scheduleId' => $inv->schedule_id,
+                    'memberId' => $inv->member_id,
+                    'status' => $inv->status,
+                    'debited' => (bool) $inv->debited,
+                    'acceptedAt' => optional($inv->accepted_at)?->toISOString(),
+                ];
+
+                $releaseNotifications[] = [
+                    'member_id' => $member->id,
+                    'status' => $inv->status,
+                ];
             }
 
-            $inv = PlayInvitation::create([
-                'id' => 'pi_' . Str::random(8),
-                'schedule_id' => $id,
-                'member_id' => $member->id,
-                'status' => $status,
-                'accepted_at' => $acceptedAt,
-            ]);
+            return $invites;
+        });
 
-            if ($status === 'accepted') {
-                $this->debitPlayInvite($sch, $inv);
-                $inv->refresh();
-            }
-
-            $invites[] = [
-                'id' => $inv->id,
-                'scheduleId' => $inv->schedule_id,
-                'memberId' => $inv->member_id,
-                'status' => $inv->status,
-                'debited' => (bool) $inv->debited,
-                'acceptedAt' => optional($inv->accepted_at)?->toISOString(),
-            ];
-
-            try {
-                MailHelper::sendScheduleNotification($member, $sch, $inv->status, 'release');
-            } catch (\Exception $e) {
-                logger()->error("Schedule release email failed for member {$member->id}: " . $e->getMessage());
-            }
-        }
+        // Offload email notifications to background so HTTP response completes immediately
+        SendPlayScheduleReleaseNotifications::dispatch(
+            $sch->id,
+            $releaseNotifications,
+            $transactionNotifications
+        );
+        BackgroundQueueService::runBackgroundQueue();
 
         return response()->json([
             'message' => $isLeague
@@ -378,7 +399,7 @@ class PlayScheduleController extends Controller
             ], 422);
         }
 
-        $memberIds = $request->memberIds;
+        $memberIds = array_values(array_unique($request->memberIds));
         $userId = $request->user()->id;
 
         $allowedAdultIds = Member::eligibleForPlay()
@@ -400,7 +421,7 @@ class PlayScheduleController extends Controller
 
         $allowedIds = array_values(array_unique(array_merge($allowedAdultIds, $allowedJuniorIds)));
 
-        if (count($allowedIds) !== count(array_unique($memberIds))) {
+        if (count($allowedIds) !== count($memberIds)) {
             return response()->json([
                 'message' => 'You can only enroll your own eligible family members (adults with club membership, or play-eligible juniors).',
             ], 422);
@@ -419,50 +440,67 @@ class PlayScheduleController extends Controller
             }
         }
 
-        $alreadyInvited = PlayInvitation::where('schedule_id', $id)
-            ->whereIn('member_id', $memberIds)
-            ->pluck('member_id')
-            ->all();
+        $invitesResult = DB::transaction(function () use ($sch, $id, $memberIds, $autoAccept) {
+            $alreadyInvited = PlayInvitation::where('schedule_id', $id)
+                ->whereIn('member_id', $memberIds)
+                ->lockForUpdate()
+                ->pluck('member_id')
+                ->all();
 
-        $newMemberIds = array_values(array_diff($memberIds, $alreadyInvited));
+            $newMemberIds = array_values(array_diff($memberIds, $alreadyInvited));
 
-        if (count($newMemberIds) === 0) {
-            return response()->json([
-                'message' => 'Selected members are already invited to this session.',
-            ], 422);
-        }
-
-        $invites = [];
-        foreach ($newMemberIds as $memberId) {
-            $member = Member::find($memberId);
-            $inv = PlayInvitation::create([
-                'id' => 'pi_' . Str::random(8),
-                'schedule_id' => $id,
-                'member_id' => $memberId,
-                'status' => 'open',
-            ]);
-
-            if ($autoAccept) {
-                $acceptError = $this->acceptNewlyEnrolledInvite($sch, $inv, $member);
-                if ($acceptError !== null) {
-                    $inv->delete();
-                    return response()->json(['message' => $acceptError], 422);
-                }
-                $inv = $inv->fresh();
+            if (count($newMemberIds) === 0) {
+                return response()->json([
+                    'message' => 'Selected members are already invited to this session.',
+                ], 422);
             }
 
-            $invites[] = $this->formatInvitation($inv);
+            $invites = [];
+            foreach ($newMemberIds as $memberId) {
+                $existing = PlayInvitation::where('schedule_id', $id)
+                    ->where('member_id', $memberId)
+                    ->lockForUpdate()
+                    ->first();
+                if ($existing) {
+                    continue;
+                }
 
-            if ($member) {
-                try {
-                    $mailStatus = $autoAccept
-                        ? ($inv->status === 'waiting' ? 'waiting' : 'accepted')
-                        : 'open';
-                    MailHelper::sendScheduleNotification($member, $sch, $mailStatus, 'release');
-                } catch (\Exception $e) {
-                    logger()->error("Schedule enroll email failed for member {$memberId}: " . $e->getMessage());
+                $member = Member::find($memberId);
+                $inv = PlayInvitation::create([
+                    'id' => 'pi_' . Str::random(8),
+                    'schedule_id' => $id,
+                    'member_id' => $memberId,
+                    'status' => 'open',
+                ]);
+
+                if ($autoAccept) {
+                    $acceptError = $this->acceptNewlyEnrolledInvite($sch, $inv, $member);
+                    if ($acceptError !== null) {
+                        $inv->delete();
+                        return response()->json(['message' => $acceptError], 422);
+                    }
+                    $inv = $inv->fresh();
+                }
+
+                $invites[] = $this->formatInvitation($inv);
+
+                if ($member) {
+                    try {
+                        $mailStatus = $autoAccept
+                            ? ($inv->status === 'waiting' ? 'waiting' : 'accepted')
+                            : 'open';
+                        MailHelper::sendScheduleNotification($member, $sch, $mailStatus, 'release');
+                    } catch (\Exception $e) {
+                        logger()->error("Schedule enroll email failed for member {$memberId}: " . $e->getMessage());
+                    }
                 }
             }
+
+            return $invites;
+        });
+
+        if ($invitesResult instanceof \Illuminate\Http\JsonResponse) {
+            return $invitesResult;
         }
 
         return response()->json([
@@ -470,7 +508,7 @@ class PlayScheduleController extends Controller
                 ? 'Family members accepted for this play session.'
                 : 'Members enrolled. Review and accept the invitations below.',
             'schedule' => $this->formatSchedule($sch),
-            'invitations' => $invites,
+            'invitations' => $invitesResult,
         ]);
     }
 
@@ -490,6 +528,16 @@ class PlayScheduleController extends Controller
             return $message;
         }
 
+        // Prevent duplicate acceptance: check if member already accepted
+        $alreadyAccepted = PlayInvitation::where('schedule_id', $sch->id)
+            ->where('member_id', $invite->member_id)
+            ->where('id', '!=', $invite->id)
+            ->where('status', 'accepted')
+            ->exists();
+        if ($alreadyAccepted) {
+            return 'Member is already accepted in this schedule.';
+        }
+
         $skipsLeagueFee = $member && $this->memberSkipsLeagueFee($sch, $member->id);
         if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
             $walletMember = $this->resolveWalletMember($member);
@@ -500,9 +548,13 @@ class PlayScheduleController extends Controller
             }
         }
 
+        // Count UNIQUE member IDs already accepted (excluding this member)
         $acceptedCount = PlayInvitation::where('schedule_id', $sch->id)
             ->where('status', 'accepted')
-            ->count();
+            ->where('member_id', '!=', $invite->member_id)
+            ->lockForUpdate()
+            ->distinct('member_id')
+            ->count('member_id');
         $capacity = max((int) $sch->players, 1);
 
         $invite->status = $acceptedCount < $capacity ? 'accepted' : 'waiting';
@@ -516,6 +568,71 @@ class PlayScheduleController extends Controller
         }
 
         return null;
+    }
+
+    public function promoteWaitingMembers(PlaySchedule $sch): array
+    {
+        $promoted = [];
+        $capacity = max((int) $sch->players, 1);
+
+        $acceptedMemberIds = PlayInvitation::where('schedule_id', $sch->id)
+            ->where('status', 'accepted')
+            ->pluck('member_id')
+            ->unique()
+            ->all();
+
+        $availableSlots = $capacity - count($acceptedMemberIds);
+        if ($availableSlots <= 0) {
+            return $promoted;
+        }
+
+        $waitingInvites = PlayInvitation::where('schedule_id', $sch->id)
+            ->where('status', 'waiting')
+            ->lockForUpdate()
+            ->orderBy('updated_at', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        foreach ($waitingInvites as $next) {
+            if ($availableSlots <= 0) {
+                break;
+            }
+
+            if (in_array($next->member_id, $acceptedMemberIds, true)) {
+                $next->delete();
+                continue;
+            }
+
+            $nextMember = Member::find($next->member_id);
+            if (
+                $nextMember
+                && !$nextMember->skip_credit_consumption
+                && !$this->memberSkipsLeagueFee($sch, $nextMember->id)
+                && !(bool) $sch->is_league_match
+            ) {
+                $estimatedFee = FeeHelper::playSessionFee(
+                    (float) $sch->session_rate,
+                    0,
+                    1,
+                    $nextMember
+                );
+                $walletMember = $this->resolveWalletMember($nextMember);
+                if ($walletMember->credit < $estimatedFee) {
+                    continue;
+                }
+            }
+
+            $next->status = 'accepted';
+            $next->accepted_at = now();
+            $next->save();
+            $this->debitPlayInvite($sch, $next);
+
+            $acceptedMemberIds[] = $next->member_id;
+            $promoted[] = $next;
+            $availableSlots--;
+        }
+
+        return $promoted;
     }
 
     public function close($id)
@@ -643,7 +760,7 @@ class PlayScheduleController extends Controller
     public function performRotate(PlaySchedule $schedule): ?Rotation
     {
         return DB::transaction(function () use ($schedule) {
-        $invites = PlayInvitation::where('schedule_id', $schedule->id)->where('status', 'accepted')->get();
+        $invites = PlayInvitation::where('schedule_id', $schedule->id)->where('status', 'accepted')->get()->unique('member_id');
         $playerIds = $invites->pluck('member_id')->values()->all();
 
         $rotationPlayers = array_merge($playerIds, $this->guestIdsForAccepted($schedule, count($playerIds)));
@@ -711,9 +828,17 @@ class PlayScheduleController extends Controller
 
                 $acceptedCount = PlayInvitation::where('schedule_id', $schedule->id)
                     ->where('status', 'accepted')
-                    ->count();
+                    ->distinct('member_id')
+                    ->count('member_id');
 
                 if ($schedule->status === 'released') {
+                    $controller->promoteWaitingMembers($schedule);
+                    $schedule->refresh();
+                    $acceptedCount = PlayInvitation::where('schedule_id', $schedule->id)
+                        ->where('status', 'accepted')
+                        ->distinct('member_id')
+                        ->count('member_id');
+
                     if ($acceptedCount < 1) {
                         continue;
                     }
@@ -817,7 +942,7 @@ class PlayScheduleController extends Controller
         }
 
         $schedule = PlaySchedule::findOrFail($id);
-        $invites = PlayInvitation::where('schedule_id', $id)->where('status', 'accepted')->get();
+        $invites = PlayInvitation::where('schedule_id', $id)->where('status', 'accepted')->get()->unique('member_id');
         $playerIds = $invites->pluck('member_id')->values()->all();
 
         if (empty($playerIds)) {
@@ -1204,16 +1329,23 @@ class PlayScheduleController extends Controller
     public function listInvitations()
     {
         self::processAutoPublishAndRotation();
+
+        $releasedSchedules = PlaySchedule::where('status', 'released')->get();
+        foreach ($releasedSchedules as $relSch) {
+            $this->promoteWaitingMembers($relSch);
+        }
+
         $openScheduleIds = PlaySchedule::where('status', 'open')->pluck('id')->all();
         $invites = PlayInvitation::whereNotIn('schedule_id', $openScheduleIds)->orderBy('updated_at')->get();
-        $payload = $invites->map(fn(PlayInvitation $i) => $this->formatInvitation($i))->values()->all();
+        $uniqueInvites = $invites->unique(fn($i) => $i->schedule_id . '_' . $i->member_id);
+        $payload = $uniqueInvites->map(fn(PlayInvitation $i) => $this->formatInvitation($i))->values()->all();
 
         // Guests appear in Accepted only after rotation has been generated.
         $schedules = PlaySchedule::all()->keyBy('id');
-        $acceptedBySchedule = $invites
+        $acceptedBySchedule = $uniqueInvites
             ->where('status', 'accepted')
             ->groupBy('schedule_id')
-            ->map(fn($rows) => $rows->count());
+            ->map(fn($rows) => $rows->pluck('member_id')->unique()->count());
 
         foreach ($schedules as $scheduleId => $schedule) {
             if (!in_array($schedule->status, ['published', 'closed'], true)) {
@@ -1285,6 +1417,18 @@ class PlayScheduleController extends Controller
                     ], 422);
                 }
 
+                // Check if this member is already accepted in this schedule
+                $alreadyAccepted = PlayInvitation::where('schedule_id', $sch->id)
+                    ->where('member_id', $invite->member_id)
+                    ->where('id', '!=', $invite->id)
+                    ->where('status', 'accepted')
+                    ->exists();
+                if ($alreadyAccepted) {
+                    return response()->json([
+                        'message' => 'This member has already accepted this session.',
+                    ], 422);
+                }
+
                 $member = Member::find($invite->member_id);
                 $skipsLeagueFee = $member && $this->memberSkipsLeagueFee($sch, $member->id);
                 // League matches: always allow accept (debit may go negative). Non-league: require credit.
@@ -1299,10 +1443,13 @@ class PlayScheduleController extends Controller
                     }
                 }
 
+                // Count UNIQUE members accepted (excluding this member)
                 $acceptedCount = PlayInvitation::where('schedule_id', $sch->id)
                     ->where('status', 'accepted')
+                    ->where('member_id', '!=', $invite->member_id)
                     ->lockForUpdate()
-                    ->count();
+                    ->distinct('member_id')
+                    ->count('member_id');
                 $capacity = max((int) $sch->players, 1);
 
                 $invite->status = $acceptedCount < $capacity ? 'accepted' : 'waiting';
@@ -1360,42 +1507,9 @@ class PlayScheduleController extends Controller
 
                 // Free seat in Accepted → promote earliest waiting member (first come) to end of Accepted
                 if ($wasAccepted) {
-                    $next = PlayInvitation::where('schedule_id', $sch->id)
-                        ->where('status', 'waiting')
-                        ->lockForUpdate()
-                        ->orderBy('updated_at', 'asc')
-                        ->orderBy('id', 'asc')
-                        ->first();
-
-                    if ($next) {
-                        $nextMember = Member::find($next->member_id);
-                        // Non-league: require enough credit to promote. League: always promote (may go negative).
-                        if (
-                            $nextMember
-                            && !$nextMember->skip_credit_consumption
-                            && !$this->memberSkipsLeagueFee($sch, $nextMember->id)
-                            && !(bool) $sch->is_league_match
-                        ) {
-                            $estimatedFee = FeeHelper::playSessionFee(
-                                (float) $sch->session_rate,
-                                0,
-                                1,
-                                $nextMember
-                            );
-                            $walletMember = $this->resolveWalletMember($nextMember);
-                            if ($walletMember->credit < $estimatedFee) {
-                                // Keep them waiting; do not promote without credits
-                                $next = null;
-                            }
-                        }
-
-                        if ($next) {
-                            $next->status = 'accepted';
-                            $next->accepted_at = now();
-                            $next->save();
-                            $this->debitPlayInvite($sch, $next);
-                            $promoted = $this->formatInvitation($next->fresh());
-                        }
+                    $promotedList = $this->promoteWaitingMembers($sch);
+                    if (!empty($promotedList)) {
+                        $promoted = $this->formatInvitation($promotedList[0]->fresh());
                     }
                 }
             }
@@ -1420,7 +1534,7 @@ class PlayScheduleController extends Controller
      * League matches: always debit (allow negative credit) unless position skips league fee.
      * Non-league: skip debit when insufficient credit (rotate/cron safety).
      */
-    private function debitPlayInvite(PlaySchedule $schedule, PlayInvitation $invite): void
+    private function debitPlayInvite(PlaySchedule $schedule, PlayInvitation $invite, bool $deferEmail = false, ?array &$deferredEmails = null): void
     {
         $invite->refresh();
         if ($invite->debited || $invite->status !== 'accepted') {
@@ -1465,10 +1579,17 @@ class PlayScheduleController extends Controller
                 'date' => now(),
             ]);
 
-            try {
-                MailHelper::sendTransactionEmail($freshWallet, $transaction);
-            } catch (\Exception $e) {
-                logger()->error("Transaction debit email failed for member {$freshWallet->id}: " . $e->getMessage());
+            if ($deferEmail && $deferredEmails !== null) {
+                $deferredEmails[] = [
+                    'wallet_member_id' => $freshWallet->id,
+                    'transaction_id' => $transaction->id,
+                ];
+            } else {
+                try {
+                    MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                } catch (\Exception $e) {
+                    logger()->error("Transaction debit email failed for member {$freshWallet->id}: " . $e->getMessage());
+                }
             }
         }
 

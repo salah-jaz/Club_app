@@ -32,8 +32,25 @@ export function datetimeLocalNow(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+export function parseDateTimeMs(value: string | null | undefined): number {
+  if (!value) return NaN;
+  const raw = String(value).trim();
+  const normalized =
+    /^\d{4}-\d{2}-\d{2}$/.test(raw)
+      ? `${raw}T00:00:00`
+      : raw.includes(" ") && !raw.includes("T")
+        ? raw.replace(" ", "T")
+        : raw;
+  return Date.parse(normalized);
+}
+
+export function isSessionInFuture(value: string | null | undefined, nowMs: number = Date.now()): boolean {
+  const ms = parseDateTimeMs(value);
+  return Number.isFinite(ms) && ms > nowMs;
+}
+
 export function isScheduleDateTimeInPast(value: string, nowMs: number = Date.now()): boolean {
-  const ms = Date.parse(value);
+  const ms = parseDateTimeMs(value);
   return !Number.isFinite(ms) || ms < nowMs;
 }
 
@@ -42,7 +59,7 @@ export function getSessionPhase(
   durationMinutes: number,
   nowMs: number = Date.now(),
 ): SessionPhase {
-  const startMs = Date.parse(startIso);
+  const startMs = parseDateTimeMs(startIso);
   if (!Number.isFinite(startMs)) return "upcoming";
 
   const endMs = startMs + Math.max(1, durationMinutes) * 60_000;
@@ -69,9 +86,14 @@ export function getPlaySessionPhase(
 export function getTrainingSessionDurationMinutes(
   tr: Pick<Training, "startDate" | "endDate" | "duration">,
 ): number {
-  const startMs = Date.parse(tr.startDate);
-  const endMs = Date.parse(tr.endDate);
-  if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
+  const startMs = parseDateTimeMs(tr.startDate);
+  const endMs = parseDateTimeMs(tr.endDate);
+  if (
+    Number.isFinite(startMs) &&
+    Number.isFinite(endMs) &&
+    endMs > startMs &&
+    endMs - startMs <= 24 * 60 * 60 * 1000
+  ) {
     return Math.max(1, Math.round((endMs - startMs) / 60_000));
   }
   return parseDurationMinutes(tr.duration);
