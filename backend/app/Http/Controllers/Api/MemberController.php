@@ -84,6 +84,48 @@ class MemberController extends Controller
         $biMemberId = trim((string) ($request->input('biMemberId') ?? ''));
         $biMemberId = $biMemberId !== '' ? $biMemberId : null;
 
+        // Before creating a member, check for an existing active member with the same email
+        if ($request->memberType === 'adult') {
+            $existingActive = Member::where('email', $request->email)
+                ->where('status', 'active')
+                ->exists();
+            if ($existingActive) {
+                return response()->json([
+                    'message' => 'An active member with this email already exists.',
+                ], 422);
+            }
+            if ($request->filled('userId')) {
+                $hasAdult = Member::where('user_id', $request->userId)
+                    ->where('member_type', 'adult')
+                    ->exists();
+                if ($hasAdult) {
+                    return response()->json([
+                        'message' => 'This user already has an active adult member record.',
+                    ], 422);
+                }
+            }
+        } elseif ($request->memberType === 'junior') {
+            $parentId = $request->input('parentMemberId');
+            $parent = $parentId ? Member::find($parentId) : ($user ? Member::where('user_id', $user->id)->where('member_type', 'adult')->first() : null);
+            $juniorEmail = $request->email ?: ($user->email ?? '');
+            if (!empty($juniorEmail)) {
+                $conflict = Member::where('email', $juniorEmail)
+                    ->where('status', 'active');
+                if ($parent) {
+                    $conflict->where('id', '!=', $parent->id)
+                        ->where(function ($q) use ($parent) {
+                            $q->whereNull('parent_member_id')
+                              ->orWhere('parent_member_id', '!=', $parent->id);
+                        });
+                }
+                if ($conflict->exists()) {
+                    return response()->json([
+                        'message' => 'An active member with this email already exists.',
+                    ], 422);
+                }
+            }
+        }
+
         if ($createLogin) {
             if ($request->filled('email')) {
                 User::releaseOrphanedMemberEmail((string) $request->email);
@@ -105,28 +147,32 @@ class MemberController extends Controller
 
                 // Juniors with a parent share the parent's login account (no separate login)
                 if ($request->memberType === 'junior' && $parent && $parent->user_id) {
-                    return Member::create([
-                        'id' => 'm_' . Str::random(8),
-                        'user_id' => $parent->user_id,
-                        'parent_member_id' => $parent->id,
-                        'first_name' => $request->firstName,
-                        'last_name' => $request->lastName,
-                        'dob' => $request->dob,
-                        'email' => $request->email,
-                        'mobile' => $request->mobile ?? '',
-                        'sex' => $request->sex,
-                        'member_type' => 'junior',
-                        'membership' => $request->membership,
-                        'training_eligible' => $this->resolveTrainingEligible($request),
-                        'play_eligible' => $this->resolvePlayEligible($request),
-                        'grade' => $request->grade,
-                        'bi_member_id' => $biMemberId,
-                        'nickname' => $request->nickname,
-                        'status' => $request->status,
-                        'credit' => 0.00,
-                        'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
-                        'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
-                    ]);
+                    try {
+                        return Member::create([
+                            'id' => 'm_' . Str::random(8),
+                            'user_id' => $parent->user_id,
+                            'parent_member_id' => $parent->id,
+                            'first_name' => $request->firstName,
+                            'last_name' => $request->lastName,
+                            'dob' => $request->dob,
+                            'email' => $request->email,
+                            'mobile' => $request->mobile ?? '',
+                            'sex' => $request->sex,
+                            'member_type' => 'junior',
+                            'membership' => $request->membership,
+                            'training_eligible' => $this->resolveTrainingEligible($request),
+                            'play_eligible' => $this->resolvePlayEligible($request),
+                            'grade' => $request->grade,
+                            'bi_member_id' => $biMemberId,
+                            'nickname' => $request->nickname,
+                            'status' => $request->status,
+                            'credit' => 0.00,
+                            'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
+                            'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
+                        ]);
+                    } catch (\Illuminate\Database\QueryException $e) {
+                        abort(response()->json(['message' => 'An active member with this email already exists.'], 422));
+                    }
                 }
 
                 $user = User::create([
@@ -143,28 +189,32 @@ class MemberController extends Controller
                     'status' => 'active',
                 ]);
 
-                return Member::create([
-                    'id' => 'm_' . Str::random(8),
-                    'user_id' => $user->id,
-                    'parent_member_id' => $request->memberType === 'junior' ? $parentId : null,
-                    'first_name' => $request->firstName,
-                    'last_name' => $request->lastName,
-                    'dob' => $request->dob,
-                    'email' => $request->email,
-                    'mobile' => $request->mobile ?? '',
-                    'sex' => $request->sex,
-                    'member_type' => $request->memberType,
-                    'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
-                    'training_eligible' => $this->resolveTrainingEligible($request),
-                    'play_eligible' => $this->resolvePlayEligible($request),
-                    'grade' => $request->grade,
-                    'bi_member_id' => $biMemberId,
-                    'nickname' => $request->nickname,
-                    'status' => $request->status,
-                    'credit' => 0.00,
-                    'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
-                    'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
-                ]);
+                try {
+                    return Member::create([
+                        'id' => 'm_' . Str::random(8),
+                        'user_id' => $user->id,
+                        'parent_member_id' => $request->memberType === 'junior' ? $parentId : null,
+                        'first_name' => $request->firstName,
+                        'last_name' => $request->lastName,
+                        'dob' => $request->dob,
+                        'email' => $request->email,
+                        'mobile' => $request->mobile ?? '',
+                        'sex' => $request->sex,
+                        'member_type' => $request->memberType,
+                        'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
+                        'training_eligible' => $this->resolveTrainingEligible($request),
+                        'play_eligible' => $this->resolvePlayEligible($request),
+                        'grade' => $request->grade,
+                        'bi_member_id' => $biMemberId,
+                        'nickname' => $request->nickname,
+                        'status' => $request->status,
+                        'credit' => 0.00,
+                        'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
+                        'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
+                    ]);
+                } catch (\Illuminate\Database\QueryException $e) {
+                    abort(response()->json(['message' => 'An active member with this email already exists.'], 422));
+                }
             });
         } else {
             $request->validate(array_merge($memberRules, [
@@ -200,28 +250,34 @@ class MemberController extends Controller
                     ->orderBy('created_at')
                     ->first();
 
-                $member = Member::create([
-                    'id' => 'm_' . Str::random(8),
-                    'user_id' => $user->id,
-                    'parent_member_id' => $parent?->id,
-                    'first_name' => $request->firstName,
-                    'last_name' => $request->lastName,
-                    'dob' => $request->dob,
-                    'email' => $request->email ?: ($user->email ?? ''),
-                    'mobile' => $request->mobile ?? ($user->mobile ?? ''),
-                    'sex' => $request->sex,
-                    'member_type' => 'junior',
-                    'membership' => false,
-                    'training_eligible' => false,
-                    'play_eligible' => false,
-                    'grade' => $request->grade,
-                    'bi_member_id' => $biMemberId,
-                    'nickname' => $request->nickname,
-                    'status' => 'pending',
-                    'credit' => 0.00,
-                    'skip_credit_consumption' => false,
-                    'apply_discount' => false,
-                ]);
+                try {
+                    $member = Member::create([
+                        'id' => 'm_' . Str::random(8),
+                        'user_id' => $user->id,
+                        'parent_member_id' => $parent?->id,
+                        'first_name' => $request->firstName,
+                        'last_name' => $request->lastName,
+                        'dob' => $request->dob,
+                        'email' => $request->email ?: ($user->email ?? ''),
+                        'mobile' => $request->mobile ?? ($user->mobile ?? ''),
+                        'sex' => $request->sex,
+                        'member_type' => 'junior',
+                        'membership' => false,
+                        'training_eligible' => false,
+                        'play_eligible' => false,
+                        'grade' => $request->grade,
+                        'bi_member_id' => $biMemberId,
+                        'nickname' => $request->nickname,
+                        'status' => 'pending',
+                        'credit' => 0.00,
+                        'skip_credit_consumption' => false,
+                        'apply_discount' => false,
+                    ]);
+                } catch (\Illuminate\Database\QueryException $e) {
+                    return response()->json([
+                        'message' => 'An active member with this email already exists.',
+                    ], 422);
+                }
 
                 return response()->json($this->formatMember($member), 201);
             }
@@ -233,28 +289,34 @@ class MemberController extends Controller
                 $userId = $parent->user_id;
             }
 
-            $member = Member::create([
-                'id' => 'm_' . Str::random(8),
-                'user_id' => $userId,
-                'parent_member_id' => $request->memberType === 'junior' ? ($parentId ?: null) : null,
-                'first_name' => $request->firstName,
-                'last_name' => $request->lastName,
-                'dob' => $request->dob,
-                'email' => $request->email,
-                'mobile' => $request->mobile ?? '',
-                'sex' => $request->sex,
-                'member_type' => $request->memberType,
-                'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
-                'training_eligible' => $this->resolveTrainingEligible($request),
-                'play_eligible' => $this->resolvePlayEligible($request),
-                'grade' => $request->grade,
-                'bi_member_id' => $biMemberId,
-                'nickname' => $request->nickname,
-                'status' => $request->status,
-                'credit' => 0.00,
-                'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
-                'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
-            ]);
+            try {
+                $member = Member::create([
+                    'id' => 'm_' . Str::random(8),
+                    'user_id' => $userId,
+                    'parent_member_id' => $request->memberType === 'junior' ? ($parentId ?: null) : null,
+                    'first_name' => $request->firstName,
+                    'last_name' => $request->lastName,
+                    'dob' => $request->dob,
+                    'email' => $request->email,
+                    'mobile' => $request->mobile ?? '',
+                    'sex' => $request->sex,
+                    'member_type' => $request->memberType,
+                    'membership' => $request->has('membership') ? $request->boolean('membership') : ($request->memberType === 'adult'),
+                    'training_eligible' => $this->resolveTrainingEligible($request),
+                    'play_eligible' => $this->resolvePlayEligible($request),
+                    'grade' => $request->grade,
+                    'bi_member_id' => $biMemberId,
+                    'nickname' => $request->nickname,
+                    'status' => $request->status,
+                    'credit' => 0.00,
+                    'skip_credit_consumption' => $request->has('skipCreditConsumption') ? $request->boolean('skipCreditConsumption') : false,
+                    'apply_discount' => $request->has('applyDiscount') ? $request->boolean('applyDiscount') : false,
+                ]);
+            } catch (\Illuminate\Database\QueryException $e) {
+                return response()->json([
+                    'message' => 'An active member with this email already exists.',
+                ], 422);
+            }
         }
 
         return response()->json($this->formatMember($member), 201);
@@ -375,7 +437,52 @@ class MemberController extends Controller
             }
         }
 
-        $member->update($data);
+        $targetEmail = array_key_exists('email', $data) ? $data['email'] : $member->email;
+        $targetStatus = array_key_exists('status', $data) ? $data['status'] : $member->status;
+        $targetType = $newType;
+
+        if ($targetStatus === 'active' && ($request->has('email') || $request->has('status') || $request->has('memberType'))) {
+            if ($targetType === 'adult') {
+                $conflict = Member::where('email', $targetEmail)
+                    ->where('status', 'active')
+                    ->where('id', '!=', $member->id)
+                    ->exists();
+                if ($conflict) {
+                    return response()->json([
+                        'message' => 'An active member with this email already exists.',
+                    ], 422);
+                }
+            } else {
+                $parentId = isset($data['parent_member_id'])
+                    ? $data['parent_member_id']
+                    : $member->parent_member_id;
+                $parent = $parentId ? Member::find($parentId) : null;
+                $conflictQuery = Member::where('email', $targetEmail)
+                    ->where('status', 'active')
+                    ->where('id', '!=', $member->id);
+                if ($parent) {
+                    $conflictQuery->where('id', '!=', $parent->id)
+                        ->where(function ($q) use ($parent) {
+                            $q->whereNull('parent_member_id')
+                              ->orWhere('parent_member_id', '!=', $parent->id);
+                        });
+                }
+                if ($conflictQuery->exists()) {
+                    return response()->json([
+                        'message' => 'An active member with this email already exists.',
+                    ], 422);
+                }
+            }
+        }
+
+        try {
+            $member->update($data);
+        } catch (\Illuminate\Database\QueryException $e) {
+            return response()->json([
+                'message' => 'An active member with this email already exists.',
+            ], 422);
+        }
+
         $member = $member->fresh();
 
         // Sync login account only for adults that still own that login.
@@ -432,43 +539,64 @@ class MemberController extends Controller
             return response()->json(['message' => 'Only admins can approve juniors.'], 403);
         }
 
-        $member = Member::findOrFail($id);
-        if ($member->member_type !== 'junior' || $member->status !== 'pending') {
+        return DB::transaction(function () use ($request, $id) {
+            $member = Member::where('id', $id)->lockForUpdate()->firstOrFail();
+            if ($member->member_type !== 'junior' || $member->status !== 'pending') {
+                return response()->json([
+                    'message' => 'Only pending juniors can be approved.',
+                ], 422);
+            }
+
+            $request->validate([
+                'membership' => 'sometimes|boolean',
+                'trainingEligible' => 'sometimes|boolean',
+                'playEligible' => 'sometimes|boolean',
+                'grade' => [
+                    'sometimes',
+                    'string',
+                    \Illuminate\Validation\Rule::exists('grades', 'name')->where('type', 'junior'),
+                ],
+            ]);
+
+            if (!empty($member->email)) {
+                $parent = $member->parent_member_id ? Member::find($member->parent_member_id) : null;
+                $conflict = Member::where('email', $member->email)
+                    ->where('status', 'active')
+                    ->where('id', '!=', $member->id);
+                if ($parent) {
+                    $conflict->where('id', '!=', $parent->id)
+                        ->where(function ($q) use ($parent) {
+                            $q->whereNull('parent_member_id')
+                              ->orWhere('parent_member_id', '!=', $parent->id);
+                        });
+                }
+                if ($conflict->exists()) {
+                    return response()->json([
+                        'message' => 'An active member with this email already exists.',
+                    ], 422);
+                }
+            }
+
+            $member->status = 'active';
+            if ($request->has('membership')) {
+                $member->membership = $request->boolean('membership');
+            }
+            if ($request->has('trainingEligible')) {
+                $member->training_eligible = $request->boolean('trainingEligible');
+            }
+            if ($request->has('playEligible')) {
+                $member->play_eligible = $request->boolean('playEligible');
+            }
+            if ($request->filled('grade')) {
+                $member->grade = $request->grade;
+            }
+            $member->save();
+
             return response()->json([
-                'message' => 'Only pending juniors can be approved.',
-            ], 422);
-        }
-
-        $request->validate([
-            'membership' => 'sometimes|boolean',
-            'trainingEligible' => 'sometimes|boolean',
-            'playEligible' => 'sometimes|boolean',
-            'grade' => [
-                'sometimes',
-                'string',
-                \Illuminate\Validation\Rule::exists('grades', 'name')->where('type', 'junior'),
-            ],
-        ]);
-
-        $member->status = 'active';
-        if ($request->has('membership')) {
-            $member->membership = $request->boolean('membership');
-        }
-        if ($request->has('trainingEligible')) {
-            $member->training_eligible = $request->boolean('trainingEligible');
-        }
-        if ($request->has('playEligible')) {
-            $member->play_eligible = $request->boolean('playEligible');
-        }
-        if ($request->filled('grade')) {
-            $member->grade = $request->grade;
-        }
-        $member->save();
-
-        return response()->json([
-            'message' => 'Junior approved successfully.',
-            'member' => $this->formatMember($member),
-        ]);
+                'message' => 'Junior approved successfully.',
+                'member' => $this->formatMember($member),
+            ]);
+        });
     }
 
     /**

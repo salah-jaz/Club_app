@@ -59,6 +59,11 @@ class AuthController extends Controller
         // Reclaim emails left behind by permanently deleted members (orphaned logins)
         if ($request->filled('email')) {
             User::releaseOrphanedMemberEmail((string) $request->email);
+            if (Member::where('email', $request->email)->where('status', 'active')->exists()) {
+                throw ValidationException::withMessages([
+                    'email' => ['An active member with this email already exists.'],
+                ]);
+            }
         }
 
         $request->validate([

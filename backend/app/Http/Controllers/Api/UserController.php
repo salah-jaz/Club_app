@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Helpers\MailHelper;
 use App\Helpers\PermissionHelper;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
@@ -48,61 +49,90 @@ class UserController extends Controller
             'applyDiscount' => 'sometimes|boolean',
         ]);
 
-        $user = User::findOrFail($id);
-        $user->status = 'active';
-        $user->save();
+        return DB::transaction(function () use ($request, $id) {
+            $user = User::where('id', $id)->lockForUpdate()->firstOrFail();
 
-        $memberType = $request->input('memberType', 'adult');
-        $membership = $request->has('membership')
-            ? $request->boolean('membership')
-            : true;
-        $trainingEligible = $request->has('trainingEligible')
-            ? $request->boolean('trainingEligible')
-            : ($memberType === 'junior');
-        $playEligible = $request->has('playEligible')
-            ? $request->boolean('playEligible')
-            : false;
-        $skipCreditConsumption = $request->has('skipCreditConsumption')
-            ? $request->boolean('skipCreditConsumption')
-            : false;
-        $applyDiscount = $request->has('applyDiscount')
-            ? $request->boolean('applyDiscount')
-            : false;
+            if ($user->status !== 'created' || Member::where('user_id', $user->id)->exists()) {
+                $existingMember = Member::where('user_id', $user->id)->first();
+                return response()->json([
+                    'message' => 'User is already approved or not pending approval.',
+                    'user' => $this->formatUser($user),
+                    'member' => $existingMember ? $this->formatMember($existingMember) : null,
+                ], 422);
+            }
 
-        $defaultGrade = Grade::where('type', $memberType)->first()?->name ?? ($memberType === 'junior' ? 'Beginner' : 'B');
+            $memberType = $request->input('memberType', 'adult');
 
-        $member = Member::create([
-            'id' => 'm_' . Str::random(8),
-            'user_id' => $user->id,
-            'first_name' => $user->first_name,
-            'last_name' => $user->last_name,
-            'dob' => $user->dob,
-            'email' => $user->email,
-            'mobile' => $user->mobile,
-            'sex' => $user->sex,
-            'member_type' => $memberType,
-            'membership' => $membership,
-            'training_eligible' => $trainingEligible,
-            'play_eligible' => $playEligible,
-            'skip_credit_consumption' => $skipCreditConsumption,
-            'apply_discount' => $applyDiscount,
-            'grade' => $request->input('grade', $defaultGrade),
-            'nickname' => $user->nickname,
-            'status' => 'active',
-            'credit' => 0.00,
-        ]);
+            // Before creating a member, check for an existing active member with the same email
+            $existingActive = Member::where('email', $user->email)
+                ->where('status', 'active')
+                ->exists();
+            if ($existingActive) {
+                return response()->json([
+                    'message' => 'An active member with this email already exists.',
+                ], 422);
+            }
 
-        try {
-            MailHelper::sendApprovalEmail($user);
-        } catch (\Exception $e) {
-            logger()->error("Approval email failed: " . $e->getMessage());
-        }
+            $user->status = 'active';
+            $user->save();
 
-        return response()->json([
-            'message' => 'User approved successfully.',
-            'user' => $this->formatUser($user),
-            'member' => $this->formatMember($member),
-        ]);
+            $membership = $request->has('membership')
+                ? $request->boolean('membership')
+                : true;
+            $trainingEligible = $request->has('trainingEligible')
+                ? $request->boolean('trainingEligible')
+                : ($memberType === 'junior');
+            $playEligible = $request->has('playEligible')
+                ? $request->boolean('playEligible')
+                : false;
+            $skipCreditConsumption = $request->has('skipCreditConsumption')
+                ? $request->boolean('skipCreditConsumption')
+                : false;
+            $applyDiscount = $request->has('applyDiscount')
+                ? $request->boolean('applyDiscount')
+                : false;
+
+            $defaultGrade = Grade::where('type', $memberType)->first()?->name ?? ($memberType === 'junior' ? 'Beginner' : 'B');
+
+            try {
+                $member = Member::create([
+                    'id' => 'm_' . Str::random(8),
+                    'user_id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'dob' => $user->dob,
+                    'email' => $user->email,
+                    'mobile' => $user->mobile,
+                    'sex' => $user->sex,
+                    'member_type' => $memberType,
+                    'membership' => $membership,
+                    'training_eligible' => $trainingEligible,
+                    'play_eligible' => $playEligible,
+                    'skip_credit_consumption' => $skipCreditConsumption,
+                    'apply_discount' => $applyDiscount,
+                    'grade' => $request->input('grade', $defaultGrade),
+                    'nickname' => $user->nickname,
+                    'status' => 'active',
+                    'credit' => 0.00,
+                ]);
+            } catch (\Illuminate\Database\QueryException $e) {
+                return response()->json([
+                    'message' => 'An active member with this email or user already exists.',
+                ], 422);
+            }
+
+            try {
+                MailHelper::sendApprovalEmail($user);
+            } catch (\Exception $e) {
+                logger()->error("Approval email failed: " . $e->getMessage());
+            }
+
+            return response()->json([
+                'message' => 'User approved successfully.',
+                'user' => $this->formatUser($user),
+                'member' => $this->formatMember($member),
+            ]);
+        });
     }
 
     public function reject($id)
