@@ -9,12 +9,12 @@ use App\Models\Member;
 use App\Models\Transaction;
 use App\Models\Location;
 use App\Models\Grade;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TrainingWalletDeductionTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     protected User $admin;
     protected User $memberUser;
@@ -23,6 +23,8 @@ class TrainingWalletDeductionTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        \Carbon\Carbon::setTestNow(\Carbon\Carbon::parse('2026-06-01 08:00:00', \App\Helpers\SessionTimingHelper::clubTimezone()));
 
         Location::firstOrCreate(['name' => 'Main Hall']);
         $grade = Grade::firstOrCreate(['name' => 'Grade A'], ['type' => 'junior']);
@@ -79,6 +81,12 @@ class TrainingWalletDeductionTest extends TestCase
                 'skip_credit_consumption' => false,
             ]
         );
+    }
+
+    protected function tearDown(): void
+    {
+        \Carbon\Carbon::setTestNow();
+        parent::tearDown();
     }
 
     public function test_accept_training_invitation_deducts_per_week_fee_and_creates_transaction()

@@ -21,8 +21,63 @@ use Illuminate\Support\Facades\DB;
 
 class TrainingController extends Controller
 {
-    public function index()
+    /**
+     * Get all active member IDs associated with the current user account (adult + juniors).
+     */
+    private function getFamilyMemberIdsForUser($user): array
     {
+        if (!$user) {
+            return [];
+        }
+
+        return Member::where('user_id', $user->id)
+            ->orWhereIn('parent_member_id', function ($query) use ($user) {
+                $query->select('id')->from('members')->where('user_id', $user->id);
+            })
+            ->pluck('id')
+            ->all();
+    }
+
+    public function index(Request $request = null)
+    {
+        $request = $request ?? request();
+        $user = $request ? $request->user() : null;
+
+        if ($user && $user->role !== 'admin') {
+            $myMemberIds = $this->getFamilyMemberIdsForUser($user);
+
+            // Members ONLY see training programs they have been invited to (sent invitations: open, accepted, waiting, declined).
+            // Creating a training must NOT make it visible to uninvited members.
+            $invitedTrainingIds = TrainingInvitation::whereIn('member_id', $myMemberIds)
+                ->whereIn('status', ['open', 'accepted', 'waiting', 'declined'])
+                ->pluck('training_id')
+                ->all();
+
+            if (empty($invitedTrainingIds)) {
+                return response()->json([]);
+            }
+
+            $seriesParentIds = Training::whereIn('id', $invitedTrainingIds)
+                ->get()
+                ->map(fn($t) => $t->parent_id ?: $t->id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $trainings = Training::where(function ($q) use ($invitedTrainingIds, $seriesParentIds) {
+                $q->whereIn('id', $invitedTrainingIds);
+                if (!empty($seriesParentIds)) {
+                    $q->orWhereIn('parent_id', $seriesParentIds)
+                      ->orWhereIn('id', $seriesParentIds);
+                }
+            })
+            ->orderBy('start_date', 'desc')
+            ->get();
+
+            return response()->json($trainings->map(fn(Training $t) => $this->formatTraining($t)));
+        }
+
         $trainings = Training::orderBy('start_date', 'desc')->get();
         return response()->json($trainings->map(fn(Training $t) => $this->formatTraining($t)));
     }
@@ -72,14 +127,17 @@ class TrainingController extends Controller
 
         $baseStart = \Carbon\Carbon::parse($request->startDate);
         $baseEnd = \Carbon\Carbon::parse($request->endDate);
-        $durationMins = max(15, $baseStart->diffInMinutes($baseEnd));
+        $durationMins = SessionTimingHelper::parseDurationMinutes($request->duration ?? '1 hour');
+        if ($baseEnd->isSameDay($baseStart) && $baseEnd->gt($baseStart)) {
+            $durationMins = max(15, $baseStart->diffInMinutes($baseEnd));
+        }
         $dayOfWeek = $baseStart->dayOfWeek;
 
         $parentId = 'tr_' . Str::random(8);
         $sessionDates = [];
 
         for ($m = 0; $m < $repeatMonths; $m++) {
-            $monthStart = $baseStart->copy()->startOfMonth()->addMonths($m);
+            $monthStart = $baseStart->copy()->startOfMonth()->addMonths($m)->setTime($baseStart->hour, $baseStart->minute, $baseStart->second);
             $rangeStart = ($m === 0) ? $baseStart->copy() : $monthStart->copy();
             $rangeEnd = $monthStart->copy()->endOfMonth();
 
@@ -112,8 +170,8 @@ class TrainingController extends Controller
                 'id' => $schId,
                 'parent_id' => $parentId,
                 'name' => $name,
-                'start_date' => $sStart,
-                'end_date' => $sEnd,
+                'start_date' => $sStart->format('Y-m-d H:i:s'),
+                'end_date' => $sEnd->format('Y-m-d H:i:s'),
                 'repeat_weeks' => $repeatWeeks,
                 'repeat_months' => $repeatMonths,
                 'sessions' => $totalSessions,
@@ -238,13 +296,16 @@ class TrainingController extends Controller
             $baseStart = $parentStart;
         }
         $baseEnd = \Carbon\Carbon::parse($firstSession->end_date);
-        $durationMins = max(15, $baseStart->diffInMinutes($baseEnd));
+        $durationMins = SessionTimingHelper::parseDurationMinutes($durationVal ?? '1 hour');
+        if ($baseEnd->isSameDay($baseStart) && $baseEnd->gt($baseStart)) {
+            $durationMins = max(15, $baseStart->diffInMinutes($baseEnd));
+        }
         $dayOfWeek = $baseStart->dayOfWeek;
 
         if ($request->has('repeatWeeks') || $request->has('repeatMonths') || $request->has('startDate')) {
             $targetDates = [];
             for ($m = 0; $m < $newMonths; $m++) {
-                $monthStart = $baseStart->copy()->startOfMonth()->addMonths($m);
+                $monthStart = $baseStart->copy()->startOfMonth()->addMonths($m)->setTime($baseStart->hour, $baseStart->minute, $baseStart->second);
                 $rangeStart = ($m === 0) ? $baseStart->copy() : $monthStart->copy();
                 $rangeEnd = $monthStart->copy()->endOfMonth();
 
@@ -295,8 +356,8 @@ class TrainingController extends Controller
                         'id' => 'tr_' . Str::random(8),
                         'parent_id' => $parentId,
                         'name' => $name,
-                        'start_date' => $sStart,
-                        'end_date' => $sEnd,
+                        'start_date' => $sStart->format('Y-m-d H:i:s'),
+                        'end_date' => $sEnd->format('Y-m-d H:i:s'),
                         'repeat_weeks' => $newWeeks,
                         'repeat_months' => $newMonths,
                         'sessions' => count($targetDates),
@@ -314,8 +375,8 @@ class TrainingController extends Controller
 
         $data = [];
         if ($request->has('name') && !empty($request->name)) $data['name'] = $this->uniqueTrainingName($request->name, $tr->id);
-        if ($request->has('startDate') && !empty($request->startDate)) $data['start_date'] = $request->startDate;
-        if ($request->has('endDate') && !empty($request->endDate)) $data['end_date'] = $request->endDate;
+        if ($request->has('startDate') && !empty($request->startDate)) $data['start_date'] = \Carbon\Carbon::parse($request->startDate)->format('Y-m-d H:i:s');
+        if ($request->has('endDate') && !empty($request->endDate)) $data['end_date'] = \Carbon\Carbon::parse($request->endDate)->format('Y-m-d H:i:s');
         if ($request->has('repeatWeeks')) $data['repeat_weeks'] = $newWeeks;
         if ($request->has('repeatMonths')) $data['repeat_months'] = $newMonths;
         if ($request->has('slots') && $request->slots !== null) $data['slots'] = $request->slots;
@@ -351,6 +412,7 @@ class TrainingController extends Controller
                 'repeat_months' => $newMonths,
                 'sessions' => $totalCount,
                 'fees' => $newFees,
+                'target_type' => $targetTypeVal,
             ];
             if (empty($sItem->coach) && !empty($coachVal)) {
                 $sItemData['coach'] = $coachVal;
@@ -359,6 +421,10 @@ class TrainingController extends Controller
                 $sItemData['location'] = $locationVal;
             }
             $sItem->update($sItemData);
+        }
+
+        if ($request->has('targetType')) {
+            \App\Services\InvitationSyncService::syncAllTrainingInvitations(true);
         }
 
         try {
@@ -627,6 +693,11 @@ class TrainingController extends Controller
 
         $tr = Training::findOrFail($id);
 
+        $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
+        if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
+            return response()->json(['message' => $message], 422);
+        }
+
         if (!in_array($tr->status, ['open', 'released'], true)) {
             return response()->json([
                 'message' => 'This training program is not open for enrollment.',
@@ -758,8 +829,21 @@ class TrainingController extends Controller
         ];
     }
 
-    public function listInvitations()
+    public function listInvitations(Request $request = null)
     {
+        $request = $request ?? request();
+        $user = $request ? $request->user() : null;
+
+        if ($user && $user->role !== 'admin') {
+            $myMemberIds = $this->getFamilyMemberIdsForUser($user);
+
+            $invites = TrainingInvitation::whereIn('member_id', $myMemberIds)
+                ->whereIn('status', ['open', 'accepted', 'waiting', 'declined'])
+                ->get();
+
+            return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
+        }
+
         \App\Services\InvitationSyncService::syncAllTrainingInvitations();
         $invites = TrainingInvitation::all();
         return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
@@ -918,7 +1002,7 @@ class TrainingController extends Controller
                     'member_id' => $member->id,
                 ], [
                     'id' => 'td_' . Str::random(8),
-                    'date' => $tr->start_date,
+                    'date' => \Carbon\Carbon::parse($tr->start_date)->format('Y-m-d H:i:s'),
                     'attended' => null,
                 ]);
             }
@@ -986,7 +1070,12 @@ class TrainingController extends Controller
 
                     $firstInv = $mInvites->first();
                     $trFirst = Training::find($firstInv->training_id);
-                    $repeatWeeks = max(1, (int)($trFirst->repeat_weeks ?? 3));
+                    if (!$trFirst || (int)($trFirst->repeat_weeks ?? 0) <= 0) {
+                        return response()->json([
+                            'message' => 'Invalid or missing Repeat for Weeks configured for training program: ' . ($trFirst ? $trFirst->name : 'Unknown'),
+                        ], 422);
+                    }
+                    $repeatWeeks = (int)$trFirst->repeat_weeks;
                     $appDisc = $firstInv->apply_discount !== null ? (bool)$firstInv->apply_discount : (bool)$member->apply_discount;
                     $discountedMonthlyFee = $firstInv->calculated_monthly_fee !== null ? (float)$firstInv->calculated_monthly_fee : FeeHelper::forMember((float) $trFirst->fees, $member, $appDisc);
 
@@ -1073,7 +1162,7 @@ class TrainingController extends Controller
                                     'member_id' => $memberId,
                                 ], [
                                     'id' => 'td_' . Str::random(8),
-                                    'date' => $trSession->start_date,
+                                    'date' => \Carbon\Carbon::parse($trSession->start_date)->format('Y-m-d H:i:s'),
                                     'attended' => null,
                                 ]);
                             }
@@ -1091,9 +1180,18 @@ class TrainingController extends Controller
         }
     }
 
-    public function listUpdateRequests()
+    public function listUpdateRequests(Request $request = null)
     {
-        $requests = TrainingUpdateRequest::orderBy('created_at', 'desc')->get();
+        $request = $request ?? request();
+        $user = $request ? $request->user() : null;
+
+        $query = TrainingUpdateRequest::orderBy('created_at', 'desc');
+        if ($user && $user->role !== 'admin') {
+            $myMemberIds = $this->getFamilyMemberIdsForUser($user);
+            $query->whereIn('member_id', $myMemberIds);
+        }
+
+        $requests = $query->get();
         return response()->json($requests->map(fn(TrainingUpdateRequest $r) => $this->formatUpdateRequest($r)));
     }
 
@@ -1339,14 +1437,23 @@ class TrainingController extends Controller
         });
     }
 
-    public function listDates()
+    public function listDates(Request $request = null)
     {
-        $dates = TrainingDate::all();
+        $request = $request ?? request();
+        $user = $request ? $request->user() : null;
+
+        $query = TrainingDate::query();
+        if ($user && $user->role !== 'admin') {
+            $myMemberIds = $this->getFamilyMemberIdsForUser($user);
+            $query->whereIn('member_id', $myMemberIds);
+        }
+
+        $dates = $query->get();
         return response()->json($dates->map(fn($d) => [
             'id' => $d->id,
             'trainingId' => $d->training_id,
             'memberId' => $d->member_id,
-            'date' => $d->date,
+            'date' => $d->date ? \Carbon\Carbon::parse($d->date)->format('Y-m-d H:i:s') : null,
             'attended' => $d->attended === null ? null : (bool)$d->attended,
             'refundStatus' => $d->refund_status,
             'refundAmount' => $d->refund_amount !== null ? (float)$d->refund_amount : null,
@@ -1616,14 +1723,14 @@ class TrainingController extends Controller
                             'id' => 'td_' . Str::random(8),
                             'training_id' => $tr->id,
                             'member_id' => $mid,
-                            'date' => $d,
+                            'date' => \Carbon\Carbon::parse($d)->format('Y-m-d H:i:s'),
                             'attended' => null,
                         ]);
                         $trainingDates[] = [
                             'id' => $tDate->id,
                             'trainingId' => $tDate->training_id,
                             'memberId' => $tDate->member_id,
-                            'date' => $tDate->date,
+                            'date' => $tDate->date ? \Carbon\Carbon::parse($tDate->date)->format('Y-m-d H:i:s') : null,
                             'attended' => null,
                             'refundStatus' => null,
                             'refundAmount' => null,
@@ -1633,7 +1740,7 @@ class TrainingController extends Controller
                             'id' => $existingDate->id,
                             'trainingId' => $existingDate->training_id,
                             'memberId' => $existingDate->member_id,
-                            'date' => $existingDate->date,
+                            'date' => $existingDate->date ? \Carbon\Carbon::parse($existingDate->date)->format('Y-m-d H:i:s') : null,
                             'attended' => $existingDate->attended === null ? null : (bool)$existingDate->attended,
                             'refundStatus' => $existingDate->refund_status,
                             'refundAmount' => $existingDate->refund_amount !== null ? (float)$existingDate->refund_amount : null,
@@ -2018,8 +2125,8 @@ class TrainingController extends Controller
             'id' => $t->id,
             'parentId' => $t->parent_id,
             'name' => $t->name,
-            'startDate' => $t->start_date,
-            'endDate' => $t->end_date,
+            'startDate' => $t->start_date ? \Carbon\Carbon::parse($t->start_date)->format('Y-m-d H:i:s') : null,
+            'endDate' => $t->end_date ? \Carbon\Carbon::parse($t->end_date)->format('Y-m-d H:i:s') : null,
             'repeatWeeks' => $storeWeeks,
             'repeatMonths' => $remainingMonths,
             'sessions' => (int)($t->sessions ?? $totalSessions),

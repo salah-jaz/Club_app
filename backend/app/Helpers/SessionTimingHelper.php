@@ -111,14 +111,16 @@ class SessionTimingHelper
     public static function trainingSessionEnd(Training $training): Carbon
     {
         $start = self::parseDateTime($training->start_date);
+        $durationMinutes = self::parseDurationMinutes($training->duration ?? '1 hour');
+
         if (!empty($training->end_date)) {
             $end = self::parseDateTime($training->end_date);
-            if ($end->gt($start)) {
+            if ($end->gt($start) && $end->diffInHours($start) <= 24) {
                 return $end;
             }
         }
 
-        return $start->copy()->addMinutes(self::parseDurationMinutes($training->duration ?? '1 hour'));
+        return $start->copy()->addMinutes($durationMinutes);
     }
 
     public static function phase(Carbon $start, Carbon $end, ?Carbon $now = null): string

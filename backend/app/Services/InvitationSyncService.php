@@ -75,20 +75,41 @@ class InvitationSyncService
                 }
             }
 
-            $invite = PlayInvitation::where('schedule_id', $sch->id)
+            $invites = PlayInvitation::where('schedule_id', $sch->id)
                 ->where('member_id', $member->id)
-                ->first();
+                ->get();
+
+            // Deduplicate if multiple records exist for this member in this schedule
+            if ($invites->count() > 1) {
+                $accepted = $invites->firstWhere('status', 'accepted');
+                $keep = $accepted ?: $invites->first();
+                foreach ($invites as $dup) {
+                    if ($dup->id !== $keep->id) {
+                        if ($dup->debited && $dup->status === 'accepted') {
+                            self::refundPlayInvite($sch, $dup, $member);
+                        }
+                        $dup->delete();
+                    }
+                }
+                $invite = $keep;
+            } else {
+                $invite = $invites->first();
+            }
 
             if ($isEligible) {
                 if (!$invite) {
-                    PlayInvitation::create([
-                        'id' => 'pi_' . Str::random(8),
-                        'schedule_id' => $sch->id,
-                        'member_id' => $member->id,
-                        'status' => 'open',
-                        'accepted_at' => null,
-                        'debited' => false,
-                    ]);
+                    try {
+                        PlayInvitation::create([
+                            'id' => 'pi_' . Str::random(8),
+                            'schedule_id' => $sch->id,
+                            'member_id' => $member->id,
+                            'status' => 'open',
+                            'accepted_at' => null,
+                            'debited' => false,
+                        ]);
+                    } catch (\Throwable $e) {
+                        // Unique constraint safely prevents duplicates
+                    }
                 }
             } else {
                 if ($invite) {
@@ -116,7 +137,13 @@ class InvitationSyncService
         $trainings = Training::whereIn('status', ['released', 'open', 'created'])->get();
 
         foreach ($trainings as $tr) {
-            $targetType = strtolower($tr->target_type ?? 'junior');
+            $parentId = $tr->parent_id ?: $tr->id;
+            $parentTr = ($parentId === $tr->id) ? $tr : Training::find($parentId);
+            $targetType = strtolower($parentTr?->target_type ?? $tr->target_type ?? 'junior');
+            if ($tr->target_type !== $targetType) {
+                $tr->target_type = $targetType;
+                $tr->save();
+            }
             $isEligible = false;
 
             if ($member->status === 'active') {
@@ -189,7 +216,14 @@ class InvitationSyncService
      */
     public static function syncTrainingInvitationsForProgram(Training $tr): void
     {
-        $targetType = strtolower($tr->target_type ?? 'junior');
+        $parentId = $tr->parent_id ?: $tr->id;
+        $parentTr = ($parentId === $tr->id) ? $tr : Training::find($parentId);
+        $targetType = strtolower($parentTr?->target_type ?? $tr->target_type ?? 'junior');
+        if ($tr->target_type !== $targetType) {
+            $tr->target_type = $targetType;
+            $tr->save();
+        }
+
         $eligibleMembers = Member::where('status', 'active')
             ->where('member_type', $targetType)
             ->where('training_eligible', true)
@@ -258,7 +292,7 @@ class InvitationSyncService
     public static function syncAllTrainingInvitations(bool $force = false): void
     {
         $now = microtime(true);
-        if (!$force && self::$lastSyncTime !== null && ($now - self::$lastSyncTime) < 5.0) {
+        if (!app()->runningUnitTests() && !$force && self::$lastSyncTime !== null && ($now - self::$lastSyncTime) < 5.0) {
             return;
         }
         self::$lastSyncTime = $now;
@@ -323,37 +357,10 @@ class InvitationSyncService
         return false;
     }
 
-    private static function promoteNextWaitingPlayMember(PlaySchedule $sch): void
+    public static function promoteNextWaitingPlayMember(PlaySchedule $sch): void
     {
-        $next = PlayInvitation::where('schedule_id', $sch->id)
-            ->where('status', 'waiting')
-            ->orderBy('updated_at', 'asc')
-            ->orderBy('id', 'asc')
-            ->first();
-
-        if ($next) {
-            $nextMember = Member::find($next->member_id);
-            if (
-                $nextMember
-                && !$nextMember->skip_credit_consumption
-                && !self::memberSkipsLeagueFee($sch, $nextMember->id)
-                && !(bool) $sch->is_league_match
-            ) {
-                $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $nextMember);
-                $walletMember = WalletHelper::resolveMember($nextMember);
-                if ($walletMember->credit < $estimatedFee) {
-                    $next = null;
-                }
-            }
-
-            if ($next) {
-                $next->status = 'accepted';
-                $next->accepted_at = now();
-                $next->save();
-
-                self::debitPlayInvite($sch, $next);
-            }
-        }
+        $controller = new \App\Http\Controllers\Api\PlayScheduleController();
+        $controller->promoteWaitingMembers($sch);
     }
 
     private static function debitPlayInvite(PlaySchedule $schedule, PlayInvitation $invite): void
