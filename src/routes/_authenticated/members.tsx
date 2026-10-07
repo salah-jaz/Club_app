@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useMatches, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatches, useNavigate, Navigate } from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { useCan } from "@/lib/permissions";
 import { useMemo, useRef, useState } from "react";
@@ -264,8 +264,11 @@ function downloadCsvFile(csvText: string, filename: string) {
 export const Route = createFileRoute("/_authenticated/members")({ component: MembersLayout });
 
 function MembersLayout() {
+  const user = useCurrentUser()!;
+  const activeRole = useStore((s) => s.activeRole) || user?.role;
   const matches = useMatches();
   const isIndex = matches[matches.length - 1].routeId === Route.id;
+  if (activeRole !== "admin") return <Navigate to="/dashboard" />;
   if (!isIndex) return <Outlet />;
   return <MembersList />;
 }

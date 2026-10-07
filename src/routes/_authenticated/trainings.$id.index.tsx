@@ -128,13 +128,31 @@ function TrainingPage() {
   const targetType = t.targetType || "junior";
 
   const eligibleMembers = useMemo(() => {
-    return s.members.filter(
+    let baseMembers = s.members.filter(
       (m) =>
         m.memberType === targetType &&
         m.status === "active" &&
         Boolean(m.trainingEligible),
     );
-  }, [s.members, targetType]);
+
+    if (t.isGroupTraining && t.leagueGroupIds && t.leagueGroupIds.length > 0) {
+      const allowedMemberIds = new Set<string>();
+      for (const groupId of t.leagueGroupIds) {
+        const group = s.leagueGroups?.find(g => g.id === groupId);
+        if (group) {
+          const ids = Array.isArray(group.memberIds) && group.memberIds.length > 0
+            ? group.memberIds
+            : (group.members?.map((m: any) => m.id) || []);
+          ids.forEach((id: string) => {
+            if (id) allowedMemberIds.add(id);
+          });
+        }
+      }
+      baseMembers = baseMembers.filter(m => allowedMemberIds.has(m.id));
+    }
+
+    return baseMembers;
+  }, [s.members, targetType, t.isGroupTraining, t.leagueGroupIds, s.leagueGroups]);
 
   const [memberSearch, setMemberSearch] = useState("");
 

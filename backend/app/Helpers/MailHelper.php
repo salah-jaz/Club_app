@@ -145,6 +145,12 @@ class MailHelper
         return $headingHtml . $paragraphsHtml . $extraHtml;
     }
 
+    public static function isTemplateEnabled(string $type): bool
+    {
+        $tpl = self::getTemplate($type);
+        return (bool) ($tpl['is_enabled'] ?? true);
+    }
+
     public static function getDefaultTemplates(): array
     {
         $primaryColor = Setting::where('key', 'email_primary_color')->value('value') ?? '#10B981';
@@ -157,6 +163,7 @@ class MailHelper
                 'heading' => 'Registration Received',
                 'message' => "Hello {name},\n\nThank you for registering your account with {app_name}.\n\nYour registration details have been received and are currently awaiting review by the club administrator. You will receive another email notification once your account is reviewed.",
                 'variables' => ['name', 'first_name', 'email', 'app_name', 'portal_url'],
+                'is_enabled' => true,
             ],
             'approval' => [
                 'name' => 'Account Approved',
@@ -166,6 +173,7 @@ class MailHelper
                 'message' => "Hello {name},\n\nGreat news! Your account has been reviewed and approved by the club administrator.\n\nYou can now log in to the club portal and access the dashboard, book schedules, and join training sessions.",
                 'button_text' => 'Log In to Portal',
                 'variables' => ['name', 'first_name', 'email', 'app_name', 'portal_url'],
+                'is_enabled' => true,
             ],
             'rejection' => [
                 'name' => 'Account Rejected',
@@ -174,6 +182,7 @@ class MailHelper
                 'heading' => 'Account Registration',
                 'message' => "Hello {name},\n\nThank you for your interest. We regret to inform you that your registration request has been declined at this time.\n\nIf you have any questions or believe this was in error, please contact the club administrator.",
                 'variables' => ['name', 'first_name', 'email', 'app_name', 'portal_url'],
+                'is_enabled' => true,
             ],
             'transaction' => [
                 'name' => 'Transaction Alert',
@@ -182,6 +191,7 @@ class MailHelper
                 'heading' => 'Transaction Alert',
                 'message' => "Hello {name},\n\nA new transaction has been recorded on your member account.",
                 'variables' => ['name', 'first_name', 'description', 'type', 'amount', 'balance', 'currency', 'app_name', 'portal_url'],
+                'is_enabled' => true,
             ],
             'schedule' => [
                 'name' => 'Play Schedule Notification',
@@ -190,6 +200,7 @@ class MailHelper
                 'heading' => '{title}',
                 'message' => "Hello {name},\n\nThe play schedule {schedule_name} has been {action_verb} by the club.",
                 'variables' => ['name', 'first_name', 'schedule_name', 'date', 'location', 'fee', 'status', 'title', 'action_verb', 'app_name', 'portal_url'],
+                'is_enabled' => true,
             ],
             'training' => [
                 'name' => 'Training Session Notification',
@@ -198,6 +209,7 @@ class MailHelper
                 'heading' => '{title}',
                 'message' => "Hello {name},\n\nThe training course {program_name} has been {action_verb} by the club.",
                 'variables' => ['name', 'first_name', 'program_name', 'coach', 'location', 'dates_html', 'date_label', 'status', 'title', 'action_verb', 'app_name', 'portal_url'],
+                'is_enabled' => true,
             ],
             'reset_password' => [
                 'name' => 'Password Reset Verification (OTP)',
@@ -206,6 +218,7 @@ class MailHelper
                 'heading' => 'Reset Password Request',
                 'message' => "Hello {name},\n\nWe received a request to reset your password for your account.\n\nYour 6-digit verification code (OTP) is:",
                 'variables' => ['name', 'first_name', 'otp', 'app_name', 'portal_url'],
+                'is_enabled' => true,
             ],
             'reset_password_success' => [
                 'name' => 'Password Reset Success',
@@ -215,6 +228,7 @@ class MailHelper
                 'message' => "Hello {name},\n\nYour password for your account has been successfully reset.\n\nYou can now sign in to your account using your new password.",
                 'button_text' => 'Sign In to Account',
                 'variables' => ['name', 'first_name', 'app_name', 'portal_url'],
+                'is_enabled' => true,
             ],
         ];
 
@@ -236,6 +250,7 @@ class MailHelper
             'message' => 'Hello {name},',
             'body' => '<p>Hello {name},</p>',
             'variables' => ['name', 'first_name', 'app_name', 'portal_url'],
+            'is_enabled' => true,
         ];
 
         $raw = Setting::where('key', 'email_templates')->value('value');
@@ -251,6 +266,7 @@ class MailHelper
                     'message' => isset($custom['message']) ? $custom['message'] : ($default['message'] ?? ''),
                     'button_text' => $custom['button_text'] ?? ($custom['buttonText'] ?? ($default['button_text'] ?? '')),
                     'variables' => $default['variables'],
+                    'is_enabled' => array_key_exists('is_enabled', $custom) ? filter_var($custom['is_enabled'], FILTER_VALIDATE_BOOLEAN) : true,
                 ];
 
                 if (!empty(trim($merged['message']))) {
@@ -277,6 +293,8 @@ class MailHelper
 
     public static function sendApprovalEmail($user)
     {
+        if (!self::isTemplateEnabled('approval')) return;
+
         $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
         $tpl = self::getTemplate('approval');
         $vars = [
@@ -293,6 +311,8 @@ class MailHelper
 
     public static function sendRejectionEmail($user)
     {
+        if (!self::isTemplateEnabled('rejection')) return;
+
         $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
         $tpl = self::getTemplate('rejection');
         $vars = [
@@ -309,6 +329,8 @@ class MailHelper
 
     public static function sendTransactionEmail($member, $transaction)
     {
+        if (!self::isTemplateEnabled('transaction')) return;
+
         $currency = Setting::where('key', 'currency')->value('value') ?? '$';
         $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
         $isRefund = $transaction->type === 'refund';
@@ -336,6 +358,8 @@ class MailHelper
 
     public static function sendScheduleNotification($member, $schedule, $status, $actionType = 'update')
     {
+        if (!self::isTemplateEnabled('schedule')) return;
+
         $currency = Setting::where('key', 'currency')->value('value') ?? '$';
         $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
         $isUpdate = in_array($actionType, ['update', 'update_request'], true);
@@ -371,6 +395,8 @@ class MailHelper
 
     public static function sendRegistrationEmail($user)
     {
+        if (!self::isTemplateEnabled('registration')) return;
+
         $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
         $tpl = self::getTemplate('registration');
         $vars = [
@@ -387,6 +413,8 @@ class MailHelper
 
     public static function sendTrainingNotification($member, $trainings, $status = 'open', $actionType = 'release')
     {
+        if (!self::isTemplateEnabled('training')) return;
+
         if (empty($trainings)) {
             return;
         }
@@ -456,6 +484,8 @@ class MailHelper
 
     public static function sendPasswordResetOtpEmail($user, $otp)
     {
+        if (!self::isTemplateEnabled('reset_password')) return;
+
         $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
         $tpl = self::getTemplate('reset_password');
         $vars = [
@@ -472,6 +502,8 @@ class MailHelper
 
     public static function sendPasswordResetSuccessEmail($user)
     {
+        if (!self::isTemplateEnabled('reset_password_success')) return;
+
         $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
         $tpl = self::getTemplate('reset_password_success');
         $vars = [

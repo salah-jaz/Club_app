@@ -30,6 +30,8 @@ export function PageHeader({
         return "PROGRAMS / TRAINING";
       case "transactions":
         return "FINANCE / HISTORY";
+      case "league-groups":
+        return "CLUB / GROUPS";
       case "approvals":
         return "ADMIN / APPROVALS";
       case "admin-management":

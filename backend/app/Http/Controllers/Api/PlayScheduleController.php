@@ -358,16 +358,25 @@ class PlayScheduleController extends Controller
         });
 
         // Offload email notifications to background so HTTP response completes immediately
-        SendPlayScheduleReleaseNotifications::dispatch(
-            $sch->id,
-            $releaseNotifications,
-            $transactionNotifications
-        );
-        BackgroundQueueService::runBackgroundQueue();
+        if (!MailHelper::isTemplateEnabled('schedule')) {
+            $releaseNotifications = [];
+        }
+        if (!MailHelper::isTemplateEnabled('transaction')) {
+            $transactionNotifications = [];
+        }
+
+        if (count($releaseNotifications) > 0 || count($transactionNotifications) > 0) {
+            SendPlayScheduleReleaseNotifications::dispatch(
+                $sch->id,
+                $releaseNotifications,
+                $transactionNotifications
+            );
+            BackgroundQueueService::runBackgroundQueue();
+        }
 
         return response()->json([
             'message' => $isLeague
-                ? 'League schedule released; invitations auto-accepted for ' . $acceptedCount . ' players.'
+                ? 'Group schedule released; invitations auto-accepted for ' . $acceptedCount . ' players.'
                 : 'Schedule released and invitations sent to ' . count($invites) . ' participants.',
             'inviteCount' => count($invites),
             'schedule' => $this->formatSchedule($sch),
@@ -435,7 +444,7 @@ class PlayScheduleController extends Controller
             $notInGroup = array_values(array_diff($memberIds, $groupMemberIds));
             if (count($notInGroup) > 0) {
                 return response()->json([
-                    'message' => 'One or more selected members are not in the league groups for this session.',
+                    'message' => 'One or more selected members are not in the groups for this session.',
                 ], 422);
             }
         }

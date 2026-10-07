@@ -19,11 +19,11 @@ function AddMember() {
   return (
     <div>
       <PageHeader
-        title={isAdmin ? "Add member" : "Add family member"}
+        title={isAdmin ? "Add member" : "Add kids"}
         description={
           isAdmin
             ? "Create a member profile. Juniors can be linked under a parent adult."
-            : "Register a new junior under your club account."
+            : "Register a new kids under your club account."
         }
         backTo="/members"
       />

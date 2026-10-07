@@ -165,6 +165,10 @@ function EditSchedule() {
       toast.error("Schedule date and time must be today or later.");
       return;
     }
+    if (f.isLeagueMatch && f.leagueGroupIds.length === 0) {
+      toast.error("Please select at least one group for the schedule.");
+      return;
+    }
     setSubmitting(true);
     try {
       await update(sch.id, {

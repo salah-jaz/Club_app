@@ -19,7 +19,7 @@ import {
   type ReportRow,
 } from "@/lib/report-export";
 import { fmtMoney } from "@/lib/format";
-
+import { useStore } from "@/lib/store";
 function memberLabel(members: Member[], id?: string | null): string {
   if (!id) return "—";
   const m = members.find((x) => x.id === id);
@@ -243,9 +243,54 @@ export function exportSchedulesReport(
   appName?: string,
   locationOptions?: Array<{ value: string; label: string }>,
 ) {
+  const state = useStore.getState();
+  const transactions = state.transactions;
   const filtered = filterSchedulesForReport(schedules, invites, filters);
+  
   const rows = filtered.map((sch) => {
-    const accepted = invites.filter((i) => i.scheduleId === sch.id && i.status === "accepted").length;
+    const acceptedInvites = invites.filter((i) => i.scheduleId === sch.id && i.status === "accepted");
+    const acceptedCount = acceptedInvites.length;
+    
+    // Calculate Net Amount from UNIQUE accepted members
+    const uniqueAcceptedMembers = new Set(acceptedInvites.map(i => i.memberId));
+    let netAmount = 0;
+
+    for (const memberId of uniqueAcceptedMembers) {
+      const member = members.find((m) => m.id === memberId);
+      if (!member) continue;
+
+      if (member.skipCreditConsumption) {
+        continue;
+      }
+
+      const memberName = `${member.firstName} ${member.lastName}`;
+      const descMatch = `Play session: ${sch.name} - ${memberName}`;
+      
+      const debits = transactions.filter(t => t.type === 'debit' && t.description === descMatch);
+
+      if (debits.length > 0) {
+        netAmount += debits.reduce((sum, t) => sum + t.amount, 0);
+      } else {
+        const baseFee = sch.sessionRate || 0;
+        if (!member.applyDiscount) {
+          netAmount += baseFee;
+        } else {
+          const type = member.memberType === "adult" ? "adult" : "junior";
+          const percent = type === "adult" ? state.adultDiscountPercent : state.juniorDiscountPercent;
+          const amount = type === "adult" ? state.adultDiscountAmount : state.juniorDiscountAmount;
+          const mode = type === "adult" ? state.adultDiscountMode : state.juniorDiscountMode;
+          
+          let fee = baseFee;
+          if (mode === "percent" && percent > 0) {
+             fee = fee * (1 - Math.min(percent, 100) / 100);
+          } else if (mode === "amount" && amount > 0) {
+             fee = fee - amount;
+          }
+          netAmount += Math.max(0, fee);
+        }
+      }
+    }
+
     return {
       name: sch.name,
       date: formatReportDateTime(sch.date),
@@ -253,8 +298,9 @@ export function exportSchedulesReport(
       status: sch.status,
       type: sch.isLeagueMatch ? "Group" : "Regular",
       courts: sch.courts,
-      players: `${accepted}/${sch.players || 12}`,
+      players: `${acceptedCount}/${sch.players || 12}`,
       rate: fmtMoney(sch.sessionRate || 0),
+      netAmount: fmtMoney(netAmount),
     };
   });
   exportRows(
@@ -269,6 +315,7 @@ export function exportSchedulesReport(
       { key: "courts", header: "Courts", width: 16, align: "right" },
       { key: "players", header: "Players", width: 20, align: "right" },
       { key: "rate", header: "Session rate", width: 24, align: "right" },
+      { key: "netAmount", header: "Net Amount", width: 24, align: "right" },
     ],
     rows,
     summarize(filters, members, {
@@ -322,14 +369,79 @@ export function filterTrainingsForReport(
 export function exportTrainingsReport(
   trainings: Training[],
   invites: TrainingInvitation[],
+  trainingDates: TrainingDate[],
   members: Member[],
   filters: ReportFilterValues,
   format: "csv" | "pdf",
   appName?: string,
   locationOptions?: Array<{ value: string; label: string }>,
 ) {
+  const state = useStore.getState();
+  const transactions = state.transactions;
+
   const filtered = filterTrainingsForReport(trainings, invites, filters);
   const rows = filtered.map((t) => {
+    const d = new Date(t.startDate);
+    const targetMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const pid = t.parentId || t.id;
+    
+    const monthSessions = trainings.filter((other) => {
+      const otherPid = other.parentId || other.id;
+      if (otherPid !== pid) return false;
+      const otherD = new Date(other.startDate);
+      const otherMonth = `${otherD.getFullYear()}-${String(otherD.getMonth() + 1).padStart(2, "0")}`;
+      return otherMonth === targetMonth;
+    });
+    
+    const monthSessionIds = new Set(monthSessions.map((ms) => ms.id));
+    
+    let totalRetained = 0;
+    const memberInvitesMap = new Map<string, typeof invites>();
+    
+    for (const inv of invites) {
+      if (monthSessionIds.has(inv.trainingId) && inv.status === "accepted") {
+        if (!memberInvitesMap.has(inv.memberId)) {
+          memberInvitesMap.set(inv.memberId, []);
+        }
+        memberInvitesMap.get(inv.memberId)!.push(inv);
+      }
+    }
+    
+    for (const [memberId, memberInvs] of memberInvitesMap.entries()) {
+      const m = members.find((mb) => mb.id === memberId);
+      if (!m || m.skipCreditConsumption) continue;
+      
+      let memberPaidForMonth = 0;
+      for (const inv of memberInvs) {
+        if (inv.acceptedAmount !== undefined && inv.acceptedAmount !== null) {
+          memberPaidForMonth += inv.acceptedAmount;
+        } else if (inv.acceptedPerSessionFee !== undefined && inv.acceptedPerSessionFee !== null) {
+          memberPaidForMonth += inv.acceptedPerSessionFee;
+        } else if (inv.acceptedMonthlyFee && inv.acceptedRepeatWeeks) {
+          memberPaidForMonth += inv.acceptedMonthlyFee / inv.acceptedRepeatWeeks;
+        } else {
+          const repWeeks = Math.max(1, t.repeatWeeks || 3);
+          const baseMemberWeekFee = (t.fees || 0) / repWeeks;
+          memberPaidForMonth += baseMemberWeekFee;
+        }
+      }
+      
+      const memberName = `${m.firstName} ${m.lastName}`;
+      const relevantRefunds = transactions.filter(txn => {
+        if (txn.type !== 'refund') return false;
+        if (!txn.description.includes(memberName)) return false;
+        
+        return Array.from(monthSessionIds).some(tId => {
+          const sessionTraining = trainings.find(tr => tr.id === tId);
+          return sessionTraining && txn.description.includes(sessionTraining.name);
+        });
+      });
+      
+      const memberRefundsForMonth = relevantRefunds.reduce((sum, txn) => sum + txn.amount, 0);
+      
+      totalRetained += Math.max(0, memberPaidForMonth - memberRefundsForMonth);
+    }
+
     const accepted = invites.filter((i) => i.trainingId === t.id && i.status === "accepted").length;
     return {
       name: t.name,
@@ -341,6 +453,7 @@ export function exportTrainingsReport(
       status: t.status,
       slots: `${accepted}/${t.slots || 0}`,
       fees: fmtMoney(t.fees || 0),
+      netAmount: fmtMoney(totalRetained),
     };
   });
   exportRows(
@@ -355,6 +468,7 @@ export function exportTrainingsReport(
       { key: "status", header: "Status", width: 20 },
       { key: "slots", header: "Slots", width: 18, align: "right" },
       { key: "fees", header: "Fees", width: 22, align: "right" },
+      { key: "netAmount", header: "Net Amount", width: 24, align: "right" },
     ],
     rows,
     summarize(filters, members, {

@@ -22,6 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { LeagueGroupSelector } from "@/components/LeagueGroupSelector";
 
 export const Route = createFileRoute("/_authenticated/trainings/$id/edit")({
   component: EditTraining,
@@ -43,6 +45,8 @@ function EditTraining() {
   const update = useStore((state) => state.updateTraining);
   const locations = useStore((state) => state.locations);
   const coaches = useStore((state) => state.coaches);
+  const leagueGroups = useStore((state) => state.leagueGroups);
+  const allMembers = useStore((state) => state.members);
   const navigate = useNavigate();
 
   const [f, setF] = useState({
@@ -57,6 +61,8 @@ function EditTraining() {
     coach: coaches[0] || "Coach Lee",
     location: locations[0] || "",
     targetType: (tr?.targetType || "junior") as "adult" | "junior",
+    isGroupTraining: tr?.isGroupTraining || false,
+    leagueGroupIds: tr?.leagueGroupIds || ([] as string[]),
   });
 
   const [nameTouched, setNameTouched] = useState(false);
@@ -77,6 +83,8 @@ function EditTraining() {
         coach: tr.coach || coaches[0] || "Coach Lee",
         location: tr.location || locations[0] || "",
         targetType: tr.targetType || "junior",
+        isGroupTraining: tr.isGroupTraining || false,
+        leagueGroupIds: tr.leagueGroupIds || [],
       });
       setNameTouched(true);
     }
@@ -87,6 +95,33 @@ function EditTraining() {
   const minDateTime = datetimeLocalNow();
 
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.startDate), [f.startDate]);
+
+  const targetLeagueGroups = useMemo(() => {
+    return leagueGroups.filter(g => g.groupType?.toLowerCase() === f.targetType);
+  }, [leagueGroups, f.targetType]);
+
+  const leagueStats = useMemo(() => {
+    if (!f.isGroupTraining || !f.leagueGroupIds?.length)
+      return { uniqueCount: 0, totalSlots: 0, sharedCount: 0 };
+    const memberCounts = new Map<string, number>();
+    let totalSlots = 0;
+    for (const group of targetLeagueGroups) {
+      if (f.leagueGroupIds.includes(group.id)) {
+        const ids = Array.isArray(group.memberIds) && group.memberIds.length > 0 ? group.memberIds : group.members?.map((m) => m.id) || [];
+        totalSlots += ids.length;
+        ids.forEach((id) => {
+          if (id) memberCounts.set(id, (memberCounts.get(id) || 0) + 1);
+        });
+      }
+    }
+    let sharedCount = 0;
+    memberCounts.forEach((cnt) => {
+      if (cnt > 1) sharedCount++;
+    });
+    return { uniqueCount: memberCounts.size, totalSlots, sharedCount };
+  }, [f.isGroupTraining, f.leagueGroupIds, targetLeagueGroups]);
+
+  const leagueUniqueMemberCount = leagueStats.uniqueCount;
 
   const repeatPreview = useMemo(() => {
     const weeks = Number(f.repeatWeeks);
@@ -147,12 +182,14 @@ function EditTraining() {
         repeatWeeks: weeks,
         repeatMonths: Math.max(1, Math.min(24, Number(f.repeatMonths) || 1)),
         sessions: totalSessions,
-        slots: f.slots,
+        slots: f.isGroupTraining ? leagueUniqueMemberCount : f.slots,
         duration: f.duration,
         fees: f.fees,
         coach: f.coach,
         location: f.location,
         targetType: f.targetType,
+        isGroupTraining: f.isGroupTraining,
+        leagueGroupIds: f.leagueGroupIds,
       };
 
       await update(tr.id, payload as any);
@@ -174,6 +211,10 @@ function EditTraining() {
     }
     if (!f.targetType) {
       toast.error("Please select Training For (Adult or Junior).");
+      return;
+    }
+    if (f.isGroupTraining && f.leagueGroupIds.length === 0) {
+      toast.error("Please select at least one group for the training.");
       return;
     }
 
@@ -326,7 +367,26 @@ function EditTraining() {
 
             <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Maximum Slots (Capacity)</Label>
-              <Input required type="number" min={1} value={f.slots} onChange={(e) => set("slots", +e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono" />
+              <Input
+                required
+                type="number"
+                min={f.isGroupTraining ? 0 : 1}
+                value={f.isGroupTraining ? leagueUniqueMemberCount : f.slots}
+                onChange={(e) => set("slots", +e.target.value)}
+                readOnly={f.isGroupTraining}
+                className={`bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono ${f.isGroupTraining ? "opacity-75 cursor-not-allowed bg-[#131916]" : ""}`}
+              />
+              {f.isGroupTraining && (
+                <p className="text-[11px] text-[#34D399] leading-relaxed">
+                  {f.leagueGroupIds.length === 0
+                    ? "Select groups below to calculate max slots."
+                    : `Dynamic: ${leagueStats.uniqueCount} unique player${leagueStats.uniqueCount === 1 ? "" : "s"} across ${f.leagueGroupIds.length} selected group${f.leagueGroupIds.length === 1 ? "" : "s"}${
+                        leagueStats.sharedCount > 0
+                          ? ` (${leagueStats.totalSlots} total slots - ${leagueStats.sharedCount} shared member${leagueStats.sharedCount === 1 ? "" : "s"} counted once).`
+                          : "."
+                      }`}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -343,7 +403,12 @@ function EditTraining() {
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                 Training For <span className="text-[#EF4444]">*</span>
               </Label>
-              <Select value={f.targetType} onValueChange={(v: "adult" | "junior") => set("targetType", v)}>
+              <Select
+                value={f.targetType}
+                onValueChange={(v: "adult" | "junior") => {
+                  setF(p => ({ ...p, targetType: v, leagueGroupIds: [] })); // Reset group selections on type change
+                }}
+              >
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue placeholder="Select Target Type" />
                 </SelectTrigger>
@@ -385,6 +450,34 @@ function EditTraining() {
                 </SelectContent>
               </Select>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
+          <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+              Group Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
+              <div>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable Group Selection</Label>
+                <p className="text-xs text-muted-foreground">Automatically enroll members from selected {f.targetType} groups</p>
+              </div>
+              <Switch checked={f.isGroupTraining} onCheckedChange={(v) => set("isGroupTraining", v)} />
+            </div>
+
+            {f.isGroupTraining && (
+              <div className="pt-2">
+                <LeagueGroupSelector
+                  selectedGroupIds={f.leagueGroupIds}
+                  onSelectionChange={(nextIds) => set("leagueGroupIds", nextIds)}
+                  leagueGroups={targetLeagueGroups}
+                  allMembers={allMembers}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
         <div className="flex justify-end">

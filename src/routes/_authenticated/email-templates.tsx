@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Palette,
@@ -345,6 +346,7 @@ function EmailTemplatesPage() {
         button_text: buttonText,
         body,
         variables: serverTpl?.variables || meta.variables,
+        is_enabled: serverTpl?.is_enabled !== undefined ? Boolean(serverTpl?.is_enabled) : true,
       };
     }
     return initial;
@@ -373,6 +375,7 @@ function EmailTemplatesPage() {
               button_text: buttonText,
               body,
               variables: serverTpl.variables || meta.variables,
+              is_enabled: serverTpl.is_enabled !== undefined ? Boolean(serverTpl.is_enabled) : true,
             };
           }
         }
@@ -427,6 +430,7 @@ function EmailTemplatesPage() {
     buttonText: activeMeta.buttonText,
     body: compileTemplateHtml(selectedKey, activeMeta.heading, activeMeta.message, activeMeta.buttonText),
     variables: activeMeta.variables,
+    is_enabled: true,
   };
 
   const handleSubjectChange = (val: string) => {
@@ -536,6 +540,7 @@ function EmailTemplatesPage() {
         button_text: defaultTpl.buttonText,
         body: compiled,
         variables: defaultTpl.variables,
+        is_enabled: true,
       },
     }));
     toast.info(`Reset "${defaultTpl.name}" to default text.`);
@@ -731,6 +736,27 @@ function EmailTemplatesPage() {
                       <Info className="size-3 text-primary shrink-0" />
                       {activeTemplate.description}
                     </p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-white/[0.06] bg-[#1A2120]">
+                    <div className="space-y-0.5">
+                      <Label className="text-[11px] font-semibold text-[#F1F0EE]">Enable Notification</Label>
+                      <p className="text-[10px] text-[#8A8A98]">
+                        If disabled, this email will not be sent automatically.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={activeTemplate.is_enabled ?? true}
+                      onCheckedChange={(checked) => {
+                        setTemplates((prev) => ({
+                          ...prev,
+                          [selectedKey]: {
+                            ...prev[selectedKey],
+                            is_enabled: checked,
+                          },
+                        }));
+                      }}
+                    />
                   </div>
 
                   {/* Email Subject Line */}

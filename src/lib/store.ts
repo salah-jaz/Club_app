@@ -33,6 +33,7 @@ interface State {
   playInvites: PlayInvitation[];
   rotations: Rotation[];
   trainings: Training[];
+  uniqueTrainingsCount: number;
   trainingInvites: TrainingInvitation[];
   trainingDates: TrainingDate[];
   trainingUpdateRequests: TrainingUpdateRequest[];
@@ -246,8 +247,8 @@ interface State {
     mailFromName: string;
     testEmail?: string;
   }) => Promise<{ status: string; message: string }>;
-  createLeagueGroup: (g: { name: string; description: string; memberIds: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
-  updateLeagueGroup: (id: string, patch: { name?: string; description?: string; memberIds?: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
+  createLeagueGroup: (g: { name: string; description: string; groupType: "Adult" | "Junior"; memberIds: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
+  updateLeagueGroup: (id: string, patch: { name?: string; description?: string; groupType?: "Adult" | "Junior"; memberIds?: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
   deleteLeagueGroup: (id: string) => Promise<void>;
   setActiveRole: (role: Role) => void;
   bulkUploadMembers: (file: File, options?: { allowExamples?: boolean }) => Promise<number>;
@@ -295,6 +296,7 @@ export const useStore = create<State>((set, get) => ({
   adminUsers: [],
   rotations: [],
   trainings: [],
+  uniqueTrainingsCount: 0,
   trainingInvites: [],
   trainingDates: [],
   trainingUpdateRequests: [],
@@ -431,6 +433,7 @@ export const useStore = create<State>((set, get) => ({
         schedules: PlaySchedule[];
         playInvites: PlayInvitation[];
         trainings: Training[];
+        uniqueTrainingsCount: number;
         trainingInvites: TrainingInvitation[];
         trainingDates?: TrainingDate[];
         trainingUpdateRequests?: TrainingUpdateRequest[];
@@ -483,6 +486,7 @@ export const useStore = create<State>((set, get) => ({
         schedules,
         playInvites,
         trainings,
+        uniqueTrainingsCount,
         trainingInvites,
         trainingDates,
         trainingUpdateRequests,
@@ -497,6 +501,7 @@ export const useStore = create<State>((set, get) => ({
         schedules,
         playInvites,
         trainings,
+        uniqueTrainingsCount: uniqueTrainingsCount || 0,
         trainingInvites,
         trainingDates: trainingDates || [],
         trainingUpdateRequests: trainingUpdateRequests || [],

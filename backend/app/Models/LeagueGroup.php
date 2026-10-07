@@ -14,6 +14,7 @@ class LeagueGroup extends Model
         'id',
         'name',
         'description',
+        'group_type',
     ];
 
     public function members(): BelongsToMany

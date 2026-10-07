@@ -102,7 +102,7 @@ function TrainingsList() {
   const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
+  const [sortBy, setSortBy] = useState("date-asc");
   const report = useReportDialog();
 
   // Group training sessions by series and month -> Monthly Cards
@@ -182,7 +182,13 @@ function TrainingsList() {
       });
     }
 
-    return cards;
+    return cards.sort((a, b) => {
+      const timeA = new Date(a.startDate).getTime() || 0;
+      const timeB = new Date(b.startDate).getTime() || 0;
+      const diff = timeA - timeB;
+      if (diff !== 0) return diff;
+      return a.name.localeCompare(b.name);
+    });
   }, [s.trainings, s.trainingInvites]);
 
   const filteredCards = useMemo(() => {
@@ -199,21 +205,29 @@ function TrainingsList() {
     }
     if (statusFilter !== "all") {
       result = result.filter((card) => card.status === statusFilter);
+    } else {
+      result = result.filter((card) => card.status !== "closed" && card.status !== "cancelled");
     }
     return result.sort((a, b) => {
-      if (sortBy === "newest") {
-        return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+      const timeA = new Date(a.startDate).getTime() || 0;
+      const timeB = new Date(b.startDate).getTime() || 0;
+
+      switch (sortBy) {
+        case "date-desc":
+        case "newest":
+          return timeB - timeA;
+        case "fees_high":
+          return b.fees - a.fees;
+        case "fees_low":
+          return a.fees - b.fees;
+        case "date-asc":
+        case "oldest":
+        default: {
+          const diff = timeA - timeB;
+          if (diff !== 0) return diff;
+          return a.name.localeCompare(b.name);
+        }
       }
-      if (sortBy === "oldest") {
-        return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
-      }
-      if (sortBy === "fees_high") {
-        return b.fees - a.fees;
-      }
-      if (sortBy === "fees_low") {
-        return a.fees - b.fees;
-      }
-      return 0;
     });
   }, [allMonthCards, searchTerm, statusFilter, sortBy]);
 
@@ -296,7 +310,7 @@ function TrainingsList() {
   const resetFilters = useCallback(() => {
     setSearchTerm("");
     setStatusFilter("all");
-    setSortBy("newest");
+    setSortBy("date-asc");
   }, []);
 
   const handleFilterChange = useCallback((key: string, value: string) => {
@@ -319,6 +333,7 @@ function TrainingsList() {
           { value: "open", label: "Enrollment Open" },
           { value: "released", label: "Released" },
           { value: "closed", label: "Closed" },
+          { value: "cancelled", label: "Cancelled" },
         ],
       },
     ],
@@ -327,8 +342,8 @@ function TrainingsList() {
 
   const trainingSortOptions = useMemo(
     () => [
-      { value: "newest", label: "Newest Date" },
-      { value: "oldest", label: "Oldest Date" },
+      { value: "date-asc", label: "Next scheduled" },
+      { value: "date-desc", label: "Latest first" },
       { value: "fees_high", label: "Fees (High-Low)" },
       { value: "fees_low", label: "Fees (Low-High)" },
     ],
@@ -359,6 +374,7 @@ function TrainingsList() {
         exportTrainingsReport(
           s.trainings,
           s.trainingInvites ?? [],
+          s.trainingDates ?? [],
           s.members,
           report.values,
           fmt,

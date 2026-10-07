@@ -94,5 +94,8 @@ export function firstAllowedAdminPath(): string {
 
 export function permissionActionLabel(action: string): string {
   if (action === "create") return "Add";
-  return action.replace(/_/g, " ");
+  return action
+    .replace(/league[_\s]groups/gi, "groups")
+    .replace(/league/gi, "group")
+    .replace(/_/g, " ");
 }

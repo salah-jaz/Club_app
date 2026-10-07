@@ -101,6 +101,9 @@ class TrainingController extends Controller
             'coach' => 'required|string',
             'location' => 'required|string',
             'targetType' => 'required|in:adult,junior,Adult,Junior',
+            'isGroupTraining' => 'sometimes|boolean',
+            'leagueGroupIds' => 'sometimes|array',
+            'leagueGroupIds.*' => 'string',
         ], [
             'repeatWeeks.max' => 'Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.',
             'repeatWeeks.min' => 'Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.',
@@ -182,6 +185,8 @@ class TrainingController extends Controller
                 'location' => $request->location,
                 'status' => 'created',
                 'target_type' => $targetType,
+                'is_group_training' => $request->boolean('isGroupTraining'),
+                'league_group_ids' => $request->input('leagueGroupIds', []),
             ]);
 
             $created[] = $tr;
@@ -368,6 +373,8 @@ class TrainingController extends Controller
                         'location' => $locationVal,
                         'status' => 'open',
                         'target_type' => $targetTypeVal,
+                        'is_group_training' => $tr->is_group_training,
+                        'league_group_ids' => $tr->league_group_ids,
                     ]);
                 }
             }
@@ -396,6 +403,12 @@ class TrainingController extends Controller
         if ($request->has('targetType')) {
             $data['target_type'] = $targetTypeVal;
         }
+        if ($request->has('isGroupTraining')) {
+            $data['is_group_training'] = $request->boolean('isGroupTraining');
+        }
+        if ($request->has('leagueGroupIds')) {
+            $data['league_group_ids'] = $request->input('leagueGroupIds', []);
+        }
 
         $tr->update($data);
 
@@ -414,6 +427,12 @@ class TrainingController extends Controller
                 'fees' => $newFees,
                 'target_type' => $targetTypeVal,
             ];
+            if ($request->has('isGroupTraining')) {
+                $sItemData['is_group_training'] = $request->boolean('isGroupTraining');
+            }
+            if ($request->has('leagueGroupIds')) {
+                $sItemData['league_group_ids'] = $request->input('leagueGroupIds', []);
+            }
             if (empty($sItem->coach) && !empty($coachVal)) {
                 $sItemData['coach'] = $coachVal;
             }
@@ -460,18 +479,32 @@ class TrainingController extends Controller
         $memberIds = $request->input('memberIds', []);
         $targetType = $tr->target_type ?? 'junior';
 
-        if (count($memberIds) === 0) {
-            $memberIds = Member::eligibleForTraining($targetType)->pluck('id')->all();
-        } else {
-            $eligibleIds = Member::eligibleForTraining($targetType)
+        if ((bool) $tr->is_group_training && !empty($tr->league_group_ids)) {
+            $memberIds = DB::table('league_group_member')
+                ->whereIn('league_group_id', $tr->league_group_ids)
+                ->pluck('member_id')
+                ->unique()
+                ->values()
+                ->all();
+
+            $memberIds = Member::eligibleForTraining($targetType)
                 ->whereIn('id', $memberIds)
                 ->pluck('id')
                 ->all();
+        } else {
+            if (count($memberIds) === 0) {
+                $memberIds = Member::eligibleForTraining($targetType)->pluck('id')->all();
+            } else {
+                $eligibleIds = Member::eligibleForTraining($targetType)
+                    ->whereIn('id', $memberIds)
+                    ->pluck('id')
+                    ->all();
 
-            if (count($eligibleIds) !== count($memberIds)) {
-                return response()->json([
-                    'message' => 'One or more selected members are not eligible for training invitations.',
-                ], 422);
+                if (count($eligibleIds) !== count($memberIds)) {
+                    return response()->json([
+                        'message' => 'One or more selected members are not eligible for training invitations.',
+                    ], 422);
+                }
             }
         }
 
@@ -556,6 +589,24 @@ class TrainingController extends Controller
             }
 
             return DB::transaction(function () use ($tr, $monthSessions, $selectedSids, $member, $totalFeeToDeduct, $existingInvs) {
+                $freshTrainings = Training::whereIn('id', $selectedSids)->lockForUpdate()->get();
+                foreach ($freshTrainings as $freshTr) {
+                    $maxSlots = (int)($freshTr->slots ?? 0);
+                    if ($maxSlots > 0) {
+                        $isAlreadyAccepted = $existingInvs->where('training_id', $freshTr->id)->where('status', 'accepted')->isNotEmpty();
+                        if (!$isAlreadyAccepted) {
+                            $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
+                                ->where('status', 'accepted')
+                                ->distinct('member_id')
+                                ->count('member_id');
+                                
+                            if ($acceptedCount >= $maxSlots) {
+                                return response()->json(['message' => 'Maximum players already accepted for this training.'], 422);
+                            }
+                        }
+                    }
+                }
+
                 // Force Accept is an admin override: always debit the fee even if the
                 // wallet balance is insufficient (balance may go negative).
                 if ($totalFeeToDeduct > 0) {
@@ -771,6 +822,23 @@ class TrainingController extends Controller
         }
 
         return DB::transaction(function () use ($tr, $newMemberIds, $basePerWeekFee) {
+            $freshTr = Training::where('id', $tr->id)->lockForUpdate()->first();
+            if ($freshTr) {
+                $maxSlots = (int)($freshTr->slots ?? 0);
+                if ($maxSlots > 0) {
+                    $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
+                        ->where('status', 'accepted')
+                        ->distinct('member_id')
+                        ->count('member_id');
+                        
+                    $newAcceptances = count(array_unique($newMemberIds));
+                    
+                    if (($acceptedCount + $newAcceptances) > $maxSlots) {
+                        return response()->json(['message' => 'Maximum players already accepted for this training.'], 422);
+                    }
+                }
+            }
+
             foreach ($newMemberIds as $mid) {
                 $member = Member::find($mid);
                 if ($member) {
@@ -940,6 +1008,21 @@ class TrainingController extends Controller
                 return null;
             }
 
+            $freshTr = Training::where('id', $tr->id)->lockForUpdate()->first();
+            if ($freshTr) {
+                $maxSlots = (int)($freshTr->slots ?? 0);
+                if ($maxSlots > 0) {
+                    $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
+                        ->where('status', 'accepted')
+                        ->distinct('member_id')
+                        ->count('member_id');
+
+                    if ($acceptedCount >= $maxSlots) {
+                        return 'Maximum players already accepted for this training.';
+                    }
+                }
+            }
+
             $walletMember = $this->getWalletMember($member, $feeToDeduct);
 
             if (!$walletMember->skip_credit_consumption && $feeToDeduct > 0) {
@@ -1058,6 +1141,24 @@ class TrainingController extends Controller
                     $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
                     if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
                         return response()->json(['message' => $message], 422);
+                    }
+                }
+
+                $trainingIds = $invites->pluck('training_id')->unique()->all();
+                $freshTrainings = Training::whereIn('id', $trainingIds)->lockForUpdate()->get();
+                foreach ($freshTrainings as $freshTr) {
+                    $maxSlots = (int)($freshTr->slots ?? 0);
+                    if ($maxSlots > 0) {
+                        $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
+                            ->where('status', 'accepted')
+                            ->distinct('member_id')
+                            ->count('member_id');
+                        
+                        $newAcceptances = $invites->where('training_id', $freshTr->id)->pluck('member_id')->unique()->count();
+                        
+                        if (($acceptedCount + $newAcceptances) > $maxSlots) {
+                            throw new \Exception('Maximum players already accepted for this training.');
+                        }
                     }
                 }
 
@@ -1322,6 +1423,24 @@ class TrainingController extends Controller
             $freshReq = TrainingUpdateRequest::where('id', $updateReq->id)->lockForUpdate()->first();
             if (!$freshReq || $freshReq->status !== 'pending') {
                 return response()->json(['message' => 'This update request has already been processed.'], 422);
+            }
+
+            $newSessionIds = $freshReq->new_session_ids ?? [];
+            if (!empty($newSessionIds)) {
+                $freshTrainings = Training::whereIn('id', $newSessionIds)->lockForUpdate()->get();
+                foreach ($freshTrainings as $freshTr) {
+                    $maxSlots = (int)($freshTr->slots ?? 0);
+                    if ($maxSlots > 0) {
+                        $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
+                            ->where('status', 'accepted')
+                            ->distinct('member_id')
+                            ->count('member_id');
+                            
+                        if ($acceptedCount >= $maxSlots) {
+                            return response()->json(['message' => 'Maximum players already accepted for this training.'], 422);
+                        }
+                    }
+                }
             }
 
             // Deduct additional amount from wallet if > 0
@@ -2138,6 +2257,47 @@ class TrainingController extends Controller
             'status' => $t->status,
             'cancelReason' => $t->cancel_reason,
             'targetType' => $t->target_type ?? 'junior',
+            'isGroupTraining' => (bool)$t->is_group_training,
+            'leagueGroupIds' => is_array($t->league_group_ids) ? $t->league_group_ids : (json_decode($t->league_group_ids, true) ?? []),
         ];
+    }
+
+    /**
+     * Get the number of unique training programs the current user is enrolled in or has access to.
+     */
+    public function getUniqueTrainingsCount(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return 0;
+        }
+
+        if ($user->role === 'admin' || $user->role === 'volunteer') {
+            return DB::table('trainings')
+                ->get()
+                ->map(fn($t) => $t->parent_id ?: $t->id)
+                ->filter()
+                ->unique()
+                ->count();
+        }
+
+        $myMemberIds = $this->getFamilyMemberIdsForUser($user);
+
+        $invitedTrainingIds = TrainingInvitation::whereIn('member_id', $myMemberIds)
+            ->whereIn('status', ['open', 'accepted', 'waiting', 'declined'])
+            ->pluck('training_id')
+            ->all();
+
+        if (empty($invitedTrainingIds)) {
+            return 0;
+        }
+
+        return DB::table('trainings')
+            ->whereIn('id', $invitedTrainingIds)
+            ->get()
+            ->map(fn($t) => $t->parent_id ?: $t->id)
+            ->filter()
+            ->unique()
+            ->count();
     }
 }

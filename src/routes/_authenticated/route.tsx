@@ -213,6 +213,9 @@ function Layout() {
     events: "Play Sessions",
     invitations: "Play Sessions",
     training: "Training",
+    "league-groups": "Groups",
+    "admin-management": "Club Admin",
+    "email-templates": "Email Templates",
   };
   const screenName = routeNames[pathPart] || (pathPart.charAt(0).toUpperCase() + pathPart.slice(1));
 

@@ -319,7 +319,12 @@ function SchedulesList() {
       if (!haystack.includes(q)) return false;
     }
 
-    if (filters.status !== "all" && sch.status !== filters.status) return false;
+    if (filters.status !== "all") {
+      if (sch.status !== filters.status) return false;
+    } else {
+      if (sch.status === "closed" || sch.status === "cancelled") return false;
+    }
+
     if (filters.location !== "all" && sch.location !== filters.location) return false;
     if (!matchesDateFilter(sch.date, filters.date)) return false;
 

@@ -106,6 +106,7 @@ export interface LeagueGroup {
   id: string;
   name: string;
   description: string;
+  groupType: "Adult" | "Junior";
   memberIds: string[];
   memberPositions?: Record<string, string | null>;
   /** Populated by API for display (view-only member screens). */
@@ -174,6 +175,8 @@ export interface Training {
   status: "open" | "released" | "closed" | "cancelled";
   cancelReason?: string;
   targetType?: "adult" | "junior";
+  isGroupTraining?: boolean;
+  leagueGroupIds?: string[];
 }
 
 export interface TrainingInvitation {
@@ -225,4 +228,5 @@ export interface EmailTemplateDefinition {
   buttonText?: string;
   body: string;
   variables: string[];
+  is_enabled?: boolean;
 }

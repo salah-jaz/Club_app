@@ -27,6 +27,8 @@ class Training extends Model
         'status',
         'cancel_reason',
         'target_type',
+        'is_group_training',
+        'league_group_ids',
     ];
 
     protected $casts = [
@@ -35,6 +37,8 @@ class Training extends Model
         'sessions' => 'integer',
         'slots' => 'integer',
         'fees' => 'float',
+        'is_group_training' => 'boolean',
+        'league_group_ids' => 'array',
     ];
 
     public function trainingInvitations(): HasMany
