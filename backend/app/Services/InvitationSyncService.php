@@ -149,11 +149,27 @@ class InvitationSyncService
             if ($member->status === 'active') {
                 if ($targetType === 'adult') {
                     if ($member->member_type === 'adult' && (bool) $member->training_eligible) {
-                        $isEligible = true;
+                        if ($tr->is_group_training && !empty($tr->league_group_ids)) {
+                            $inGroup = DB::table('league_group_member')
+                                ->whereIn('league_group_id', $tr->league_group_ids)
+                                ->where('member_id', $member->id)
+                                ->exists();
+                            $isEligible = $inGroup;
+                        } else {
+                            $isEligible = true;
+                        }
                     }
                 } else {
                     if ($member->member_type === 'junior' && (bool) $member->training_eligible) {
-                        $isEligible = true;
+                        if ($tr->is_group_training && !empty($tr->league_group_ids)) {
+                            $inGroup = DB::table('league_group_member')
+                                ->whereIn('league_group_id', $tr->league_group_ids)
+                                ->where('member_id', $member->id)
+                                ->exists();
+                            $isEligible = $inGroup;
+                        } else {
+                            $isEligible = true;
+                        }
                     }
                 }
             }
@@ -224,10 +240,20 @@ class InvitationSyncService
             $tr->save();
         }
 
-        $eligibleMembers = Member::where('status', 'active')
+        $query = Member::where('status', 'active')
             ->where('member_type', $targetType)
-            ->where('training_eligible', true)
-            ->get();
+            ->where('training_eligible', true);
+
+        if ($tr->is_group_training && !empty($tr->league_group_ids)) {
+            $groupMemberIds = DB::table('league_group_member')
+                ->whereIn('league_group_id', $tr->league_group_ids)
+                ->pluck('member_id')
+                ->unique()
+                ->toArray();
+            $query->whereIn('id', $groupMemberIds);
+        }
+
+        $eligibleMembers = $query->get();
 
         $parentId = $tr->parent_id ?: $tr->id;
         $series = Training::where('parent_id', $parentId)
@@ -269,6 +295,18 @@ class InvitationSyncService
         foreach ($allInvs as $inv) {
             $m = Member::find($inv->member_id);
             if (!$m || $m->status !== 'active' || $m->member_type !== $targetType || !(bool) $m->training_eligible) {
+                $shouldDelete = true;
+            } elseif ($tr->is_group_training && !empty($tr->league_group_ids)) {
+                $inGroup = DB::table('league_group_member')
+                    ->whereIn('league_group_id', $tr->league_group_ids)
+                    ->where('member_id', $inv->member_id)
+                    ->exists();
+                $shouldDelete = !$inGroup;
+            } else {
+                $shouldDelete = false;
+            }
+
+            if ($shouldDelete) {
                 if ($inv->status === 'accepted' && $m) {
                     self::cancelAndRefundTrainingEnrollment($tr, $m);
                 } else {

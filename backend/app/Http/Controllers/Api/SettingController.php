@@ -124,7 +124,11 @@ class SettingController extends Controller
         $customTemplates = json_decode($dbSettings->get('email_templates') ?? '', true) ?: [];
         $mergedTemplates = [];
         foreach ($defaultTemplates as $key => $tpl) {
-            $mergedTemplates[$key] = array_merge($tpl, $customTemplates[$key] ?? []);
+            $custom = $customTemplates[$key] ?? [];
+            if (array_key_exists('is_enabled', $custom)) {
+                $custom['is_enabled'] = filter_var($custom['is_enabled'], FILTER_VALIDATE_BOOLEAN);
+            }
+            $mergedTemplates[$key] = array_merge($tpl, $custom);
         }
         $data['emailTemplates'] = $mergedTemplates;
 

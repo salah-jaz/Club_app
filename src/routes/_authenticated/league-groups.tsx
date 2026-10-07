@@ -278,7 +278,15 @@ function MemberLeagueGroupsView() {
                 <CardContent className="p-5 flex flex-col justify-between h-full">
                   <div>
                     <div className="flex justify-between items-start gap-2">
-                      <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">{g.name}</h3>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">{g.name}</h3>
+                        <span className={cn(
+                          "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
+                          g.groupType === "Junior" ? "bg-sky-500/20 text-sky-400" : "bg-amber-500/20 text-amber-400"
+                        )} title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}>
+                          {g.groupType === "Junior" ? "J" : "A"}
+                        </span>
+                      </div>
                       <div className="text-[11px] bg-[#10B981]/10 text-[#10B981] px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1 shrink-0">
                         <Users className="size-3" /> {g.memberIds?.length || 0}
                       </div>
@@ -341,7 +349,15 @@ function MemberLeagueGroupsView() {
                     className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
                   >
                     <TableCell className="px-5 py-3.5 font-bold text-[14.5px] text-[#EEF2F0]">
-                      {g.name}
+                      <div className="flex items-center gap-2">
+                        {g.name}
+                        <span className={cn(
+                          "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
+                          g.groupType === "Junior" ? "bg-sky-500/20 text-sky-400" : "bg-amber-500/20 text-amber-400"
+                        )} title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}>
+                          {g.groupType === "Junior" ? "J" : "A"}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="type-table-body">
                       {g.description || <span className="text-[#4A4A5A] italic">No description</span>}
@@ -389,8 +405,9 @@ function AdminLeagueGroupsView() {
   const canEditGroup = useCan("league_groups.edit");
   const canDeleteGroup = useCan("league_groups.delete");
   const allMembers = useStore((s) => s.members);
+  const [groupType, setGroupType] = useState<"Adult" | "Junior">("Adult");
   const members = allMembers.filter(
-    (m) => m.membership && m.status === "active" && m.memberType.toLowerCase() === "adult",
+    (m) => m.status === "active" && m.memberType.toLowerCase() === groupType.toLowerCase(),
   );
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const playerPositions = useStore((s) => s.playerPositions) || [];
@@ -474,6 +491,7 @@ function AdminLeagueGroupsView() {
   const handleStartCreate = () => {
     setName("");
     setDescription("");
+    setGroupType("Adult");
     setSelectedMembers([]);
     setMemberPositions({});
     setMemberSearch("");
@@ -485,6 +503,7 @@ function AdminLeagueGroupsView() {
     setEditingId(group.id);
     setName(group.name);
     setDescription(group.description);
+    setGroupType(group.groupType || "Adult");
     setSelectedMembers(group.memberIds || []);
     const positions: Record<string, string> = {};
     if (group.memberPositions) {
@@ -523,6 +542,7 @@ function AdminLeagueGroupsView() {
         await store.createLeagueGroup({
           name,
           description,
+          groupType,
           memberIds: selectedMembers,
           memberPositions: positionsForSelected,
         });
@@ -531,6 +551,7 @@ function AdminLeagueGroupsView() {
         await store.updateLeagueGroup(editingId, {
           name,
           description,
+          groupType,
           memberIds: selectedMembers,
           memberPositions: positionsForSelected,
         });
@@ -623,15 +644,36 @@ function AdminLeagueGroupsView() {
           <CardContent>
             <form onSubmit={handleSave} className="space-y-6">
               <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Group Name</Label>
-                  <Input
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Division A, Weekend Group"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
-                  />
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Group Name</Label>
+                    <Input
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Division A, Weekend Group"
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Group Type</Label>
+                    <Select
+                      value={groupType}
+                      onValueChange={(val: "Adult" | "Junior") => {
+                        setGroupType(val);
+                        setSelectedMembers([]);
+                        setMemberPositions({});
+                      }}
+                    >
+                      <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                        <SelectItem value="Adult">Adult</SelectItem>
+                        <SelectItem value="Junior">Junior</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Description</Label>
@@ -852,7 +894,15 @@ function AdminLeagueGroupsView() {
                     <CardContent className="p-5 flex flex-col justify-between h-full">
                       <div>
                         <div className="flex justify-between items-start gap-2">
-                          <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">{g.name}</h3>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">{g.name}</h3>
+                            <span className={cn(
+                              "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
+                              g.groupType === "Junior" ? "bg-sky-500/20 text-sky-400" : "bg-amber-500/20 text-amber-400"
+                            )} title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}>
+                              {g.groupType === "Junior" ? "J" : "A"}
+                            </span>
+                          </div>
                           <div className="text-[11px] bg-[#10B981]/10 text-[#10B981] px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1 shrink-0">
                             <Users className="size-3" /> {g.memberIds?.length || 0}
                           </div>
@@ -921,7 +971,17 @@ function AdminLeagueGroupsView() {
                 <TableBody>
                   {filteredGroups.map((g) => (
                     <TableRow key={g.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
-                      <TableCell className="px-5 py-3.5 font-bold text-[14.5px] text-[#EEF2F0]">{g.name}</TableCell>
+                      <TableCell className="px-5 py-3.5 font-bold text-[14.5px] text-[#EEF2F0]">
+                        <div className="flex items-center gap-2">
+                          {g.name}
+                          <span className={cn(
+                            "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
+                            g.groupType === "Junior" ? "bg-sky-500/20 text-sky-400" : "bg-amber-500/20 text-amber-400"
+                          )} title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}>
+                            {g.groupType === "Junior" ? "J" : "A"}
+                          </span>
+                        </div>
+                      </TableCell>
                       <TableCell className="type-table-body">{g.description || <span className="text-[#4A4A5A] italic">No description</span>}</TableCell>
                       <TableCell className="type-mono-value">
                         <span className="flex items-center gap-1.5">

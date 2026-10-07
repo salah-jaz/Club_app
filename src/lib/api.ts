@@ -1,6 +1,27 @@
-const BASE_URL =
-  import.meta.env.VITE_API_URL ??
-  (typeof window !== "undefined" ? `${window.location.origin}/api` : "/api");
+const getBaseUrl = (): string => {
+  if (typeof window !== "undefined") {
+    const { hostname, protocol } = window.location;
+
+    // When accessing via localhost or 127.0.0.1, connect to local backend on port 8000
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return `${protocol}//127.0.0.1:8000/api`;
+    }
+
+    // When accessing via local network IP (e.g. mobile testing on 192.168.x.x, 172.x.x.x, 10.x.x.x),
+    // automatically route to port 8000 on the same machine
+    if (/^(192\.168\.|172\.(1[6-9]|2\d|3[01])\.|10\.)/.test(hostname)) {
+      return `${protocol}//${hostname}:8000/api`;
+    }
+  }
+
+  // Fallback to configured VITE_API_URL or current origin
+  return (
+    import.meta.env.VITE_API_URL ??
+    (typeof window !== "undefined" ? `${window.location.origin}/api` : "/api")
+  );
+};
+
+const BASE_URL = getBaseUrl();
 
 async function request<T>(
   endpoint: string,

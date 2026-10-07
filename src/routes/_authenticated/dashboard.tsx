@@ -438,7 +438,7 @@ function Dashboard() {
             />
             <Stat
               label="Active Training Sessions"
-              value={upcomingTrainings.length}
+              value={s.uniqueTrainingsCount}
               icon={GraduationCap}
               index={4}
               to="/trainings"
@@ -456,13 +456,13 @@ function Dashboard() {
               isNumeric={false}
               to="/credits"
             />
-            <Stat label="Open invitations" value={myInvites.length} icon={Inbox} index={2} to="/events" />
-            <Stat label="Trainings" value={s.trainings.filter((t) => myTrainingInviteIds.has(t.id)).length} icon={GraduationCap} index={3} to="/training" />
+            <Stat label="Total play sessions" value={myInvites.length} icon={CalendarDays} index={2} to="/events" />
+            <Stat label="Trainings" value={s.uniqueTrainingsCount} icon={GraduationCap} index={3} to="/training" />
           </>
         )}
         {user.role === "volunteer" && (
           <>
-            <Stat label="Trainings" value={s.trainings.length} icon={GraduationCap} index={0} to="/trainings" />
+            <Stat label="Trainings" value={s.uniqueTrainingsCount} icon={GraduationCap} index={0} to="/trainings" />
             <Stat
               label="Junior members"
               value={s.members.filter((m) => m.memberType === "junior").length}

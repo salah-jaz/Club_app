@@ -93,8 +93,10 @@ function PermissionMatrix({
     }
   };
 
-  const moduleLabel = (m: string) =>
-    m.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const moduleLabel = (m: string) => {
+    if (m === "league_groups") return "Groups";
+    return m.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  };
 
   return (
     <div className="space-y-1">
@@ -745,7 +747,9 @@ function AdminManagement() {
                         <div className="min-w-0">
                           <CardTitle className="text-[14px] font-semibold text-[#F1F0EE] truncate">{r.name}</CardTitle>
                           {r.description && (
-                            <p className="text-[11px] text-[#8A8A98] mt-0.5 line-clamp-1">{r.description}</p>
+                            <p className="text-[11px] text-[#8A8A98] mt-0.5 line-clamp-1">
+                              {r.description.replace(/league[_\s]groups/gi, "groups").replace(/league/gi, "group")}
+                            </p>
                           )}
                         </div>
                       </div>

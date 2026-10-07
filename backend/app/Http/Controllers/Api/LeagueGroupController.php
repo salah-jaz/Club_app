@@ -37,22 +37,34 @@ class LeagueGroupController extends Controller
         }
 
         if ($request->user()?->role !== 'admin') {
-            return response()->json(['message' => 'Only admins can create league groups.'], 403);
+            return response()->json(['message' => 'Only admins can create groups.'], 403);
         }
 
         $request->validate([
             'name'                  => 'required|string|max:255',
             'description'           => 'nullable|string',
+            'groupType'             => 'required|string|in:Adult,Junior',
             'memberIds'             => 'sometimes|array',
             'memberIds.*'           => 'string|exists:members,id',
             'memberPositions'       => 'sometimes|array',
             'memberPositions.*'     => 'nullable|string|max:255',
         ]);
 
+        if ($request->has('memberIds') && !empty($request->memberIds)) {
+            $invalidMembers = Member::whereIn('id', $request->memberIds)
+                ->where('member_type', '!=', $request->groupType)
+                ->exists();
+            
+            if ($invalidMembers) {
+                return response()->json(['message' => 'All members must belong to the selected group type.'], 422);
+            }
+        }
+
         $group = LeagueGroup::create([
             'id'          => 'lg_' . Str::random(8),
             'name'        => $request->name,
             'description' => $request->description,
+            'group_type'  => $request->groupType,
         ]);
 
         if ($request->has('memberIds')) {
@@ -70,7 +82,7 @@ class LeagueGroupController extends Controller
         }
 
         if ($request->user()?->role !== 'admin') {
-            return response()->json(['message' => 'Only admins can update league groups.'], 403);
+            return response()->json(['message' => 'Only admins can update groups.'], 403);
         }
 
         $group = LeagueGroup::findOrFail($id);
@@ -78,14 +90,28 @@ class LeagueGroupController extends Controller
         $request->validate([
             'name'                  => 'sometimes|required|string|max:255',
             'description'           => 'nullable|string',
+            'groupType'             => 'sometimes|required|string|in:Adult,Junior',
             'memberIds'             => 'sometimes|array',
             'memberIds.*'           => 'string|exists:members,id',
             'memberPositions'       => 'sometimes|array',
             'memberPositions.*'     => 'nullable|string|max:255',
         ]);
 
+        $currentGroupType = $request->has('groupType') ? $request->groupType : $group->group_type;
+
+        if ($request->has('memberIds') && !empty($request->memberIds)) {
+            $invalidMembers = Member::whereIn('id', $request->memberIds)
+                ->where('member_type', '!=', $currentGroupType)
+                ->exists();
+            
+            if ($invalidMembers) {
+                return response()->json(['message' => 'All members must belong to the selected group type.'], 422);
+            }
+        }
+
         if ($request->has('name'))        $group->name        = $request->name;
         if ($request->has('description')) $group->description = $request->description;
+        if ($request->has('groupType'))   $group->group_type  = $request->groupType;
         $group->save();
 
         if ($request->has('memberIds')) {
@@ -103,13 +129,13 @@ class LeagueGroupController extends Controller
         }
 
         if ($request->user()?->role !== 'admin') {
-            return response()->json(['message' => 'Only admins can delete league groups.'], 403);
+            return response()->json(['message' => 'Only admins can delete groups.'], 403);
         }
 
         $group = LeagueGroup::findOrFail($id);
         $group->delete();
 
-        return response()->json(['message' => 'League group deleted successfully.']);
+        return response()->json(['message' => 'Group deleted successfully.']);
     }
 
     /**
@@ -150,6 +176,7 @@ class LeagueGroupController extends Controller
             'id'              => $g->id,
             'name'            => $g->name,
             'description'     => $g->description ?? '',
+            'groupType'       => $g->group_type,
             'memberIds'       => $memberIds,
             'memberPositions' => $memberPositions,
             'members'         => $members,
