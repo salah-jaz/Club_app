@@ -26,9 +26,23 @@ import {
 } from "@/components/ui/dialog";
 import { fmtDateTime, fmtMoney } from "@/lib/format";
 import { toast } from "sonner";
-import { CalendarDays, LayoutGrid, Plus, Wallet, AlertTriangle, Trophy, Users, User } from "lucide-react";
+import {
+  CalendarDays,
+  LayoutGrid,
+  Plus,
+  Wallet,
+  AlertTriangle,
+  Trophy,
+  Users,
+  User,
+} from "lucide-react";
 import type { Member, PlayInvitation, PlaySchedule, Rotation } from "@/lib/types";
-import { applyMemberFee, discountsFromStore, playSessionBaseFee, resolveWalletMember } from "@/lib/fees";
+import {
+  applyMemberFee,
+  discountsFromStore,
+  playSessionBaseFee,
+  resolveWalletMember,
+} from "@/lib/fees";
 import { getPlaySessionPhase } from "@/lib/sessionTiming";
 import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
@@ -134,9 +148,7 @@ function Events() {
   const playEligibleJuniors = myMembers.filter(
     (m) => m.memberType === "junior" && m.status === "active" && (m.playEligible ?? false),
   );
-  const adultPlayers = myMembers.filter(
-    (m) => m.memberType === "adult" && m.status === "active",
-  );
+  const adultPlayers = myMembers.filter((m) => m.memberType === "adult" && m.status === "active");
   const playInvs = s.playInvites.filter((i) => {
     if (!myIds.includes(i.memberId)) return false;
     const sch = s.schedules.find((x) => x.id === i.scheduleId);
@@ -181,8 +193,7 @@ function Events() {
         );
         const missing = familyAdults
           .filter(
-            (m) =>
-              isEligibleForPlaySchedule(m, sch, state.leagueGroups) && !already.has(m.id),
+            (m) => isEligibleForPlaySchedule(m, sch, state.leagueGroups) && !already.has(m.id),
           )
           .map((m) => m.id);
 
@@ -295,24 +306,17 @@ function Events() {
     (sch, idx, arr) => arr.findIndex((x) => x.id === sch.id) === idx,
   );
 
-  const {
-    search,
-    filters,
-    sortBy,
-    setSearch,
-    setFilter,
-    clearFilters,
-    setSortBy,
-  } = useSearchFilters(
-    {
-      status: "all",
-      location: "all",
-      date: "all",
-      courts: "all",
-      capacity: "all",
-    },
-    "date-asc",
-  );
+  const { search, filters, sortBy, setSearch, setFilter, clearFilters, setSortBy } =
+    useSearchFilters(
+      {
+        status: "all",
+        location: "all",
+        date: "all",
+        courts: "all",
+        capacity: "all",
+      },
+      "date-asc",
+    );
 
   const locationList = useMemo(() => {
     const fromSessions = uniquePlaySessions.map((sch) => sch.location).filter(Boolean);
@@ -345,7 +349,11 @@ function Events() {
         if (!haystack.includes(q)) return false;
       }
 
-      if (filters.status !== "all" && sch.status !== filters.status) return false;
+      if (filters.status !== "all") {
+        if (sch.status !== filters.status) return false;
+      } else {
+        if (sch.status === "closed" || sch.status === "cancelled") return false;
+      }
       if (filters.location !== "all" && sch.location !== filters.location) return false;
       if (!matchesDateFilter(sch.date, filters.date)) return false;
 
@@ -388,10 +396,7 @@ function Events() {
   const invitesForSchedule = (scheduleId: string) =>
     playInvs.filter((i) => i.scheduleId === scheduleId);
 
-  const renderPlayInviteActions = (
-    i: (typeof playInvs)[number],
-    sch: PlaySchedule,
-  ) => {
+  const renderPlayInviteActions = (i: (typeof playInvs)[number], sch: PlaySchedule) => {
     const member = s.members.find((x) => x.id === i.memberId);
     const walletMember = member ? resolveWalletMember(member, s.members) : null;
     const holidayName = getHolidayName(sch.date);
@@ -399,9 +404,7 @@ function Events() {
     const skipsLeagueFee = (() => {
       if (!sch.isLeagueMatch || !sch.leagueGroupIds?.length) return false;
       const skipNames = new Set(
-        (s.playerPositionItems ?? [])
-          .filter((p) => p.skipLeagueFee)
-          .map((p) => p.name),
+        (s.playerPositionItems ?? []).filter((p) => p.skipLeagueFee).map((p) => p.name),
       );
       if (skipNames.size === 0) return false;
       for (const gid of sch.leagueGroupIds) {
@@ -415,15 +418,12 @@ function Events() {
     const sessionPhase = getPlaySessionPhase(sch, now);
     const sessionInProgress = sessionPhase === "in_progress";
     const sessionFinished = sessionPhase === "finished";
-    const estimatedFee = isCancelled || isHoliday
-      ? 0
-      : skipsLeagueFee
-      ? 0
-      : applyMemberFee(
-          playSessionBaseFee(sch.sessionRate),
-          member,
-          discountsFromStore(s),
-        );
+    const estimatedFee =
+      isCancelled || isHoliday
+        ? 0
+        : skipsLeagueFee
+          ? 0
+          : applyMemberFee(playSessionBaseFee(sch.sessionRate), member, discountsFromStore(s));
     const hasInsufficientCredits =
       !!member &&
       !!walletMember &&
@@ -433,15 +433,18 @@ function Events() {
       walletMember.credit < estimatedFee;
 
     const responsesLocked =
-      (sch.status === "rotated" || sch.status === "published" || sch.status === "closed") && !isCancelled;
+      (sch.status === "rotated" || sch.status === "published" || sch.status === "closed") &&
+      !isCancelled;
     const lockHours = Math.max(0, s.cancellationLockHours ?? 24);
     const matchStartMs = Date.parse(sch.date);
     const withinCancelWindow =
-      Number.isFinite(matchStartMs) &&
-      Date.now() < matchStartMs - lockHours * 60 * 60 * 1000;
+      Number.isFinite(matchStartMs) && Date.now() < matchStartMs - lockHours * 60 * 60 * 1000;
     const hoursLabel = lockHours === 1 ? "1 hour" : `${lockHours} hours`;
 
-    const isLeagueMatch = !!(sch.isLeagueMatch || (sch.leagueGroupIds && sch.leagueGroupIds.length > 0));
+    const isLeagueMatch = !!(
+      sch.isLeagueMatch ||
+      (sch.leagueGroupIds && sch.leagueGroupIds.length > 0)
+    );
 
     const canAccept =
       !isCancelled &&
@@ -451,7 +454,12 @@ function Events() {
       !sessionFinished &&
       (i.status === "open" || i.status === "declined");
     const canDeclineWaiting =
-      !isLeagueMatch && !isCancelled && !isHoliday && !responsesLocked && !sessionFinished && i.status === "waiting";
+      !isLeagueMatch &&
+      !isCancelled &&
+      !isHoliday &&
+      !responsesLocked &&
+      !sessionFinished &&
+      i.status === "waiting";
     const canDeclineAccepted =
       !isLeagueMatch &&
       !isCancelled &&
@@ -462,7 +470,12 @@ function Events() {
       withinCancelWindow;
     const canDecline = canDeclineWaiting || canDeclineAccepted;
     const declineLockedByTime =
-      !isLeagueMatch && !isCancelled && !isHoliday && !responsesLocked && i.status === "accepted" && !withinCancelWindow;
+      !isLeagueMatch &&
+      !isCancelled &&
+      !isHoliday &&
+      !responsesLocked &&
+      i.status === "accepted" &&
+      !withinCancelWindow;
 
     const memberTypeLabel = member?.memberType === "junior" ? "Child" : "Player";
 
@@ -477,7 +490,9 @@ function Events() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="min-w-0">
             <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
-              <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">{memberTypeLabel}:</span>
+              <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">
+                {memberTypeLabel}:
+              </span>
               {name(i.memberId)}
             </div>
             <div className="text-[11px] text-[#8A8A98] mt-0.5">
@@ -583,7 +598,9 @@ function Events() {
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
             <div className="space-y-0.5">
               <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
-              <div className="text-[#EF4444]/90 font-light">{sch.cancelReason || "No reason specified."}</div>
+              <div className="text-[#EF4444]/90 font-light">
+                {sch.cancelReason || "No reason specified."}
+              </div>
             </div>
           </div>
         )}
@@ -653,68 +670,69 @@ function Events() {
                 : "Accepted and waiting members"}
             </DialogDescription>
           </DialogHeader>
-          {playersPopup && (() => {
-            const lists = schedulePlayerLists(playersPopup.id);
-            const maxPlayers = Math.max(playersPopup.players || 0, 1);
-            const columns = [
-              {
-                key: "accepted" as const,
-                label: "Accepted",
-                color: "text-[#3B82F6]",
-                countLabel: `(${lists.accepted.length} / ${maxPlayers})`,
-                items: lists.accepted,
-              },
-              {
-                key: "waiting" as const,
-                label: "Waiting",
-                color: "text-[#F59E0B]",
-                countLabel: `(${lists.waiting.length})`,
-                items: lists.waiting,
-              },
-            ];
-            return (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                {columns.map((col) => (
-                  <div
-                    key={col.key}
-                    className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 overflow-hidden"
-                  >
-                    <div className="px-3 py-2.5 border-b border-white/[0.04] flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
-                        {col.label}
-                      </span>
-                      <span className={cn("font-mono text-xs", col.color)}>{col.countLabel}</span>
+          {playersPopup &&
+            (() => {
+              const lists = schedulePlayerLists(playersPopup.id);
+              const maxPlayers = Math.max(playersPopup.players || 0, 1);
+              const columns = [
+                {
+                  key: "accepted" as const,
+                  label: "Accepted",
+                  color: "text-[#3B82F6]",
+                  countLabel: `(${lists.accepted.length} / ${maxPlayers})`,
+                  items: lists.accepted,
+                },
+                {
+                  key: "waiting" as const,
+                  label: "Waiting",
+                  color: "text-[#F59E0B]",
+                  countLabel: `(${lists.waiting.length})`,
+                  items: lists.waiting,
+                },
+              ];
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {columns.map((col) => (
+                    <div
+                      key={col.key}
+                      className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 overflow-hidden"
+                    >
+                      <div className="px-3 py-2.5 border-b border-white/[0.04] flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
+                          {col.label}
+                        </span>
+                        <span className={cn("font-mono text-xs", col.color)}>{col.countLabel}</span>
+                      </div>
+                      <div className="px-3 py-2 max-h-[320px] overflow-y-auto space-y-0.5">
+                        {col.items.length === 0 ? (
+                          <p className="text-[13px] font-light text-[#8A8A98] py-3 text-center">
+                            No members listed.
+                          </p>
+                        ) : (
+                          col.items.map((inv, idx) => {
+                            const isGuest =
+                              typeof inv.memberId === "string" && inv.memberId.startsWith("guest_");
+                            return (
+                              <div
+                                key={inv.id}
+                                className="text-[13px] text-[#F1F0EE] py-2 border-b border-white/[0.03] last:border-0 font-medium flex items-center gap-2"
+                              >
+                                <span className="font-mono text-[10px] text-[#8A8A98] shrink-0">
+                                  {idx + 1}.
+                                </span>
+                                <span className={cn("truncate", isGuest && "text-[#D97706]")}>
+                                  {name(inv.memberId)}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
-                    <div className="px-3 py-2 max-h-[320px] overflow-y-auto space-y-0.5">
-                      {col.items.length === 0 ? (
-                        <p className="text-[13px] font-light text-[#8A8A98] py-3 text-center">
-                          No members listed.
-                        </p>
-                      ) : (
-                        col.items.map((inv, idx) => {
-                          const isGuest =
-                            typeof inv.memberId === "string" && inv.memberId.startsWith("guest_");
-                          return (
-                            <div
-                              key={inv.id}
-                              className="text-[13px] text-[#F1F0EE] py-2 border-b border-white/[0.03] last:border-0 font-medium flex items-center gap-2"
-                            >
-                              <span className="font-mono text-[10px] text-[#8A8A98] shrink-0">
-                                {idx + 1}.
-                              </span>
-                              <span className={cn("truncate", isGuest && "text-[#D97706]")}>
-                                {name(inv.memberId)}
-                              </span>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+                  ))}
+                </div>
+              );
+            })()}
         </DialogContent>
       </Dialog>
 
@@ -836,9 +854,13 @@ function Events() {
             onSortChange={setSortBy}
           />
           <div className="text-sm text-[#8FA89F] -mt-2 mb-4">
-            Showing <span className="text-[#EEF2F0] font-semibold">{filteredPlaySessions.length}</span>
+            Showing{" "}
+            <span className="text-[#EEF2F0] font-semibold">{filteredPlaySessions.length}</span>
             {filteredPlaySessions.length !== uniquePlaySessions.length && (
-              <> of <span className="text-[#EEF2F0] font-semibold">{uniquePlaySessions.length}</span></>
+              <>
+                {" "}
+                of <span className="text-[#EEF2F0] font-semibold">{uniquePlaySessions.length}</span>
+              </>
             )}{" "}
             schedules
           </div>
@@ -885,7 +907,8 @@ function Events() {
               {uniquePlaySessions.length === 0 && adultPlayers.length === 0 && (
                 <div className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 rounded-lg p-4 flex flex-col items-center gap-3">
                   <p className="text-[13px] text-muted-foreground text-center">
-                    Add an adult family member with club membership to join when a session is released.
+                    Add an adult family member with club membership to join when a session is
+                    released.
                   </p>
                   <Button asChild size="sm" className="btn-premium-solid h-8 text-[11px]">
                     <Link to="/members/add">
@@ -902,7 +925,8 @@ function Events() {
             const availableJuniors = availablePlayJuniors(sch);
             const scheduleInvites = invitesForSchedule(sch.id);
             const canEnroll = sch.status === "released";
-            const waitingForInvite = canEnroll && available.length > 0 && (autoInviting || scheduleInvites.length === 0);
+            const waitingForInvite =
+              canEnroll && available.length > 0 && (autoInviting || scheduleInvites.length === 0);
             const holidayName = getHolidayName(sch.date);
             const isHoliday = !!holidayName;
             const isCancelled = sch.status === "cancelled";
@@ -952,7 +976,9 @@ function Events() {
                         sch.status === "rotated" ||
                         sch.status === "published" ||
                         sch.status === "closed" ||
-                        sch.status === "cancelled") && (
+                        sch.status === "cancelled") &&
+                      ((sch.status !== "published" && sch.status !== "closed") ||
+                        scheduleInvites.some((i) => i.status === "accepted")) && (
                         <Button
                           type="button"
                           size="sm"
@@ -966,7 +992,8 @@ function Events() {
                       )}
                     {!isHoliday &&
                       (sch.status === "published" || sch.status === "closed") &&
-                      s.rotations.some((r) => r.scheduleId === sch.id) && (
+                      s.rotations.some((r) => r.scheduleId === sch.id) &&
+                      scheduleInvites.some((i) => i.status === "accepted") && (
                         <Button
                           type="button"
                           size="sm"
@@ -986,7 +1013,9 @@ function Events() {
                     <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
                     <div className="space-y-0.5">
                       <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
-                      <div className="text-[#EF4444]/90 font-light">{sch.cancelReason || "No reason specified."}</div>
+                      <div className="text-[#EF4444]/90 font-light">
+                        {sch.cancelReason || "No reason specified."}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1025,9 +1054,13 @@ function Events() {
                   </p>
                 )}
 
-                {canEnroll && !sch.isLeagueMatch && !isCancelled && !isHoliday && availableJuniors.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-white/[0.04]">
-                    <div className="grid gap-2">
+                {canEnroll &&
+                  !sch.isLeagueMatch &&
+                  !isCancelled &&
+                  !isHoliday &&
+                  availableJuniors.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-white/[0.04]">
+                      <div className="grid gap-2">
                         {availableJuniors.map((child) => {
                           const estimatedFee = isHoliday
                             ? 0
@@ -1047,7 +1080,9 @@ function Events() {
                               <div className="min-w-0 space-y-0.5">
                                 <div className="flex items-center gap-1.5 font-bold text-slate-900 text-[13.5px] truncate">
                                   <User className="size-3.5 text-[#2563EB] shrink-0" />
-                                  <span className="truncate">{child.firstName} {child.lastName}</span>
+                                  <span className="truncate">
+                                    {child.firstName} {child.lastName}
+                                  </span>
                                 </div>
                                 <div className="text-[11.5px] text-slate-700 font-medium">
                                   Grade {child.grade} · Session Fee:{" "}
@@ -1099,8 +1134,8 @@ function Events() {
                           );
                         })}
                       </div>
-                  </div>
-                )}
+                    </div>
+                  )}
 
                 {isHoliday && (
                   <div className="pt-2.5 border-t border-white/[0.04]">
@@ -1118,9 +1153,7 @@ function Events() {
 
                 {!isHoliday && scheduleInvites.length > 0 && (
                   <div className="space-y-1">
-                    {scheduleInvites.map((i) =>
-                      renderPlayInviteActions(i, sch),
-                    )}
+                    {scheduleInvites.map((i) => renderPlayInviteActions(i, sch))}
                   </div>
                 )}
               </div>

@@ -24,7 +24,5 @@ export function ResponsiveTable({
     );
   }
 
-  return (
-    <div className={cn("w-full min-w-0 overflow-x-auto", className)}>{desktop}</div>
-  );
+  return <div className={cn("w-full min-w-0 overflow-x-auto", className)}>{desktop}</div>;
 }

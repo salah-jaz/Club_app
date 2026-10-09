@@ -4,8 +4,18 @@ import { useCurrentUser } from "@/lib/store";
 import { ArrowLeft } from "lucide-react";
 
 export function PageHeader({
-  title, description, actions, eyebrow: customEyebrow, backTo,
-}: { title: string; description?: string; actions?: ReactNode; eyebrow?: string; backTo?: string }) {
+  title,
+  description,
+  actions,
+  eyebrow: customEyebrow,
+  backTo,
+}: {
+  title: string;
+  description?: string;
+  actions?: ReactNode;
+  eyebrow?: string;
+  backTo?: string;
+}) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const user = useCurrentUser();
 
@@ -50,8 +60,8 @@ export function PageHeader({
           </span>
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             {backTo && (
-              <Link 
-                to={backTo} 
+              <Link
+                to={backTo}
                 className="flex items-center justify-center size-8 sm:size-8.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-[#1A2120] hover:border-border/80 transition-all cursor-pointer shrink-0"
                 title="Go back"
               >

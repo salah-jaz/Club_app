@@ -25,9 +25,17 @@ function NewSchedule() {
   const allMembers = useStore((s) => s.members);
   const navigate = useNavigate();
   const [f, setF] = useState({
-    name: "", date: "", courts: 2, players: 16, slotHours: 2, slotDuration: "15",
-    sessionRate: 8, hallRate: 40, location: locations[0] || "Main Hall",
-    isLeagueMatch: false, leagueGroupIds: [] as string[],
+    name: "",
+    date: "",
+    courts: 2,
+    players: 16,
+    slotHours: 2,
+    slotDuration: "15",
+    sessionRate: 8,
+    hallRate: 40,
+    location: locations[0] || "Main Hall",
+    isLeagueMatch: false,
+    leagueGroupIds: [] as string[],
     repeatWeeks: 1,
   });
   const [nameTouched, setNameTouched] = useState(false);
@@ -119,42 +127,47 @@ function NewSchedule() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="New play schedule" description="Define the court capacity, scheduling details, and membership pricing." backTo="/schedules" />
-      <form onSubmit={async (e) => {
-        e.preventDefault();
-        if (!f.date) {
-          toast.error("Please select a Date & Time for the schedule.");
-          return;
-        }
-        if (f.isLeagueMatch && f.leagueGroupIds.length === 0) {
-          toast.error("Please select at least one group for the schedule.");
-          return;
-        }
-        if (isScheduleDateTimeInPast(f.date)) {
-          toast.error("Schedule date and time must be today or later.");
-          return;
-        }
-        const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
-        setSubmitting(true);
-        try {
-          const { repeatWeeks: _rw, ...schedule } = f;
-          await create({
-            ...schedule,
-            players: f.isLeagueMatch ? leagueUniqueMemberCount : f.players,
-            repeatWeeks: weeks,
-          } as any);
-          toast.success(
-            weeks > 1
-              ? `${weeks} schedules created (same day each week)`
-              : "Schedule created",
-          );
-          navigate({ to: "/schedules" });
-        } catch (error: any) {
-          toast.error(error.message || "Failed to create schedule.");
-        } finally {
-          setSubmitting(false);
-        }
-      }} className="space-y-6">
+      <PageHeader
+        title="New play schedule"
+        description="Define the court capacity, scheduling details, and membership pricing."
+        backTo="/schedules"
+      />
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!f.date) {
+            toast.error("Please select a Date & Time for the schedule.");
+            return;
+          }
+          if (f.isLeagueMatch && f.leagueGroupIds.length === 0) {
+            toast.error("Please select at least one group for the schedule.");
+            return;
+          }
+          if (isScheduleDateTimeInPast(f.date)) {
+            toast.error("Schedule date and time must be today or later.");
+            return;
+          }
+          const weeks = Math.max(1, Math.min(52, Number(f.repeatWeeks) || 1));
+          setSubmitting(true);
+          try {
+            const { repeatWeeks: _rw, ...schedule } = f;
+            await create({
+              ...schedule,
+              players: f.isLeagueMatch ? leagueUniqueMemberCount : f.players,
+              repeatWeeks: weeks,
+            } as any);
+            toast.success(
+              weeks > 1 ? `${weeks} schedules created (same day each week)` : "Schedule created",
+            );
+            navigate({ to: "/schedules" });
+          } catch (error: any) {
+            toast.error(error.message || "Failed to create schedule.");
+          } finally {
+            setSubmitting(false);
+          }
+        }}
+        className="space-y-6"
+      >
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
@@ -163,7 +176,9 @@ function NewSchedule() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date & Time</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Date & Time
+              </Label>
               <DateTimePicker
                 value={f.date}
                 onChange={onDateChange}
@@ -173,22 +188,36 @@ function NewSchedule() {
               {scheduleWhen && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
-                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Day</p>
-                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.day}</p>
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Day
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">
+                      {scheduleWhen.day}
+                    </p>
                   </div>
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
-                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date</p>
-                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.date}</p>
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Date
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">
+                      {scheduleWhen.date}
+                    </p>
                   </div>
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
-                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Time</p>
-                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.time}</p>
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Time
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">
+                      {scheduleWhen.time}
+                    </p>
                   </div>
                 </div>
               )}
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Name</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Session Name
+              </Label>
               <Input
                 required
                 value={f.name}
@@ -200,7 +229,9 @@ function NewSchedule() {
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
               />
               {!nameTouched && scheduleWhen && (
-                <p className="text-[11px] text-[#8A8A98]">Auto-filled from the selected date &amp; time. Edit anytime.</p>
+                <p className="text-[11px] text-[#8A8A98]">
+                  Auto-filled from the selected date &amp; time. Edit anytime.
+                </p>
               )}
             </div>
             <div className="space-y-1.5">
@@ -213,7 +244,9 @@ function NewSchedule() {
                 min={1}
                 max={52}
                 value={f.repeatWeeks}
-                onChange={(e) => set("repeatWeeks", Math.max(1, Math.min(52, Number(e.target.value) || 1)))}
+                onChange={(e) =>
+                  set("repeatWeeks", Math.max(1, Math.min(52, Number(e.target.value) || 1)))
+                }
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
               />
               <p className="text-[11px] text-[#8A8A98]">
@@ -227,14 +260,19 @@ function NewSchedule() {
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Club Location</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Club Location
+              </Label>
               <div className="relative">
                 <select
                   value={f.location || (locations?.[0] ?? "Main Hall")}
                   onChange={(e) => set("location", e.target.value)}
                   className="w-full h-10 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120] px-3 pr-9 py-2 text-sm text-[#F1F0EE] appearance-none focus:outline-none focus:border-[#10B981] transition-colors cursor-pointer"
                 >
-                  {(locations && locations.length > 0 ? locations : [f.location || "Main Hall"]).map((l) => (
+                  {(locations && locations.length > 0
+                    ? locations
+                    : [f.location || "Main Hall"]
+                  ).map((l) => (
                     <option key={l} value={l} className="bg-[#1A2120] text-[#F1F0EE]">
                       {l}
                     </option>
@@ -256,7 +294,9 @@ function NewSchedule() {
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
                 <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable Group Match</Label>
-                <p className="text-xs text-muted-foreground">Limit invitations to specific groups</p>
+                <p className="text-xs text-muted-foreground">
+                  Limit invitations to specific groups
+                </p>
               </div>
               <Switch checked={f.isLeagueMatch} onCheckedChange={(v) => set("isLeagueMatch", v)} />
             </div>
@@ -282,11 +322,22 @@ function NewSchedule() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Courts</Label>
-              <Input required type="number" min={1} value={f.courts} onChange={(e) => set("courts", +e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Courts
+              </Label>
+              <Input
+                required
+                type="number"
+                min={1}
+                value={f.courts}
+                onChange={(e) => set("courts", +e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+              />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Max Players</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Max Players
+              </Label>
               <Input
                 required
                 type="number"
@@ -311,12 +362,31 @@ function NewSchedule() {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Slot Hours</Label>
-              <Input required type="number" min={0.5} step={0.5} value={f.slotHours} onChange={(e) => set("slotHours", +e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Slot Hours
+              </Label>
+              <Input
+                required
+                type="number"
+                min={0.5}
+                step={0.5}
+                value={f.slotHours}
+                onChange={(e) => set("slotHours", +e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+              />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Slot Duration (min)</Label>
-              <Input required type="number" min={1} value={f.slotDuration} onChange={(e) => set("slotDuration", e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Slot Duration (min)
+              </Label>
+              <Input
+                required
+                type="number"
+                min={1}
+                value={f.slotDuration}
+                onChange={(e) => set("slotDuration", e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
             </div>
           </CardContent>
         </Card>
@@ -329,20 +399,48 @@ function NewSchedule() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Rate (Per Player)</Label>
-              <Input required type="number" min={0} step={0.01} value={f.sessionRate} onChange={(e) => set("sessionRate", +e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Session Rate (Per Player)
+              </Label>
+              <Input
+                required
+                type="number"
+                min={0}
+                step={0.01}
+                value={f.sessionRate}
+                onChange={(e) => set("sessionRate", +e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+              />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Hall Rate (Total Cost)</Label>
-              <Input required type="number" min={0} step={0.01} value={f.hallRate} onChange={(e) => set("hallRate", +e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Hall Rate (Total Cost)
+              </Label>
+              <Input
+                required
+                type="number"
+                min={0}
+                step={0.01}
+                value={f.hallRate}
+                onChange={(e) => set("hallRate", +e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+              />
             </div>
             <div className="sm:col-span-2 pt-2 border-t border-white/[0.03] text-xs text-[#8A8A98]">
-              Estimated per-player cost: <span className="font-semibold text-[#34D399] font-mono">{fmtMoney(Number(f.sessionRate))}</span> (session rate)
+              Estimated per-player cost:{" "}
+              <span className="font-semibold text-[#34D399] font-mono">
+                {fmtMoney(Number(f.sessionRate))}
+              </span>{" "}
+              (session rate)
             </div>
           </CardContent>
         </Card>
         <div className="flex justify-end">
-          <Button type="submit" disabled={submitting} className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer">
+          <Button
+            type="submit"
+            disabled={submitting}
+            className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer"
+          >
             {submitting
               ? "Creating…"
               : Number(f.repeatWeeks) > 1

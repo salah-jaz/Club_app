@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useNow } from "@/hooks/useNow";
 import {
   getTrainingSessionPhase,
+  getPlaySessionPhase,
   resolveTrainingDisplayStatus,
   isSessionInFuture,
   parseDateTimeMs,
@@ -68,7 +69,10 @@ function Stat({
   const cardElement = (
     <motion.div variants={staggerItem} className="h-full">
       <motion.div
-        whileHover={{ y: -3, boxShadow: `0 12px 32px rgba(0,0,0,0.35), 0 0 0 1px ${accent.border}22` }}
+        whileHover={{
+          y: -3,
+          boxShadow: `0 12px 32px rgba(0,0,0,0.35), 0 0 0 1px ${accent.border}22`,
+        }}
         whileTap={{ scale: 0.98 }}
         transition={{ duration: 0.18, ease: "easeOut" }}
         className="h-full"
@@ -76,7 +80,7 @@ function Stat({
         <Card
           className={cn(
             "signature-card-top h-full transition-all duration-200",
-            to && "cursor-pointer hover:bg-white/[0.02]"
+            to && "cursor-pointer hover:bg-white/[0.02]",
           )}
           style={{
             borderTopColor: accent.border,
@@ -126,15 +130,7 @@ function Stat({
   return cardElement;
 }
 
-function HeaderQuickAction({
-  to,
-  icon: Icon,
-  label,
-}: {
-  to: string;
-  icon: any;
-  label: string;
-}) {
+function HeaderQuickAction({ to, icon: Icon, label }: { to: string; icon: any; label: string }) {
   return (
     <Button asChild variant="outline" size="sm" className="btn-premium-outline h-9 cursor-pointer">
       <Link to={to} className="inline-flex items-center gap-1.5">
@@ -173,7 +169,12 @@ function ScheduleListCard({
       <CardHeader className="px-6 pt-5 pb-2 flex flex-row items-center justify-between gap-3 space-y-0">
         <CardTitle className="type-section-cap">{title}</CardTitle>
         {viewAllTo && schedules.length > 0 && (
-          <Button asChild variant="ghost" size="sm" className="h-8 text-xs text-[#34D399] hover:text-[#10B981] cursor-pointer px-2">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-[#34D399] hover:text-[#10B981] cursor-pointer px-2"
+          >
             <Link to={viewAllTo} className="inline-flex items-center gap-1">
               {viewAllLabel}
               <ArrowRight className="size-3.5" />
@@ -209,7 +210,9 @@ function ScheduleListCard({
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className="font-semibold text-sm text-[#EEF2F0] group-hover:text-primary transition-colors">{sch.name}</div>
+                        <div className="font-semibold text-sm text-[#EEF2F0] group-hover:text-primary transition-colors">
+                          {sch.name}
+                        </div>
                         {isHoliday && (
                           <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
                             Holiday
@@ -257,7 +260,12 @@ function TrainingListCard({
       <CardHeader className="px-6 pt-5 pb-2 flex flex-row items-center justify-between gap-3 space-y-0">
         <CardTitle className="type-section-cap">{title}</CardTitle>
         {viewAllTo && trainings.length > 0 && (
-          <Button asChild variant="ghost" size="sm" className="h-8 text-[#34D399] hover:text-[#10B981] cursor-pointer px-2 text-xs">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="h-8 text-[#34D399] hover:text-[#10B981] cursor-pointer px-2 text-xs"
+          >
             <Link to={viewAllTo} className="inline-flex items-center gap-1">
               {viewAllLabel}
               <ArrowRight className="size-3.5" />
@@ -294,7 +302,9 @@ function TrainingListCard({
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className="font-semibold text-sm text-[#EEF2F0] group-hover:text-primary transition-colors">{tr.name}</div>
+                        <div className="font-semibold text-sm text-[#EEF2F0] group-hover:text-primary transition-colors">
+                          {tr.name}
+                        </div>
                       </div>
                       <div className="type-helper mt-1">
                         {dateTimeStr} · {tr.location}
@@ -322,7 +332,11 @@ function Dashboard() {
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const totalCredit = myMembers.reduce((t, m) => t + m.credit, 0);
   const pendingUsers = s.users.filter((u) => u.status === "created").length;
-  const pendingCredits = s.creditRequests.filter((c) => (c.type || "credit") === "credit" && c.status === "created").length;
+  const pendingCredits = s.creditRequests.filter(
+    (c) => (c.type || "credit") === "credit" && c.status === "created",
+  ).length;
+
+  const myMemberIds = useMemo(() => new Set(myMembers.map((m) => m.id)), [myMembers]);
 
   const upcomingPlaySessions = useMemo(
     () =>
@@ -331,18 +345,31 @@ function Dashboard() {
           (x) =>
             x.status !== "open" &&
             x.status !== "closed" &&
-            isSessionInFuture(x.date, now),
+            x.status !== "cancelled" &&
+            getPlaySessionPhase(x, now) !== "finished" &&
+            (user.role === "admin" || user.role === "volunteer"
+              ? true
+              : s.playInvites.some(
+                  (i) =>
+                    i.scheduleId === x.id && i.status === "accepted" && myMemberIds.has(i.memberId),
+                )),
         )
         .sort((a, b) => (parseDateTimeMs(a.date) || 0) - (parseDateTimeMs(b.date) || 0)),
-    [s.schedules, now],
+    [s.schedules, s.playInvites, myMemberIds, user.role, now],
   );
-
-  const myMemberIds = useMemo(() => new Set(myMembers.map((m) => m.id)), [myMembers]);
   const myTrainingInviteIds = useMemo(
     () =>
       new Set(
+        s.trainingInvites.filter((i) => myMemberIds.has(i.memberId)).map((i) => i.trainingId),
+      ),
+    [s.trainingInvites, myMemberIds],
+  );
+
+  const myAcceptedTrainingInviteIds = useMemo(
+    () =>
+      new Set(
         s.trainingInvites
-          .filter((i) => myMemberIds.has(i.memberId))
+          .filter((i) => myMemberIds.has(i.memberId) && i.status === "accepted")
           .map((i) => i.trainingId),
       ),
     [s.trainingInvites, myMemberIds],
@@ -357,10 +384,10 @@ function Dashboard() {
             isSessionInFuture(x.startDate, now) &&
             (user.role === "admin" || user.role === "volunteer"
               ? true
-              : myTrainingInviteIds.has(x.id)),
+              : myAcceptedTrainingInviteIds.has(x.id)),
         )
         .sort((a, b) => (parseDateTimeMs(a.startDate) || 0) - (parseDateTimeMs(b.startDate) || 0)),
-    [s.trainings, user.role, myTrainingInviteIds, now],
+    [s.trainings, user.role, myAcceptedTrainingInviteIds, now],
   );
 
   const myInvites = [
@@ -447,7 +474,13 @@ function Dashboard() {
         )}
         {user.role === "member" && (
           <>
-            <Stat label="Family members" value={myMembers.length} icon={Users} index={0} to="/members" />
+            <Stat
+              label="Family members"
+              value={myMembers.length}
+              icon={Users}
+              index={0}
+              to="/members"
+            />
             <Stat
               label="Total credit"
               value={fmtMoney(totalCredit)}
@@ -456,13 +489,31 @@ function Dashboard() {
               isNumeric={false}
               to="/credits"
             />
-            <Stat label="Total play sessions" value={myInvites.length} icon={CalendarDays} index={2} to="/events" />
-            <Stat label="Trainings" value={s.uniqueTrainingsCount} icon={GraduationCap} index={3} to="/training" />
+            <Stat
+              label="Total play sessions"
+              value={myInvites.length}
+              icon={CalendarDays}
+              index={2}
+              to="/events"
+            />
+            <Stat
+              label="Trainings"
+              value={s.uniqueTrainingsCount}
+              icon={GraduationCap}
+              index={3}
+              to="/training"
+            />
           </>
         )}
         {user.role === "volunteer" && (
           <>
-            <Stat label="Trainings" value={s.uniqueTrainingsCount} icon={GraduationCap} index={0} to="/trainings" />
+            <Stat
+              label="Trainings"
+              value={s.uniqueTrainingsCount}
+              icon={GraduationCap}
+              index={0}
+              to="/trainings"
+            />
             <Stat
               label="Junior members"
               value={s.members.filter((m) => m.memberType === "junior").length}
@@ -477,14 +528,22 @@ function Dashboard() {
               index={2}
               to="/trainings"
             />
-            <Stat label="Locations" value={s.locations.length} icon={CalendarDays} index={3} to="/schedules" />
+            <Stat
+              label="Locations"
+              value={s.locations.length}
+              icon={CalendarDays}
+              index={3}
+              to="/schedules"
+            />
           </>
         )}
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         <ScheduleListCard
-          title="Upcoming Play Sessions"
+          title={
+            user.role === "member" ? "Upcoming Accepted Play Sessions" : "Upcoming Play Sessions"
+          }
           schedules={upcomingPlaySessions}
           holidays={s.holidays ?? []}
           emptyTitle="No sessions scheduled"
@@ -496,7 +555,11 @@ function Dashboard() {
         />
 
         <TrainingListCard
-          title="Upcoming Training Sessions"
+          title={
+            user.role === "member"
+              ? "Upcoming Accepted Training Sessions"
+              : "Upcoming Training Sessions"
+          }
           trainings={upcomingTrainings}
           emptyTitle="No upcoming training sessions."
           viewAllTo={user.role === "member" ? "/training" : "/trainings"}

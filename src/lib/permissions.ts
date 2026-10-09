@@ -52,8 +52,10 @@ export function canModule(module: string): boolean {
   if (!user) return false;
   if (user.isSuperAdmin) return true;
   const perms = user.permissions ?? [];
-  return CRUD_ACTIONS.some((action) => perms.includes(`${module}.${action}`))
-    || perms.some((p) => p.startsWith(`${module}.`));
+  return (
+    CRUD_ACTIONS.some((action) => perms.includes(`${module}.${action}`)) ||
+    perms.some((p) => p.startsWith(`${module}.`))
+  );
 }
 
 export function useCan(permission: string): boolean {
@@ -75,8 +77,10 @@ export function useCanModule(module: string): boolean {
   if (!user || user.role !== "admin") return false;
   if (user.isSuperAdmin) return true;
   const perms = user.permissions ?? [];
-  return CRUD_ACTIONS.some((action) => perms.includes(`${module}.${action}`))
-    || perms.some((p) => p.startsWith(`${module}.`));
+  return (
+    CRUD_ACTIONS.some((action) => perms.includes(`${module}.${action}`)) ||
+    perms.some((p) => p.startsWith(`${module}.`))
+  );
 }
 
 export function moduleForPath(pathname: string): string | null {

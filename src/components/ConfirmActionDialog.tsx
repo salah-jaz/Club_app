@@ -43,9 +43,7 @@ export function ConfirmActionDialog({ request, onOpenChange }: Props) {
             {request?.title ?? "Confirm"}
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
-            <div className="text-[#C4D4CF] text-sm space-y-2 text-left">
-              {request?.description}
-            </div>
+            <div className="text-[#C4D4CF] text-sm space-y-2 text-left">{request?.description}</div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="gap-2 sm:gap-2">

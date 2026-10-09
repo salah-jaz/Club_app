@@ -74,13 +74,33 @@ export function MobileBottomNav() {
   const allMainItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: !isAdmin || canDashboard },
     { to: "/training", label: "Training", icon: GraduationCap, show: isMember },
-    { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isVol || (isAdmin && canTrainings) },
+    {
+      to: "/trainings",
+      label: "Trainings",
+      icon: GraduationCap,
+      show: isVol || (isAdmin && canTrainings),
+    },
     { to: "/credits", label: "Wallet", icon: Wallet, show: isMember || (isAdmin && canCredits) },
     { to: "/events", label: "Play Sessions", icon: CalendarDays, show: isMember },
-    { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin && canSchedules },
+    {
+      to: "/schedules",
+      label: "Play Schedules",
+      icon: CalendarDays,
+      show: isAdmin && canSchedules,
+    },
     { to: "/members", label: "Members", icon: Users, show: isMember || (isAdmin && canMembers) },
-    { to: "/league-groups", label: "Groups", icon: Users, show: isMember || (isAdmin && canLeagueGroups) },
-    { to: "/transactions", label: "Transactions", icon: Receipt, show: isMember || isVol || (isAdmin && canTransactions) },
+    {
+      to: "/league-groups",
+      label: "Groups",
+      icon: Users,
+      show: isMember || (isAdmin && canLeagueGroups),
+    },
+    {
+      to: "/transactions",
+      label: "Transactions",
+      icon: Receipt,
+      show: isMember || isVol || (isAdmin && canTransactions),
+    },
   ].filter((i) => i.show);
 
   // 4 Primary Footer Items on the bottom bar
@@ -92,12 +112,26 @@ export function MobileBottomNav() {
   // Admin section items for Admin users
   const adminItems = [
     { to: "/approvals", label: "Approvals", icon: ShieldCheck, show: isAdmin && canApprovals },
-    { to: "/email-templates", label: "Email Templates", icon: Inbox, show: isAdmin && canEmailTemplates },
+    {
+      to: "/email-templates",
+      label: "Email Templates",
+      icon: Inbox,
+      show: isAdmin && canEmailTemplates,
+    },
     { to: "/settings", label: "Settings", icon: Settings, show: isAdmin && canSettings },
-    { to: "/admin-management", label: "Club Admin", icon: UserCog, show: isAdmin && canAdminManagement },
+    {
+      to: "/admin-management",
+      label: "Club Admin",
+      icon: UserCog,
+      show: isAdmin && canAdminManagement,
+    },
   ].filter((i) => i.show);
 
-  const moreItems = [...remainingMainItems, ...adminItems, { to: "/profile", label: "Profile", icon: UserIcon, show: true }];
+  const moreItems = [
+    ...remainingMainItems,
+    ...adminItems,
+    { to: "/profile", label: "Profile", icon: UserIcon, show: true },
+  ];
   const isMoreActive = moreItems.some((i) => pathname.startsWith(i.to));
 
   return (
@@ -138,7 +172,9 @@ export function MobileBottomNav() {
                   whileTap={{ scale: 0.9 }}
                   transition={{ duration: 0.15 }}
                   className={`p-1 rounded-lg z-10 transition-colors ${
-                    isActive ? "text-primary font-semibold" : "text-muted-foreground group-hover:text-foreground"
+                    isActive
+                      ? "text-primary font-semibold"
+                      : "text-muted-foreground group-hover:text-foreground"
                   }`}
                 >
                   <item.icon className="size-5" />
@@ -146,7 +182,9 @@ export function MobileBottomNav() {
 
                 <span
                   className={`text-[10px] font-medium tracking-tight truncate max-w-full z-10 transition-colors ${
-                    isActive ? "text-primary font-semibold" : "text-muted-foreground group-hover:text-foreground"
+                    isActive
+                      ? "text-primary font-semibold"
+                      : "text-muted-foreground group-hover:text-foreground"
                   }`}
                 >
                   {item.label}
@@ -180,7 +218,9 @@ export function MobileBottomNav() {
               whileTap={{ scale: 0.9 }}
               transition={{ duration: 0.15 }}
               className={`p-1 rounded-lg z-10 transition-colors ${
-                isMoreActive ? "text-primary font-semibold" : "text-muted-foreground group-hover:text-foreground"
+                isMoreActive
+                  ? "text-primary font-semibold"
+                  : "text-muted-foreground group-hover:text-foreground"
               }`}
             >
               <MoreHorizontal className="size-5" />
@@ -188,7 +228,9 @@ export function MobileBottomNav() {
 
             <span
               className={`text-[10px] font-medium tracking-tight truncate max-w-full z-10 transition-colors ${
-                isMoreActive ? "text-primary font-semibold" : "text-muted-foreground group-hover:text-foreground"
+                isMoreActive
+                  ? "text-primary font-semibold"
+                  : "text-muted-foreground group-hover:text-foreground"
               }`}
             >
               More
@@ -199,11 +241,18 @@ export function MobileBottomNav() {
 
       {/* "More" Sheet Modal */}
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl bg-background border-t border-border p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-h-[85vh] overflow-y-auto">
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl bg-background border-t border-border p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-h-[85vh] overflow-y-auto"
+        >
           <SheetHeader className="text-left pb-4 border-b border-border/60">
             <div className="flex items-center gap-3">
               {appLogoBase64 ? (
-                <img src={appLogoBase64} alt={appName} className="size-10 rounded-lg object-contain bg-white/5" />
+                <img
+                  src={appLogoBase64}
+                  alt={appName}
+                  className="size-10 rounded-lg object-contain bg-white/5"
+                />
               ) : (
                 <div className="size-10 rounded-lg bg-primary text-primary-foreground grid place-items-center font-bold text-lg">
                   {appLogoText}
@@ -240,12 +289,16 @@ export function MobileBottomNav() {
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                          <div
+                            className={`p-2 rounded-lg ${isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}
+                          >
                             <item.icon className="size-5" />
                           </div>
                           <span className="text-sm font-medium">{item.label}</span>
                         </div>
-                        <ChevronRight className={`size-4 opacity-60 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                        <ChevronRight
+                          className={`size-4 opacity-60 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                        />
                       </button>
                     );
                   })}
@@ -274,12 +327,16 @@ export function MobileBottomNav() {
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                          <div
+                            className={`p-2 rounded-lg ${isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}
+                          >
                             <item.icon className="size-5" />
                           </div>
                           <span className="text-sm font-medium">{item.label}</span>
                         </div>
-                        <ChevronRight className={`size-4 opacity-60 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                        <ChevronRight
+                          className={`size-4 opacity-60 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                        />
                       </button>
                     );
                   })}
@@ -303,12 +360,16 @@ export function MobileBottomNav() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${pathname.startsWith("/profile") ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                    <div
+                      className={`p-2 rounded-lg ${pathname.startsWith("/profile") ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}
+                    >
                       <UserIcon className="size-5" />
                     </div>
                     <span className="text-sm font-medium">Profile</span>
                   </div>
-                  <ChevronRight className={`size-4 opacity-60 ${pathname.startsWith("/profile") ? "text-primary" : "text-muted-foreground"}`} />
+                  <ChevronRight
+                    className={`size-4 opacity-60 ${pathname.startsWith("/profile") ? "text-primary" : "text-muted-foreground"}`}
+                  />
                 </button>
                 {isMember && (
                   <button
@@ -352,9 +413,7 @@ export function MobileBottomNav() {
           </div>
         </SheetContent>
       </Sheet>
-      {isMember && (
-        <MemberPolicyViewer open={policyOpen} onOpenChange={setPolicyOpen} />
-      )}
+      {isMember && <MemberPolicyViewer open={policyOpen} onOpenChange={setPolicyOpen} />}
     </>
   );
 }

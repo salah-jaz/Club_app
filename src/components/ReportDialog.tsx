@@ -209,8 +209,7 @@ export function ReportDialog({
   const entity = config.entityLabel;
   const title = config.title || "Download report";
   const description =
-    config.description ||
-    `Choose filters, then download the matching ${entity} as CSV or PDF.`;
+    config.description || `Choose filters, then download the matching ${entity} as CSV or PDF.`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -267,7 +266,9 @@ export function ReportDialog({
               {values.memberId === "all" ? (
                 <button
                   type="button"
-                  onClick={() => members[0] && onValuesChange({ ...values, memberId: members[0].id })}
+                  onClick={() =>
+                    members[0] && onValuesChange({ ...values, memberId: members[0].id })
+                  }
                   className="flex h-[38px] w-full items-center rounded-md border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E] px-3 text-sm text-[#8A8A98] hover:text-[#EEF2F0] cursor-pointer text-left"
                 >
                   All members
@@ -285,10 +286,7 @@ export function ReportDialog({
 
           {selectGridCount > 0 && (
             <div
-              className={cn(
-                "grid gap-3",
-                selectGridCount === 1 ? "grid-cols-1" : "grid-cols-2",
-              )}
+              className={cn("grid gap-3", selectGridCount === 1 ? "grid-cols-1" : "grid-cols-2")}
             >
               {statusOptions && statusOptions.length > 0 && (
                 <SelectFilter

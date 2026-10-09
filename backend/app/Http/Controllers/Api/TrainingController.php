@@ -419,6 +419,13 @@ class TrainingController extends Controller
             ->get();
         $totalCount = $updatedSeries->count();
         $newFees = $request->has('fees') ? $request->fees : $tr->fees;
+        $hasStartDateChange = $request->has('startDate') && !empty($request->startDate);
+        $newTime = $baseStart->format('H:i:s');
+
+        if ($hasStartDateChange) {
+            TrainingDate::where('training_id', $tr->id)->update(['date' => $tr->start_date]);
+        }
+
         foreach ($updatedSeries as $sItem) {
             $sItemData = [
                 'repeat_weeks' => $newWeeks,
@@ -427,6 +434,17 @@ class TrainingController extends Controller
                 'fees' => $newFees,
                 'target_type' => $targetTypeVal,
             ];
+            if ($hasStartDateChange && $sItem->id !== $tr->id) {
+                $sItemDate = \Carbon\Carbon::parse($sItem->start_date)->format('Y-m-d');
+                $sItemStart = \Carbon\Carbon::parse($sItemDate . ' ' . $newTime);
+                $sItemEnd = $sItemStart->copy()->addMinutes($durationMins);
+                $sItemData['start_date'] = $sItemStart->format('Y-m-d H:i:s');
+                $sItemData['end_date'] = $sItemEnd->format('Y-m-d H:i:s');
+                $sItemData['duration'] = $durationVal;
+                $sItemData['name'] = $this->uniqueTrainingName($this->trainingNameFromDate($sItemStart), $sItem->id);
+
+                TrainingDate::where('training_id', $sItem->id)->update(['date' => $sItemStart->format('Y-m-d H:i:s')]);
+            }
             if ($request->has('isGroupTraining')) {
                 $sItemData['is_group_training'] = $request->boolean('isGroupTraining');
             }
@@ -441,23 +459,6 @@ class TrainingController extends Controller
             }
             $sItem->update($sItemData);
         }
-
-        if ($request->has('targetType')) {
-            \App\Services\InvitationSyncService::syncAllTrainingInvitations(true);
-        }
-
-        try {
-            $invitations = TrainingInvitation::where('training_id', $tr->id)->get();
-            foreach ($invitations as $inv) {
-                $member = Member::find($inv->member_id);
-                if ($member) {
-                    MailHelper::sendTrainingNotification($member, $tr, $inv->status, 'update');
-                }
-            }
-        } catch (\Exception $e) {
-            logger()->error("Training update email notification failed: " . $e->getMessage());
-        }
-
         return response()->json($this->formatTraining($tr->fresh()));
     }
 
@@ -487,7 +488,8 @@ class TrainingController extends Controller
                 ->values()
                 ->all();
 
-            $memberIds = Member::eligibleForTraining($targetType)
+            $memberIds = Member::where('member_type', $targetType)
+                ->where('status', 'active')
                 ->whereIn('id', $memberIds)
                 ->pluck('id')
                 ->all();
@@ -968,9 +970,7 @@ class TrainingController extends Controller
         }
 
         $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
-        if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
-            return $message;
-        }
+
 
         $member = Member::find($invite->member_id);
         if (!$member) {
@@ -1138,10 +1138,6 @@ class TrainingController extends Controller
                     if (!$tr) {
                         continue;
                     }
-                    $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
-                    if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
-                        return response()->json(['message' => $message], 422);
-                    }
                 }
 
                 $trainingIds = $invites->pluck('training_id')->unique()->all();
@@ -1271,6 +1267,34 @@ class TrainingController extends Controller
                             $inv->status = 'accepted';
                             $inv->save();
                         }
+                    }
+
+                    // For each accepted training program series/month, remove any remaining non-accepted invitations
+                    // for this member. The member has accepted this month's enrollment with only the chosen sessions;
+                    // any skipped/non-accepted sessions (e.g. past or unselected sessions like Oct 8) are Not Included
+                    // and must not remain open or be re-offered automatically.
+                    $trainingSeriesMonths = [];
+                    foreach ($mInvites as $acceptedInv) {
+                        $trObj = Training::find($acceptedInv->training_id);
+                        if ($trObj) {
+                            $pId = $trObj->parent_id ?: $trObj->id;
+                            $ym = \Carbon\Carbon::parse($trObj->start_date)->format('Y-m');
+                            $trainingSeriesMonths["{$pId}_{$ym}"] = ['parentId' => $pId, 'yearMonth' => $ym];
+                        }
+                    }
+
+                    foreach ($trainingSeriesMonths as $item) {
+                        $pId = $item['parentId'];
+                        $ym = $item['yearMonth'];
+                        $series = Training::where('parent_id', $pId)->orWhere('id', $pId)->get();
+                        $monthSessionIds = $series->filter(function ($sItem) use ($ym) {
+                            return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $ym;
+                        })->pluck('id')->all();
+
+                        TrainingInvitation::whereIn('training_id', $monthSessionIds)
+                            ->where('member_id', $memberId)
+                            ->where('status', '!=', 'accepted')
+                            ->delete();
                     }
                 }
 
@@ -2299,5 +2323,73 @@ class TrainingController extends Controller
             ->filter()
             ->unique()
             ->count();
+    }
+
+    public static function processAutoClose()
+    {
+        $now = \App\Helpers\SessionTimingHelper::now();
+
+        // 1. Get all active sessions to identify which monthly groups need checking
+        $activeSessions = \App\Models\Training::whereNotIn('status', ['closed', 'cancelled'])->get();
+        if ($activeSessions->isEmpty()) {
+            return;
+        }
+
+        $parentIds = [];
+        $activeGroups = []; // "parent_id_YYYY-MM" => true
+
+        foreach ($activeSessions as $session) {
+            $pId = $session->parent_id ?: $session->id;
+            $parentIds[$pId] = true;
+            $ym = \Carbon\Carbon::parse($session->start_date)->format('Y-m');
+            $activeGroups["{$pId}_{$ym}"] = true;
+        }
+
+        $parentIds = array_keys($parentIds);
+
+        // 2. Fetch all sessions for these parent_ids so we know the true final schedule of each month
+        $allSeriesSessions = \App\Models\Training::whereIn('parent_id', $parentIds)
+            ->orWhereIn('id', $parentIds)
+            ->get();
+
+        $groupedByMonth = [];
+        foreach ($allSeriesSessions as $s) {
+            $pId = $s->parent_id ?: $s->id;
+            $ym = \Carbon\Carbon::parse($s->start_date)->format('Y-m');
+            $key = "{$pId}_{$ym}";
+            
+            // Only care about this month group if it has active sessions
+            if (isset($activeGroups[$key])) {
+                if (!isset($groupedByMonth[$key])) {
+                    $groupedByMonth[$key] = [];
+                }
+                $groupedByMonth[$key][] = $s;
+            }
+        }
+
+        // 3. Evaluate each active monthly group
+        $idsToClose = [];
+        foreach ($groupedByMonth as $key => $monthSessions) {
+            $lastEnd = null;
+            foreach ($monthSessions as $s) {
+                $end = \App\Helpers\SessionTimingHelper::trainingSessionEnd($s);
+                if ($lastEnd === null || $end->gt($lastEnd)) {
+                    $lastEnd = $end;
+                }
+            }
+
+            // If the final session for this month has ended, mark all active sessions in this month as closed
+            if ($lastEnd && $now->greaterThanOrEqualTo($lastEnd)) {
+                foreach ($monthSessions as $s) {
+                    if (!in_array($s->status, ['closed', 'cancelled'])) {
+                        $idsToClose[] = $s->id;
+                    }
+                }
+            }
+        }
+
+        if (!empty($idsToClose)) {
+            \App\Models\Training::whereIn('id', $idsToClose)->update(['status' => 'closed']);
+        }
     }
 }

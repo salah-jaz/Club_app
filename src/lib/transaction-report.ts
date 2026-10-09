@@ -1,7 +1,14 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { Member, Transaction } from "@/lib/types";
-import { fmtDate, fmtDateTime, fmtMoney, formatTxnDescription, txnDisplayType, txnSource } from "@/lib/format";
+import {
+  fmtDate,
+  fmtDateTime,
+  fmtMoney,
+  formatTxnDescription,
+  txnDisplayType,
+  txnSource,
+} from "@/lib/format";
 import {
   downloadReportCsv,
   formatFilterSummary,
@@ -79,9 +86,7 @@ function filterSummary(filters: TxnReportFilters, members: Member[]): string {
     {
       label: "Member",
       value:
-        filters.memberId && filters.memberId !== "all"
-          ? memberName(members, filters.memberId)
-          : "",
+        filters.memberId && filters.memberId !== "all" ? memberName(members, filters.memberId) : "",
       hideIf: ["all"],
     },
     { label: "Type", value: filters.type, hideIf: ["all"] },
@@ -103,7 +108,9 @@ export function buildTransactionsCsv(
   const rows = txns.map((t) => {
     const displayType = txnDisplayType(t);
     const signed =
-      displayType === "debit" || displayType === "expense" ? `-${t.amount.toFixed(2)}` : `+${t.amount.toFixed(2)}`;
+      displayType === "debit" || displayType === "expense"
+        ? `-${t.amount.toFixed(2)}`
+        : `+${t.amount.toFixed(2)}`;
     return [
       fmtDateTime(t.date),
       memberName(members, t.memberId),
@@ -149,7 +156,9 @@ export function downloadTransactionsCsv(
     rows: txns.map((t) => {
       const displayType = txnDisplayType(t);
       const signed =
-        displayType === "debit" || displayType === "expense" ? `-${t.amount.toFixed(2)}` : `+${t.amount.toFixed(2)}`;
+        displayType === "debit" || displayType === "expense"
+          ? `-${t.amount.toFixed(2)}`
+          : `+${t.amount.toFixed(2)}`;
       return {
         date: fmtDateTime(t.date),
         member: memberName(members, t.memberId),
@@ -190,7 +199,11 @@ export function downloadTransactionsPdf(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(filterSummary(filters, members), marginX, 28);
-  doc.text(`Generated ${fmtDateTime(new Date().toISOString())} · ${txns.length} row(s)`, marginX, 33);
+  doc.text(
+    `Generated ${fmtDateTime(new Date().toISOString())} · ${txns.length} row(s)`,
+    marginX,
+    33,
+  );
 
   const creditSum = txns
     .filter((t) => txnDisplayType(t) === "credit")
@@ -264,4 +277,3 @@ export function downloadTransactionsPdf(
 
   doc.save(`transactions_report_${reportStamp()}.pdf`);
 }
-

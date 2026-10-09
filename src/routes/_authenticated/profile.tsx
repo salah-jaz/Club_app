@@ -11,12 +11,17 @@ function Profile() {
   const Row = ({ k, v, isMono = false }: { k: string; v: string; isMono?: boolean }) => (
     <div className="flex justify-between py-4 border-b border-white/[0.04] last:border-0 items-center">
       <span className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">{k}</span>
-      <span className={cn("text-[13px] text-[#F1F0EE] font-medium", isMono && "font-mono text-xs")}>{v}</span>
+      <span className={cn("text-[13px] text-[#F1F0EE] font-medium", isMono && "font-mono text-xs")}>
+        {v}
+      </span>
     </div>
   );
   return (
     <div className="space-y-6">
-      <PageHeader title="My profile" description="Review your personal member profile credentials." />
+      <PageHeader
+        title="My profile"
+        description="Review your personal member profile credentials."
+      />
       <Card className="max-w-2xl bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
         <CardHeader className="pb-3 border-b border-white/[0.03]">
           <CardTitle className="text-xl font-playfair font-normal text-[#F1F0EE]">

@@ -28,7 +28,7 @@ class SyncController extends Controller
         return response()->json([
             'members'           => $memberCtrl->index($request)->getData(true),
             'schedules'         => $scheduleCtrl->index()->getData(true),
-            'playInvites'       => $scheduleCtrl->listInvitations()->getData(true),
+            'playInvites'       => $scheduleCtrl->listInvitations($request)->getData(true),
             'trainings'         => $trainingCtrl->index($request)->getData(true),
             'trainingInvites'   => $trainingCtrl->listInvitations($request)->getData(true),
             'trainingDates'     => $trainingCtrl->listDates($request)->getData(true),

@@ -46,7 +46,11 @@ export function downloadBlob(filename: string, content: string | Blob, mime: str
 }
 
 /** Inclusive calendar-day range check against an ISO / parseable date string. */
-export function inDateRange(dateStr: string | null | undefined, fromDate: string, toDate: string): boolean {
+export function inDateRange(
+  dateStr: string | null | undefined,
+  fromDate: string,
+  toDate: string,
+): boolean {
   if (!dateStr) return !(fromDate || toDate);
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return false;
@@ -81,9 +85,7 @@ export function formatFilterSummary(
 export function buildReportCsv(options: ReportExportOptions): string {
   const { title, columns, rows, filterSummary } = options;
   const header = columns.map((c) => escapeCsv(c.header));
-  const body = rows.map((row) =>
-    columns.map((c) => escapeCsv(String(row[c.key] ?? ""))).join(","),
-  );
+  const body = rows.map((row) => columns.map((c) => escapeCsv(String(row[c.key] ?? ""))).join(","));
   const meta = [
     `# ${title}`,
     `# Filters: ${filterSummary || "All records"}`,
@@ -104,7 +106,8 @@ export function downloadReportCsv(options: ReportExportOptions) {
 }
 
 export function downloadReportPdf(options: ReportExportOptions) {
-  const orientation = options.orientation ?? (options.columns.length > 5 ? "landscape" : "portrait");
+  const orientation =
+    options.orientation ?? (options.columns.length > 5 ? "landscape" : "portrait");
   const doc = new jsPDF({ orientation, unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -131,7 +134,8 @@ export function downloadReportPdf(options: ReportExportOptions) {
     33,
   );
 
-  const columnStyles: Record<number, { cellWidth?: number; halign?: "left" | "right" | "center" }> = {};
+  const columnStyles: Record<number, { cellWidth?: number; halign?: "left" | "right" | "center" }> =
+    {};
   options.columns.forEach((col, i) => {
     columnStyles[i] = {};
     if (col.width) columnStyles[i].cellWidth = col.width;

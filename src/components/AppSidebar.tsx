@@ -1,13 +1,31 @@
 import { useState } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Users, Wallet, CalendarDays, GraduationCap,
-  Inbox, Receipt, ShieldCheck, LogOut, User as UserIcon, Settings, UserCog,
+  LayoutDashboard,
+  Users,
+  Wallet,
+  CalendarDays,
+  GraduationCap,
+  Inbox,
+  Receipt,
+  ShieldCheck,
+  LogOut,
+  User as UserIcon,
+  Settings,
+  UserCog,
   FileText,
 } from "lucide-react";
 import {
-  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
-  SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useCurrentUser, useStore } from "@/lib/store";
@@ -66,13 +84,33 @@ export function AppSidebar() {
   const main = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: !isAdmin || canDashboard },
     { to: "/training", label: "Training", icon: GraduationCap, show: isMember },
-    { to: "/trainings", label: "Trainings", icon: GraduationCap, show: isVol || (isAdmin && canTrainings) },
+    {
+      to: "/trainings",
+      label: "Trainings",
+      icon: GraduationCap,
+      show: isVol || (isAdmin && canTrainings),
+    },
     { to: "/members", label: "Members", icon: Users, show: isMember || (isAdmin && canMembers) },
     { to: "/credits", label: "Wallet", icon: Wallet, show: isMember || (isAdmin && canCredits) },
     { to: "/events", label: "Play Sessions", icon: CalendarDays, show: isMember },
-    { to: "/schedules", label: "Play Schedules", icon: CalendarDays, show: isAdmin && canSchedules },
-    { to: "/league-groups", label: "Groups", icon: Users, show: isMember || (isAdmin && canLeagueGroups) },
-    { to: "/transactions", label: "Transactions", icon: Receipt, show: isMember || isVol || (isAdmin && canTransactions) },
+    {
+      to: "/schedules",
+      label: "Play Schedules",
+      icon: CalendarDays,
+      show: isAdmin && canSchedules,
+    },
+    {
+      to: "/league-groups",
+      label: "Groups",
+      icon: Users,
+      show: isMember || (isAdmin && canLeagueGroups),
+    },
+    {
+      to: "/transactions",
+      label: "Transactions",
+      icon: Receipt,
+      show: isMember || isVol || (isAdmin && canTransactions),
+    },
   ];
 
   const adminItems = [
@@ -88,160 +126,184 @@ export function AppSidebar() {
 
   return (
     <>
-    <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <div className="flex items-center gap-3 px-2 py-2">
-          {appLogoBase64 ? (
-            <img src={appLogoBase64} alt={appName} className="size-16 group-data-[collapsible=icon]:size-10 rounded-lg object-contain bg-white/5 transition-all duration-200" />
-          ) : (
-            <div className="size-16 group-data-[collapsible=icon]:size-10 rounded-lg bg-primary text-primary-foreground grid place-items-center font-bold text-xl transition-all duration-200">{appLogoText}</div>
-          )}
-          <div className="flex flex-col leading-none group-data-[collapsible=icon]:hidden">
-            <span className="font-semibold">{appName}</span>
-            <span className="text-[11px] text-muted-foreground capitalize">{activeRole}</span>
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <div className="flex items-center gap-3 px-2 py-2">
+            {appLogoBase64 ? (
+              <img
+                src={appLogoBase64}
+                alt={appName}
+                className="size-16 group-data-[collapsible=icon]:size-10 rounded-lg object-contain bg-white/5 transition-all duration-200"
+              />
+            ) : (
+              <div className="size-16 group-data-[collapsible=icon]:size-10 rounded-lg bg-primary text-primary-foreground grid place-items-center font-bold text-xl transition-all duration-200">
+                {appLogoText}
+              </div>
+            )}
+            <div className="flex flex-col leading-none group-data-[collapsible=icon]:hidden">
+              <span className="font-semibold">{appName}</span>
+              <span className="text-[11px] text-muted-foreground capitalize">{activeRole}</span>
+            </div>
           </div>
-        </div>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Main</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {main.filter((i) => i.show).map((i) => {
-                const isActive = pathname.startsWith(i.to);
-                return (
-                  <SidebarMenuItem key={i.to} className="relative">
-                    {/* Sliding active pill — Framer Motion layout animation */}
-                    <AnimatePresence>
-                      {isActive && (
-                        <motion.div
-                          layoutId="sidebar-main-pill"
-                          className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)] pointer-events-none"
-                          style={{ margin: "2px 10px" }}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.2, ease: "easeOut" }}
-                        />
-                      )}
-                    </AnimatePresence>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link
-                        to={i.to}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          goToModule(i.to);
-                        }}
-                      >
-                        <motion.span
-                          whileHover={{ scale: 1.15, rotate: 5 }}
-                          whileTap={{ scale: 0.9 }}
-                          transition={{ duration: 0.15 }}
-                          className="inline-flex"
-                        >
-                          <i.icon />
-                        </motion.span>
-                        <span>{i.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        {isAdmin && adminItems.length > 0 && (
+        </SidebarHeader>
+        <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupLabel>Main</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminItems.map((i) => {
-                  const isActive = pathname.startsWith(i.to);
-                  return (
-                    <SidebarMenuItem key={i.to} className="relative">
-                      <AnimatePresence>
-                        {isActive && (
-                          <motion.div
-                            layoutId="sidebar-admin-pill"
-                            className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)] pointer-events-none"
-                            style={{ margin: "2px 10px" }}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2, ease: "easeOut" }}
-                          />
-                        )}
-                      </AnimatePresence>
-                      <SidebarMenuButton asChild isActive={isActive}>
-                        <Link
-                          to={i.to}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            goToModule(i.to);
-                          }}
-                        >
-                          <motion.span
-                            whileHover={{ scale: 1.15, rotate: 5 }}
-                            whileTap={{ scale: 0.9 }}
-                            transition={{ duration: 0.15 }}
-                            className="inline-flex"
+                {main
+                  .filter((i) => i.show)
+                  .map((i) => {
+                    const isActive = pathname.startsWith(i.to);
+                    return (
+                      <SidebarMenuItem key={i.to} className="relative">
+                        {/* Sliding active pill — Framer Motion layout animation */}
+                        <AnimatePresence>
+                          {isActive && (
+                            <motion.div
+                              layoutId="sidebar-main-pill"
+                              className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)] pointer-events-none"
+                              style={{ margin: "2px 10px" }}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.2, ease: "easeOut" }}
+                            />
+                          )}
+                        </AnimatePresence>
+                        <SidebarMenuButton asChild isActive={isActive}>
+                          <Link
+                            to={i.to}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              goToModule(i.to);
+                            }}
                           >
-                            <i.icon />
-                          </motion.span>
-                          <span>{i.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
+                            <motion.span
+                              whileHover={{ scale: 1.15, rotate: 5 }}
+                              whileTap={{ scale: 0.9 }}
+                              transition={{ duration: 0.15 }}
+                              className="inline-flex"
+                            >
+                              <i.icon />
+                            </motion.span>
+                            <span>{i.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        )}
-      </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link to="/profile" onClick={closeSidebarMobile}>
-                <motion.span whileHover={{ scale: 1.15 }} transition={{ duration: 0.15 }} className="inline-flex">
-                  <UserIcon />
-                </motion.span>
-                <span>{user.firstName} {user.lastName}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          {isMember && (
+          {isAdmin && adminItems.length > 0 && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Admin</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {adminItems.map((i) => {
+                    const isActive = pathname.startsWith(i.to);
+                    return (
+                      <SidebarMenuItem key={i.to} className="relative">
+                        <AnimatePresence>
+                          {isActive && (
+                            <motion.div
+                              layoutId="sidebar-admin-pill"
+                              className="absolute inset-0 rounded-[10px] bg-[rgba(16,185,129,0.10)] border border-[rgba(16,185,129,0.30)] pointer-events-none"
+                              style={{ margin: "2px 10px" }}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.2, ease: "easeOut" }}
+                            />
+                          )}
+                        </AnimatePresence>
+                        <SidebarMenuButton asChild isActive={isActive}>
+                          <Link
+                            to={i.to}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              goToModule(i.to);
+                            }}
+                          >
+                            <motion.span
+                              whileHover={{ scale: 1.15, rotate: 5 }}
+                              whileTap={{ scale: 0.9 }}
+                              transition={{ duration: 0.15 }}
+                              className="inline-flex"
+                            >
+                              <i.icon />
+                            </motion.span>
+                            <span>{i.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <Link to="/profile" onClick={closeSidebarMobile}>
+                  <motion.span
+                    whileHover={{ scale: 1.15 }}
+                    transition={{ duration: 0.15 }}
+                    className="inline-flex"
+                  >
+                    <UserIcon />
+                  </motion.span>
+                  <span>
+                    {user.firstName} {user.lastName}
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            {isMember && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => {
+                    setPolicyOpen(true);
+                    closeSidebarMobile();
+                  }}
+                >
+                  <motion.span
+                    whileHover={{ scale: 1.15 }}
+                    transition={{ duration: 0.15 }}
+                    className="inline-flex"
+                  >
+                    <FileText />
+                  </motion.span>
+                  <span>Member Policy</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => {
-                  setPolicyOpen(true);
+                  logout();
+                  navigate({ to: "/login" });
                   closeSidebarMobile();
                 }}
               >
-                <motion.span whileHover={{ scale: 1.15 }} transition={{ duration: 0.15 }} className="inline-flex">
-                  <FileText />
+                <motion.span
+                  whileHover={{ scale: 1.15, x: -2 }}
+                  transition={{ duration: 0.15 }}
+                  className="inline-flex"
+                >
+                  <LogOut />
                 </motion.span>
-                <span>Member Policy</span>
+                <span>Sign out</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-          )}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={() => { logout(); navigate({ to: "/login" }); closeSidebarMobile(); }}
-            >
-              <motion.span whileHover={{ scale: 1.15, x: -2 }} transition={{ duration: 0.15 }} className="inline-flex">
-                <LogOut />
-              </motion.span>
-              <span>Sign out</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
-    </Sidebar>
-    {isMember && (
-      <MemberPolicyViewer open={policyOpen} onOpenChange={setPolicyOpen} />
-    )}
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+      {isMember && <MemberPolicyViewer open={policyOpen} onOpenChange={setPolicyOpen} />}
     </>
   );
 }

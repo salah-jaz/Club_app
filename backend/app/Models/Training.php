@@ -55,4 +55,28 @@ class Training extends Model
     {
         return $this->hasMany(TrainingUpdateRequest::class);
     }
+
+    public function getSlotsAttribute($value): int
+    {
+        if ($this->is_group_training && !empty($this->league_group_ids) && !in_array($this->status, ['closed', 'finished', 'cancelled'])) {
+            $phase = \App\Helpers\SessionTimingHelper::trainingSessionPhase($this);
+            if ($phase !== \App\Helpers\SessionTimingHelper::PHASE_FINISHED) {
+                $groupIds = is_array($this->league_group_ids) ? $this->league_group_ids : (json_decode($this->league_group_ids, true) ?? []);
+                if (!empty($groupIds)) {
+                    $memberIds = \Illuminate\Support\Facades\DB::table('league_group_member')
+                        ->whereIn('league_group_id', $groupIds)
+                        ->pluck('member_id')
+                        ->unique()
+                        ->values()
+                        ->all();
+                    
+                    return \App\Models\Member::where('member_type', $this->target_type ?? 'junior')
+                        ->where('status', 'active')
+                        ->whereIn('id', $memberIds)
+                        ->count();
+                }
+            }
+        }
+        return (int) $value;
+    }
 }

@@ -1335,9 +1335,13 @@ class PlayScheduleController extends Controller
         return $result;
     }
 
-    public function listInvitations()
+    public function listInvitations(Request $request = null)
     {
         self::processAutoPublishAndRotation();
+
+        $user = $request ? $request->user() : auth()->user();
+        $isAdmin = $user && $user->role === 'admin';
+        $userMemberIds = $user ? \App\Models\Member::where('user_id', $user->id)->pluck('id')->all() : [];
 
         $releasedSchedules = PlaySchedule::where('status', 'released')->get();
         foreach ($releasedSchedules as $relSch) {
@@ -1347,10 +1351,41 @@ class PlayScheduleController extends Controller
         $openScheduleIds = PlaySchedule::where('status', 'open')->pluck('id')->all();
         $invites = PlayInvitation::whereNotIn('schedule_id', $openScheduleIds)->orderBy('updated_at')->get();
         $uniqueInvites = $invites->unique(fn($i) => $i->schedule_id . '_' . $i->member_id);
-        $payload = $uniqueInvites->map(fn(PlayInvitation $i) => $this->formatInvitation($i))->values()->all();
+        
+        $groupedInvites = $uniqueInvites->groupBy('schedule_id');
+        $filteredInvites = collect();
+        $schedules = PlaySchedule::all()->keyBy('id');
+
+        foreach ($groupedInvites as $scheduleId => $scheduleInvites) {
+            if ($isAdmin) {
+                $filteredInvites = $filteredInvites->merge($scheduleInvites);
+                continue;
+            }
+
+            $schedule = $schedules->get($scheduleId);
+            $isPublishedOrClosed = $schedule && in_array($schedule->status, ['published', 'closed'], true);
+
+            $hasAccepted = false;
+            foreach ($scheduleInvites as $inv) {
+                if (in_array($inv->member_id, $userMemberIds) && $inv->status === 'accepted') {
+                    $hasAccepted = true;
+                    break;
+                }
+            }
+
+            if (!$isPublishedOrClosed || $hasAccepted) {
+                $filteredInvites = $filteredInvites->merge($scheduleInvites);
+            } else {
+                $userInvites = $scheduleInvites->filter(function($inv) use ($userMemberIds) {
+                    return in_array($inv->member_id, $userMemberIds);
+                });
+                $filteredInvites = $filteredInvites->merge($userInvites);
+            }
+        }
+
+        $payload = $filteredInvites->map(fn(PlayInvitation $i) => $this->formatInvitation($i))->values()->all();
 
         // Guests appear in Accepted only after rotation has been generated.
-        $schedules = PlaySchedule::all()->keyBy('id');
         $acceptedBySchedule = $uniqueInvites
             ->where('status', 'accepted')
             ->groupBy('schedule_id')
@@ -1360,6 +1395,21 @@ class PlayScheduleController extends Controller
             if (!in_array($schedule->status, ['published', 'closed'], true)) {
                 continue;
             }
+
+            if (!$isAdmin) {
+                $hasAccepted = false;
+                $schInvites = $groupedInvites->get($scheduleId, collect());
+                foreach ($schInvites as $inv) {
+                    if (in_array($inv->member_id, $userMemberIds) && $inv->status === 'accepted') {
+                        $hasAccepted = true;
+                        break;
+                    }
+                }
+                if (!$hasAccepted) {
+                    continue;
+                }
+            }
+
             $realAccepted = (int) ($acceptedBySchedule[$scheduleId] ?? 0);
             foreach ($this->guestIdsForAccepted($schedule, $realAccepted) as $guestId) {
                 $n = (int) explode('_', $guestId)[1];
@@ -1692,13 +1742,23 @@ class PlayScheduleController extends Controller
         self::processAutoPublishAndRotation();
         $user = $request->user();
         $isAdmin = $user && $user->role === 'admin';
+        $userMemberIds = $user ? \App\Models\Member::where('user_id', $user->id)->pluck('id')->all() : [];
 
         $rotations = Rotation::all();
-        return response()->json($rotations->map(function ($r) use ($isAdmin) {
+        return response()->json($rotations->map(function ($r) use ($isAdmin, $userMemberIds) {
             $schedule = PlaySchedule::find($r->schedule_id);
             // Members only see rotations after publish; admins see drafts too.
             if (!$isAdmin && (!$schedule || !in_array($schedule->status, ['published', 'closed'], true))) {
                 return null;
+            }
+            if (!$isAdmin) {
+                $hasAccepted = PlayInvitation::where('schedule_id', $r->schedule_id)
+                    ->whereIn('member_id', $userMemberIds)
+                    ->where('status', 'accepted')
+                    ->exists();
+                if (!$hasAccepted) {
+                    return null;
+                }
             }
             return $this->formatRotation($r);
         })->filter()->values());

@@ -26,6 +26,8 @@ class TrainingDiscountSnapshotTest extends TestCase
     {
         parent::setUp();
 
+        \Carbon\Carbon::setTestNow('2026-07-01 10:00:00');
+
         Grade::firstOrCreate(['name' => 'Grade A'], ['type' => 'junior']);
         Location::firstOrCreate(['name' => 'Court 1']);
 
@@ -87,9 +89,25 @@ class TrainingDiscountSnapshotTest extends TestCase
         ]);
 
         // Member B: apply_discount = false (Member 14, 15, 16 equivalent)
+        $memberUserB = User::firstOrCreate(
+            ['id' => 'u_member_snap_b'],
+            [
+                'first_name' => 'MemberUserB',
+                'last_name' => 'Snap',
+                'sex' => 'male',
+                'dob' => '1993-03-03',
+                'email' => 'member_snap_b@test.com',
+                'mobile' => '+1987654322',
+                'address' => 'Test Address',
+                'password' => bcrypt('password'),
+                'role' => 'member',
+                'status' => 'active',
+            ]
+        );
+
         $this->regularMember = Member::create([
             'id' => 'm_disc_snap_b',
-            'user_id' => $this->memberUser->id,
+            'user_id' => $memberUserB->id,
             'first_name' => 'MemberB',
             'last_name' => 'Regular',
             'sex' => 'male',

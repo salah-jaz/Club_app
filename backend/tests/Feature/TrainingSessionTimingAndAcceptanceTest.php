@@ -150,7 +150,7 @@ class TrainingSessionTimingAndAcceptanceTest extends TestCase
         $this->assertCount(3, $dates);
     }
 
-    public function test_oct_5_after_9pm_is_blocked_for_new_acceptance_and_only_future_sessions_can_be_accepted(): void
+    public function test_oct_5_after_9pm_is_not_blocked_for_new_acceptance_and_all_sessions_can_be_accepted(): void
     {
         // 1. Created at 6:00 PM
         Carbon::setTestNow(Carbon::parse('2026-10-05 18:00:00', SessionTimingHelper::clubTimezone()));
@@ -194,41 +194,22 @@ class TrainingSessionTimingAndAcceptanceTest extends TestCase
         $this->assertEquals(SessionTimingHelper::PHASE_UPCOMING, SessionTimingHelper::trainingSessionPhase($oct12Session));
         $this->assertEquals(SessionTimingHelper::PHASE_UPCOMING, SessionTimingHelper::trainingSessionPhase($oct19Session));
 
-        // Attempting to accept Oct 5 session directly must be BLOCKED
-        $failSingle = $this->actingAs($this->parentUser)->postJson("/api/training-invitations/{$oct5Invite->id}/respond", [
-            'status' => 'accepted',
-        ]);
-        $failSingle->assertStatus(422);
-
-        // Attempting to accept all 3 via bulk must be BLOCKED because Oct 5 is no longer valid
-        $failBulk = $this->actingAs($this->parentUser)->postJson('/api/training-invitations/respond-bulk', [
-            'inviteIds' => [$oct5Invite->id, $oct12Invite->id, $oct19Invite->id],
-            'status' => 'accepted',
-        ]);
-        $failBulk->assertStatus(422);
-
         // Advance time to 10:30 PM (finished)
         Carbon::setTestNow(Carbon::parse('2026-10-05 22:30:00', SessionTimingHelper::clubTimezone()));
         $this->assertEquals(SessionTimingHelper::PHASE_FINISHED, SessionTimingHelper::trainingSessionPhase($oct5Session));
 
-        $failFinished = $this->actingAs($this->parentUser)->postJson('/api/training-invitations/respond-bulk', [
+        // Accepting all 3 sessions via bulk SUCCEEDS even when first session has finished
+        $acceptAll = $this->actingAs($this->parentUser)->postJson('/api/training-invitations/respond-bulk', [
             'inviteIds' => [$oct5Invite->id, $oct12Invite->id, $oct19Invite->id],
             'status' => 'accepted',
         ]);
-        $failFinished->assertStatus(422);
+        $acceptAll->assertStatus(200);
 
-        // Accepting only remaining valid sessions (Oct 12 and Oct 19 = 2 weeks) SUCCEEDS
-        $acceptRemaining = $this->actingAs($this->parentUser)->postJson('/api/training-invitations/respond-bulk', [
-            'inviteIds' => [$oct12Invite->id, $oct19Invite->id],
-            'status' => 'accepted',
-        ]);
-        $acceptRemaining->assertStatus(200);
+        // Fee calculation: all 3 sessions = 90.0. 500 - 90 = 410.0
+        $this->assertEquals(410.0, (float) $this->member->fresh()->credit);
 
-        // Fee calculation: 90 / 3 * 2 = 60.0. 500 - 60 = 440.0
-        $this->assertEquals(440.0, (float) $this->member->fresh()->credit);
-
-        // Verify invitation statuses: Oct 5 remains open (not accepted), Oct 12 and 19 are accepted
-        $this->assertEquals('open', $oct5Invite->fresh()->status);
+        // Verify invitation statuses: all 3 are accepted
+        $this->assertEquals('accepted', $oct5Invite->fresh()->status);
         $this->assertEquals('accepted', $oct12Invite->fresh()->status);
         $this->assertEquals('accepted', $oct19Invite->fresh()->status);
     }
@@ -379,28 +360,21 @@ class TrainingSessionTimingAndAcceptanceTest extends TestCase
         $this->assertEquals(SessionTimingHelper::PHASE_UPCOMING, SessionTimingHelper::trainingSessionPhase($updatedSessions[1]));
         $this->assertEquals(SessionTimingHelper::PHASE_UPCOMING, SessionTimingHelper::trainingSessionPhase($updatedSessions[2]));
 
-        // Accepting Oct 5 now fails
+        // Accepting all 3 valid sessions (Oct 5, Oct 12, Oct 19) succeeds
         $oct5Invite = $invites->firstWhere('training_id', $updatedSessions[0]->id);
-        $failAccept = $this->actingAs($this->parentUser)->postJson('/api/training-invitations/respond-bulk', [
-            'inviteIds' => [$oct5Invite->id],
-            'status' => 'accepted',
-        ]);
-        $failAccept->assertStatus(422);
-
-        // Accepting remaining valid sessions (Oct 12 and Oct 19) succeeds
         $oct12Invite = $invites->firstWhere('training_id', $updatedSessions[1]->id);
         $oct19Invite = $invites->firstWhere('training_id', $updatedSessions[2]->id);
         $passAccept = $this->actingAs($this->parentUser)->postJson('/api/training-invitations/respond-bulk', [
-            'inviteIds' => [$oct12Invite->id, $oct19Invite->id],
+            'inviteIds' => [$oct5Invite->id, $oct12Invite->id, $oct19Invite->id],
             'status' => 'accepted',
         ]);
         $passAccept->assertStatus(200);
 
-        // Fee deduction: 120 / 3 * 2 = 80. 300 - 80 = 220
-        $this->assertEquals(220.0, (float) $adultMember->fresh()->credit);
+        // Fee deduction: 120 / 3 * 3 = 120. 300 - 120 = 180
+        $this->assertEquals(180.0, (float) $adultMember->fresh()->credit);
 
-        // 2 dates created for Oct 12 and Oct 19
+        // 3 dates created
         $dates = TrainingDate::where('member_id', $adultMember->id)->get();
-        $this->assertCount(2, $dates);
+        $this->assertCount(3, $dates);
     }
 }

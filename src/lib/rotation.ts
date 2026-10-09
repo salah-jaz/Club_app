@@ -117,4 +117,3 @@ export function generateTrainingProgramDates(
   }
   return result;
 }
-

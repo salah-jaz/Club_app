@@ -20,7 +20,11 @@ import { toast } from "sonner";
 import { GraduationCap, Wallet, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-react";
 import type { Member, Training, TrainingInvitation, TrainingUpdateRequest } from "@/lib/types";
 import { applyMemberFee, discountsFromStore, resolveWalletMember } from "@/lib/fees";
-import { getTrainingSessionPhase, aggregateOpenInvitePhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
+import {
+  getTrainingSessionPhase,
+  aggregateOpenInvitePhase,
+  resolveTrainingDisplayStatus,
+} from "@/lib/sessionTiming";
 import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 
@@ -43,12 +47,14 @@ function TrainingModule() {
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const myIds = myMembers.map((m) => m.id);
 
-  const trainInvs = s.trainingInvites.filter((i) => myIds.includes(i.memberId) && i.status !== "pending");
+  const trainInvs = s.trainingInvites.filter(
+    (i) => myIds.includes(i.memberId) && i.status !== "pending",
+  );
   const invitedTrainingIds = new Set(trainInvs.map((i) => i.trainingId));
 
   const pendingTrainingUpdateRequests = useMemo(() => {
     return (s.trainingUpdateRequests ?? []).filter(
-      (ur) => myIds.includes(ur.memberId) && ur.status === "pending"
+      (ur) => myIds.includes(ur.memberId) && ur.status === "pending",
     );
   }, [s.trainingUpdateRequests, myIds]);
 
@@ -68,7 +74,9 @@ function TrainingModule() {
 
   const [isAcceptingBulk, setIsAcceptingBulk] = useState(false);
   const [respondingUpdateRequestId, setRespondingUpdateRequestId] = useState<string | null>(null);
-  const [respondingUpdateAction, setRespondingUpdateAction] = useState<"accepted" | "declined" | null>(null);
+  const [respondingUpdateAction, setRespondingUpdateAction] = useState<
+    "accepted" | "declined" | null
+  >(null);
   const [decliningMemberKey, setDecliningMemberKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,7 +85,9 @@ function TrainingModule() {
       await syncData();
     };
     void run();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [user.id, syncData]);
 
   const name = (mid: string) => {
@@ -117,7 +127,7 @@ function TrainingModule() {
     const cards: MonthlyTrainingCard[] = [];
     for (const [pid, sessions] of seriesMap.entries()) {
       const sorted = [...sessions].sort(
-        (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+        (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
       );
       if (sorted.length === 0) continue;
 
@@ -125,7 +135,7 @@ function TrainingModule() {
       const rw = Math.max(1, first.repeatWeeks || 3);
 
       const allSeriesSessions = s.trainings
-        .filter(x => (x.parentId || x.id) === pid)
+        .filter((x) => (x.parentId || x.id) === pid)
         .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
       const monthGroups: Record<string, Training[]> = {};
@@ -138,14 +148,14 @@ function TrainingModule() {
       }
 
       const monthKeys = Object.keys(monthGroups).sort();
-      const relevantIds = new Set(sorted.map(sess => sess.id));
+      const relevantIds = new Set(sorted.map((sess) => sess.id));
 
       monthKeys.forEach((key, m) => {
         const fullMonthSessions = monthGroups[key];
         if (fullMonthSessions.length === 0) return;
 
         const primary = fullMonthSessions[0];
-        const hasRelevantSession = fullMonthSessions.some(sess => relevantIds.has(sess.id));
+        const hasRelevantSession = fullMonthSessions.some((sess) => relevantIds.has(sess.id));
         if (!hasRelevantSession) return;
 
         cards.push({
@@ -160,7 +170,9 @@ function TrainingModule() {
     }
 
     return cards.sort(
-      (a, b) => new Date(a.primarySession.startDate).getTime() - new Date(b.primarySession.startDate).getTime()
+      (a, b) =>
+        new Date(a.primarySession.startDate).getTime() -
+        new Date(b.primarySession.startDate).getTime(),
     );
   }, [trainingPrograms, s.trainings]);
 
@@ -210,115 +222,143 @@ function TrainingModule() {
       </AlertDialog>
 
       {/* Bulk accept training dialog */}
-      {bulkAcceptPopup && (() => {
-        const { member, training, monthSessions, invitedMonthSessions, invites } = bulkAcceptPopup;
-        const isAdult = training.targetType === "adult";
-        const walletMember = resolveWalletMember(member, s.members);
+      {bulkAcceptPopup &&
+        (() => {
+          const { member, training, monthSessions, invitedMonthSessions, invites } =
+            bulkAcceptPopup;
+          const isAdult = training.targetType === "adult";
+          const walletMember = resolveWalletMember(member, s.members);
 
-        const repeatWeeks = Math.max(1, training.repeatWeeks || 3);
-        const discountedMonthlyFee = applyMemberFee(training.fees || 0, member, discountsFromStore(s));
-        const invitedWeeksCount = invitedMonthSessions.length;
-        const totalFee = invitedWeeksCount === repeatWeeks
-          ? discountedMonthlyFee
-          : Math.round((discountedMonthlyFee / repeatWeeks) * invitedWeeksCount * 100) / 100;
-        const feePerWeek = invitedWeeksCount > 0 ? Math.round((totalFee / invitedWeeksCount) * 100) / 100 : 0;
-        const balanceAfter = walletMember.credit - totalFee;
+          const repeatWeeks = Math.max(1, training.repeatWeeks || 3);
+          const discountedMonthlyFee = applyMemberFee(
+            training.fees || 0,
+            member,
+            discountsFromStore(s),
+          );
+          const invitedWeeksCount = invitedMonthSessions.length;
+          const totalFee =
+            invitedWeeksCount === repeatWeeks
+              ? discountedMonthlyFee
+              : Math.round((discountedMonthlyFee / repeatWeeks) * invitedWeeksCount * 100) / 100;
+          const feePerWeek =
+            invitedWeeksCount > 0 ? Math.round((totalFee / invitedWeeksCount) * 100) / 100 : 0;
+          const balanceAfter = walletMember.credit - totalFee;
 
-        return (
-          <AlertDialog open={!!bulkAcceptPopup} onOpenChange={(open) => !open && setBulkAcceptPopup(null)}>
-            <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-md">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-[#F1F0EE]">
-                  Accept Training Program
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-[#8A8A98] text-left space-y-4 pt-2">
-                  <div className="space-y-1">
-                    <div className="text-sm font-semibold text-[#F1F0EE]">{training.name}</div>
-                    <div className="text-xs">Coach {training.coach} · {training.location}</div>
-                    <div className="text-xs">{isAdult ? "Adult" : "Junior"} Training</div>
-                  </div>
+          return (
+            <AlertDialog
+              open={!!bulkAcceptPopup}
+              onOpenChange={(open) => !open && setBulkAcceptPopup(null)}
+            >
+              <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-[#F1F0EE]">
+                    Accept Training Program
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-[#8A8A98] text-left space-y-4 pt-2">
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold text-[#F1F0EE]">{training.name}</div>
+                      <div className="text-xs">
+                        Coach {training.coach} · {training.location}
+                      </div>
+                      <div className="text-xs">{isAdult ? "Adult" : "Junior"} Training</div>
+                    </div>
 
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-[#F1F0EE]">Invited Dates (This Month):</div>
-                    <ul className="list-disc pl-4 text-xs space-y-0.5 text-[#8A8A98]">
-                      {invitedMonthSessions.map(ct => (
-                        <li key={ct.id}>{fmtDate(ct.startDate)}</li>
-                      ))}
-                    </ul>
-                  </div>
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-[#F1F0EE]">
+                        Invited Dates (This Month):
+                      </div>
+                      <ul className="list-disc pl-4 text-xs space-y-0.5 text-[#8A8A98]">
+                        {invitedMonthSessions.map((ct) => (
+                          <li key={ct.id}>{fmtDate(ct.startDate)}</li>
+                        ))}
+                      </ul>
+                    </div>
 
-                  <div className="space-y-2 border-t border-[rgba(255,255,255,0.1)] pt-3">
-                    <div className="flex justify-between text-xs text-[#8A8A98]">
-                      <span>Monthly Fee ({repeatWeeks} week{repeatWeeks !== 1 ? "s" : ""})</span>
-                      <span className="font-mono">{fmtMoney(discountedMonthlyFee)}</span>
+                    <div className="space-y-2 border-t border-[rgba(255,255,255,0.1)] pt-3">
+                      <div className="flex justify-between text-xs text-[#8A8A98]">
+                        <span>
+                          Monthly Fee ({repeatWeeks} week{repeatWeeks !== 1 ? "s" : ""})
+                        </span>
+                        <span className="font-mono">{fmtMoney(discountedMonthlyFee)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-[#8A8A98]">
+                        <span>Fee Per Week</span>
+                        <span className="font-mono text-[#3B82F6]">{fmtMoney(feePerWeek)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-semibold text-[#F1F0EE]">
+                        <span>
+                          Total Deduction ({invitedWeeksCount} invited week
+                          {invitedWeeksCount !== 1 ? "s" : ""})
+                        </span>
+                        <span className="font-mono">{fmtMoney(totalFee)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-[#8A8A98]">
+                        <span>Current Wallet Balance</span>
+                        <span className="font-mono">{fmtMoney(walletMember.credit)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-semibold text-[#F1F0EE]">
+                        <span>Wallet Deduction</span>
+                        <span className="font-mono">{fmtMoney(totalFee)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-semibold pt-1 border-t border-white/5">
+                        <span>Balance After Deduction</span>
+                        <span
+                          className={cn(
+                            "font-mono",
+                            balanceAfter < 0 ? "text-red-400" : "text-green-400",
+                          )}
+                        >
+                          {fmtMoney(balanceAfter)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-xs text-[#8A8A98]">
-                      <span>Fee Per Week</span>
-                      <span className="font-mono text-[#3B82F6]">{fmtMoney(feePerWeek)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs font-semibold text-[#F1F0EE]">
-                      <span>Total Deduction ({invitedWeeksCount} invited week{invitedWeeksCount !== 1 ? "s" : ""})</span>
-                      <span className="font-mono">{fmtMoney(totalFee)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-[#8A8A98]">
-                      <span>Current Wallet Balance</span>
-                      <span className="font-mono">{fmtMoney(walletMember.credit)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs font-semibold text-[#F1F0EE]">
-                      <span>Wallet Deduction</span>
-                      <span className="font-mono">{fmtMoney(totalFee)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs font-semibold pt-1 border-t border-white/5">
-                      <span>Balance After Deduction</span>
-                      <span className={cn("font-mono", balanceAfter < 0 ? "text-red-400" : "text-green-400")}>
-                        {fmtMoney(balanceAfter)}
-                      </span>
-                    </div>
-                  </div>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel
-                  disabled={isAcceptingBulk}
-                  className="btn-premium-outline cursor-pointer mt-0"
-                >
-                  Cancel
-                </AlertDialogCancel>
-                <Button
-                  className="btn-premium-solid cursor-pointer"
-                  disabled={isAcceptingBulk}
-                  loading={isAcceptingBulk}
-                  onClick={async () => {
-                    if (isAcceptingBulk) return;
-                    if (balanceAfter < 0 && !member.skipCreditConsumption) {
-                      setBulkAcceptPopup(null);
-                      setCreditGap({
-                        memberId: member.id,
-                        balance: walletMember.credit,
-                        required: totalFee,
-                      });
-                      return;
-                    }
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel
+                    disabled={isAcceptingBulk}
+                    className="btn-premium-outline cursor-pointer mt-0"
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <Button
+                    className="btn-premium-solid cursor-pointer"
+                    disabled={isAcceptingBulk}
+                    loading={isAcceptingBulk}
+                    onClick={async () => {
+                      if (isAcceptingBulk) return;
+                      if (balanceAfter < 0 && !member.skipCreditConsumption) {
+                        setBulkAcceptPopup(null);
+                        setCreditGap({
+                          memberId: member.id,
+                          balance: walletMember.credit,
+                          required: totalFee,
+                        });
+                        return;
+                      }
 
-                    setIsAcceptingBulk(true);
-                    try {
-                      await s.respondTrainingBulk(invites.map(i => i.id), "accepted");
-                      toast.success("Training program accepted successfully!");
-                      setBulkAcceptPopup(null);
-                    } catch (error: any) {
-                      toast.error(error.message || "Failed to accept training program.");
-                    } finally {
-                      setIsAcceptingBulk(false);
-                    }
-                  }}
-                >
-                  Confirm Accept
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        );
-      })()}
+                      setIsAcceptingBulk(true);
+                      try {
+                        await s.respondTrainingBulk(
+                          invites.map((i) => i.id),
+                          "accepted",
+                        );
+                        toast.success("Training program accepted successfully!");
+                        setBulkAcceptPopup(null);
+                      } catch (error: any) {
+                        toast.error(error.message || "Failed to accept training program.");
+                      } finally {
+                        setIsAcceptingBulk(false);
+                      }
+                    }}
+                  >
+                    Confirm Accept
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          );
+        })()}
 
       <PageHeader
         title="Training"
@@ -338,7 +378,9 @@ function TrainingModule() {
             if (!member) return null;
             const walletMember = resolveWalletMember(member, s.members);
 
-            const tr = s.trainings.find((x) => x.id === ur.trainingId) || s.trainings.find((x) => (x.parentId || x.id) === ur.trainingId);
+            const tr =
+              s.trainings.find((x) => x.id === ur.trainingId) ||
+              s.trainings.find((x) => (x.parentId || x.id) === ur.trainingId);
             const trName = tr ? tr.name : "Training Program";
             const updateSessionPhase = tr ? getTrainingSessionPhase(tr, now) : "upcoming";
             const updateActionsBlocked = updateSessionPhase === "finished";
@@ -351,147 +393,236 @@ function TrainingModule() {
               .map((sid) => s.trainings.find((x) => x.id === sid))
               .filter((x): x is Training => !!x);
 
+            const targetType = tr?.targetType
+              ? tr.targetType.toLowerCase() === "adult"
+                ? "adult"
+                : "junior"
+              : member.memberType || "junior";
+            const monthDate = tr?.startDate ? new Date(tr.startDate) : null;
+            const monthLabel =
+              monthDate && !Number.isNaN(monthDate.getTime())
+                ? monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+                : "";
+
             return (
-              <div key={ur.id} className="p-4 rounded-xl bg-[#131916] border border-[#3B82F6]/40 space-y-3 signature-card-top shadow-lg">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30 mb-1">
-                      <RefreshCw className="size-3" /> Training Program Updated
+              <div
+                key={ur.id}
+                className="border border-[#3B82F6]/35 bg-[#1A2120]/40 rounded-lg p-4 space-y-3"
+              >
+                {/* Header matching existing training cards */}
+                <div className="flex justify-between items-start gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-semibold text-[#F1F0EE] text-[14px]">{trName}</div>
+                      {monthLabel && (
+                        <span className="inline-flex items-center rounded-md border border-[#34D399]/30 bg-[#34D399]/10 px-2 py-0.5 text-[11px] font-semibold text-[#34D399]">
+                          {monthLabel}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center rounded-md border border-[#10B981]/30 bg-[#10B981]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#10B981] uppercase">
+                        {targetType === "adult" ? "Adult" : "Junior"}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-md border border-[#3B82F6]/30 bg-[#3B82F6]/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-[#3B82F6] uppercase">
+                        <RefreshCw className="size-3 shrink-0" /> Training Program Updated
+                      </span>
                     </div>
-                    <h4 className="font-semibold text-sm text-[#F1F0EE]">{trName}</h4>
-                    <p className="text-xs text-[#8A8A98]">
-                      Update request for <strong className="text-white">{member.firstName} {member.lastName}</strong>
-                    </p>
+                    {tr && (
+                      <div className="text-[11px] text-[#8A8A98] font-mono font-light">
+                        Coach {tr.coach} · {tr.location}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-right">
+
+                  <div className="text-right shrink-0">
                     <div className="text-[10px] text-[#8A8A98] uppercase tracking-wider font-medium">
                       {ur.additionalAmount < 0 ? "Wallet Refund" : "Additional Fee"}
                     </div>
-                    <div className={cn(
-                      "font-mono font-bold text-sm",
-                      ur.additionalAmount > 0 ? "text-[#34D399]" : ur.additionalAmount < 0 ? "text-[#A78BFA]" : "text-[#8A8A98]"
-                    )}>
-                      {ur.additionalAmount < 0 ? `-${fmtMoney(Math.abs(ur.additionalAmount))}` : fmtMoney(ur.additionalAmount)}
+                    <div
+                      className={cn(
+                        "font-mono font-bold text-sm",
+                        ur.additionalAmount > 0
+                          ? "text-[#34D399]"
+                          : ur.additionalAmount < 0
+                            ? "text-[#A78BFA]"
+                            : "text-[#8A8A98]",
+                      )}
+                    >
+                      {ur.additionalAmount < 0
+                        ? `-${fmtMoney(Math.abs(ur.additionalAmount))}`
+                        : fmtMoney(ur.additionalAmount)}
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
-                  <div className="p-2.5 rounded-lg bg-[#1A2120] border border-white/5 space-y-1">
-                    <div className="text-[10px] font-semibold text-[#8A8A98] uppercase tracking-wider">Previously Accepted Sessions</div>
-                    <div className="flex flex-wrap gap-1">
-                      {existingSessions.map((sItem) => (
-                        <span key={sItem.id} className="text-[11px] font-medium bg-[#10B981]/10 text-[#34D399] px-2 py-0.5 rounded">
-                          ✓ {fmtDate(sItem.startDate)}
+                {/* Member row & actions matching existing training card layout */}
+                <div className="pt-2.5 border-t border-white/[0.04] space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
+                        <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">
+                          {targetType === "adult" ? "Member:" : "Child:"}
                         </span>
-                      ))}
-                      {existingSessions.length === 0 && <span className="text-[11px] text-[#8A8A98]">None</span>}
+                        {member.firstName} {member.lastName}
+                      </div>
+                      <div className="text-[11px] text-[#8A8A98]">
+                        Update request for modified session schedule
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {updateSessionPhase === "in_progress" && <StatusBadge status="in_progress" />}
+                      {updateSessionPhase === "finished" && <StatusBadge status="finished" />}
+                      {!updateActionsBlocked && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
+                            disabled={respondingUpdateRequestId !== null}
+                            loading={
+                              respondingUpdateRequestId === ur.id &&
+                              respondingUpdateAction === "declined"
+                            }
+                            onClick={async () => {
+                              if (respondingUpdateRequestId) return;
+                              setRespondingUpdateRequestId(ur.id);
+                              setRespondingUpdateAction("declined");
+                              try {
+                                await s.respondTrainingUpdateRequest(ur.id, "declined");
+                                toast.success(
+                                  "Training update request declined. Original invitation remains unchanged.",
+                                );
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to decline update request.");
+                              } finally {
+                                setRespondingUpdateRequestId(null);
+                                setRespondingUpdateAction(null);
+                              }
+                            }}
+                          >
+                            Decline Update
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
+                            disabled={updateAcceptBlocked || respondingUpdateRequestId !== null}
+                            loading={
+                              respondingUpdateRequestId === ur.id &&
+                              respondingUpdateAction === "accepted"
+                            }
+                            onClick={async () => {
+                              if (respondingUpdateRequestId) return;
+                              if (
+                                ur.additionalAmount > 0 &&
+                                ur.additionalAmount > walletMember.credit &&
+                                !member.skipCreditConsumption
+                              ) {
+                                setCreditGap({
+                                  memberId: member.id,
+                                  balance: walletMember.credit,
+                                  required: ur.additionalAmount,
+                                });
+                                return;
+                              }
+                              setRespondingUpdateRequestId(ur.id);
+                              setRespondingUpdateAction("accepted");
+                              try {
+                                await s.respondTrainingUpdateRequest(ur.id, "accepted");
+                                if (ur.additionalAmount > 0) {
+                                  toast.success(
+                                    `Training update accepted! ${fmtMoney(ur.additionalAmount)} debited from wallet.`,
+                                  );
+                                } else if (ur.additionalAmount < 0) {
+                                  toast.success(
+                                    `Training update accepted! ${fmtMoney(Math.abs(ur.additionalAmount))} credited to wallet.`,
+                                  );
+                                } else {
+                                  toast.success("Training update accepted!");
+                                }
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to accept update request.");
+                              } finally {
+                                setRespondingUpdateRequestId(null);
+                                setRespondingUpdateAction(null);
+                              }
+                            }}
+                          >
+                            Accept Update
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  <div className="p-2.5 rounded-lg bg-[#1A2120] border border-white/5 space-y-1">
-                    <div className="text-[10px] font-semibold text-[#3B82F6] uppercase tracking-wider">New Sessions Added</div>
-                    <div className="flex flex-wrap gap-1">
-                      {newSessions.map((sItem) => (
-                        <span key={sItem.id} className="text-[11px] font-medium bg-[#3B82F6]/10 text-[#60A5FA] px-2 py-0.5 rounded">
-                          + {fmtDate(sItem.startDate)}
-                        </span>
-                      ))}
-                      {newSessions.length === 0 && <span className="text-[11px] text-[#8A8A98]">None</span>}
+                  {/* Sessions grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div className="p-2.5 rounded-lg bg-[#1A2120] border border-white/5 space-y-1">
+                      <div className="text-[10px] font-semibold text-[#8A8A98] uppercase tracking-wider">
+                        Previously Accepted Sessions
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {existingSessions.map((sItem) => (
+                          <span
+                            key={sItem.id}
+                            className="text-[11px] font-medium bg-[#10B981]/10 text-[#34D399] px-2 py-0.5 rounded border border-[#10B981]/20"
+                          >
+                            ✓ {fmtDate(sItem.startDate)}
+                          </span>
+                        ))}
+                        {existingSessions.length === 0 && (
+                          <span className="text-[11px] text-[#8A8A98]">None</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-[#1A2120] border border-white/5 space-y-1">
+                      <div className="text-[10px] font-semibold text-[#3B82F6] uppercase tracking-wider">
+                        New Sessions Added
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {newSessions.map((sItem) => (
+                          <span
+                            key={sItem.id}
+                            className="text-[11px] font-medium bg-[#3B82F6]/10 text-[#60A5FA] px-2 py-0.5 rounded border border-[#3B82F6]/20"
+                          >
+                            + {fmtDate(sItem.startDate)}
+                          </span>
+                        ))}
+                        {newSessions.length === 0 && (
+                          <span className="text-[11px] text-[#8A8A98]">None</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Summary */}
+                  <div className="p-3 rounded-lg bg-[#1A2120] border border-white/10 space-y-2 text-xs">
+                    <div className="text-[10px] font-semibold text-[#34D399] uppercase tracking-wider">
+                      Payment Summary
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
+                      <div>
+                        <span className="text-[#8A8A98]">Previously Paid: </span>
+                        <strong className="text-[#F1F0EE] font-mono font-semibold text-[12px]">
+                          {fmtMoney(ur.previouslyPaidAmount ?? 0)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-[#8A8A98]">Updated Fee: </span>
+                        <strong className="text-[#F1F0EE] font-mono font-semibold text-[12px]">
+                          {fmtMoney(ur.updatedMonthlyFee ?? 0)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-[#8A8A98]">New Per Session: </span>
+                        <strong className="text-[#F1F0EE] font-mono font-semibold text-[12px]">
+                          {fmtMoney(ur.newPerSessionFee ?? 0)}
+                        </strong>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Payment Summary */}
-                <div className="p-3 rounded-lg bg-[#1A2120] border border-white/10 space-y-1.5 text-xs">
-                  <div className="text-[10px] font-semibold text-[#34D399] uppercase tracking-wider">Payment Summary</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-[#8A8A98]">
-                    <div>
-                      <span>Previously Paid: </span>
-                      <strong className="text-white font-mono">{fmtMoney(ur.previouslyPaidAmount ?? 0)}</strong>
-                    </div>
-                    <div>
-                      <span>Updated Fee: </span>
-                      <strong className="text-white font-mono">{fmtMoney(ur.updatedMonthlyFee ?? 0)}</strong>
-                    </div>
-                    <div>
-                      <span>New Per Session: </span>
-                      <strong className="text-white font-mono">{fmtMoney(ur.newPerSessionFee ?? 0)}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.04]">
-                  {updateSessionPhase === "in_progress" && (
-                    <StatusBadge status="in_progress" />
-                  )}
-                  {updateSessionPhase === "finished" && (
-                    <StatusBadge status="finished" />
-                  )}
-                  {!updateActionsBlocked && (
-                    <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="btn-premium-outline h-8 text-xs cursor-pointer"
-                    disabled={respondingUpdateRequestId !== null}
-                    loading={respondingUpdateRequestId === ur.id && respondingUpdateAction === "declined"}
-                    onClick={async () => {
-                      if (respondingUpdateRequestId) return;
-                      setRespondingUpdateRequestId(ur.id);
-                      setRespondingUpdateAction("declined");
-                      try {
-                        await s.respondTrainingUpdateRequest(ur.id, "declined");
-                        toast.success("Training update request declined. Original invitation remains unchanged.");
-                      } catch (error: any) {
-                        toast.error(error.message || "Failed to decline update request.");
-                      } finally {
-                        setRespondingUpdateRequestId(null);
-                        setRespondingUpdateAction(null);
-                      }
-                    }}
-                  >
-                    Decline Update
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="btn-premium-solid h-8 text-xs font-semibold cursor-pointer"
-                    disabled={updateAcceptBlocked || respondingUpdateRequestId !== null}
-                    loading={respondingUpdateRequestId === ur.id && respondingUpdateAction === "accepted"}
-                    onClick={async () => {
-                      if (respondingUpdateRequestId) return;
-                      if (ur.additionalAmount > 0 && ur.additionalAmount > walletMember.credit && !member.skipCreditConsumption) {
-                        setCreditGap({
-                          memberId: member.id,
-                          balance: walletMember.credit,
-                          required: ur.additionalAmount,
-                        });
-                        return;
-                      }
-                      setRespondingUpdateRequestId(ur.id);
-                      setRespondingUpdateAction("accepted");
-                      try {
-                        await s.respondTrainingUpdateRequest(ur.id, "accepted");
-                        if (ur.additionalAmount > 0) {
-                          toast.success(`Training update accepted! ${fmtMoney(ur.additionalAmount)} debited from wallet.`);
-                        } else if (ur.additionalAmount < 0) {
-                          toast.success(`Training update accepted! ${fmtMoney(Math.abs(ur.additionalAmount))} credited to wallet.`);
-                        } else {
-                          toast.success("Training update accepted!");
-                        }
-                      } catch (error: any) {
-                        toast.error(error.message || "Failed to accept update request.");
-                      } finally {
-                        setRespondingUpdateRequestId(null);
-                        setRespondingUpdateAction(null);
-                      }
-                    }}
-                  >
-                    Accept Update
-                  </Button>
-                    </>
-                  )}
-                </div>
                 {updateSessionPhase === "finished" && (
                   <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">
                     This session has finished. No further actions are available.
@@ -513,12 +644,16 @@ function TrainingModule() {
             const t = card.primarySession;
             const targetType = t.targetType || "junior";
             const monthSessions = card.monthSessions;
-            const monthSessionIds = new Set(monthSessions.map(ms => ms.id));
+            const monthSessionIds = new Set(monthSessions.map((ms) => ms.id));
 
-            const isCancelled = t.status === "cancelled" || monthSessions.some(ms => ms.status === "cancelled");
-            const cancelReason = t.cancelReason || monthSessions.find(ms => ms.cancelReason)?.cancelReason || "No reason specified.";
+            const isCancelled =
+              t.status === "cancelled" || monthSessions.some((ms) => ms.status === "cancelled");
+            const cancelReason =
+              t.cancelReason ||
+              monthSessions.find((ms) => ms.cancelReason)?.cancelReason ||
+              "No reason specified.";
 
-            const familyMonthInvites = trainInvs.filter(i => monthSessionIds.has(i.trainingId));
+            const familyMonthInvites = trainInvs.filter((i) => monthSessionIds.has(i.trainingId));
 
             const memberInvitesMap = new Map<string, typeof familyMonthInvites>();
             for (const inv of familyMonthInvites) {
@@ -527,9 +662,8 @@ function TrainingModule() {
             }
 
             const holidayName = getHolidayName(t.startDate);
-            const sessionPhase = !isCancelled && !holidayName
-              ? aggregateOpenInvitePhase(monthSessions, now)
-              : null;
+            const sessionPhase =
+              !isCancelled && !holidayName ? aggregateOpenInvitePhase(monthSessions, now) : null;
 
             const monthDate = new Date(t.startDate);
             const monthLabel = Number.isNaN(monthDate.getTime())
@@ -567,7 +701,18 @@ function TrainingModule() {
                       Coach {t.coach} · {t.location}
                       {familyMonthInvites.length > 0 && (
                         <span className="ml-1">
-                          · {monthSessions.filter(ms => familyMonthInvites.some(inv => inv.trainingId === ms.id)).map(ms => new Date(ms.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })).join(", ")}
+                          ·{" "}
+                          {monthSessions
+                            .filter((ms) =>
+                              familyMonthInvites.some((inv) => inv.trainingId === ms.id),
+                            )
+                            .map((ms) =>
+                              new Date(ms.startDate).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              }),
+                            )
+                            .join(", ")}
                         </span>
                       )}
                     </div>
@@ -592,35 +737,50 @@ function TrainingModule() {
                 )}
 
                 {Array.from(memberInvitesMap.entries()).map(([memberId, mInvites]) => {
-                  const member = s.members.find(m => m.id === memberId);
+                  const member = s.members.find((m) => m.id === memberId);
                   if (!member) return null;
 
-                  const hasOpen = !isCancelled && mInvites.some(i => i.status === "open");
-                  const isAllAccepted = mInvites.every(i => i.status === "accepted");
-                  const displayStatus = isCancelled ? "cancelled" : isAllAccepted ? "accepted" : hasOpen ? "open" : mInvites[0].status;
+                  const isAnyAccepted = mInvites.some((i) => i.status === "accepted");
+                  const hasOpen =
+                    !isCancelled && !isAnyAccepted && mInvites.some((i) => i.status === "open");
+                  const isAllAccepted =
+                    mInvites.length > 0 && mInvites.every((i) => i.status === "accepted");
+                  const displayStatus = isCancelled
+                    ? "cancelled"
+                    : isAllAccepted || isAnyAccepted
+                      ? "accepted"
+                      : hasOpen
+                        ? "open"
+                        : mInvites[0].status;
 
-                  const invitedMonthSessions = monthSessions.filter(ms =>
-                    mInvites.some(i => i.trainingId === ms.id)
+                  const invitedMonthSessions = monthSessions.filter((ms) =>
+                    mInvites.some((i) => i.trainingId === ms.id),
                   );
-                  const openInvitedSessions = invitedMonthSessions.filter((ms) =>
-                    mInvites.some((i) => i.trainingId === ms.id && i.status === "open")
+                  const openInvitedSessions = !isAnyAccepted
+                    ? invitedMonthSessions.filter((ms) =>
+                        mInvites.some((i) => i.trainingId === ms.id && i.status === "open"),
+                      )
+                    : [];
+                  const invitedSessionPhases = invitedMonthSessions.map((ms) =>
+                    getTrainingSessionPhase(ms, now),
                   );
-                  const openSessionPhases = openInvitedSessions.map((ms) => getTrainingSessionPhase(ms, now));
-                  const invitedSessionPhases = invitedMonthSessions.map((ms) => getTrainingSessionPhase(ms, now));
-                  const upcomingOpenSessions = openInvitedSessions.filter(
-                    (_ms, idx) => openSessionPhases[idx] === "upcoming",
-                  );
-                  const canRespondToInvites = hasOpen && upcomingOpenSessions.length > 0;
-                  const showInProgress = !isCancelled && invitedSessionPhases.some((p) => p === "in_progress");
+                  // We no longer filter out past sessions for acceptance.
+                  // All open invited sessions are available for acceptance.
+                  const canRespondToInvites = hasOpen && openInvitedSessions.length > 0;
+                  const showInProgress =
+                    !isCancelled && invitedSessionPhases.some((p) => p === "in_progress");
                   const showFinished =
                     !isCancelled &&
                     invitedSessionPhases.length > 0 &&
                     invitedSessionPhases.every((p) => p === "finished");
                   const canDeclineInvites = hasOpen && !showFinished;
 
-                  const displaySessionCount = isAllAccepted
-                    ? invitedMonthSessions.length
-                    : (hasOpen ? upcomingOpenSessions.length : invitedMonthSessions.length);
+                  const displaySessionCount =
+                    isAllAccepted || isAnyAccepted
+                      ? invitedMonthSessions.length
+                      : hasOpen
+                        ? openInvitedSessions.length
+                        : invitedMonthSessions.length;
 
                   return (
                     <div key={memberId} className="pt-2.5 border-t border-white/[0.04] space-y-2">
@@ -633,7 +793,8 @@ function TrainingModule() {
                             {name(memberId)}
                           </div>
                           <div className="text-[11px] text-[#8A8A98]">
-                            {displaySessionCount} invited session{displaySessionCount !== 1 ? "s" : ""} this month
+                            {displaySessionCount} invited session
+                            {displaySessionCount !== 1 ? "s" : ""} this month
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -646,14 +807,16 @@ function TrainingModule() {
                                 size="sm"
                                 className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
                                 onClick={() => {
-                                  const upcomingIds = new Set(upcomingOpenSessions.map((ms) => ms.id));
+                                  const openIds = new Set(
+                                    openInvitedSessions.map((ms) => ms.id),
+                                  );
                                   setBulkAcceptPopup({
                                     member,
                                     training: t,
                                     monthSessions,
-                                    invitedMonthSessions: upcomingOpenSessions,
+                                    invitedMonthSessions: openInvitedSessions,
                                     invites: mInvites.filter(
-                                      (i) => i.status === "open" && upcomingIds.has(i.trainingId),
+                                      (i) => i.status === "open" && openIds.has(i.trainingId),
                                     ),
                                   });
                                 }}
@@ -661,31 +824,33 @@ function TrainingModule() {
                                 Accept
                               </Button>
                               {canDeclineInvites && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
-                                disabled={decliningMemberKey !== null}
-                                loading={decliningMemberKey === `${t.id}-${member.id}`}
-                                onClick={async () => {
-                                  const key = `${t.id}-${member.id}`;
-                                  if (decliningMemberKey) return;
-                                  setDecliningMemberKey(key);
-                                  try {
-                                    await s.respondTrainingBulk(
-                                      mInvites.filter((i) => i.status === "open").map((i) => i.id),
-                                      "declined",
-                                    );
-                                    toast.success("Declined invitation");
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to decline invitation.");
-                                  } finally {
-                                    setDecliningMemberKey(null);
-                                  }
-                                }}
-                              >
-                                Decline
-                              </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
+                                  disabled={decliningMemberKey !== null}
+                                  loading={decliningMemberKey === `${t.id}-${member.id}`}
+                                  onClick={async () => {
+                                    const key = `${t.id}-${member.id}`;
+                                    if (decliningMemberKey) return;
+                                    setDecliningMemberKey(key);
+                                    try {
+                                      await s.respondTrainingBulk(
+                                        mInvites
+                                          .filter((i) => i.status === "open")
+                                          .map((i) => i.id),
+                                        "declined",
+                                      );
+                                      toast.success("Declined invitation");
+                                    } catch (error: any) {
+                                      toast.error(error.message || "Failed to decline invitation.");
+                                    } finally {
+                                      setDecliningMemberKey(null);
+                                    }
+                                  }}
+                                >
+                                  Decline
+                                </Button>
                               )}
                             </div>
                           )}
@@ -711,36 +876,58 @@ function TrainingModule() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {invitedMonthSessions.map((ms) => {
                                 const dateRec = s.trainingDates.find(
-                                  (d) => d.trainingId === ms.id && d.memberId === memberId
+                                  (d) => d.trainingId === ms.id && d.memberId === memberId,
                                 );
-                                const dateLabel = new Date(ms.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                                const dateLabel = new Date(ms.startDate).toLocaleDateString(
+                                  "en-US",
+                                  { month: "short", day: "numeric" },
+                                );
                                 const isPresent = dateRec?.attended === true;
                                 const isAbsent = dateRec?.attended === false;
                                 const refundStatus = dateRec?.refundStatus;
 
                                 return (
-                                  <div key={ms.id} className="group flex items-center justify-between text-xs p-2 rounded-lg bg-gray-50 dark:bg-[#131916] border border-gray-100 dark:border-white/5 transition-colors hover:bg-gray-100 dark:hover:bg-[#1A2120] hover:border-gray-200 dark:hover:border-white/10">
+                                  <div
+                                    key={ms.id}
+                                    className="group flex items-center justify-between text-xs p-2 rounded-lg bg-gray-50 dark:bg-[#131916] border border-gray-100 dark:border-white/5 transition-colors hover:bg-gray-100 dark:hover:bg-[#1A2120] hover:border-gray-200 dark:hover:border-white/10"
+                                  >
                                     <div className="flex items-center gap-2.5">
-                                      <div className={`size-1.5 rounded-full ${
-                                        isPresent ? 'bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.5)]' :
-                                        isAbsent ? 'bg-red-500 shadow-[0_0_8px_rgba(248,113,113,0.5)]' :
-                                        'bg-zinc-400'
-                                      }`} />
-                                      <span className="text-gray-900 group-hover:text-black dark:text-[#E8E8E6] font-bold">{dateLabel}</span>
+                                      <div
+                                        className={`size-1.5 rounded-full ${
+                                          isPresent
+                                            ? "bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+                                            : isAbsent
+                                              ? "bg-red-500 shadow-[0_0_8px_rgba(248,113,113,0.5)]"
+                                              : "bg-zinc-400"
+                                        }`}
+                                      />
+                                      <span className="text-gray-900 group-hover:text-black dark:text-[#E8E8E6] font-bold">
+                                        {dateLabel}
+                                      </span>
                                     </div>
                                     <div className="flex items-center">
                                       {isPresent ? (
-                                        <span className="text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-100 dark:bg-emerald-400/10 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">Present</span>
+                                        <span className="text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-100 dark:bg-emerald-400/10 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
+                                          Present
+                                        </span>
                                       ) : isAbsent ? (
                                         refundStatus === "half" ? (
-                                          <span className="text-purple-700 dark:text-purple-400 font-semibold bg-purple-100 dark:bg-purple-400/10 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">Absent (50% Refund)</span>
+                                          <span className="text-purple-700 dark:text-purple-400 font-semibold bg-purple-100 dark:bg-purple-400/10 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
+                                            Absent (50% Refund)
+                                          </span>
                                         ) : refundStatus === "full" ? (
-                                          <span className="text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-100 dark:bg-emerald-400/10 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">Absent (Refunded)</span>
+                                          <span className="text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-100 dark:bg-emerald-400/10 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
+                                            Absent (Refunded)
+                                          </span>
                                         ) : (
-                                          <span className="text-red-700 dark:text-red-400 font-semibold bg-red-100 dark:bg-red-400/10 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">Absent</span>
+                                          <span className="text-red-700 dark:text-red-400 font-semibold bg-red-100 dark:bg-red-400/10 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
+                                            Absent
+                                          </span>
                                         )
                                       ) : (
-                                        <span className="text-zinc-500 dark:text-zinc-400 font-medium text-[10px] uppercase tracking-wider bg-gray-200 dark:bg-white/5 px-2 py-0.5 rounded">Pending</span>
+                                        <span className="text-zinc-500 dark:text-zinc-400 font-medium text-[10px] uppercase tracking-wider bg-gray-200 dark:bg-white/5 px-2 py-0.5 rounded">
+                                          Pending
+                                        </span>
                                       )}
                                     </div>
                                   </div>

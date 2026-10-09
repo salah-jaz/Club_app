@@ -43,9 +43,7 @@ function EditSchedule() {
     if (!dateStr) return "";
     const date = new Date(dateStr);
     const tzoffset = date.getTimezoneOffset() * 60000; // offset in milliseconds
-    const localISOTime = new Date(date.getTime() - tzoffset)
-      .toISOString()
-      .slice(0, 16);
+    const localISOTime = new Date(date.getTime() - tzoffset).toISOString().slice(0, 16);
     return localISOTime;
   };
 
@@ -143,7 +141,12 @@ function EditSchedule() {
   if (!sch) return <Navigate to="/schedules" />;
 
   // Lock editing once rotation has been generated (or session closed/cancelled)
-  if (sch.status === "rotated" || sch.status === "published" || sch.status === "closed" || sch.status === "cancelled") {
+  if (
+    sch.status === "rotated" ||
+    sch.status === "published" ||
+    sch.status === "closed" ||
+    sch.status === "cancelled"
+  ) {
     return <Navigate to="/schedules/$id" params={{ id: sch.id }} />;
   }
 
@@ -214,7 +217,10 @@ function EditSchedule() {
         backTo="/schedules"
       />
 
-      <AlertDialog open={!!dialogState?.open} onOpenChange={(open) => !open && setDialogState(null)}>
+      <AlertDialog
+        open={!!dialogState?.open}
+        onOpenChange={(open) => !open && setDialogState(null)}
+      >
         <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.1)] text-[#F1F0EE]">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[#F1F0EE]">Confirm Schedule Changes</AlertDialogTitle>
@@ -245,7 +251,9 @@ function EditSchedule() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date & Time</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Date & Time
+              </Label>
               <DateTimePicker
                 value={f.date}
                 onChange={onDateChange}
@@ -255,22 +263,36 @@ function EditSchedule() {
               {scheduleWhen && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
-                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Day</p>
-                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.day}</p>
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Day
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">
+                      {scheduleWhen.day}
+                    </p>
                   </div>
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
-                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date</p>
-                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.date}</p>
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Date
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">
+                      {scheduleWhen.date}
+                    </p>
                   </div>
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
-                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Time</p>
-                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.time}</p>
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Time
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">
+                      {scheduleWhen.time}
+                    </p>
                   </div>
                 </div>
               )}
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Name</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Session Name
+              </Label>
               <Input
                 required
                 value={f.name}
@@ -292,7 +314,9 @@ function EditSchedule() {
                 min={1}
                 max={52}
                 value={f.repeatWeeks}
-                onChange={(e) => set("repeatWeeks", Math.max(1, Math.min(52, Number(e.target.value) || 1)))}
+                onChange={(e) =>
+                  set("repeatWeeks", Math.max(1, Math.min(52, Number(e.target.value) || 1)))
+                }
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
               />
               <p className="text-[11px] text-[#8A8A98]">
@@ -302,7 +326,9 @@ function EditSchedule() {
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Club Location</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Club Location
+              </Label>
               {f.location || (locations && locations.length > 0) ? (
                 <div className="relative">
                   <select
@@ -335,7 +361,9 @@ function EditSchedule() {
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
                 <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable Group Match</Label>
-                <p className="text-xs text-muted-foreground">Limit invitations to specific groups</p>
+                <p className="text-xs text-muted-foreground">
+                  Limit invitations to specific groups
+                </p>
               </div>
               <Switch checked={f.isLeagueMatch} onCheckedChange={(v) => set("isLeagueMatch", v)} />
             </div>
@@ -361,7 +389,9 @@ function EditSchedule() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Courts</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Courts
+              </Label>
               <Input
                 required
                 type="number"
@@ -372,7 +402,9 @@ function EditSchedule() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Max Players</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Max Players
+              </Label>
               <Input
                 required
                 type="number"
@@ -397,7 +429,9 @@ function EditSchedule() {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Slot Hours</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Slot Hours
+              </Label>
               <Input
                 required
                 type="number"
@@ -409,7 +443,9 @@ function EditSchedule() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Slot Duration (min)</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Slot Duration (min)
+              </Label>
               <Input
                 required
                 type="number"
@@ -458,12 +494,20 @@ function EditSchedule() {
               />
             </div>
             <div className="sm:col-span-2 pt-2 border-t border-white/[0.03] text-xs text-[#8A8A98]">
-              Estimated per-player cost: <span className="font-semibold text-[#34D399] font-mono">{fmtMoney(Number(f.sessionRate))}</span> (session rate)
+              Estimated per-player cost:{" "}
+              <span className="font-semibold text-[#34D399] font-mono">
+                {fmtMoney(Number(f.sessionRate))}
+              </span>{" "}
+              (session rate)
             </div>
           </CardContent>
         </Card>
         <div className="flex justify-end">
-          <Button type="submit" disabled={submitting} className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer">
+          <Button
+            type="submit"
+            disabled={submitting}
+            className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer"
+          >
             {submitting ? "Saving…" : "Update schedule"}
           </Button>
         </div>

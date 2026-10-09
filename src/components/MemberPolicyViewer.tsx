@@ -34,11 +34,7 @@ export function MemberPolicyViewer({ open, onOpenChange }: Props) {
             AeroShuttle Badminton Club – Policy for Club Members Charges
           </DialogDescription>
         </DialogHeader>
-        <GoogleDocsEmbed
-          title="Member Policy"
-          url={MEMBER_POLICY_URL}
-          active={open}
-        />
+        <GoogleDocsEmbed title="Member Policy" url={MEMBER_POLICY_URL} active={open} />
       </DialogContent>
     </Dialog>
   );

@@ -32,14 +32,8 @@ import {
   exportTrainingsReport,
   filterTrainingsForReport,
 } from "@/lib/module-reports";
-import {
-  ConfirmDeleteDialog,
-  type ConfirmDeleteRequest,
-} from "@/components/ConfirmDeleteDialog";
-import {
-  ConfirmActionDialog,
-  type ConfirmActionRequest,
-} from "@/components/ConfirmActionDialog";
+import { ConfirmDeleteDialog, type ConfirmDeleteRequest } from "@/components/ConfirmDeleteDialog";
+import { ConfirmActionDialog, type ConfirmActionRequest } from "@/components/ConfirmActionDialog";
 import type { Training } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/trainings")({ component: TrainingsLayout });
@@ -96,7 +90,10 @@ function TrainingsList() {
   const now = useNow();
   const canCreateTraining = useCan("trainings.create");
   const canDeleteTraining = useCan("trainings.delete");
-  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-trainings", "list");
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode(
+    "clubapp-view-mode-trainings",
+    "list",
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
   const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
@@ -118,7 +115,7 @@ function TrainingsList() {
 
     for (const pid of Object.keys(groups)) {
       const series = [...groups[pid]].sort(
-        (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+        (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
       );
       if (series.length === 0) continue;
 
@@ -151,7 +148,7 @@ function TrainingsList() {
         const acceptedMembers = new Set(
           (s.trainingInvites ?? [])
             .filter((i) => sessionIds.has(i.trainingId) && i.status === "accepted")
-            .map((i) => i.memberId)
+            .map((i) => i.memberId),
         );
 
         const datesFormatted = monthSessions.map((ms) => {
@@ -200,7 +197,7 @@ function TrainingsList() {
           card.name.toLowerCase().includes(term) ||
           card.monthTitle.toLowerCase().includes(term) ||
           card.coach.toLowerCase().includes(term) ||
-          card.location.toLowerCase().includes(term)
+          card.location.toLowerCase().includes(term),
       );
     }
     if (statusFilter !== "all") {
@@ -245,14 +242,14 @@ function TrainingsList() {
 
   const handleToggleSelect = (id: string) => {
     setSelectedCardIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
   const handleBulkDeleteClick = () => {
     if (selectedCardIds.length === 0) return;
     const deletableCards = filteredCards.filter(
-      (c) => selectedCardIds.includes(c.id) && isTrainingCardDeletable(c)
+      (c) => selectedCardIds.includes(c.id) && isTrainingCardDeletable(c),
     );
     if (deletableCards.length === 0) {
       toast.error("None of the selected training programs can be deleted. Cancel them first.");
@@ -274,7 +271,9 @@ function TrainingsList() {
           toast.success("Selected monthly training programs deleted successfully");
         } catch (error: unknown) {
           toast.error(
-            error instanceof Error ? error.message : "Failed to delete selected monthly training programs."
+            error instanceof Error
+              ? error.message
+              : "Failed to delete selected monthly training programs.",
           );
           throw error;
         }
@@ -284,7 +283,9 @@ function TrainingsList() {
 
   const requestDeleteTraining = (card: MonthlyCardItem) => {
     if (!isTrainingCardDeletable(card)) {
-      toast.error("Cannot delete training program with accepted invitations. Cancel the training first.");
+      toast.error(
+        "Cannot delete training program with accepted invitations. Cancel the training first.",
+      );
       return;
     }
     setDeleteRequest({
@@ -299,7 +300,7 @@ function TrainingsList() {
           toast.success("Monthly training program deleted");
         } catch (error: unknown) {
           toast.error(
-            error instanceof Error ? error.message : "Failed to delete monthly training program."
+            error instanceof Error ? error.message : "Failed to delete monthly training program.",
           );
           throw error;
         }
@@ -319,7 +320,10 @@ function TrainingsList() {
 
   const trainingLocationOptions = useMemo(() => {
     const locs = [...new Set(s.trainings.map((t) => t.location).filter(Boolean))].sort();
-    return [{ value: "all", label: "All locations" }, ...locs.map((loc) => ({ value: loc, label: loc }))];
+    return [
+      { value: "all", label: "All locations" },
+      ...locs.map((loc) => ({ value: loc, label: loc })),
+    ];
   }, [s.trainings]);
 
   const trainingFilterConfig = useMemo(
@@ -401,7 +405,9 @@ function TrainingsList() {
             <ReportTriggerButton onClick={openTrainingsReport} />
             {user.role === "admin" && canCreateTraining && (
               <Button asChild>
-                <Link to="/trainings/new"><Plus /> New training</Link>
+                <Link to="/trainings/new">
+                  <Plus /> New training
+                </Link>
               </Button>
             )}
           </div>
@@ -427,7 +433,9 @@ function TrainingsList() {
                 onClick={() => setViewMode("grid")}
                 className={cn(
                   "px-2 h-full rounded-md transition-all cursor-pointer flex items-center",
-                  viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                  viewMode === "grid"
+                    ? "bg-[#1A2120] text-[#2FD9A0]"
+                    : "text-[#8FA89F] hover:text-[#EEF2F0]",
                 )}
                 title="Grid view"
               >
@@ -439,7 +447,9 @@ function TrainingsList() {
                 disabled={isMobile}
                 className={cn(
                   "px-2 h-full rounded-md transition-all flex items-center",
-                  viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                  viewMode === "list"
+                    ? "bg-[#1A2120] text-[#2FD9A0]"
+                    : "text-[#8FA89F] hover:text-[#EEF2F0]",
                   isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
                 )}
                 title={isMobile ? "List view available on larger screens" : "List view"}
@@ -464,7 +474,9 @@ function TrainingsList() {
           <CardContent className="p-10 text-center text-[#8A8A98]">
             <div className="flex flex-col items-center justify-center gap-3">
               <Plus className="size-12 text-[#4A4A5A] transform rotate-45" />
-              <h3 className="text-[14px] font-normal text-[#8A8A98]">No matching training cards found.</h3>
+              <h3 className="text-[14px] font-normal text-[#8A8A98]">
+                No matching training cards found.
+              </h3>
               <p className="text-[12px] font-light text-[#4A4A5A] max-w-[280px]">
                 Try adjusting your search terms or status filters.
               </p>
@@ -489,8 +501,8 @@ function TrainingsList() {
                     filteredCards.every((card) => selectedCardIds.includes(card.id))
                       ? true
                       : filteredCards.some((card) => selectedCardIds.includes(card.id))
-                      ? "indeterminate"
-                      : false
+                        ? "indeterminate"
+                        : false
                   }
                   onCheckedChange={(checked) => handleSelectAll(!!checked)}
                 />
@@ -509,16 +521,19 @@ function TrainingsList() {
 
             <div className="flex items-center gap-3">
               {canDeleteTraining && (
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={selectedCardIds.length === 0}
-                onClick={handleBulkDeleteClick}
-                className="btn-premium-danger h-8 px-3 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Trash2 className="size-3.5" />
-                <span>Delete Selected{selectedCardIds.length > 0 ? ` (${selectedCardIds.length})` : ""}</span>
-              </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={selectedCardIds.length === 0}
+                  onClick={handleBulkDeleteClick}
+                  className="btn-premium-danger h-8 px-3 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="size-3.5" />
+                  <span>
+                    Delete Selected
+                    {selectedCardIds.length > 0 ? ` (${selectedCardIds.length})` : ""}
+                  </span>
+                </Button>
               )}
 
               <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0">
@@ -527,7 +542,9 @@ function TrainingsList() {
                   onClick={() => setViewMode("grid")}
                   className={cn(
                     "p-1.5 rounded-md transition-all cursor-pointer",
-                    viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                    viewMode === "grid"
+                      ? "bg-[#1A2120] text-[#2FD9A0]"
+                      : "text-[#8FA89F] hover:text-[#EEF2F0]",
                   )}
                   title="Grid view"
                 >
@@ -539,7 +556,9 @@ function TrainingsList() {
                   disabled={isMobile}
                   className={cn(
                     "p-1.5 rounded-md transition-all",
-                    viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                    viewMode === "list"
+                      ? "bg-[#1A2120] text-[#2FD9A0]"
+                      : "text-[#8FA89F] hover:text-[#EEF2F0]",
                     isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
                   )}
                   title={isMobile ? "List view available on larger screens" : "List view"}
@@ -572,21 +591,34 @@ function TrainingsList() {
                   <motion.div
                     key={card.id}
                     variants={staggerItem}
-                    whileHover={{ y: -2, boxShadow: "0 8px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(16,185,129,0.08)" }}
+                    whileHover={{
+                      y: -2,
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(16,185,129,0.08)",
+                    }}
                     transition={{ duration: 0.18 }}
                   >
-                    <Card className={cn(
-                      "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200",
-                      selectedCardIds.includes(card.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
-                    )}>
+                    <Card
+                      className={cn(
+                        "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200",
+                        selectedCardIds.includes(card.id) &&
+                          "border-[#10B981]/50 bg-[#10B981]/[0.02]",
+                      )}
+                    >
                       <CardContent className="p-4 px-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex items-center pr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="flex items-center pr-1 shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <Checkbox
                             checked={selectedCardIds.includes(card.id)}
                             onCheckedChange={() => handleToggleSelect(card.id)}
                             disabled={!isDeletable}
                             aria-label={`Select ${card.name}`}
-                            title={!isDeletable ? "Cannot select training program with accepted invitations for deletion" : undefined}
+                            title={
+                              !isDeletable
+                                ? "Cannot select training program with accepted invitations for deletion"
+                                : undefined
+                            }
                           />
                         </div>
                         <div className="flex-[2] space-y-1.5 min-w-[200px]">
@@ -614,14 +646,18 @@ function TrainingsList() {
                         <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
                         <div className="flex-1 space-y-1.5">
-                          <span className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Coach</span>
+                          <span className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase block">
+                            Coach
+                          </span>
                           <span className="text-[14px] font-bold text-[#EEF2F0]">{card.coach}</span>
                         </div>
 
                         <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
                         <div className="flex-1 space-y-1.5">
-                          <span className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Capacity / Players</span>
+                          <span className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase block">
+                            Capacity / Players
+                          </span>
                           <span className="type-mono-value text-[20px] font-bold leading-none">
                             {accepted}/{maxPlayers}
                           </span>
@@ -636,27 +672,47 @@ function TrainingsList() {
                         <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
                         <div className="flex-1 flex flex-col md:items-end gap-2">
-                          <StatusBadge status={resolveTrainingDisplayStatus(card.status, sessionPhase)} />
+                          <StatusBadge
+                            status={resolveTrainingDisplayStatus(card.status, sessionPhase)}
+                          />
                           <div className="flex items-center gap-1.5 mt-1 md:mt-0 flex-wrap justify-end">
                             {user.role === "admin" && (
                               <>
-                                <Button asChild size="sm" variant="outline" className="btn-premium-outline h-8 px-2.5 cursor-pointer text-xs">
-                                  <Link to="/trainings/$id/edit" params={{ id: t.id }}>Edit</Link>
+                                <Button
+                                  asChild
+                                  size="sm"
+                                  variant="outline"
+                                  className="btn-premium-outline h-8 px-2.5 cursor-pointer text-xs"
+                                >
+                                  <Link to="/trainings/$id/edit" params={{ id: t.id }}>
+                                    Edit
+                                  </Link>
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="destructive"
                                   className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                                   disabled={!isDeletable}
-                                  title={isDeletable ? "Delete" : "Cannot delete training program with accepted invitations (cancel training first)"}
+                                  title={
+                                    isDeletable
+                                      ? "Delete"
+                                      : "Cannot delete training program with accepted invitations (cancel training first)"
+                                  }
                                   onClick={() => requestDeleteTraining(card)}
                                 >
                                   Delete
                                 </Button>
                               </>
                             )}
-                            <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
-                              <Link to="/trainings/$id" params={{ id: t.id }}>Manage</Link>
+                            <Button
+                              asChild
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs"
+                            >
+                              <Link to="/trainings/$id" params={{ id: t.id }}>
+                                Manage
+                              </Link>
                             </Button>
                           </div>
                         </div>
@@ -688,13 +744,19 @@ function TrainingsList() {
                   <motion.div
                     key={card.id}
                     variants={staggerItem}
-                    whileHover={{ y: -4, boxShadow: "0 14px 36px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.10)" }}
+                    whileHover={{
+                      y: -4,
+                      boxShadow: "0 14px 36px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.10)",
+                    }}
                     transition={{ duration: 0.18 }}
                   >
-                    <Card className={cn(
-                      "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200 h-full flex flex-col justify-between",
-                      selectedCardIds.includes(card.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
-                    )}>
+                    <Card
+                      className={cn(
+                        "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200 h-full flex flex-col justify-between",
+                        selectedCardIds.includes(card.id) &&
+                          "border-[#10B981]/50 bg-[#10B981]/[0.02]",
+                      )}
+                    >
                       <CardContent className="p-5 flex flex-col justify-between h-full space-y-4">
                         <div>
                           <div className="flex items-start justify-between gap-3">
@@ -705,11 +767,17 @@ function TrainingsList() {
                                   onCheckedChange={() => handleToggleSelect(card.id)}
                                   disabled={!isDeletable}
                                   aria-label={`Select ${card.name}`}
-                                  title={!isDeletable ? "Cannot select training program with accepted invitations for deletion" : undefined}
+                                  title={
+                                    !isDeletable
+                                      ? "Cannot select training program with accepted invitations for deletion"
+                                      : undefined
+                                  }
                                 />
                               </div>
                               <div className="min-w-0 space-y-1.5 flex-1">
-                                <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">{card.name}</div>
+                                <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">
+                                  {card.name}
+                                </div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="inline-flex items-center rounded-md border border-[#34D399]/30 bg-[#34D399]/10 px-2 py-0.5 text-[11px] font-semibold text-[#34D399]">
                                     {card.monthTitle}
@@ -721,7 +789,9 @@ function TrainingsList() {
                               </div>
                             </div>
                             <div className="flex flex-col items-end gap-1.5 shrink-0">
-                              <StatusBadge status={resolveTrainingDisplayStatus(card.status, sessionPhase)} />
+                              <StatusBadge
+                                status={resolveTrainingDisplayStatus(card.status, sessionPhase)}
+                              />
                             </div>
                           </div>
 
@@ -742,12 +812,20 @@ function TrainingsList() {
 
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
-                              <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Coach</span>
-                              <span className="text-[14px] font-bold text-[#EEF2F0] truncate block">{card.coach}</span>
+                              <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">
+                                Coach
+                              </span>
+                              <span className="text-[14px] font-bold text-[#EEF2F0] truncate block">
+                                {card.coach}
+                              </span>
                             </div>
                             <div className="space-y-1">
-                              <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Capacity / Players</span>
-                              <span className="type-mono-value text-[16px] font-bold">{accepted}/{maxPlayers}</span>
+                              <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">
+                                Capacity / Players
+                              </span>
+                              <span className="type-mono-value text-[16px] font-bold">
+                                {accepted}/{maxPlayers}
+                              </span>
                             </div>
                           </div>
 
@@ -763,23 +841,41 @@ function TrainingsList() {
                           <div className="flex items-center gap-1.5 ml-auto">
                             {user.role === "admin" && (
                               <>
-                                <Button asChild size="sm" variant="outline" className="btn-premium-outline h-8 px-2.5 cursor-pointer text-xs">
-                                  <Link to="/trainings/$id/edit" params={{ id: t.id }}>Edit</Link>
+                                <Button
+                                  asChild
+                                  size="sm"
+                                  variant="outline"
+                                  className="btn-premium-outline h-8 px-2.5 cursor-pointer text-xs"
+                                >
+                                  <Link to="/trainings/$id/edit" params={{ id: t.id }}>
+                                    Edit
+                                  </Link>
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="destructive"
                                   className="btn-premium-danger h-8 px-2.5 cursor-pointer text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                                   disabled={!isDeletable}
-                                  title={isDeletable ? "Delete" : "Cannot delete training program with accepted invitations (cancel training first)"}
+                                  title={
+                                    isDeletable
+                                      ? "Delete"
+                                      : "Cannot delete training program with accepted invitations (cancel training first)"
+                                  }
                                   onClick={() => requestDeleteTraining(card)}
                                 >
                                   Delete
                                 </Button>
                               </>
                             )}
-                            <Button asChild size="sm" variant="ghost" className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs">
-                              <Link to="/trainings/$id" params={{ id: t.id }}>Manage</Link>
+                            <Button
+                              asChild
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-[#8A8A98] hover:text-[#F1F0EE] hover:bg-white/5 cursor-pointer text-xs"
+                            >
+                              <Link to="/trainings/$id" params={{ id: t.id }}>
+                                Manage
+                              </Link>
                             </Button>
                           </div>
                         </div>

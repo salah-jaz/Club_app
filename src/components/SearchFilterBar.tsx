@@ -64,8 +64,7 @@ const fieldLabelClass =
 const selectTriggerClass =
   "w-full h-8 bg-[#0C0F0E] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] rounded-lg text-xs focus:ring-1 focus:ring-[#10B981] cursor-pointer";
 
-const selectContentClass =
-  "bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]";
+const selectContentClass = "bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]";
 
 const selectItemClass = "cursor-pointer hover:bg-white/5 text-xs";
 
@@ -442,10 +441,7 @@ export function SearchFilterBar({
 }
 
 // Reusable URL Parameter State Sync Helper Hook
-export function useSearchFilters(
-  initialFilters: Record<string, string> = {},
-  initialSort = "",
-) {
+export function useSearchFilters(initialFilters: Record<string, string> = {}, initialSort = "") {
   const [search, setSearch] = useState(() => {
     if (typeof window !== "undefined") {
       return new URLSearchParams(window.location.search).get("q") || "";
@@ -507,10 +503,13 @@ export function useSearchFilters(
   const handleClearFilters = useCallback(() => {
     setSearch("");
     setFilters(
-      Object.keys(initialFilters).reduce((acc, key) => {
-        acc[key] = initialFilters[key];
-        return acc;
-      }, {} as Record<string, string>),
+      Object.keys(initialFilters).reduce(
+        (acc, key) => {
+          acc[key] = initialFilters[key];
+          return acc;
+        },
+        {} as Record<string, string>,
+      ),
     );
   }, [initialFilters]);
 

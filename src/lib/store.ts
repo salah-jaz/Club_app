@@ -99,7 +99,7 @@ interface State {
     email: string,
     otp: string,
     password: string,
-    passwordConfirmation: string
+    passwordConfirmation: string,
   ) => Promise<{ message: string }>;
   login: (email: string, password: string) => Promise<User | null>;
   loginAs: (memberId: string) => Promise<void>;
@@ -132,12 +132,23 @@ interface State {
   bulkDeleteMembers: (ids: string[]) => Promise<number>;
   approveJunior: (
     id: string,
-    opts?: { membership?: boolean; trainingEligible?: boolean; playEligible?: boolean; grade?: string },
+    opts?: {
+      membership?: boolean;
+      trainingEligible?: boolean;
+      playEligible?: boolean;
+      grade?: string;
+    },
   ) => Promise<void>;
   rejectJunior: (id: string) => Promise<void>;
 
   // credits
-  requestCredit: (memberId: string | undefined | null, amount: number, date: string, type?: "credit" | "debit" | "refund" | "expense", reason?: string) => Promise<void>;
+  requestCredit: (
+    memberId: string | undefined | null,
+    amount: number,
+    date: string,
+    type?: "credit" | "debit" | "refund" | "expense",
+    reason?: string,
+  ) => Promise<void>;
   approveCredit: (id: string) => Promise<void>;
   approveAllCredits: () => Promise<void>;
   rejectCredit: (id: string) => Promise<void>;
@@ -145,7 +156,9 @@ interface State {
   deleteTransaction: (id: string) => Promise<void>;
 
   // schedules
-  createSchedule: (s: Omit<PlaySchedule, "id" | "status"> & { repeatWeeks?: number }) => Promise<void>;
+  createSchedule: (
+    s: Omit<PlaySchedule, "id" | "status"> & { repeatWeeks?: number },
+  ) => Promise<void>;
   updateSchedule: (id: string, patch: Partial<PlaySchedule>) => Promise<void>;
   releaseSchedule: (id: string) => Promise<{ message?: string; inviteCount?: number }>;
   closeSchedule: (id: string) => Promise<void>;
@@ -166,13 +179,26 @@ interface State {
   cancelTraining: (id: string, reason: string) => Promise<void>;
   deleteTraining: (id: string) => Promise<void>;
   enrollTraining: (trainingId: string, memberIds: string[]) => Promise<void>;
-  registerTrainingJunior: (trainingId: string, memberId: string, status: "accepted" | "declined") => Promise<void>;
+  registerTrainingJunior: (
+    trainingId: string,
+    memberId: string,
+    status: "accepted" | "declined",
+  ) => Promise<void>;
   respondTraining: (inviteId: string, status: "accepted" | "declined") => Promise<void>;
   respondTrainingBulk: (inviteIds: string[], status: "accepted" | "declined") => Promise<void>;
   markAttendance: (dateId: string, attended: boolean) => Promise<void>;
-  updateMemberTrainingInvitation: (trainingId: string, memberId: string, sessionIds: string[], forceAccept?: boolean) => Promise<{ message?: string }>;
+  updateMemberTrainingInvitation: (
+    trainingId: string,
+    memberId: string,
+    sessionIds: string[],
+    forceAccept?: boolean,
+  ) => Promise<{ message?: string }>;
   processTrainingRefund: (dateId: string, refundType: "none" | "half" | "full") => Promise<void>;
-  processOverpaymentRefund: (trainingId: string, memberId: string, amount: number) => Promise<{ message: string }>;
+  processOverpaymentRefund: (
+    trainingId: string,
+    memberId: string,
+    amount: number,
+  ) => Promise<{ message: string }>;
   sendTrainingUpdateRequest: (
     trainingId: string,
     memberId: string,
@@ -247,8 +273,23 @@ interface State {
     mailFromName: string;
     testEmail?: string;
   }) => Promise<{ status: string; message: string }>;
-  createLeagueGroup: (g: { name: string; description: string; groupType: "Adult" | "Junior"; memberIds: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
-  updateLeagueGroup: (id: string, patch: { name?: string; description?: string; groupType?: "Adult" | "Junior"; memberIds?: string[]; memberPositions?: Record<string, string | null> }) => Promise<void>;
+  createLeagueGroup: (g: {
+    name: string;
+    description: string;
+    groupType: "Adult" | "Junior";
+    memberIds: string[];
+    memberPositions?: Record<string, string | null>;
+  }) => Promise<void>;
+  updateLeagueGroup: (
+    id: string,
+    patch: {
+      name?: string;
+      description?: string;
+      groupType?: "Adult" | "Junior";
+      memberIds?: string[];
+      memberPositions?: Record<string, string | null>;
+    },
+  ) => Promise<void>;
   deleteLeagueGroup: (id: string) => Promise<void>;
   setActiveRole: (role: Role) => void;
   bulkUploadMembers: (file: File, options?: { allowExamples?: boolean }) => Promise<number>;
@@ -257,11 +298,34 @@ interface State {
   fetchAdminRoles: () => Promise<void>;
   fetchAllPermissions: () => Promise<void>;
   fetchAdminUsers: () => Promise<void>;
-  createAdminRole: (role: { name: string; description?: string; permissionIds: string[] }) => Promise<void>;
-  updateAdminRole: (id: string, patch: { name?: string; description?: string; permissionIds?: string[] }) => Promise<void>;
+  createAdminRole: (role: {
+    name: string;
+    description?: string;
+    permissionIds: string[];
+  }) => Promise<void>;
+  updateAdminRole: (
+    id: string,
+    patch: { name?: string; description?: string; permissionIds?: string[] },
+  ) => Promise<void>;
   deleteAdminRole: (id: string) => Promise<void>;
-  createAdminUser: (u: { firstName: string; lastName: string; email: string; password: string; mobile?: string; adminRoleId: string }) => Promise<void>;
-  updateAdminUser: (id: string, patch: { firstName?: string; lastName?: string; email?: string; mobile?: string; adminRoleId?: string }) => Promise<void>;
+  createAdminUser: (u: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    mobile?: string;
+    adminRoleId: string;
+  }) => Promise<void>;
+  updateAdminUser: (
+    id: string,
+    patch: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      mobile?: string;
+      adminRoleId?: string;
+    },
+  ) => Promise<void>;
   deleteAdminUser: (id: string) => Promise<void>;
   resetAdminPassword: (id: string, password: string) => Promise<void>;
 }
@@ -314,7 +378,8 @@ export const useStore = create<State>((set, get) => ({
   appLogoBase64: "/logo.png",
   portalEyebrow: "Private Member Portal",
   portalTitle: "Run your badminton club without the spreadsheet chaos.",
-  portalDescription: "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
+  portalDescription:
+    "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
   currency: "$",
   timezone: "Asia/Kolkata",
   mailHost: "",
@@ -352,17 +417,22 @@ export const useStore = create<State>((set, get) => ({
         adultGrades: settings.adultGrades || [],
         juniorGrades: settings.juniorGrades || [],
         holidays: settings.holidays || [],
-        holidayItems: settings.holidayItems ||
+        holidayItems:
+          settings.holidayItems ||
           (settings.holidays || []).map((date: string) => ({ name: "", date })),
         playerPositions: settings.playerPositions || [],
-        playerPositionItems: settings.playerPositionItems ||
+        playerPositionItems:
+          settings.playerPositionItems ||
           (settings.playerPositions || []).map((name: string) => ({ name, skipLeagueFee: false })),
         appName: settings.appName || "Connect App",
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || "/logo.png",
         portalEyebrow: settings.portalEyebrow || "Private Member Portal",
-        portalTitle: settings.portalTitle || "Run your badminton club without the spreadsheet chaos.",
-        portalDescription: settings.portalDescription || "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
+        portalTitle:
+          settings.portalTitle || "Run your badminton club without the spreadsheet chaos.",
+        portalDescription:
+          settings.portalDescription ||
+          "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
         currency: settings.currency || "$",
         timezone: settings.timezone || "Asia/Kolkata",
         mailHost: settings.mailHost || "",
@@ -511,17 +581,21 @@ export const useStore = create<State>((set, get) => ({
         adultGrades: settings.adultGrades || [],
         juniorGrades: settings.juniorGrades || [],
         holidays: settings.holidays || [],
-        holidayItems: settings.holidayItems ||
-          (settings.holidays || []).map((date) => ({ name: "", date })),
+        holidayItems:
+          settings.holidayItems || (settings.holidays || []).map((date) => ({ name: "", date })),
         playerPositions: settings.playerPositions || [],
-        playerPositionItems: settings.playerPositionItems ||
+        playerPositionItems:
+          settings.playerPositionItems ||
           (settings.playerPositions || []).map((name) => ({ name, skipLeagueFee: false })),
         appName: settings.appName || "Connect App",
         appLogoText: settings.appLogoText || "C",
         appLogoBase64: settings.appLogoBase64 || "/logo.png",
         portalEyebrow: settings.portalEyebrow || "Private Member Portal",
-        portalTitle: settings.portalTitle || "Run your badminton club without the spreadsheet chaos.",
-        portalDescription: settings.portalDescription || "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
+        portalTitle:
+          settings.portalTitle || "Run your badminton club without the spreadsheet chaos.",
+        portalDescription:
+          settings.portalDescription ||
+          "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
         currency: settings.currency || "$",
         timezone: settings.timezone || "Asia/Kolkata",
         mailHost: settings.mailHost || "",
@@ -577,7 +651,10 @@ export const useStore = create<State>((set, get) => ({
   },
 
   register: async (u) => {
-    const res = await api.post<{ message: string; user_id: string; email?: string }>("/register", u);
+    const res = await api.post<{ message: string; user_id: string; email?: string }>(
+      "/register",
+      u,
+    );
     return res.user_id;
   },
 
@@ -594,7 +671,10 @@ export const useStore = create<State>((set, get) => ({
   },
 
   verifyResetOtp: async (email, otp) => {
-    return await api.post<{ message: string; verified?: boolean }>("/verify-reset-otp", { email, otp });
+    return await api.post<{ message: string; verified?: boolean }>("/verify-reset-otp", {
+      email,
+      otp,
+    });
   },
 
   resetPassword: async (email, otp, password, passwordConfirmation) => {
@@ -668,9 +748,7 @@ export const useStore = create<State>((set, get) => ({
 
   addMember: async (m, createLogin = false) => {
     const { address, password, ...member } = m;
-    const payload = createLogin
-      ? { ...member, createLogin: true, address, password }
-      : member;
+    const payload = createLogin ? { ...member, createLogin: true, address, password } : member;
     await api.post<Member>("/members", payload);
     await get().syncData();
   },
@@ -704,13 +782,19 @@ export const useStore = create<State>((set, get) => ({
   },
 
   requestCredit: async (memberId, amount, date, type = "credit", reason) => {
-    await api.post<CreditRequest>("/credit-requests", { memberId: memberId || undefined, amount, date, type, reason });
+    await api.post<CreditRequest>("/credit-requests", {
+      memberId: memberId || undefined,
+      amount,
+      date,
+      type,
+      reason,
+    });
     await get().syncData();
   },
 
   approveCredit: async (id) => {
     await api.post<{ request: CreditRequest; memberCredit: number }>(
-      `/credit-requests/${id}/approve`
+      `/credit-requests/${id}/approve`,
     );
     await get().syncData();
   },
@@ -728,14 +812,18 @@ export const useStore = create<State>((set, get) => ({
   deleteCreditRequest: async (id) => {
     await api.delete(`/credit-requests/${id}`);
     await get().syncData();
-    const transactions = await api.get<Transaction[]>("/transactions").catch(() => [] as Transaction[]);
+    const transactions = await api
+      .get<Transaction[]>("/transactions")
+      .catch(() => [] as Transaction[]);
     set({ transactions });
   },
 
   deleteTransaction: async (id) => {
     await api.delete(`/transactions/${id}`);
     await get().syncData();
-    const transactions = await api.get<Transaction[]>("/transactions").catch(() => [] as Transaction[]);
+    const transactions = await api
+      .get<Transaction[]>("/transactions")
+      .catch(() => [] as Transaction[]);
     set({ transactions });
   },
 
@@ -777,7 +865,9 @@ export const useStore = create<State>((set, get) => ({
         (i) => i.scheduleId === id && i.status === "accepted",
       );
       if (hasAccepted) {
-        throw new Error("Cannot delete schedule with accepted invitations. Cancel the schedule first.");
+        throw new Error(
+          "Cannot delete schedule with accepted invitations. Cancel the schedule first.",
+        );
       }
     }
     await api.delete(`/schedules/${id}`);
@@ -835,7 +925,7 @@ export const useStore = create<State>((set, get) => ({
 
   generateRotation: async (scheduleId) => {
     await api.post<{ schedule: PlaySchedule; rotation: Rotation }>(
-      `/schedules/${scheduleId}/rotate`
+      `/schedules/${scheduleId}/rotate`,
     );
     await get().syncData();
   },
@@ -857,9 +947,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   revertRotation: async (scheduleId) => {
-    await api.post<{ schedule: PlaySchedule }>(
-      `/schedules/${scheduleId}/revert-rotation`,
-    );
+    await api.post<{ schedule: PlaySchedule }>(`/schedules/${scheduleId}/revert-rotation`);
     await get().syncData();
   },
 
@@ -883,7 +971,9 @@ export const useStore = create<State>((set, get) => ({
         (i) => sessionIds.has(i.trainingId) && i.status === "accepted",
       );
       if (hasAccepted) {
-        throw new Error("Cannot delete training program with accepted invitations. Cancel the training first.");
+        throw new Error(
+          "Cannot delete training program with accepted invitations. Cancel the training first.",
+        );
       }
     }
     await api.delete(`/trainings/${id}`);
@@ -917,18 +1007,12 @@ export const useStore = create<State>((set, get) => ({
   },
 
   respondTraining: async (inviteId, status) => {
-    await api.post<TrainingInvitation>(
-      `/training-invitations/${inviteId}/respond`,
-      { status }
-    );
+    await api.post<TrainingInvitation>(`/training-invitations/${inviteId}/respond`, { status });
     await get().syncData();
   },
 
   respondTrainingBulk: async (inviteIds, status) => {
-    await api.post(
-      `/training-invitations/respond-bulk`,
-      { inviteIds, status }
-    );
+    await api.post(`/training-invitations/respond-bulk`, { inviteIds, status });
     await get().syncData();
   },
 
@@ -940,11 +1024,14 @@ export const useStore = create<State>((set, get) => ({
   },
 
   updateMemberTrainingInvitation: async (trainingId, memberId, sessionIds, forceAccept = false) => {
-    const res = await api.post<{ message?: string }>(`/trainings/${trainingId}/update-member-invitation`, {
-      memberId,
-      sessionIds,
-      forceAccept,
-    });
+    const res = await api.post<{ message?: string }>(
+      `/trainings/${trainingId}/update-member-invitation`,
+      {
+        memberId,
+        sessionIds,
+        forceAccept,
+      },
+    );
     await get().syncData();
     return { message: res.message };
   },
@@ -955,10 +1042,13 @@ export const useStore = create<State>((set, get) => ({
   },
 
   processOverpaymentRefund: async (trainingId, memberId, amount) => {
-    const res = await api.post<{ message: string }>(`/trainings/${trainingId}/process-overpayment-refund`, {
-      memberId,
-      amount,
-    });
+    const res = await api.post<{ message: string }>(
+      `/trainings/${trainingId}/process-overpayment-refund`,
+      {
+        memberId,
+        amount,
+      },
+    );
     await get().syncData();
     return res;
   },
@@ -973,23 +1063,29 @@ export const useStore = create<State>((set, get) => ({
     updatedMonthlyFee,
     newPerSessionFee,
   ) => {
-    const res = await api.post<{ message?: string; updateRequest?: TrainingUpdateRequest }>(`/trainings/${trainingId}/send-update-request`, {
-      memberId,
-      existingSessionIds,
-      newSessionIds,
-      additionalAmount,
-      previouslyPaidAmount,
-      updatedMonthlyFee,
-      newPerSessionFee,
-    });
+    const res = await api.post<{ message?: string; updateRequest?: TrainingUpdateRequest }>(
+      `/trainings/${trainingId}/send-update-request`,
+      {
+        memberId,
+        existingSessionIds,
+        newSessionIds,
+        additionalAmount,
+        previouslyPaidAmount,
+        updatedMonthlyFee,
+        newPerSessionFee,
+      },
+    );
     await get().syncData();
     return { message: res.message, updateRequest: res.updateRequest };
   },
 
   respondTrainingUpdateRequest: async (requestId, status) => {
-    const res = await api.post<{ message?: string; updateRequest?: TrainingUpdateRequest }>(`/training-update-requests/${requestId}/respond`, {
-      status,
-    });
+    const res = await api.post<{ message?: string; updateRequest?: TrainingUpdateRequest }>(
+      `/training-update-requests/${requestId}/respond`,
+      {
+        status,
+      },
+    );
     await get().syncData();
     return { message: res.message, updateRequest: res.updateRequest };
   },
@@ -1042,10 +1138,11 @@ export const useStore = create<State>((set, get) => ({
       adultGrades: updated.adultGrades || [],
       juniorGrades: updated.juniorGrades || [],
       holidays: updated.holidays || [],
-      holidayItems: updated.holidayItems ||
-        (updated.holidays || []).map((date) => ({ name: "", date })),
+      holidayItems:
+        updated.holidayItems || (updated.holidays || []).map((date) => ({ name: "", date })),
       playerPositions: updated.playerPositions || [],
-      playerPositionItems: updated.playerPositionItems ||
+      playerPositionItems:
+        updated.playerPositionItems ||
         (updated.playerPositions || []).map((name) => ({ name, skipLeagueFee: false })),
       appName: updated.appName,
       appLogoText: updated.appLogoText,
@@ -1137,24 +1234,32 @@ export const useStore = create<State>((set, get) => ({
     try {
       const roles = await api.get<AdminRole[]>("/admin-roles");
       set({ adminRoles: roles });
-    } catch { /* non-admin */ }
+    } catch {
+      /* non-admin */
+    }
   },
 
   fetchAllPermissions: async () => {
     try {
-      const grouped = await api.get<Record<string, Omit<Permission, "module">[]>>("/admin-roles/permissions");
+      const grouped = await api.get<Record<string, Omit<Permission, "module">[]>>(
+        "/admin-roles/permissions",
+      );
       const flat: Permission[] = Object.entries(grouped).flatMap(([module, perms]) =>
-        perms.map((p) => ({ ...p, module }))
+        perms.map((p) => ({ ...p, module })),
       );
       set({ allPermissions: flat });
-    } catch { /* non-admin */ }
+    } catch {
+      /* non-admin */
+    }
   },
 
   fetchAdminUsers: async () => {
     try {
       const users = await api.get<User[]>("/admin-users");
       set({ adminUsers: users });
-    } catch { /* non-admin */ }
+    } catch {
+      /* non-admin */
+    }
   },
 
   createAdminRole: async (role) => {

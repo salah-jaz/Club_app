@@ -78,3 +78,7 @@ Artisan::command('schedules:auto-publish', function () {
     \App\Http\Controllers\Api\PlayScheduleController::processAutoPublishAndRotation();
 })->purpose('Automatically publish schedule and generate player court rotation when Cancellation Lock Window is reached')->everyMinute();
 
+Artisan::command('trainings:auto-close', function () {
+    \App\Helpers\SessionTimingHelper::applyClubTimezone();
+    \App\Http\Controllers\Api\TrainingController::processAutoClose();
+})->purpose('Automatically close monthly trainings after their final session ends')->everyMinute();

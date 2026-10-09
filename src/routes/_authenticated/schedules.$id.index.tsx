@@ -14,7 +14,17 @@ import {
 import { fmtDateTime, fmtMoney } from "@/lib/format";
 import { applyMemberFee, discountsFromStore, playSessionBaseFee } from "@/lib/fees";
 import { toast } from "sonner";
-import { Download, FileSpreadsheet, FileText, Pencil, Shuffle, Send, X, RotateCcw, AlertTriangle } from "lucide-react";
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Pencil,
+  Shuffle,
+  Send,
+  X,
+  RotateCcw,
+  AlertTriangle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PlayInvitation, PlaySchedule, Rotation, RotationRound } from "@/lib/types";
 import { jsPDF } from "jspdf";
@@ -44,10 +54,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  ConfirmActionDialog,
-  type ConfirmActionRequest,
-} from "@/components/ConfirmActionDialog";
+import { ConfirmActionDialog, type ConfirmActionRequest } from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/_authenticated/schedules/$id/")({ component: SchedulePage });
 
@@ -79,21 +86,11 @@ function buildRotationCsv(
     for (const c of r.courts) {
       const players = [0, 1, 2, 3].map((i) => (c.players[i] ? nameOf(c.players[i]) : ""));
       rows.push(
-        [
-          String(r.round),
-          `Court ${c.courtNo}`,
-          time,
-          ...players,
-          resting,
-        ]
-          .map(csvEscape)
-          .join(","),
+        [String(r.round), `Court ${c.courtNo}`, time, ...players, resting].map(csvEscape).join(","),
       );
     }
     if (r.courts.length === 0 && r.resting.length > 0) {
-      rows.push(
-        [String(r.round), "", time, "", "", "", "", resting].map(csvEscape).join(","),
-      );
+      rows.push([String(r.round), "", time, "", "", "", "", resting].map(csvEscape).join(","));
     }
   }
 
@@ -407,8 +404,8 @@ function SchedulePage() {
       description: (
         <>
           <span className="block">
-            Release <strong className="text-[#F1F0EE]">“{scheduleToRelease.name}”</strong> and send invitations to
-            eligible members?
+            Release <strong className="text-[#F1F0EE]">“{scheduleToRelease.name}”</strong> and send
+            invitations to eligible members?
           </span>
           <span className="block text-[#8A8A98]">
             Members will be able to accept or decline from Events.
@@ -466,9 +463,7 @@ function SchedulePage() {
   const memberSkipsLeagueFee = (memberId: string) => {
     if (!sch.isLeagueMatch || !sch.leagueGroupIds?.length) return false;
     const skipNames = new Set(
-      (s.playerPositionItems ?? [])
-        .filter((p) => p.skipLeagueFee)
-        .map((p) => p.name),
+      (s.playerPositionItems ?? []).filter((p) => p.skipLeagueFee).map((p) => p.name),
     );
     if (skipNames.size === 0) return false;
     for (const gid of sch.leagueGroupIds) {
@@ -559,8 +554,8 @@ function SchedulePage() {
       description: (
         <>
           <span className="block">
-            Publish court assignments for <strong className="text-[#F1F0EE]">“{sch.name}”</strong> to
-            members?
+            Publish court assignments for <strong className="text-[#F1F0EE]">“{sch.name}”</strong>{" "}
+            to members?
           </span>
           <span className="block text-[#8A8A98]">
             Members will be able to view court details from Events.
@@ -639,16 +634,15 @@ function SchedulePage() {
                 <strong className="text-[#F1F0EE]">{sch.players}</strong> max players have accepted.
               </span>
               <span className="block">
-                <strong className="text-[#F59E0B]">{guestNeeded} guest player{guestNeeded === 1 ? "" : "s"}</strong>{" "}
+                <strong className="text-[#F59E0B]">
+                  {guestNeeded} guest player{guestNeeded === 1 ? "" : "s"}
+                </strong>{" "}
                 will be added to fill the remaining seats, then the rotation will be generated.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2">
-            <AlertDialogCancel
-              className="btn-premium-outline cursor-pointer"
-              disabled={rotating}
-            >
+            <AlertDialogCancel className="btn-premium-outline cursor-pointer" disabled={rotating}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -774,7 +768,8 @@ function SchedulePage() {
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">Cancel Session</DialogTitle>
             <DialogDescription className="text-[#C4D4CF] text-xs">
-              Enter a reason for cancelling <strong className="text-[#F1F0EE]">“{sch.name}”</strong>. Members will be notified and any paid fees will be refunded automatically.
+              Enter a reason for cancelling <strong className="text-[#F1F0EE]">“{sch.name}”</strong>
+              . Members will be notified and any paid fees will be refunded automatically.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
@@ -789,7 +784,9 @@ function SchedulePage() {
               className="bg-[#1A2120] border-[rgba(255,255,255,0.1)] text-white text-xs placeholder:text-[#64748B] focus:border-[#EF4444]"
             />
             {!cancelReason.trim() && (
-              <p className="text-[11px] text-red-400 font-light">Reason is required to cancel this session.</p>
+              <p className="text-[11px] text-red-400 font-light">
+                Reason is required to cancel this session.
+              </p>
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
@@ -820,7 +817,8 @@ function SchedulePage() {
           <div>
             <h4 className="font-semibold text-sm">Session Not Released Yet</h4>
             <p className="text-xs text-[#34D399]/90 font-light mt-0.5">
-              Invitations and eligible members will be generated once you click <strong>Release Session</strong>.
+              Invitations and eligible members will be generated once you click{" "}
+              <strong>Release Session</strong>.
             </p>
           </div>
           <Button
@@ -839,7 +837,8 @@ function SchedulePage() {
           <div className="space-y-0.5">
             <h4 className="font-semibold text-sm">Session Cancelled</h4>
             <p className="text-xs text-[#EF4444]/90 font-light">
-              <span className="font-semibold">Reason:</span> {sch.cancelReason || "No reason specified."}
+              <span className="font-semibold">Reason:</span>{" "}
+              {sch.cancelReason || "No reason specified."}
             </p>
           </div>
         </div>

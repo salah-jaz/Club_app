@@ -24,9 +24,7 @@ function getGroupMemberIds(group: LeagueGroup): string[] {
     return group.memberIds.filter((id): id is string => Boolean(id));
   }
   if (Array.isArray(group.members)) {
-    return group.members
-      .map((m) => m?.id)
-      .filter((id): id is string => Boolean(id));
+    return group.members.map((m) => m?.id).filter((id): id is string => Boolean(id));
   }
   return [];
 }
@@ -40,9 +38,15 @@ export function LeagueGroupSelector({
   const [search, setSearch] = useState("");
   const [viewingGroup, setViewingGroup] = useState<LeagueGroup | null>(null);
 
-  const safeLeagueGroups = useMemo(() => Array.isArray(leagueGroups) ? leagueGroups : [], [leagueGroups]);
-  const safeAllMembers = useMemo(() => Array.isArray(allMembers) ? allMembers : [], [allMembers]);
-  const safeSelectedGroupIds = useMemo(() => Array.isArray(selectedGroupIds) ? selectedGroupIds : [], [selectedGroupIds]);
+  const safeLeagueGroups = useMemo(
+    () => (Array.isArray(leagueGroups) ? leagueGroups : []),
+    [leagueGroups],
+  );
+  const safeAllMembers = useMemo(() => (Array.isArray(allMembers) ? allMembers : []), [allMembers]);
+  const safeSelectedGroupIds = useMemo(
+    () => (Array.isArray(selectedGroupIds) ? selectedGroupIds : []),
+    [selectedGroupIds],
+  );
 
   // Map memberId -> display name helper
   const memberNameMap = useMemo(() => {
@@ -70,7 +74,9 @@ export function LeagueGroupSelector({
   // Map memberId -> list of selected teams containing this member
   const memberSelectedTeamsMap = useMemo(() => {
     const map = new Map<string, LeagueGroup[]>();
-    const selectedGroups = safeLeagueGroups.filter((g) => g?.id && safeSelectedGroupIds.includes(g.id));
+    const selectedGroups = safeLeagueGroups.filter(
+      (g) => g?.id && safeSelectedGroupIds.includes(g.id),
+    );
     for (const group of selectedGroups) {
       const ids = getGroupMemberIds(group);
       for (const mid of ids) {
@@ -147,9 +153,12 @@ export function LeagueGroupSelector({
 
         <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
           <span className="text-[11px] text-muted-foreground">
-            <strong className="text-primary font-mono">{selectedGroupIds.length}</strong> / {leagueGroups.length} selected
+            <strong className="text-primary font-mono">{selectedGroupIds.length}</strong> /{" "}
+            {leagueGroups.length} selected
             {selectedGroupIds.length > 0 && (
-              <span className="ml-1 text-[10px] text-muted-foreground">({selectedUniqueCount} unique players)</span>
+              <span className="ml-1 text-[10px] text-muted-foreground">
+                ({selectedUniqueCount} unique players)
+              </span>
             )}
           </span>
 
@@ -218,9 +227,7 @@ export function LeagueGroupSelector({
                   >
                     {isSelected && <Check className="w-3 h-3" />}
                   </span>
-                  <span className="font-semibold text-xs text-foreground truncate">
-                    {g.name}
-                  </span>
+                  <span className="font-semibold text-xs text-foreground truncate">{g.name}</span>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0 ml-2">
@@ -265,10 +272,9 @@ export function LeagueGroupSelector({
               {getGroupMemberIds(viewingGroup).map((mid) => {
                 const name = getMemberName(mid);
                 const selectedTeams = memberSelectedTeamsMap.get(mid) || [];
-                const isShared = selectedTeams.length > 1 && safeSelectedGroupIds.includes(viewingGroup.id);
-                const sharedLabel = isShared
-                  ? selectedTeams.map((t) => t.name).join(" + ")
-                  : null;
+                const isShared =
+                  selectedTeams.length > 1 && safeSelectedGroupIds.includes(viewingGroup.id);
+                const sharedLabel = isShared ? selectedTeams.map((t) => t.name).join(" + ") : null;
 
                 return (
                   <div
@@ -285,7 +291,9 @@ export function LeagueGroupSelector({
                 );
               })}
               {getGroupMemberIds(viewingGroup).length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-6">No members in this group.</p>
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  No members in this group.
+                </p>
               )}
             </div>
           </DialogContent>

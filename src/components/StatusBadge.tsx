@@ -36,13 +36,7 @@ function labelFor(status: string, kind: StatusKind): string {
   return status;
 }
 
-export function StatusBadge({
-  status,
-  kind = "default",
-}: {
-  status: string;
-  kind?: StatusKind;
-}) {
+export function StatusBadge({ status, kind = "default" }: { status: string; kind?: StatusKind }) {
   return (
     <Badge variant="outline" className={cn("capitalize font-medium", map[status] ?? "")}>
       {labelFor(status, kind)}

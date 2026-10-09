@@ -4,7 +4,9 @@ export type SessionPhase = "upcoming" | "in_progress" | "finished";
 
 /** Parse values like "1 hour", "2 Hours", "90 min", "1.5 hours" into minutes. */
 export function parseDurationMinutes(duration: string | null | undefined): number {
-  const raw = String(duration ?? "").trim().toLowerCase();
+  const raw = String(duration ?? "")
+    .trim()
+    .toLowerCase();
   if (!raw) return 60;
 
   const match = raw.match(/(\d+(?:\.\d+)?)\s*(hour|hours|hr|hrs|h|minute|minutes|min|mins|m)\b/);
@@ -35,16 +37,18 @@ export function datetimeLocalNow(): string {
 export function parseDateTimeMs(value: string | null | undefined): number {
   if (!value) return NaN;
   const raw = String(value).trim();
-  const normalized =
-    /^\d{4}-\d{2}-\d{2}$/.test(raw)
-      ? `${raw}T00:00:00`
-      : raw.includes(" ") && !raw.includes("T")
-        ? raw.replace(" ", "T")
-        : raw;
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? `${raw}T00:00:00`
+    : raw.includes(" ") && !raw.includes("T")
+      ? raw.replace(" ", "T")
+      : raw;
   return Date.parse(normalized);
 }
 
-export function isSessionInFuture(value: string | null | undefined, nowMs: number = Date.now()): boolean {
+export function isSessionInFuture(
+  value: string | null | undefined,
+  nowMs: number = Date.now(),
+): boolean {
   const ms = parseDateTimeMs(value);
   return Number.isFinite(ms) && ms > nowMs;
 }

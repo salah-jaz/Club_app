@@ -81,7 +81,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Connect App — Badminton Club Management" },
-      { name: "description", content: "Manage members, credits, play sessions, court rotations, and training." },
+      {
+        name: "description",
+        content: "Manage members, credits, play sessions, court rotations, and training.",
+      },
       { property: "og:title", content: "Connect App" },
       { property: "og:description", content: "Badminton club management made simple." },
       { property: "og:type", content: "website" },
@@ -263,7 +266,11 @@ function DynamicFavicon() {
       link.type = "image/svg+xml";
     } else if (iconUrl.startsWith("data:image/png") || iconUrl.endsWith(".png")) {
       link.type = "image/png";
-    } else if (iconUrl.startsWith("data:image/jpeg") || iconUrl.endsWith(".jpg") || iconUrl.endsWith(".jpeg")) {
+    } else if (
+      iconUrl.startsWith("data:image/jpeg") ||
+      iconUrl.endsWith(".jpg") ||
+      iconUrl.endsWith(".jpeg")
+    ) {
       link.type = "image/jpeg";
     }
 

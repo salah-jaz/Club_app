@@ -3,8 +3,23 @@ import { useCan } from "@/lib/permissions";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtDateTime, fmtMoney, fmtDate, formatTxnDescription, txnDisplayType, isTxnInflow, txnSource } from "@/lib/format";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  fmtDateTime,
+  fmtMoney,
+  fmtDate,
+  formatTxnDescription,
+  txnDisplayType,
+  isTxnInflow,
+  txnSource,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -24,7 +39,13 @@ import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
@@ -107,7 +128,13 @@ function TxnTypeBadge({ t }: { t: import("@/lib/types").Transaction }) {
               : "bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20",
       )}
     >
-      {isCredit ? <ArrowUpLeft className="size-3" /> : isRefund ? <RotateCcw className="size-3" /> : <ArrowDownRight className="size-3" />}
+      {isCredit ? (
+        <ArrowUpLeft className="size-3" />
+      ) : isRefund ? (
+        <RotateCcw className="size-3" />
+      ) : (
+        <ArrowDownRight className="size-3" />
+      )}
       {displayType}
     </span>
   );
@@ -144,7 +171,9 @@ function TxnStatCard({
         <CardContent className="p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase">{label}</p>
+              <p className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase">
+                {label}
+              </p>
               <p className="type-stat-value mt-1.5 text-2xl sm:text-3xl">
                 <AnimatedCounter value={value} format={format} />
               </p>
@@ -167,7 +196,8 @@ function Txns() {
   const user = useCurrentUser()!;
   const s = useStore();
   const search = Route.useSearch();
-  const myMembers = user.role === "admin" ? s.members : s.members.filter((m) => m.userId === user.id);
+  const myMembers =
+    user.role === "admin" ? s.members : s.members.filter((m) => m.userId === user.id);
   const myMemberIds = useMemo(() => myMembers.map((m) => m.id), [myMembers]);
 
   const focusMember = search.memberId
@@ -179,7 +209,7 @@ function Txns() {
   // If focusMember is a junior, transactions are recorded on the parent's wallet.
   const walletMember = focusMember
     ? focusMember.memberType === "junior" && focusMember.parentMemberId
-      ? s.members.find((m) => m.id === focusMember.parentMemberId) ?? focusMember
+      ? (s.members.find((m) => m.id === focusMember.parentMemberId) ?? focusMember)
       : focusMember
     : undefined;
 
@@ -203,7 +233,9 @@ function Txns() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [sortBy, setSortBy] = useState("newest");
-  const [selectedTxnDetail, setSelectedTxnDetail] = useState<import("@/lib/types").Transaction | null>(null);
+  const [selectedTxnDetail, setSelectedTxnDetail] = useState<
+    import("@/lib/types").Transaction | null
+  >(null);
   const [deleteTarget, setDeleteTarget] = useState<import("@/lib/types").Transaction | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -281,7 +313,10 @@ function Txns() {
     sortBy !== "newest";
 
   const baseTxns = useMemo(() => {
-    let list = user.role === "admin" ? s.transactions : s.transactions.filter((t) => Boolean(t.memberId && myMemberIds.includes(t.memberId)));
+    let list =
+      user.role === "admin"
+        ? s.transactions
+        : s.transactions.filter((t) => Boolean(t.memberId && myMemberIds.includes(t.memberId)));
     if (focusMember) {
       // Show transactions for the wallet member (parent for juniors)
       const wid = walletMember?.id ?? focusMember.id;
@@ -301,7 +336,9 @@ function Txns() {
           }
         }
         if (searchTerm.trim()) {
-          const fullName = (m ? `${m.firstName} ${m.lastName} ${m.nickname || ""}` : "").toLowerCase();
+          const fullName = (
+            m ? `${m.firstName} ${m.lastName} ${m.nickname || ""}` : ""
+          ).toLowerCase();
           const descDisplay = formatTxnDescription(t).toLowerCase();
           if (
             !fullName.includes(searchTerm.toLowerCase()) &&
@@ -335,7 +372,17 @@ function Txns() {
         if (sortBy === "amount_low") return a.amount - b.amount;
         return 0;
       });
-  }, [baseTxns, s.members, sourceTab, memberTypeFilter, searchTerm, typeFilter, fromDate, toDate, sortBy]);
+  }, [
+    baseTxns,
+    s.members,
+    sourceTab,
+    memberTypeFilter,
+    searchTerm,
+    typeFilter,
+    fromDate,
+    toDate,
+    sortBy,
+  ]);
 
   const playCount = baseTxns.filter((t) => txnSource(t) === "play").length;
   const trainingCount = baseTxns.filter((t) => txnSource(t) === "training").length;
@@ -355,9 +402,7 @@ function Txns() {
     const totalExpense = expenseSum;
     const rawNetDebited = Math.max(0, debitSum - refundSum);
     const totalDebited =
-      isAdmin && !isMemberScoped
-        ? Math.max(0, rawNetDebited - totalExpense)
-        : rawNetDebited;
+      isAdmin && !isMemberScoped ? Math.max(0, rawNetDebited - totalExpense) : rawNetDebited;
 
     const balanceTotal = focusMember
       ? (walletMember?.credit ?? focusMember.credit ?? 0)
@@ -412,7 +457,10 @@ function Txns() {
     } catch (error: any) {
       if (error.response?.data?.errors?.reason?.[0]) {
         setExpenseReasonError(error.response.data.errors.reason[0]);
-      } else if (error.response?.data?.message && String(error.response.data.message).includes("Reason")) {
+      } else if (
+        error.response?.data?.message &&
+        String(error.response.data.message).includes("Reason")
+      ) {
         setExpenseReasonError(error.response.data.message);
       } else {
         toast.error(error.message || "Failed to record expense.");
@@ -471,7 +519,9 @@ function Txns() {
         title={focusMember ? `${focusMember.firstName} ${focusMember.lastName}` : "Transactions"}
         description={
           focusMember
-            ? focusMember.memberType === "junior" && walletMember && walletMember.id !== focusMember.id
+            ? focusMember.memberType === "junior" &&
+              walletMember &&
+              walletMember.id !== focusMember.id
               ? `Junior member — transactions recorded on ${walletMember.firstName} ${walletMember.lastName}'s shared wallet. Balance: ${fmtMoney(walletMember.credit || 0)}.`
               : `Account credits and debits for this member only. Current balance ${fmtMoney(walletMember?.credit ?? focusMember.credit ?? 0)}.`
             : "Audit log of all account credits and session debits."
@@ -550,11 +600,17 @@ function Txns() {
           icon={CircleDollarSign}
           accentKey="balance"
           format={fmtMoney}
-          className={isAdmin && !isMemberScoped ? "col-span-2 sm:col-span-1 md:col-span-1" : undefined}
+          className={
+            isAdmin && !isMemberScoped ? "col-span-2 sm:col-span-1 md:col-span-1" : undefined
+          }
         />
       </motion.div>
 
-      <Tabs value={sourceTab} onValueChange={(v) => setSourceTab(v as SourceTab)} className="w-full">
+      <Tabs
+        value={sourceTab}
+        onValueChange={(v) => setSourceTab(v as SourceTab)}
+        className="w-full"
+      >
         <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-0 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
           <TabsTrigger
             value="all"
@@ -712,7 +768,9 @@ function Txns() {
                   <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Member</TableHead>
                   <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Description</TableHead>
                   <TableHead className="type-table-head py-3.5 px-4 sm:px-6">Type</TableHead>
-                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6 text-right">Amount</TableHead>
+                  <TableHead className="type-table-head py-3.5 px-4 sm:px-6 text-right">
+                    Amount
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -721,7 +779,9 @@ function Txns() {
                     <TableCell colSpan={5} className="p-0">
                       <EmptyIllustration
                         icon="wallet"
-                        title={hasActiveFilters ? "No transactions found" : "No transactions recorded"}
+                        title={
+                          hasActiveFilters ? "No transactions found" : "No transactions recorded"
+                        }
                         description={
                           hasActiveFilters
                             ? "Try adjusting your filters or search terms."
@@ -768,7 +828,9 @@ function Txns() {
                         <TableCell className="py-3 px-6">
                           <div className="flex items-center gap-3">
                             <Avatar className="size-7.5 border border-white/5">
-                              <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
+                              <AvatarFallback
+                                className={`${avatarBgClass} font-semibold text-[11px]`}
+                              >
                                 {initials}
                               </AvatarFallback>
                             </Avatar>
@@ -809,7 +871,10 @@ function Txns() {
         </CardContent>
       </Card>
 
-      <Dialog open={Boolean(selectedTxnDetail)} onOpenChange={(open) => !open && setSelectedTxnDetail(null)}>
+      <Dialog
+        open={Boolean(selectedTxnDetail)}
+        onOpenChange={(open) => !open && setSelectedTxnDetail(null)}
+      >
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">
@@ -829,51 +894,63 @@ function Txns() {
                   : "Details of the recorded transaction."}
             </DialogDescription>
           </DialogHeader>
-          {selectedTxnDetail && (() => {
-            const tm = s.members.find((x) => x.id === selectedTxnDetail.memberId);
-            const isInflow = isTxnInflow(selectedTxnDetail);
-            const displayType = txnDisplayType(selectedTxnDetail);
-            const isExpenseOrNoMember = selectedTxnDetail.type === "expense" || !selectedTxnDetail.memberId;
-            const tmName = tm
-              ? `${tm.firstName} ${tm.lastName}`
-              : isExpenseOrNoMember
-                ? "Admin"
-                : "Unknown Member";
-            return (
-              <div className="space-y-4 py-2">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
-                  <span className="text-xs text-[#8A8A98]">Member</span>
-                  <span className="text-sm font-semibold text-[#EEF2F0]">
-                    {tmName}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
-                    <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Amount</span>
-                    <span className={cn("text-base font-bold", isInflow ? "text-[#34D399]" : "text-[#EF4444]")}>
-                      {isInflow ? "+" : "−"}{fmtMoney(selectedTxnDetail.amount)}
+          {selectedTxnDetail &&
+            (() => {
+              const tm = s.members.find((x) => x.id === selectedTxnDetail.memberId);
+              const isInflow = isTxnInflow(selectedTxnDetail);
+              const displayType = txnDisplayType(selectedTxnDetail);
+              const isExpenseOrNoMember =
+                selectedTxnDetail.type === "expense" || !selectedTxnDetail.memberId;
+              const tmName = tm
+                ? `${tm.firstName} ${tm.lastName}`
+                : isExpenseOrNoMember
+                  ? "Admin"
+                  : "Unknown Member";
+              return (
+                <div className="space-y-4 py-2">
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                    <span className="text-xs text-[#8A8A98]">Member</span>
+                    <span className="text-sm font-semibold text-[#EEF2F0]">{tmName}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                      <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">
+                        Amount
+                      </span>
+                      <span
+                        className={cn(
+                          "text-base font-bold",
+                          isInflow ? "text-[#34D399]" : "text-[#EF4444]",
+                        )}
+                      >
+                        {isInflow ? "+" : "−"}
+                        {fmtMoney(selectedTxnDetail.amount)}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                      <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">
+                        Date & Time
+                      </span>
+                      <span className="text-xs font-medium text-[#EEF2F0]">
+                        {fmtDateTime(selectedTxnDetail.date)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                    <span className="text-xs text-[#8A8A98]">Type</span>
+                    <TxnTypeBadge t={selectedTxnDetail} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
+                      {displayType === "debit" ? "Reason" : "Description"}
                     </span>
-                  </div>
-                  <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
-                    <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Date & Time</span>
-                    <span className="text-xs font-medium text-[#EEF2F0]">{fmtDateTime(selectedTxnDetail.date)}</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
-                  <span className="text-xs text-[#8A8A98]">Type</span>
-                  <TxnTypeBadge t={selectedTxnDetail} />
-                </div>
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
-                    {displayType === "debit" ? "Reason" : "Description"}
-                  </span>
-                  <div className="p-3.5 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] text-sm text-[#EEF2F0] leading-relaxed whitespace-pre-wrap">
-                    {formatTxnDescription(selectedTxnDetail)}
+                    <div className="p-3.5 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] text-sm text-[#EEF2F0] leading-relaxed whitespace-pre-wrap">
+                      {formatTxnDescription(selectedTxnDetail)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
           <DialogFooter className="gap-2 sm:justify-between">
             {isAdmin && selectedTxnDetail && txnDisplayType(selectedTxnDetail) === "expense" && (
               <button
@@ -897,19 +974,21 @@ function Txns() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
         <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#F1F0EE]">Delete this wallet transaction?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#F1F0EE]">
+              Delete this wallet transaction?
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-[#8A8A98]">
               This action will permanently delete the transaction and reverse its wallet effect.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2">
-            <AlertDialogCancel
-              className="btn-premium-outline cursor-pointer"
-              disabled={deleting}
-            >
+            <AlertDialogCancel className="btn-premium-outline cursor-pointer" disabled={deleting}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction

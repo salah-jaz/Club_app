@@ -20,7 +20,16 @@ type EmptyIcon = "shuttlecock" | "calendar" | "users" | "wallet" | "inbox" | "ch
 
 const icons: Record<EmptyIcon, ReactElement> = {
   shuttlecock: (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="52"
+      height="52"
+      viewBox="0 0 52 52"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="26" cy="18" r="8" />
       <line x1="26" y1="26" x2="26" y2="44" />
       <polyline points="20,38 26,46 32,38" />
@@ -29,7 +38,16 @@ const icons: Record<EmptyIcon, ReactElement> = {
     </svg>
   ),
   calendar: (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="52"
+      height="52"
+      viewBox="0 0 52 52"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="8" y="10" width="36" height="34" rx="5" />
       <line x1="8" y1="20" x2="44" y2="20" />
       <line x1="18" y1="6" x2="18" y2="14" />
@@ -38,7 +56,16 @@ const icons: Record<EmptyIcon, ReactElement> = {
     </svg>
   ),
   users: (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="52"
+      height="52"
+      viewBox="0 0 52 52"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="20" cy="18" r="7" />
       <path d="M6 42c0-7.7 6.3-14 14-14s14 6.3 14 14" />
       <circle cx="38" cy="16" r="5" />
@@ -46,14 +73,32 @@ const icons: Record<EmptyIcon, ReactElement> = {
     </svg>
   ),
   wallet: (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="52"
+      height="52"
+      viewBox="0 0 52 52"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="6" y="14" width="40" height="28" rx="5" />
       <path d="M6 22h40" />
       <circle cx="36" cy="32" r="3" fill="currentColor" />
     </svg>
   ),
   inbox: (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="52"
+      height="52"
+      viewBox="0 0 52 52"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="8" y="10" width="36" height="32" rx="5" />
       <path d="M8 30h10l4 6 4-6h10" />
       <line x1="18" y1="20" x2="34" y2="20" />
@@ -61,13 +106,31 @@ const icons: Record<EmptyIcon, ReactElement> = {
     </svg>
   ),
   check: (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="52"
+      height="52"
+      viewBox="0 0 52 52"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="26" cy="26" r="18" />
       <polyline points="16,26 22,32 36,20" />
     </svg>
   ),
   training: (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="52"
+      height="52"
+      viewBox="0 0 52 52"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="8" y="10" width="36" height="28" rx="5" />
       <circle cx="26" cy="24" r="6" />
       <path d="M6 38h40" />
@@ -129,7 +192,10 @@ export function EmptyIllustration({
 
       {ctaLabel && ctaTo && (
         <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-          <Button asChild className="btn-premium-violet-outline h-[38px] px-5 font-medium text-[13px] cursor-pointer">
+          <Button
+            asChild
+            className="btn-premium-violet-outline h-[38px] px-5 font-medium text-[13px] cursor-pointer"
+          >
             <Link to={ctaTo}>{ctaLabel} →</Link>
           </Button>
         </motion.div>

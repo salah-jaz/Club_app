@@ -30,11 +30,7 @@ export function PrivacyPolicyViewer({ open, onOpenChange }: Props) {
             AeroShuttle Badminton Club – Privacy Policy
           </DialogDescription>
         </DialogHeader>
-        <GoogleDocsEmbed
-          title="Privacy Policy"
-          url={PRIVACY_POLICY_URL}
-          active={open}
-        />
+        <GoogleDocsEmbed title="Privacy Policy" url={PRIVACY_POLICY_URL} active={open} />
       </DialogContent>
     </Dialog>
   );

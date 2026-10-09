@@ -6,7 +6,10 @@ import { useStore } from "@/lib/store";
 function toTitleCase(str: string): string {
   if (!str) return "";
   if (str === str.toUpperCase()) {
-    return str.replace(/\b([a-zA-Z])([a-zA-Z]*)/g, (_, first, rest) => first.toUpperCase() + rest.toLowerCase());
+    return str.replace(
+      /\b([a-zA-Z])([a-zA-Z]*)/g,
+      (_, first, rest) => first.toUpperCase() + rest.toLowerCase(),
+    );
   }
   return str.replace(/\b([a-zA-Z])/g, (c) => c.toUpperCase());
 }
@@ -25,8 +28,11 @@ export function AuthShell({
   const appName = useStore((s) => s.appName);
   const appLogoBase64 = useStore((s) => s.appLogoBase64);
   const portalEyebrow = useStore((s) => s.portalEyebrow) || "Private Member Portal";
-  const portalTitle = useStore((s) => s.portalTitle) || "Run your badminton club without the spreadsheet chaos.";
-  const portalDescription = useStore((s) => s.portalDescription) || "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.";
+  const portalTitle =
+    useStore((s) => s.portalTitle) || "Run your badminton club without the spreadsheet chaos.";
+  const portalDescription =
+    useStore((s) => s.portalDescription) ||
+    "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.";
   const fetchSettings = useStore((s) => s.fetchSettings);
 
   useEffect(() => {
@@ -39,7 +45,6 @@ export function AuthShell({
 
   return (
     <div className="min-h-dvh min-h-screen flex flex-col lg:grid lg:grid-cols-2 bg-background">
-
       {/* ── LEFT PANEL: desktop full branding column (hidden on mobile) ── */}
       <div className="auth-brand hidden lg:flex flex-col justify-start gap-8 xl:gap-10 p-10 xl:p-12 relative overflow-hidden border-r border-white/[0.06]">
         {/* Background image */}
@@ -49,12 +54,24 @@ export function AuthShell({
           aria-hidden="true"
         />
         {/* Readability overlay — keeps image visible while locking text contrast */}
-        <div className="auth-brand-overlay absolute inset-0 pointer-events-none" aria-hidden="true" />
+        <div
+          className="auth-brand-overlay absolute inset-0 pointer-events-none"
+          aria-hidden="true"
+        />
         {/* Ambient glow orbs */}
-        <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-[var(--violet-dim)] rounded-full blur-[120px] pointer-events-none" aria-hidden="true" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[var(--gold-dim)] rounded-full blur-[100px] pointer-events-none" aria-hidden="true" />
+        <div
+          className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-[var(--violet-dim)] rounded-full blur-[120px] pointer-events-none"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[var(--gold-dim)] rounded-full blur-[100px] pointer-events-none"
+          aria-hidden="true"
+        />
 
-        <Link to="/" className="auth-brand-logo-link relative z-10 flex items-center gap-3.5 xl:gap-4 shrink-0">
+        <Link
+          to="/"
+          className="auth-brand-logo-link relative z-10 flex items-center gap-3.5 xl:gap-4 shrink-0"
+        >
           <img
             src={logoSrc}
             alt={displayAppName}
@@ -88,10 +105,19 @@ export function AuthShell({
           aria-hidden="true"
         />
         {/* Stronger gradient for mobile readability + clean merge into form panel */}
-        <div className="auth-brand-overlay auth-brand-overlay--mobile absolute inset-0 pointer-events-none" aria-hidden="true" />
+        <div
+          className="auth-brand-overlay auth-brand-overlay--mobile absolute inset-0 pointer-events-none"
+          aria-hidden="true"
+        />
         {/* Ambient glow orbs */}
-        <div className="absolute top-[-30%] left-[-20%] w-[70%] h-[70%] bg-[var(--violet-dim)] rounded-full blur-[90px] pointer-events-none" aria-hidden="true" />
-        <div className="absolute bottom-0 right-[-10%] w-[50%] h-[50%] bg-[var(--gold-dim)] rounded-full blur-[80px] pointer-events-none" aria-hidden="true" />
+        <div
+          className="absolute top-[-30%] left-[-20%] w-[70%] h-[70%] bg-[var(--violet-dim)] rounded-full blur-[90px] pointer-events-none"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute bottom-0 right-[-10%] w-[50%] h-[50%] bg-[var(--gold-dim)] rounded-full blur-[80px] pointer-events-none"
+          aria-hidden="true"
+        />
 
         {/* Centered branding content — compact stacked layout */}
         <div className="relative z-10 flex flex-col items-center gap-2 sm:gap-2.5 px-5 sm:px-8 py-8 sm:py-9 text-center w-full max-w-md mx-auto">
@@ -121,7 +147,9 @@ export function AuthShell({
       <div className="flex items-center justify-center px-5 py-8 sm:p-10 md:p-12 flex-1 bg-background">
         <div className="w-full max-w-md">
           <div className="mb-6 sm:mb-7">
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
+              {title}
+            </h1>
             {subtitle && (
               <p className="text-muted-foreground mt-1.5 text-sm sm:text-base leading-relaxed">
                 {subtitle}
@@ -132,7 +160,6 @@ export function AuthShell({
           {footer && <div className="mt-6 text-sm text-muted-foreground">{footer}</div>}
         </div>
       </div>
-
     </div>
   );
 }
