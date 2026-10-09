@@ -23,10 +23,7 @@ const getBaseUrl = (): string => {
 
 const BASE_URL = getBaseUrl();
 
-async function request<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("clubapp_token") : null;
 
   const headers = new Headers(options.headers);
@@ -65,9 +62,14 @@ async function request<T>(
   if (!response.ok) {
     let errorMsg = response.statusText || "Something went wrong";
     if (data && typeof data === "object") {
-      const errors = "errors" in data ? (data as { errors?: Record<string, string[]> }).errors : undefined;
+      const errors =
+        "errors" in data ? (data as { errors?: Record<string, string[]> }).errors : undefined;
       const firstFieldErrors = errors ? Object.values(errors)[0] : undefined;
-      if (Array.isArray(firstFieldErrors) && typeof firstFieldErrors[0] === "string" && firstFieldErrors[0]) {
+      if (
+        Array.isArray(firstFieldErrors) &&
+        typeof firstFieldErrors[0] === "string" &&
+        firstFieldErrors[0]
+      ) {
         errorMsg = firstFieldErrors[0];
       } else if ("message" in data && typeof (data as { message?: unknown }).message === "string") {
         errorMsg = (data as { message: string }).message;
@@ -85,19 +87,19 @@ export const api = {
   post: <T>(endpoint: string, body?: any, options?: RequestInit) =>
     request<T>(endpoint, {
       method: "POST",
-      body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined),
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
       ...options,
     }),
   put: <T>(endpoint: string, body?: any, options?: RequestInit) =>
     request<T>(endpoint, {
       method: "PUT",
-      body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined),
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
       ...options,
     }),
   patch: <T>(endpoint: string, body?: any, options?: RequestInit) =>
     request<T>(endpoint, {
       method: "PATCH",
-      body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined),
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
       ...options,
     }),
   delete: <T>(endpoint: string, options?: RequestInit) =>

@@ -10,13 +10,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { Plus, Wallet, Clock3, CheckCircle2, CircleDollarSign, ArrowDownLeft, ArrowUpRight, Trash2, RotateCcw } from "lucide-react";
+import {
+  Plus,
+  Wallet,
+  Clock3,
+  CheckCircle2,
+  CircleDollarSign,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Trash2,
+  RotateCcw,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
@@ -104,7 +127,9 @@ function CreditStatCard({
         <CardContent className="p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase">{label}</p>
+              <p className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase">
+                {label}
+              </p>
               <p className="type-stat-value mt-1.5 text-2xl sm:text-3xl">
                 <AnimatedCounter value={value} format={format} />
               </p>
@@ -137,7 +162,13 @@ function TypeBadge({ type }: { type: EntryType }) {
             : "bg-[#EF4444]/12 text-[#F87171] border border-[#EF4444]/25",
       )}
     >
-      {isCredit ? <ArrowDownLeft className="size-3" /> : isRefund ? <RotateCcw className="size-3" /> : <ArrowUpRight className="size-3" />}
+      {isCredit ? (
+        <ArrowDownLeft className="size-3" />
+      ) : isRefund ? (
+        <RotateCcw className="size-3" />
+      ) : (
+        <ArrowUpRight className="size-3" />
+      )}
       {isCredit ? "Credit" : isRefund ? "Refund" : "Debit"}
     </span>
   );
@@ -168,7 +199,9 @@ function CreditsPage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
   const [processingCreditId, setProcessingCreditId] = useState<string | null>(null);
-  const [processingCreditAction, setProcessingCreditAction] = useState<"approve" | "reject" | null>(null);
+  const [processingCreditAction, setProcessingCreditAction] = useState<"approve" | "reject" | null>(
+    null,
+  );
 
   useEffect(() => {
     if (search.memberId) {
@@ -190,24 +223,25 @@ function CreditsPage() {
   // If focusMember is a junior, resolve the effective wallet member (parent)
   const walletMember = focusMember
     ? focusMember.memberType === "junior" && focusMember.parentMemberId
-      ? s.members.find((m) => m.id === focusMember.parentMemberId) ?? focusMember
+      ? (s.members.find((m) => m.id === focusMember.parentMemberId) ?? focusMember)
       : focusMember
     : undefined;
 
   const scopedReqs = focusMember ? myReqs.filter((r) => r.memberId === focusMember.id) : myReqs;
   // For the add dialog: if scoped to a junior, show its parent in the picker; otherwise show adults
-  const addMembers = focusMember
-    ? walletMember ? [walletMember] : [focusMember]
-    : adultMembers;
+  const addMembers = focusMember ? (walletMember ? [walletMember] : [focusMember]) : adultMembers;
 
   const tabReqs = useMemo(() => {
     if (typeTab === "all") return scopedReqs;
-    if (typeTab === "credit") return scopedReqs.filter((r) => (r.type || "credit") === "credit" || r.type === "refund");
+    if (typeTab === "credit")
+      return scopedReqs.filter((r) => (r.type || "credit") === "credit" || r.type === "refund");
     return scopedReqs.filter((r) => (r.type || "credit") === typeTab);
   }, [scopedReqs, typeTab]);
 
   const stats = useMemo(() => {
-    const pending = scopedReqs.filter((r) => (r.type === "credit" || !r.type) && r.status === "created").length;
+    const pending = scopedReqs.filter(
+      (r) => (r.type === "credit" || !r.type) && r.status === "created",
+    ).length;
     const approved = scopedReqs.filter((r) => r.status === "approved").length;
     const approvedTotal = scopedReqs
       .filter((r) => r.status === "approved" && (r.type || "credit") === "credit")
@@ -275,7 +309,11 @@ function CreditsPage() {
   }, []);
 
   const hasActiveFilters =
-    searchTerm !== "" || statusFilter !== "all" || fromDate !== "" || toDate !== "" || sortBy !== "newest";
+    searchTerm !== "" ||
+    statusFilter !== "all" ||
+    fromDate !== "" ||
+    toDate !== "" ||
+    sortBy !== "newest";
 
   const filteredReqs = useMemo(() => {
     return tabReqs
@@ -344,8 +382,7 @@ function CreditsPage() {
       format,
       setExporting: report.setExporting,
       setOpen: report.setOpen,
-      exportFn: (fmt) =>
-        exportWalletReport(scopedReqs, s.members, report.values, fmt, s.appName),
+      exportFn: (fmt) => exportWalletReport(scopedReqs, s.members, report.values, fmt, s.appName),
     });
 
   const openAddDialog = (type: EntryType) => {
@@ -413,7 +450,9 @@ function CreditsPage() {
     }
   };
 
-  const creditCount = scopedReqs.filter((r) => (r.type || "credit") === "credit" || r.type === "refund").length;
+  const creditCount = scopedReqs.filter(
+    (r) => (r.type || "credit") === "credit" || r.type === "refund",
+  ).length;
   const debitCount = scopedReqs.filter((r) => r.type === "debit").length;
   const colSpan = isAdmin ? 6 : 5;
 
@@ -428,14 +467,12 @@ function CreditsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={
-          focusMember
-            ? `${focusMember.firstName} ${focusMember.lastName}`
-            : "Wallet"
-        }
+        title={focusMember ? `${focusMember.firstName} ${focusMember.lastName}` : "Wallet"}
         description={
           focusMember
-            ? focusMember.memberType === "junior" && walletMember && walletMember.id !== focusMember.id
+            ? focusMember.memberType === "junior" &&
+              walletMember &&
+              walletMember.id !== focusMember.id
               ? `Junior member — wallet shared with ${walletMember.firstName} ${walletMember.lastName}. Current balance ${fmtMoney(walletMember.credit || 0)}.`
               : `Wallet history for this member. Current balance ${fmtMoney(walletMember?.credit ?? focusMember.credit ?? 0)}.`
             : "Top-ups, debits, and balance management."
@@ -510,8 +547,20 @@ function CreditsPage() {
           icon={Wallet}
           index={0}
         />
-        <CreditStatCard label="Pending" value={stats.pending} hint="Credit requests awaiting approval" icon={Clock3} index={1} />
-        <CreditStatCard label="Approved" value={stats.approved} hint="Completed entries" icon={CheckCircle2} index={2} />
+        <CreditStatCard
+          label="Pending"
+          value={stats.pending}
+          hint="Credit requests awaiting approval"
+          icon={Clock3}
+          index={1}
+        />
+        <CreditStatCard
+          label="Approved"
+          value={stats.approved}
+          hint="Completed entries"
+          icon={CheckCircle2}
+          index={2}
+        />
         <CreditStatCard
           label="Total Balance"
           value={stats.balanceTotal}
@@ -583,16 +632,24 @@ function CreditsPage() {
               </Label>
               {focusMember ? (
                 <div className="flex h-[38px] items-center rounded-md border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E] px-3 text-sm text-[#F1F0EE]">
-                  {focusMember.memberType === "junior" && walletMember && walletMember.id !== focusMember.id ? (
+                  {focusMember.memberType === "junior" &&
+                  walletMember &&
+                  walletMember.id !== focusMember.id ? (
                     <>
                       {walletMember.firstName} {walletMember.lastName}
-                      <span className="ml-2 text-[#8A8A98]">— bal {fmtMoney(walletMember.credit || 0)}</span>
-                      <span className="ml-2 text-[10px] text-[#6B7F78]">(parent wallet for {focusMember.firstName})</span>
+                      <span className="ml-2 text-[#8A8A98]">
+                        — bal {fmtMoney(walletMember.credit || 0)}
+                      </span>
+                      <span className="ml-2 text-[10px] text-[#6B7F78]">
+                        (parent wallet for {focusMember.firstName})
+                      </span>
                     </>
                   ) : (
                     <>
                       {focusMember.firstName} {focusMember.lastName}
-                      <span className="ml-2 text-[#8A8A98]">— bal {fmtMoney(focusMember.credit || 0)}</span>
+                      <span className="ml-2 text-[#8A8A98]">
+                        — bal {fmtMoney(focusMember.credit || 0)}
+                      </span>
                     </>
                   )}
                 </div>
@@ -816,7 +873,10 @@ function CreditsPage() {
                               <Button
                                 size="sm"
                                 disabled={processingCreditId !== null}
-                                loading={processingCreditId === r.id && processingCreditAction === "approve"}
+                                loading={
+                                  processingCreditId === r.id &&
+                                  processingCreditAction === "approve"
+                                }
                                 onClick={async () => {
                                   if (processingCreditId) return;
                                   setProcessingCreditId(r.id);
@@ -839,7 +899,9 @@ function CreditsPage() {
                                 size="sm"
                                 variant="outline"
                                 disabled={processingCreditId !== null}
-                                loading={processingCreditId === r.id && processingCreditAction === "reject"}
+                                loading={
+                                  processingCreditId === r.id && processingCreditAction === "reject"
+                                }
                                 onClick={async () => {
                                   if (processingCreditId) return;
                                   setProcessingCreditId(r.id);
@@ -957,7 +1019,9 @@ function CreditsPage() {
                         <TableCell className="py-3 px-6">
                           <div className="flex items-center gap-3">
                             <Avatar className="size-7.5 border border-white/5">
-                              <AvatarFallback className={`${avatarBgClass} font-semibold text-[11px]`}>
+                              <AvatarFallback
+                                className={`${avatarBgClass} font-semibold text-[11px]`}
+                              >
                                 {initials}
                               </AvatarFallback>
                             </Avatar>
@@ -981,8 +1045,12 @@ function CreditsPage() {
                         <TableCell className="py-3 px-6">
                           <TypeBadge type={reqType} />
                         </TableCell>
-                        <TableCell className="py-3 px-6 type-mono-value">{fmtMoney(r.amount)}</TableCell>
-                        <TableCell className="py-3 px-6 type-mono-value text-[#EEF2F0]">{fmtDate(r.date)}</TableCell>
+                        <TableCell className="py-3 px-6 type-mono-value">
+                          {fmtMoney(r.amount)}
+                        </TableCell>
+                        <TableCell className="py-3 px-6 type-mono-value text-[#EEF2F0]">
+                          {fmtDate(r.date)}
+                        </TableCell>
                         <TableCell className="py-3 px-6">
                           <StatusBadge status={r.status} />
                         </TableCell>
@@ -991,51 +1059,57 @@ function CreditsPage() {
                             <div className="flex items-center gap-2">
                               {canApprove ? (
                                 <>
-                              <Button
-                                size="sm"
-                                disabled={processingCreditId !== null}
-                                loading={processingCreditId === r.id && processingCreditAction === "approve"}
-                                onClick={async () => {
-                                  if (processingCreditId) return;
-                                  setProcessingCreditId(r.id);
-                                  setProcessingCreditAction("approve");
-                                  try {
-                                    await s.approveCredit(r.id);
-                                    toast.success("Request approved successfully");
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to approve request.");
-                                  } finally {
-                                    setProcessingCreditId(null);
-                                    setProcessingCreditAction(null);
-                                  }
-                                }}
-                                className="h-7 px-2.5 text-[11.5px] font-medium rounded border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer transition-all"
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={processingCreditId !== null}
-                                loading={processingCreditId === r.id && processingCreditAction === "reject"}
-                                onClick={async () => {
-                                  if (processingCreditId) return;
-                                  setProcessingCreditId(r.id);
-                                  setProcessingCreditAction("reject");
-                                  try {
-                                    await s.rejectCredit(r.id);
-                                    toast.success("Request rejected successfully");
-                                  } catch (error: any) {
-                                    toast.error(error.message || "Failed to reject request.");
-                                  } finally {
-                                    setProcessingCreditId(null);
-                                    setProcessingCreditAction(null);
-                                  }
-                                }}
-                                className="h-7 px-2.5 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
-                              >
-                                Reject
-                              </Button>
+                                  <Button
+                                    size="sm"
+                                    disabled={processingCreditId !== null}
+                                    loading={
+                                      processingCreditId === r.id &&
+                                      processingCreditAction === "approve"
+                                    }
+                                    onClick={async () => {
+                                      if (processingCreditId) return;
+                                      setProcessingCreditId(r.id);
+                                      setProcessingCreditAction("approve");
+                                      try {
+                                        await s.approveCredit(r.id);
+                                        toast.success("Request approved successfully");
+                                      } catch (error: any) {
+                                        toast.error(error.message || "Failed to approve request.");
+                                      } finally {
+                                        setProcessingCreditId(null);
+                                        setProcessingCreditAction(null);
+                                      }
+                                    }}
+                                    className="h-7 px-2.5 text-[11.5px] font-medium rounded border static-financial-credit-border-medium static-financial-credit-text static-financial-credit-hover cursor-pointer transition-all"
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={processingCreditId !== null}
+                                    loading={
+                                      processingCreditId === r.id &&
+                                      processingCreditAction === "reject"
+                                    }
+                                    onClick={async () => {
+                                      if (processingCreditId) return;
+                                      setProcessingCreditId(r.id);
+                                      setProcessingCreditAction("reject");
+                                      try {
+                                        await s.rejectCredit(r.id);
+                                        toast.success("Request rejected successfully");
+                                      } catch (error: any) {
+                                        toast.error(error.message || "Failed to reject request.");
+                                      } finally {
+                                        setProcessingCreditId(null);
+                                        setProcessingCreditAction(null);
+                                      }
+                                    }}
+                                    className="h-7 px-2.5 text-[11.5px] font-medium rounded border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[#EF4444]/10 cursor-pointer transition-all"
+                                  >
+                                    Reject
+                                  </Button>
                                 </>
                               ) : (
                                 <>
@@ -1072,7 +1146,10 @@ function CreditsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={Boolean(selectedDebitDetail)} onOpenChange={(open) => !open && setSelectedDebitDetail(null)}>
+      <Dialog
+        open={Boolean(selectedDebitDetail)}
+        onOpenChange={(open) => !open && setSelectedDebitDetail(null)}
+      >
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">Debit Details</DialogTitle>
@@ -1080,41 +1157,49 @@ function CreditsPage() {
               Details of the member debit transaction.
             </DialogDescription>
           </DialogHeader>
-          {selectedDebitDetail && (() => {
-            const dm = s.members.find((x) => x.id === selectedDebitDetail.memberId);
-            const isExpenseOrNoMember = selectedDebitDetail.type === "expense" || !selectedDebitDetail.memberId;
-            const dmName = dm
-              ? `${dm.firstName} ${dm.lastName}`
-              : isExpenseOrNoMember
-                ? "Club Expense"
-                : "Unknown Member";
-            return (
-              <div className="space-y-4 py-2">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
-                  <span className="text-xs text-[#8A8A98]">Member</span>
-                  <span className="text-sm font-semibold text-[#EEF2F0]">
-                    {dmName}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
-                    <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Amount</span>
-                    <span className="text-base font-bold text-[#EF4444]">{fmtMoney(selectedDebitDetail.amount)}</span>
+          {selectedDebitDetail &&
+            (() => {
+              const dm = s.members.find((x) => x.id === selectedDebitDetail.memberId);
+              const isExpenseOrNoMember =
+                selectedDebitDetail.type === "expense" || !selectedDebitDetail.memberId;
+              const dmName = dm
+                ? `${dm.firstName} ${dm.lastName}`
+                : isExpenseOrNoMember
+                  ? "Club Expense"
+                  : "Unknown Member";
+              return (
+                <div className="space-y-4 py-2">
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                    <span className="text-xs text-[#8A8A98]">Member</span>
+                    <span className="text-sm font-semibold text-[#EEF2F0]">{dmName}</span>
                   </div>
-                  <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
-                    <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Date</span>
-                    <span className="text-sm font-medium text-[#EEF2F0]">{fmtDate(selectedDebitDetail.date)}</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                      <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">
+                        Amount
+                      </span>
+                      <span className="text-base font-bold text-[#EF4444]">
+                        {fmtMoney(selectedDebitDetail.amount)}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
+                      <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Date</span>
+                      <span className="text-sm font-medium text-[#EEF2F0]">
+                        {fmtDate(selectedDebitDetail.date)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">
+                      Reason
+                    </span>
+                    <div className="p-3.5 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] text-sm text-[#EEF2F0] leading-relaxed whitespace-pre-wrap">
+                      {selectedDebitDetail.reason || "No reason specified"}
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-medium text-[#8A8A98] uppercase tracking-[0.08em]">Reason</span>
-                  <div className="p-3.5 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)] text-sm text-[#EEF2F0] leading-relaxed whitespace-pre-wrap">
-                    {selectedDebitDetail.reason || "No reason specified"}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
           <DialogFooter>
             <Button
               type="button"
@@ -1128,19 +1213,21 @@ function CreditsPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
         <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#F1F0EE]">Delete this wallet transaction?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#F1F0EE]">
+              Delete this wallet transaction?
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-[#8A8A98]">
               This action will permanently delete the transaction and reverse its wallet effect.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2">
-            <AlertDialogCancel
-              className="btn-premium-outline cursor-pointer"
-              disabled={deleting}
-            >
+            <AlertDialogCancel className="btn-premium-outline cursor-pointer" disabled={deleting}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction

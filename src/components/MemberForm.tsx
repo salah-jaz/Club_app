@@ -4,7 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Member } from "@/lib/types";
 import { useStore, useCurrentUser } from "@/lib/store";
@@ -34,9 +40,7 @@ function FormField({
 }) {
   return (
     <div className={`space-y-1.5${span2 ? " sm:col-span-2" : ""}`}>
-      <Label>
-        {label}
-      </Label>
+      <Label>{label}</Label>
       <div className="relative transition-all duration-150 rounded-lg focus-within:ring-2 focus-within:ring-[#10B981]/20">
         {children}
       </div>
@@ -45,7 +49,11 @@ function FormField({
 }
 
 export function MemberForm({
-  initial, onSubmit, submitLabel = "Save member", showLoginFields = false, familyMemberMode = false,
+  initial,
+  onSubmit,
+  submitLabel = "Save member",
+  showLoginFields = false,
+  familyMemberMode = false,
 }: {
   initial: MemberFormValues;
   onSubmit: (v: MemberFormValues) => void;
@@ -158,9 +166,7 @@ export function MemberForm({
       <motion.div variants={staggerItem}>
         <Card className="signature-card-top bg-[#131916] border-[rgba(255,255,255,0.06)]">
           <CardHeader className="p-6 pb-4">
-            <CardTitle className="type-section-cap text-[#34D399]">
-              Personal information
-            </CardTitle>
+            <CardTitle className="type-section-cap text-[#34D399]">Personal information</CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-4">
             <FormField label="BI Member ID (optional)">
@@ -254,9 +260,7 @@ export function MemberForm({
         <motion.div variants={staggerItem}>
           <Card className="signature-card-top bg-[#131916] border-[rgba(255,255,255,0.06)]">
             <CardHeader className="p-6 pb-4">
-              <CardTitle className="type-section-cap text-[#34D399]">
-                Login account
-              </CardTitle>
+              <CardTitle className="type-section-cap text-[#34D399]">Login account</CardTitle>
             </CardHeader>
             <CardContent className="grid sm:grid-cols-2 gap-4">
               <FormField label="Password">
@@ -286,9 +290,7 @@ export function MemberForm({
       <motion.div variants={staggerItem}>
         <Card className="signature-card-top bg-[#131916] border-[rgba(255,255,255,0.06)]">
           <CardHeader className="p-6 pb-4">
-            <CardTitle className="type-section-cap text-[#34D399]">
-              Membership
-            </CardTitle>
+            <CardTitle className="type-section-cap text-[#34D399]">Membership</CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-4">
             <FormField label="Member type">
@@ -330,16 +332,15 @@ export function MemberForm({
               )}
             </FormField>
             <FormField label="Grade">
-              <Select
-                value={v.grade || undefined}
-                onValueChange={(x) => set("grade", x)}
-              >
+              <Select value={v.grade || undefined} onValueChange={(x) => set("grade", x)}>
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue placeholder="Select grade" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
                   {(v.memberType === "junior" ? juniorGrades : adultGrades).map((g) => (
-                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                    <SelectItem key={g} value={g}>
+                      {g}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -383,7 +384,10 @@ export function MemberForm({
             {isAdmin && (
               <>
                 <FormField label="Status">
-                  <Select value={v.status} onValueChange={(x) => set("status", x as Member["status"])}>
+                  <Select
+                    value={v.status}
+                    onValueChange={(x) => set("status", x as Member["status"])}
+                  >
                     <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                       <SelectValue />
                     </SelectTrigger>
@@ -398,7 +402,9 @@ export function MemberForm({
                 <div className="sm:col-span-2 grid sm:grid-cols-2 gap-4 mt-2">
                   <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                     <div>
-                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Club membership</Label>
+                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">
+                        Club membership
+                      </Label>
                       <p className="type-helper mt-1">
                         {v.memberType === "junior"
                           ? "Paid yearly fee."
@@ -409,7 +415,9 @@ export function MemberForm({
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                     <div>
-                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Training eligible</Label>
+                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">
+                        Training eligible
+                      </Label>
                       <p className="type-helper mt-1">
                         {v.memberType === "adult"
                           ? "Family can enroll children in junior training sessions"
@@ -439,8 +447,12 @@ export function MemberForm({
                   )}
                   <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                     <div>
-                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Bypass Credit Consumption</Label>
-                      <p className="type-helper mt-1">Do not deduct credits when participating in play schedules.</p>
+                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">
+                        Bypass Credit Consumption
+                      </Label>
+                      <p className="type-helper mt-1">
+                        Do not deduct credits when participating in play schedules.
+                      </p>
                     </div>
                     <Switch
                       checked={v.skipCreditConsumption ?? false}
@@ -449,9 +461,12 @@ export function MemberForm({
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-4.5">
                     <div>
-                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">Apply Discount</Label>
+                      <Label className="text-[13px] font-semibold text-[#EEF2F0] capitalize">
+                        Apply Discount
+                      </Label>
                       <p className="type-helper mt-1">
-                        Use {v.memberType === "junior" ? "junior" : "adult"} discount settings on play and training fees.
+                        Use {v.memberType === "junior" ? "junior" : "adult"} discount settings on
+                        play and training fees.
                       </p>
                     </div>
                     <Switch
@@ -467,7 +482,11 @@ export function MemberForm({
       </motion.div>
 
       <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 justify-end pt-2">
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full sm:w-auto"
+        >
           <Button
             type="submit"
             disabled={submitting}

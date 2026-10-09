@@ -2,7 +2,7 @@
 
 ## Summary
 
-Currently, the system stores a `credit` balance on **every** member record (both adults and juniors). The `TrainingController` has a partial `getWalletMember()` helper that *tries* to use the parent's wallet when a junior has insufficient credit, but this is an opt-in fallback — juniors still have their own `credit` column that can hold a balance, and the play-session debit/refund logic in `PlayScheduleController` hits the junior's own `credit` directly.
+Currently, the system stores a `credit` balance on **every** member record (both adults and juniors). The `TrainingController` has a partial `getWalletMember()` helper that _tries_ to use the parent's wallet when a junior has insufficient credit, but this is an opt-in fallback — juniors still have their own `credit` column that can hold a balance, and the play-session debit/refund logic in `PlayScheduleController` hits the junior's own `credit` directly.
 
 The goal: **juniors have no independent wallet**. When any fee is charged for a junior (play session, training), it is always debited from their parent adult member's wallet. Credit/debit/refund requests targeted at a junior are also redirected to the parent. The `credit` column on junior rows should stay at `0.00` at all times (it remains in the schema for structural simplicity; we just don't use it).
 
@@ -22,11 +22,12 @@ The goal: **juniors have no independent wallet**. When any fee is charged for a 
 
 ### Backend — Core helper (shared wallet resolution)
 
-The `getWalletMember()` in `TrainingController` already does *partial* wallet-sharing but only as a fallback. We'll harden it to **always** return the parent for a junior, regardless of balance.
+The `getWalletMember()` in `TrainingController` already does _partial_ wallet-sharing but only as a fallback. We'll harden it to **always** return the parent for a junior, regardless of balance.
 
 #### [MODIFY] [TrainingController.php](file:///d:/Jaz%20Project/Club_app/backend/app/Http/Controllers/Api/TrainingController.php)
 
 Change `getWalletMember()` at line 766:
+
 - **Before**: Returns the member if they have enough credit, else tries the parent.
 - **After**: If the member is a junior AND has a `parent_member_id`, always return the parent. Adults always return themselves.
 
@@ -55,7 +56,7 @@ The `CreditRequestController` handles manual credit/debit/refund. When `memberId
 - In `store()`, `approve()`, `destroy()` — resolve wallet member and apply balance changes there.
 - In `storeDebit()` / `storeRefund()` — same.
 - Transaction records still use the `walletMember->id` (the parent), so transaction history shows on the parent's wallet.
-- The `CreditRequest` record itself keeps the *originally requested* `member_id` (the junior or adult as submitted) for auditability, but the balance change and transaction go to the parent.
+- The `CreditRequest` record itself keeps the _originally requested_ `member_id` (the junior or adult as submitted) for auditability, but the balance change and transaction go to the parent.
 
 ---
 
@@ -70,6 +71,7 @@ The `destroy()` (delete-transaction reversal) currently looks up `member_id` fro
 #### [NEW] `2026_08_13_000001_migrate_junior_credit_to_parent.php`
 
 A database migration that:
+
 1. Finds all junior members with `credit > 0`.
 2. Transfers that credit to their `parent_member_id`'s wallet.
 3. Sets junior `credit = 0`.
@@ -104,9 +106,11 @@ Currently when adding credit/debit/refund, the member combobox shows all members
 ## Verification Plan
 
 ### Automated Tests
+
 - `php artisan migrate` — runs the new migration.
 
 ### Manual Verification
+
 1. Create a junior with a parent adult.
 2. Enroll the junior in a play session and accept → debit should appear on the **parent's** wallet, not the junior's.
 3. Cancel the accepted play session → refund should go to the **parent's** wallet.
@@ -121,6 +125,7 @@ Currently when adding credit/debit/refund, the member combobox shows all members
 
 > [!NOTE]
 > **What to show for junior's balance in the UI?** Options:
+>
 > - A) Show `—` (no wallet) with a tooltip saying "Shared with parent"
 > - B) Show the parent's wallet balance on the junior's row (could be confusing if parent has other juniors)
 > - C) Hide balance column for juniors entirely

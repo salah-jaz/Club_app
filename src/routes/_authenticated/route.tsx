@@ -116,23 +116,23 @@ function Layout() {
       applyCustomTheme(hex, secHex, isLight);
     } else {
       const root = document.documentElement;
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--ring');
-      root.style.removeProperty('--sidebar-primary');
-      root.style.removeProperty('--sidebar-ring');
-      root.style.removeProperty('--violet');
-      root.style.removeProperty('--input-border-focus');
-      root.style.removeProperty('--accent-foreground');
-      root.style.removeProperty('--success-text');
-      root.style.removeProperty('--success-color');
-      root.style.removeProperty('--border-accent');
-      root.style.removeProperty('--violet-dim');
-      root.style.removeProperty('--bg-glass');
-      root.style.removeProperty('--gold');
-      root.style.removeProperty('--gold-dim');
-      root.style.removeProperty('--success-bg');
-      root.style.removeProperty('--success-border');
-      
+      root.style.removeProperty("--primary");
+      root.style.removeProperty("--ring");
+      root.style.removeProperty("--sidebar-primary");
+      root.style.removeProperty("--sidebar-ring");
+      root.style.removeProperty("--violet");
+      root.style.removeProperty("--input-border-focus");
+      root.style.removeProperty("--accent-foreground");
+      root.style.removeProperty("--success-text");
+      root.style.removeProperty("--success-color");
+      root.style.removeProperty("--border-accent");
+      root.style.removeProperty("--violet-dim");
+      root.style.removeProperty("--bg-glass");
+      root.style.removeProperty("--gold");
+      root.style.removeProperty("--gold-dim");
+      root.style.removeProperty("--success-bg");
+      root.style.removeProperty("--success-border");
+
       document.documentElement.classList.add(`theme-${colorTheme}`);
     }
   };
@@ -217,7 +217,7 @@ function Layout() {
     "admin-management": "Club Admin",
     "email-templates": "Email Templates",
   };
-  const screenName = routeNames[pathPart] || (pathPart.charAt(0).toUpperCase() + pathPart.slice(1));
+  const screenName = routeNames[pathPart] || pathPart.charAt(0).toUpperCase() + pathPart.slice(1);
 
   const isPageLoading = isNavigating || isModuleSyncing;
 
@@ -226,7 +226,6 @@ function Layout() {
       <div className="min-h-dvh min-h-screen flex w-full bg-background text-foreground">
         <AppSidebar />
         <SidebarInset className="bg-background relative overflow-hidden flex-1">
-
           {/* Route-level top progress bar — slim 2px bar at absolute top */}
           <AnimatePresence>
             {(loading || isPageLoading) && (
@@ -243,7 +242,9 @@ function Layout() {
               <div className="breadcrumbs text-[13px] font-normal text-muted-foreground/60 flex items-center gap-2 min-w-0 truncate">
                 <span className="hidden sm:inline">{appName}</span>
                 <span className="breadcrumbs-separator opacity-40 hidden sm:inline">/</span>
-                <span className="breadcrumbs-current text-muted-foreground truncate">{screenName}</span>
+                <span className="breadcrumbs-current text-muted-foreground truncate">
+                  {screenName}
+                </span>
               </div>
             </div>
 
@@ -271,7 +272,10 @@ function Layout() {
               </motion.button>
 
               {/* Live clock — hidden on small screens to reduce chrome crowding */}
-              <div className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight hidden md:block" aria-hidden="true">
+              <div
+                className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight hidden md:block"
+                aria-hidden="true"
+              >
                 {timeStr}
               </div>
             </div>

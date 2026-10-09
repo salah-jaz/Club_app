@@ -10,12 +10,12 @@ use App\Models\TrainingDate;
 use App\Models\TrainingUpdateRequest;
 use App\Models\Transaction;
 use App\Models\Location;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TrainingUpdateRequestTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     private User $admin;
     private Member $member;
@@ -23,6 +23,8 @@ class TrainingUpdateRequestTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        \Carbon\Carbon::setTestNow('2026-07-01 10:00:00');
 
         Location::firstOrCreate(['name' => 'Main Hall']);
         \App\Models\Grade::firstOrCreate(['name' => 'A'], ['type' => 'adult']);

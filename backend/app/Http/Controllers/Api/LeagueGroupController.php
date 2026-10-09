@@ -52,11 +52,14 @@ class LeagueGroupController extends Controller
 
         if ($request->has('memberIds') && !empty($request->memberIds)) {
             $invalidMembers = Member::whereIn('id', $request->memberIds)
-                ->where('member_type', '!=', $request->groupType)
+                ->where(function ($query) use ($request) {
+                    $query->where('member_type', '!=', $request->groupType)
+                          ->orWhere('membership', false);
+                })
                 ->exists();
             
             if ($invalidMembers) {
-                return response()->json(['message' => 'All members must belong to the selected group type.'], 422);
+                return response()->json(['message' => 'All members must be club members and belong to the selected group type.'], 422);
             }
         }
 
@@ -101,11 +104,14 @@ class LeagueGroupController extends Controller
 
         if ($request->has('memberIds') && !empty($request->memberIds)) {
             $invalidMembers = Member::whereIn('id', $request->memberIds)
-                ->where('member_type', '!=', $currentGroupType)
+                ->where(function ($query) use ($currentGroupType) {
+                    $query->where('member_type', '!=', $currentGroupType)
+                          ->orWhere('membership', false);
+                })
                 ->exists();
             
             if ($invalidMembers) {
-                return response()->json(['message' => 'All members must belong to the selected group type.'], 422);
+                return response()->json(['message' => 'All members must be club members and belong to the selected group type.'], 422);
             }
         }
 

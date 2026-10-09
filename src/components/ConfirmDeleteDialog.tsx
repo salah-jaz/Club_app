@@ -72,9 +72,7 @@ function NameList({ title, names }: { title: string; names: string[] }) {
             · {name}
           </li>
         ))}
-        {extra > 0 && (
-          <li className="text-[11px] text-[#8A8A98]">· and {extra} more…</li>
-        )}
+        {extra > 0 && <li className="text-[11px] text-[#8A8A98]">· and {extra} more…</li>}
       </ul>
     </div>
   );
@@ -102,13 +100,15 @@ export function ConfirmDeleteDialog({ request, onOpenChange }: Props) {
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="text-[#8A8A98] text-left space-y-3">
-              {request && <p className="text-[13px] leading-relaxed">{buildDescription(request)}</p>}
+              {request && (
+                <p className="text-[13px] leading-relaxed">{buildDescription(request)}</p>
+              )}
 
               {hasActivityLinks && (
                 <div className="rounded-lg border border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.10)] p-3 space-y-3">
                   <p className="text-[12px] font-medium text-[#FBBF24]">
-                    This member is linked to active play schedules and/or trainings.
-                    Deleting will remove their invitations and enrollments.
+                    This member is linked to active play schedules and/or trainings. Deleting will
+                    remove their invitations and enrollments.
                   </p>
                   <NameList title="Play schedules" names={scheduleNames} />
                   <NameList title="Trainings" names={trainingNames} />
@@ -122,10 +122,7 @@ export function ConfirmDeleteDialog({ request, onOpenChange }: Props) {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="gap-2 sm:gap-2">
-          <AlertDialogCancel
-            disabled={busy}
-            className="btn-premium-outline cursor-pointer mt-0"
-          >
+          <AlertDialogCancel disabled={busy} className="btn-premium-outline cursor-pointer mt-0">
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction
@@ -143,7 +140,7 @@ export function ConfirmDeleteDialog({ request, onOpenChange }: Props) {
               }
             }}
           >
-            {busy ? "Deleting…" : request?.confirmLabel ?? "Delete"}
+            {busy ? "Deleting…" : (request?.confirmLabel ?? "Delete")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

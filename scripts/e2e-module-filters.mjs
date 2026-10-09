@@ -236,7 +236,10 @@ async function loginUi(page) {
   await page.goto(`${APP}/login`, { waitUntil: "networkidle" });
   await page.locator('input[type="email"], input[name="email"]').first().fill(ADMIN.email);
   await page.locator('input[type="password"]').first().fill(ADMIN.password);
-  await page.getByRole("button", { name: /sign in|log in|login/i }).first().click();
+  await page
+    .getByRole("button", { name: /sign in|log in|login/i })
+    .first()
+    .click();
   await page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 20000 });
   await page.waitForTimeout(1500);
 }
@@ -250,7 +253,10 @@ async function selectByLabel(scope, labelText, optionText) {
 }
 
 async function fillLabeledInput(page, labelText, value) {
-  const label = page.locator("label").filter({ hasText: new RegExp(`^${labelText}$`, "i") }).first();
+  const label = page
+    .locator("label")
+    .filter({ hasText: new RegExp(`^${labelText}$`, "i") })
+    .first();
   const field = label.locator("xpath=following-sibling::*[1]").locator("input, textarea").first();
   if (await field.count()) {
     await field.fill(value);
@@ -293,13 +299,18 @@ async function expectNotVisibleOrEmpty(page, text, name) {
   // After filtering away, either text gone or empty-state shown
   await page.waitForTimeout(600);
   const count = await page.getByText(text, { exact: false }).count();
-  const empty = await page.getByText(/no matching|no .*found|no entries|no transactions|try adjusting/i).count();
+  const empty = await page
+    .getByText(/no matching|no .*found|no entries|no transactions|try adjusting/i)
+    .count();
   if (count === 0 || empty > 0) {
     pass(name, count === 0 ? "filtered out" : "empty state");
     return true;
   }
   // Still visible — might be in sidebar; check main content only
-  const mainCount = await page.locator("main, [role='main'], .flex-1").getByText(text, { exact: false }).count();
+  const mainCount = await page
+    .locator("main, [role='main'], .flex-1")
+    .getByText(text, { exact: false })
+    .count();
   if (mainCount === 0) {
     pass(name, "not in main");
     return true;
@@ -369,7 +380,10 @@ async function downloadReport(page, context, opts = {}) {
   }
 
   // Wait for dialog to close after successful CSV export, then reopen for PDF
-  await page.getByRole("dialog").waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
+  await page
+    .getByRole("dialog")
+    .waitFor({ state: "hidden", timeout: 8000 })
+    .catch(() => {});
   await page.waitForTimeout(400);
 
   dialog = await openAndConfigure();
@@ -395,8 +409,16 @@ async function downloadReport(page, context, opts = {}) {
     }
   }
 
-  await page.getByRole("dialog").waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
-  if (await page.getByRole("dialog").isVisible().catch(() => false)) {
+  await page
+    .getByRole("dialog")
+    .waitFor({ state: "hidden", timeout: 5000 })
+    .catch(() => {});
+  if (
+    await page
+      .getByRole("dialog")
+      .isVisible()
+      .catch(() => false)
+  ) {
     await page.keyboard.press("Escape").catch(() => {});
   }
   await page.waitForTimeout(300);
@@ -413,7 +435,11 @@ async function testMembers(page, context, seed, run) {
   await clearFilters(page);
   try {
     await selectByLabel(page, "Type", "Junior");
-    await expectVisibleText(page, seed.junior.lastName || `Junior${seed.stamp}`, "Members type=Junior");
+    await expectVisibleText(
+      page,
+      seed.junior.lastName || `Junior${seed.stamp}`,
+      "Members type=Junior",
+    );
   } catch (e) {
     fail("Members type filter", String(e.message || e));
   }
@@ -498,7 +524,11 @@ async function testTrainings(page, context, seed, run) {
   try {
     await selectByLabel(page, "Status", "Released");
     // seeded training is draft — expect empty or no match
-    await expectNotVisibleOrEmpty(page, seed.searchTraining, "Trainings status=Released hides draft");
+    await expectNotVisibleOrEmpty(
+      page,
+      seed.searchTraining,
+      "Trainings status=Released hides draft",
+    );
   } catch (e) {
     fail("Trainings released filter", String(e.message || e));
   }
@@ -727,11 +757,18 @@ async function insertViaUi(page, seed) {
     if (await done.count()) await done.first().click();
     await page.keyboard.press("Escape").catch(() => {});
     await page.waitForTimeout(300);
-    const nameInput = page.locator("label").filter({ hasText: /session name/i }).locator("..").locator("input");
+    const nameInput = page
+      .locator("label")
+      .filter({ hasText: /session name/i })
+      .locator("..")
+      .locator("input");
     if (await nameInput.count()) {
       await nameInput.fill(`UI Schedule ${stamp}`);
     }
-    await page.getByRole("button", { name: /create|save|submit/i }).first().click();
+    await page
+      .getByRole("button", { name: /create|save|submit/i })
+      .first()
+      .click();
     await page.waitForTimeout(2000);
     await page.goto(`${APP}/schedules`, { waitUntil: "networkidle" });
     await setSearch(page, `UI Schedule ${stamp}`);
@@ -746,7 +783,10 @@ async function insertViaUi(page, seed) {
   try {
     await page.goto(`${APP}/trainings/new`, { waitUntil: "networkidle" });
     await page.waitForTimeout(500);
-    await page.getByRole("button", { name: /select date/i }).first().click({ timeout: 8000 });
+    await page
+      .getByRole("button", { name: /select date/i })
+      .first()
+      .click({ timeout: 8000 });
     await page.waitForTimeout(400);
     const nextMonth2 = page.getByRole("button", { name: /next month|go to next/i });
     if (await nextMonth2.count()) await nextMonth2.first().click();
@@ -755,7 +795,10 @@ async function insertViaUi(page, seed) {
     const preset2 = page.getByRole("button", { name: "07:00 PM" });
     if (await preset2.count()) await preset2.click();
     await page.keyboard.press("Escape").catch(() => {});
-    const nameField = page.locator("input").filter({ hasNot: page.locator("[type=hidden]") }).nth(0);
+    const nameField = page
+      .locator("input")
+      .filter({ hasNot: page.locator("[type=hidden]") })
+      .nth(0);
     // Prefer labeled program name
     try {
       await fillLabeledInput(page, "Program name", `UI Training ${stamp}`);
@@ -766,7 +809,10 @@ async function insertViaUi(page, seed) {
         /* ignore */
       }
     }
-    await page.getByRole("button", { name: /create|save|submit/i }).first().click();
+    await page
+      .getByRole("button", { name: /create|save|submit/i })
+      .first()
+      .click();
     await page.waitForTimeout(2000);
     pass("UI training create", "attempted");
   } catch (e) {
@@ -792,10 +838,12 @@ async function runAllPasses(page, context, seed) {
         await fn(page, context, seed, run);
       } catch (e) {
         fail(`${name} fatal (run ${run})`, String(e.message || e).slice(0, 200));
-        await page.screenshot({
-          path: join(DOWNLOAD_DIR, `fail-${name}-r${run}.png`),
-          fullPage: true,
-        }).catch(() => {});
+        await page
+          .screenshot({
+            path: join(DOWNLOAD_DIR, `fail-${name}-r${run}.png`),
+            fullPage: true,
+          })
+          .catch(() => {});
         await page.keyboard.press("Escape").catch(() => {});
       }
     }
@@ -822,7 +870,9 @@ async function main() {
     await runAllPasses(page, context, seed);
   } catch (e) {
     fail("Fatal", String(e.stack || e));
-    await page.screenshot({ path: join(DOWNLOAD_DIR, "fatal.png"), fullPage: true }).catch(() => {});
+    await page
+      .screenshot({ path: join(DOWNLOAD_DIR, "fatal.png"), fullPage: true })
+      .catch(() => {});
   } finally {
     await browser.close();
   }

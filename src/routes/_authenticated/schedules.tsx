@@ -8,7 +8,19 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
 import { fmtDateTime } from "@/lib/format";
-import { Plus, MapPin, Calendar, Eye, Pencil, Trash2, Send, Shuffle, LayoutGrid, List, Trophy } from "lucide-react";
+import {
+  Plus,
+  MapPin,
+  Calendar,
+  Eye,
+  Pencil,
+  Trash2,
+  Send,
+  Shuffle,
+  LayoutGrid,
+  List,
+  Trophy,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
@@ -30,14 +42,8 @@ import {
   exportSchedulesReport,
   filterSchedulesForReport,
 } from "@/lib/module-reports";
-import {
-  ConfirmDeleteDialog,
-  type ConfirmDeleteRequest,
-} from "@/components/ConfirmDeleteDialog";
-import {
-  ConfirmActionDialog,
-  type ConfirmActionRequest,
-} from "@/components/ConfirmActionDialog";
+import { ConfirmDeleteDialog, type ConfirmDeleteRequest } from "@/components/ConfirmDeleteDialog";
+import { ConfirmActionDialog, type ConfirmActionRequest } from "@/components/ConfirmActionDialog";
 
 export const Route = createFileRoute("/_authenticated/schedules")({ component: SchedulesLayout });
 
@@ -110,9 +116,7 @@ export function isScheduleDeletable(
   playInvites: { scheduleId: string; status: string }[],
 ): boolean {
   if (sch.status === "cancelled") return true;
-  const hasAccepted = playInvites.some(
-    (i) => i.scheduleId === sch.id && i.status === "accepted",
-  );
+  const hasAccepted = playInvites.some((i) => i.scheduleId === sch.id && i.status === "accepted");
   return !hasAccepted;
 }
 
@@ -123,7 +127,10 @@ function SchedulesList() {
   const canDeleteSchedule = useCan("schedules.delete");
   const locations = useStore((st) => st.locations);
   const holidays = useStore((st) => st.holidays);
-  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-schedules", "list");
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode(
+    "clubapp-view-mode-schedules",
+    "list",
+  );
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
   const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -143,7 +150,7 @@ function SchedulesList() {
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
@@ -170,7 +177,9 @@ function SchedulesList() {
           setSelectedIds([]);
           toast.success("Selected schedules deleted successfully");
         } catch (error: unknown) {
-          toast.error(error instanceof Error ? error.message : "Failed to delete selected schedules.");
+          toast.error(
+            error instanceof Error ? error.message : "Failed to delete selected schedules.",
+          );
           throw error;
         }
       },
@@ -266,24 +275,17 @@ function SchedulesList() {
     });
   };
 
-  const {
-    search,
-    filters,
-    sortBy,
-    setSearch,
-    setFilter,
-    clearFilters,
-    setSortBy,
-  } = useSearchFilters(
-    {
-      status: "all",
-      location: "all",
-      date: "all",
-      courts: "all",
-      capacity: "all",
-    },
-    "date-asc",
-  );
+  const { search, filters, sortBy, setSearch, setFilter, clearFilters, setSortBy } =
+    useSearchFilters(
+      {
+        status: "all",
+        location: "all",
+        date: "all",
+        courts: "all",
+        capacity: "all",
+      },
+      "date-asc",
+    );
 
   const locationList = useMemo(() => {
     const fromSchedules = s.schedules.map((sch) => sch.location).filter(Boolean);
@@ -429,7 +431,9 @@ function SchedulesList() {
             <ReportTriggerButton onClick={openSchedulesReport} />
             {canCreateSchedule ? (
               <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
-                <Link to="/schedules/new"><Plus className="size-4" /> New schedule</Link>
+                <Link to="/schedules/new">
+                  <Plus className="size-4" /> New schedule
+                </Link>
               </Button>
             ) : null}
           </div>
@@ -509,7 +513,10 @@ function SchedulesList() {
           <div className="text-sm text-[#8FA89F] -mt-2 mb-4">
             Showing <span className="text-[#EEF2F0] font-semibold">{processed.length}</span>
             {processed.length !== s.schedules.length && (
-              <> of <span className="text-[#EEF2F0] font-semibold">{s.schedules.length}</span></>
+              <>
+                {" "}
+                of <span className="text-[#EEF2F0] font-semibold">{s.schedules.length}</span>
+              </>
             )}{" "}
             schedules
           </div>
@@ -542,8 +549,8 @@ function SchedulesList() {
                     processed.length > 0 && processed.every((sch) => selectedIds.includes(sch.id))
                       ? true
                       : processed.some((sch) => selectedIds.includes(sch.id))
-                      ? "indeterminate"
-                      : false
+                        ? "indeterminate"
+                        : false
                   }
                   onCheckedChange={(checked) => handleSelectAll(!!checked)}
                 />
@@ -562,16 +569,18 @@ function SchedulesList() {
 
             <div className="flex items-center gap-3">
               {canDeleteSchedule && (
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={selectedIds.length === 0}
-                onClick={handleBulkDeleteClick}
-                className="btn-premium-danger h-8 px-3 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Trash2 className="size-3.5" />
-                <span>Delete Selected{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}</span>
-              </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={selectedIds.length === 0}
+                  onClick={handleBulkDeleteClick}
+                  className="btn-premium-danger h-8 px-3 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="size-3.5" />
+                  <span>
+                    Delete Selected{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+                  </span>
+                </Button>
               )}
 
               <div className="flex items-center gap-1 bg-[#131916] border border-[rgba(255,255,255,0.06)] p-0.5 rounded-lg shrink-0">
@@ -580,7 +589,9 @@ function SchedulesList() {
                   onClick={() => setViewMode("grid")}
                   className={cn(
                     "p-1.5 rounded-md transition-all cursor-pointer",
-                    viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                    viewMode === "grid"
+                      ? "bg-[#1A2120] text-[#2FD9A0]"
+                      : "text-[#8FA89F] hover:text-[#EEF2F0]",
                   )}
                   title="Grid view"
                 >
@@ -592,7 +603,9 @@ function SchedulesList() {
                   disabled={isMobile}
                   className={cn(
                     "p-1.5 rounded-md transition-all",
-                    viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                    viewMode === "list"
+                      ? "bg-[#1A2120] text-[#2FD9A0]"
+                      : "text-[#8FA89F] hover:text-[#EEF2F0]",
                     isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
                   )}
                   title={isMobile ? "List view available on larger screens" : "List view"}
@@ -620,21 +633,33 @@ function SchedulesList() {
                   <motion.div
                     key={sch.id}
                     variants={staggerItem}
-                    whileHover={{ y: -2, boxShadow: "0 8px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(16,185,129,0.08)" }}
+                    whileHover={{
+                      y: -2,
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(16,185,129,0.08)",
+                    }}
                     transition={{ duration: 0.18 }}
                   >
-                    <Card className={cn(
-                      "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200",
-                      selectedIds.includes(sch.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
-                    )}>
+                    <Card
+                      className={cn(
+                        "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200",
+                        selectedIds.includes(sch.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]",
+                      )}
+                    >
                       <CardContent className="p-4 px-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex items-center pr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="flex items-center pr-1 shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <Checkbox
                             checked={selectedIds.includes(sch.id)}
                             onCheckedChange={() => handleToggleSelect(sch.id)}
                             disabled={!isDeletable}
                             aria-label={`Select ${sch.name}`}
-                            title={!isDeletable ? "Cannot select schedule with accepted invitations for deletion" : undefined}
+                            title={
+                              !isDeletable
+                                ? "Cannot select schedule with accepted invitations for deletion"
+                                : undefined
+                            }
                           />
                         </div>
                         <div className="flex-[2] space-y-1.5 min-w-[200px]">
@@ -657,7 +682,9 @@ function SchedulesList() {
                           </div>
                           <div className="flex items-center gap-1.5 type-helper">
                             <Calendar className="size-3.5 text-[#5A7068]" />
-                            <span className="text-[#C4D4CF] font-medium">{fmtDateTime(sch.date)}</span>
+                            <span className="text-[#C4D4CF] font-medium">
+                              {fmtDateTime(sch.date)}
+                            </span>
                           </div>
                           <div className="flex items-center gap-1.5 text-xs text-[#8FA89F]">
                             <MapPin className="size-3.5 text-[#5A7068]" />
@@ -668,14 +695,20 @@ function SchedulesList() {
                         <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
                         <div className="flex-1 space-y-1.5">
-                          <span className="text-[11px] font-semibold tracking-wider text-[var(--text-secondary,#8FA89F)] uppercase block">Courts</span>
-                          <span className="type-mono-value text-[20px] font-bold leading-none">{sch.courts}</span>
+                          <span className="text-[11px] font-semibold tracking-wider text-[var(--text-secondary,#8FA89F)] uppercase block">
+                            Courts
+                          </span>
+                          <span className="type-mono-value text-[20px] font-bold leading-none">
+                            {sch.courts}
+                          </span>
                         </div>
 
                         <div className="hidden md:block w-[1px] h-8 bg-[rgba(255,255,255,0.06)]" />
 
                         <div className="flex-1 space-y-1.5">
-                          <span className="text-[11px] font-semibold tracking-wider text-[var(--text-secondary,#8FA89F)] uppercase block">Players</span>
+                          <span className="text-[11px] font-semibold tracking-wider text-[var(--text-secondary,#8FA89F)] uppercase block">
+                            Players
+                          </span>
                           <span className="type-mono-value text-[20px] font-bold leading-none">
                             {accepted}/{maxPlayers}
                           </span>
@@ -692,23 +725,50 @@ function SchedulesList() {
                         <div className="flex-1 flex flex-col md:items-end gap-2">
                           <StatusBadge status={sch.status} />
                           <div className="flex items-center gap-1.5 mt-1 md:mt-0">
-                            <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "published" || sch.status === "closed" || sch.status === "cancelled" ? "View Results" : "Manage"}>
+                            <Button
+                              asChild
+                              size="icon"
+                              variant="outline"
+                              className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer"
+                              title={
+                                sch.status === "rotated" ||
+                                sch.status === "published" ||
+                                sch.status === "closed" ||
+                                sch.status === "cancelled"
+                                  ? "View Results"
+                                  : "Manage"
+                              }
+                            >
                               <Link to="/schedules/$id" params={{ id: sch.id }}>
                                 <Eye className="size-4" />
                               </Link>
                             </Button>
-                            {canEditSchedule && sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && sch.status !== "cancelled" && (
-                              <Button asChild size="icon" variant="outline" className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer" title="Edit Schedule">
-                                <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
-                                  <Pencil className="size-4" />
-                                </Link>
-                              </Button>
-                            )}
+                            {canEditSchedule &&
+                              sch.status !== "rotated" &&
+                              sch.status !== "published" &&
+                              sch.status !== "closed" &&
+                              sch.status !== "cancelled" && (
+                                <Button
+                                  asChild
+                                  size="icon"
+                                  variant="outline"
+                                  className="btn-premium-outline h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer"
+                                  title="Edit Schedule"
+                                >
+                                  <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
+                                    <Pencil className="size-4" />
+                                  </Link>
+                                </Button>
+                              )}
                             <Button
                               size="icon"
                               variant="destructive"
                               className="btn-premium-danger h-11 w-11 md:h-8 md:w-8 p-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                              title={isDeletable ? "Delete Schedule" : "Cannot delete schedule with accepted invitations (cancel schedule first)"}
+                              title={
+                                isDeletable
+                                  ? "Delete Schedule"
+                                  : "Cannot delete schedule with accepted invitations (cancel schedule first)"
+                              }
                               disabled={!isDeletable}
                               onClick={() => requestDeleteSchedule(sch)}
                             >
@@ -759,13 +819,18 @@ function SchedulesList() {
                   <motion.div
                     key={sch.id}
                     variants={staggerItem}
-                    whileHover={{ y: -4, boxShadow: "0 14px 36px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.10)" }}
+                    whileHover={{
+                      y: -4,
+                      boxShadow: "0 14px 36px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.10)",
+                    }}
                     transition={{ duration: 0.18 }}
                   >
-                    <Card className={cn(
-                      "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200 h-full flex flex-col justify-between",
-                      selectedIds.includes(sch.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]"
-                    )}>
+                    <Card
+                      className={cn(
+                        "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-colors duration-200 h-full flex flex-col justify-between",
+                        selectedIds.includes(sch.id) && "border-[#10B981]/50 bg-[#10B981]/[0.02]",
+                      )}
+                    >
                       <CardContent className="p-5 flex flex-col justify-between h-full space-y-4">
                         <div>
                           <div className="flex items-start justify-between gap-3">
@@ -776,32 +841,38 @@ function SchedulesList() {
                                   onCheckedChange={() => handleToggleSelect(sch.id)}
                                   disabled={!isDeletable}
                                   aria-label={`Select ${sch.name}`}
-                                  title={!isDeletable ? "Cannot select schedule with accepted invitations for deletion" : undefined}
+                                  title={
+                                    !isDeletable
+                                      ? "Cannot select schedule with accepted invitations for deletion"
+                                      : undefined
+                                  }
                                 />
                               </div>
                               <div className="min-w-0 space-y-1.5 flex-1">
-                                <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">{sch.name}</div>
+                                <div className="font-bold text-[15.5px] text-[#EEF2F0] truncate">
+                                  {sch.name}
+                                </div>
                                 <div className="flex flex-wrap gap-1.5">
-                                {sch.isLeagueMatch && (
-                                  <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
-                                    <Trophy className="size-3" />
-                                    Group
-                                  </span>
-                                )}
-                                {(() => {
-                                  const iso = scheduleDateIso(sch.date);
-                                  return iso && (holidays ?? []).includes(iso) ? (
-                                    <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
-                                      Holiday
+                                  {sch.isLeagueMatch && (
+                                    <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
+                                      <Trophy className="size-3" />
+                                      Group
                                     </span>
-                                  ) : null;
-                                })()}
-                               </div>
+                                  )}
+                                  {(() => {
+                                    const iso = scheduleDateIso(sch.date);
+                                    return iso && (holidays ?? []).includes(iso) ? (
+                                      <span className="inline-flex items-center rounded-md border border-[#F59E0B]/35 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#FBBF24] uppercase">
+                                        Holiday
+                                      </span>
+                                    ) : null;
+                                  })()}
+                                </div>
                               </div>
                             </div>
                             <StatusBadge status={sch.status} />
                           </div>
-                          
+
                           <div className="mt-3 space-y-1.5">
                             <div className="flex items-center gap-1.5 text-xs text-[#C4D4CF]">
                               <Calendar className="size-3.5 text-[#5A7068]" />
@@ -817,12 +888,20 @@ function SchedulesList() {
 
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
-                              <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Courts</span>
-                              <span className="type-mono-value text-[16px] font-bold">{sch.courts}</span>
+                              <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">
+                                Courts
+                              </span>
+                              <span className="type-mono-value text-[16px] font-bold">
+                                {sch.courts}
+                              </span>
                             </div>
                             <div className="space-y-1">
-                              <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">Players</span>
-                              <span className="type-mono-value text-[16px] font-bold">{accepted}/{maxPlayers}</span>
+                              <span className="text-[10px] font-semibold tracking-wider text-[#8FA89F] uppercase block">
+                                Players
+                              </span>
+                              <span className="type-mono-value text-[16px] font-bold">
+                                {accepted}/{maxPlayers}
+                              </span>
                             </div>
                           </div>
 
@@ -835,23 +914,50 @@ function SchedulesList() {
                         </div>
 
                         <div className="flex items-center gap-1.5 pt-2 w-full">
-                          <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title={sch.status === "rotated" || sch.status === "published" || sch.status === "closed" || sch.status === "cancelled" ? "View Results" : "Manage"}>
+                          <Button
+                            asChild
+                            size="icon"
+                            variant="outline"
+                            className="btn-premium-outline h-8 w-8 p-0 cursor-pointer"
+                            title={
+                              sch.status === "rotated" ||
+                              sch.status === "published" ||
+                              sch.status === "closed" ||
+                              sch.status === "cancelled"
+                                ? "View Results"
+                                : "Manage"
+                            }
+                          >
                             <Link to="/schedules/$id" params={{ id: sch.id }}>
                               <Eye className="size-4" />
                             </Link>
                           </Button>
-                          {canEditSchedule && sch.status !== "rotated" && sch.status !== "published" && sch.status !== "closed" && sch.status !== "cancelled" && (
-                            <Button asChild size="icon" variant="outline" className="btn-premium-outline h-8 w-8 p-0 cursor-pointer" title="Edit Schedule">
-                              <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
-                                <Pencil className="size-4" />
-                              </Link>
-                            </Button>
-                          )}
+                          {canEditSchedule &&
+                            sch.status !== "rotated" &&
+                            sch.status !== "published" &&
+                            sch.status !== "closed" &&
+                            sch.status !== "cancelled" && (
+                              <Button
+                                asChild
+                                size="icon"
+                                variant="outline"
+                                className="btn-premium-outline h-8 w-8 p-0 cursor-pointer"
+                                title="Edit Schedule"
+                              >
+                                <Link to="/schedules/$id/edit" params={{ id: sch.id }}>
+                                  <Pencil className="size-4" />
+                                </Link>
+                              </Button>
+                            )}
                           <Button
                             size="icon"
                             variant="destructive"
                             className="btn-premium-danger h-8 w-8 p-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                            title={isDeletable ? "Delete Schedule" : "Cannot delete schedule with accepted invitations (cancel schedule first)"}
+                            title={
+                              isDeletable
+                                ? "Delete Schedule"
+                                : "Cannot delete schedule with accepted invitations (cancel schedule first)"
+                            }
                             disabled={!isDeletable}
                             onClick={() => requestDeleteSchedule(sch)}
                           >

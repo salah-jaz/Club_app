@@ -7,13 +7,31 @@ import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fmtDate, fmtMoney } from "@/lib/format";
@@ -63,7 +81,13 @@ function defaultApproveOptions(defaultGrade: string = "B"): ApproveOptions {
 /** Inline spinner SVG for button loading states */
 function BtnSpinner() {
   return (
-    <svg className="animate-spin size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <svg
+      className="animate-spin size-3.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+    >
       <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
       <path d="M12 2a10 10 0 0 1 10 10" />
     </svg>
@@ -77,7 +101,9 @@ function Approvals() {
   const adultGrades = useStore((st) => st.adultGrades);
   const juniorGrades = useStore((st) => st.juniorGrades);
   const pendingU = s.users.filter((u) => u.status === "created");
-  const pendingC = s.creditRequests.filter((c) => (c.type || "credit") === "credit" && c.status === "created");
+  const pendingC = s.creditRequests.filter(
+    (c) => (c.type || "credit") === "credit" && c.status === "created",
+  );
   const pendingJuniors = s.members.filter(
     (m) => m.memberType === "junior" && m.status === "pending",
   );
@@ -175,7 +201,11 @@ function Approvals() {
     if (m.parentMemberId) {
       const p = s.members.find((x) => x.id === m.parentMemberId);
       if (p) {
-        if ((p as any).address && typeof (p as any).address === "string" && (p as any).address.trim()) {
+        if (
+          (p as any).address &&
+          typeof (p as any).address === "string" &&
+          (p as any).address.trim()
+        ) {
           return (p as any).address.trim();
         }
         if (p.userId) {
@@ -221,7 +251,6 @@ function Approvals() {
       transition: { delay: i * 0.05, duration: 0.18, ease: "easeOut" as const },
     }),
   } satisfies Variants;
-
 
   return (
     <div className="space-y-6">
@@ -277,8 +306,12 @@ function Approvals() {
                               <p className="font-bold text-[#EEF2F0] text-[14px] truncate">
                                 {u.firstName} {u.lastName}
                               </p>
-                              <p className="text-[12px] text-[#C4D4CF] truncate mt-0.5">{u.email}</p>
-                              <p className="text-[12px] text-[#8A8A98] font-mono mt-1">{u.mobile}</p>
+                              <p className="text-[12px] text-[#C4D4CF] truncate mt-0.5">
+                                {u.email}
+                              </p>
+                              <p className="text-[12px] text-[#8A8A98] font-mono mt-1">
+                                {u.mobile}
+                              </p>
                               <p className="text-[12px] text-[#C4D4CF] mt-1 truncate">
                                 <span className="text-[#8A8A98]">Address: </span>
                                 {u.address && u.address.trim() ? u.address.trim() : "N/A"}
@@ -286,7 +319,9 @@ function Approvals() {
                             </div>
                             <StatusBadge status={u.status} />
                           </div>
-                          <p className="text-[11px] text-[#8A8A98]">Registered {fmtDate(u.createdAt)}</p>
+                          <p className="text-[11px] text-[#8A8A98]">
+                            Registered {fmtDate(u.createdAt)}
+                          </p>
                           <div className="flex flex-wrap gap-2">
                             <Button
                               size="sm"
@@ -320,68 +355,80 @@ function Approvals() {
                     </div>
                   }
                   desktop={
-                <Table>
-                  <TableHeader className="bg-[#0C0F0E]/60">
-                    <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                      <TableHead className="type-table-head h-11 px-5">Name</TableHead>
-                      <TableHead className="type-table-head h-11">Email</TableHead>
-                      <TableHead className="type-table-head h-11">Mobile</TableHead>
-                      <TableHead className="type-table-head h-11">Address</TableHead>
-                      <TableHead className="type-table-head h-11">Registered</TableHead>
-                      <TableHead className="type-table-head h-11">Status</TableHead>
-                      <TableHead className="type-table-head h-11 text-right px-5">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingU.map((u, i) => (
-                      <motion.tr
-                        key={u.id}
-                        custom={i}
-                        variants={staggerRow}
-                        initial="hidden"
-                        animate="show"
-                        className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
-                      >
-                        <TableCell className="font-bold text-[#EEF2F0] text-[14px] type-table-body px-5 py-4">
-                          {u.firstName} {u.lastName}
-                        </TableCell>
-                        <TableCell className="type-table-body text-[#C4D4CF]">{u.email}</TableCell>
-                        <TableCell className="type-mono-value text-[#EEF2F0]">{u.mobile}</TableCell>
-                        <TableCell className="type-table-body text-[#C4D4CF]">{u.address && u.address.trim() ? u.address.trim() : "N/A"}</TableCell>
-                        <TableCell className="type-mono-value text-[#EEF2F0]">{fmtDate(u.createdAt)}</TableCell>
-                        <TableCell className="py-4"><StatusBadge status={u.status} /></TableCell>
-                        <TableCell className="text-right px-5 py-4 space-x-2">
-                          <Button
-                            size="sm"
-                            className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer min-w-[70px]"
-                            onClick={() => openApprove(u)}
+                    <Table>
+                      <TableHeader className="bg-[#0C0F0E]/60">
+                        <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                          <TableHead className="type-table-head h-11 px-5">Name</TableHead>
+                          <TableHead className="type-table-head h-11">Email</TableHead>
+                          <TableHead className="type-table-head h-11">Mobile</TableHead>
+                          <TableHead className="type-table-head h-11">Address</TableHead>
+                          <TableHead className="type-table-head h-11">Registered</TableHead>
+                          <TableHead className="type-table-head h-11">Status</TableHead>
+                          <TableHead className="type-table-head h-11 text-right px-5">
+                            Actions
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingU.map((u, i) => (
+                          <motion.tr
+                            key={u.id}
+                            custom={i}
+                            variants={staggerRow}
+                            initial="hidden"
+                            animate="show"
+                            className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
                           >
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={rejectingUserId === u.id}
-                            className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer min-w-[60px]"
-                            onClick={async () => {
-                              setRejectingUserId(u.id);
-                              try {
-                                await s.rejectUser(u.id);
-                                toast.success(`${u.firstName} rejected`);
-                              } catch (error: any) {
-                                toast.error(error.message || "Failed to reject user.");
-                              } finally {
-                                setRejectingUserId(null);
-                              }
-                            }}
-                          >
-                            {rejectingUserId === u.id ? <BtnSpinner /> : "Reject"}
-                          </Button>
-                        </TableCell>
-                      </motion.tr>
-                    ))}
-                  </TableBody>
-                </Table>
+                            <TableCell className="font-bold text-[#EEF2F0] text-[14px] type-table-body px-5 py-4">
+                              {u.firstName} {u.lastName}
+                            </TableCell>
+                            <TableCell className="type-table-body text-[#C4D4CF]">
+                              {u.email}
+                            </TableCell>
+                            <TableCell className="type-mono-value text-[#EEF2F0]">
+                              {u.mobile}
+                            </TableCell>
+                            <TableCell className="type-table-body text-[#C4D4CF]">
+                              {u.address && u.address.trim() ? u.address.trim() : "N/A"}
+                            </TableCell>
+                            <TableCell className="type-mono-value text-[#EEF2F0]">
+                              {fmtDate(u.createdAt)}
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <StatusBadge status={u.status} />
+                            </TableCell>
+                            <TableCell className="text-right px-5 py-4 space-x-2">
+                              <Button
+                                size="sm"
+                                className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer min-w-[70px]"
+                                onClick={() => openApprove(u)}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={rejectingUserId === u.id}
+                                className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer min-w-[60px]"
+                                onClick={async () => {
+                                  setRejectingUserId(u.id);
+                                  try {
+                                    await s.rejectUser(u.id);
+                                    toast.success(`${u.firstName} rejected`);
+                                  } catch (error: any) {
+                                    toast.error(error.message || "Failed to reject user.");
+                                  } finally {
+                                    setRejectingUserId(null);
+                                  }
+                                }}
+                              >
+                                {rejectingUserId === u.id ? <BtnSpinner /> : "Reject"}
+                              </Button>
+                            </TableCell>
+                          </motion.tr>
+                        ))}
+                      </TableBody>
+                    </Table>
                   }
                 />
               </CardContent>
@@ -447,7 +494,9 @@ function Approvals() {
                                   toast.success("Junior rejected");
                                 } catch (error: unknown) {
                                   toast.error(
-                                    error instanceof Error ? error.message : "Failed to reject junior.",
+                                    error instanceof Error
+                                      ? error.message
+                                      : "Failed to reject junior.",
                                   );
                                 } finally {
                                   setRejectingJuniorId(null);
@@ -470,7 +519,9 @@ function Approvals() {
                           <TableHead className="type-table-head h-11">Address</TableHead>
                           <TableHead className="type-table-head h-11">Grade</TableHead>
                           <TableHead className="type-table-head h-11">Status</TableHead>
-                          <TableHead className="type-table-head h-11 text-right px-5">Actions</TableHead>
+                          <TableHead className="type-table-head h-11 text-right px-5">
+                            Actions
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -491,9 +542,15 @@ function Approvals() {
                                 </span>
                               ) : null}
                             </TableCell>
-                            <TableCell className="type-table-body text-[#C4D4CF]">{parentName(m)}</TableCell>
-                            <TableCell className="type-table-body text-[#C4D4CF]">{getJuniorAddress(m)}</TableCell>
-                            <TableCell className="type-table-body text-[#EEF2F0]">{m.grade || "—"}</TableCell>
+                            <TableCell className="type-table-body text-[#C4D4CF]">
+                              {parentName(m)}
+                            </TableCell>
+                            <TableCell className="type-table-body text-[#C4D4CF]">
+                              {getJuniorAddress(m)}
+                            </TableCell>
+                            <TableCell className="type-table-body text-[#EEF2F0]">
+                              {m.grade || "—"}
+                            </TableCell>
                             <TableCell className="py-4">
                               <StatusBadge status={m.status} />
                             </TableCell>
@@ -517,7 +574,9 @@ function Approvals() {
                                     toast.success("Junior rejected");
                                   } catch (error: unknown) {
                                     toast.error(
-                                      error instanceof Error ? error.message : "Failed to reject junior.",
+                                      error instanceof Error
+                                        ? error.message
+                                        : "Failed to reject junior.",
                                     );
                                   } finally {
                                     setRejectingJuniorId(null);
@@ -582,7 +641,9 @@ function Approvals() {
                                     await s.approveCredit(r.id);
                                     toast.success("Credit approved & balance updated");
                                   } catch (error: any) {
-                                    toast.error(error.message || "Failed to approve credit request.");
+                                    toast.error(
+                                      error.message || "Failed to approve credit request.",
+                                    );
                                   } finally {
                                     setApprovingCreditId(null);
                                   }
@@ -601,7 +662,9 @@ function Approvals() {
                                     await s.rejectCredit(r.id);
                                     toast.success("Credit request rejected");
                                   } catch (error: any) {
-                                    toast.error(error.message || "Failed to reject credit request.");
+                                    toast.error(
+                                      error.message || "Failed to reject credit request.",
+                                    );
                                   } finally {
                                     setRejectingCreditId(null);
                                   }
@@ -616,78 +679,90 @@ function Approvals() {
                     </div>
                   }
                   desktop={
-                <Table>
-                  <TableHeader className="bg-[#0C0F0E]/60">
-                    <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
-                      <TableHead className="type-table-head h-11 px-5">Member</TableHead>
-                      <TableHead className="type-table-head h-11">Amount</TableHead>
-                      <TableHead className="type-table-head h-11">Date</TableHead>
-                      <TableHead className="type-table-head h-11">Status</TableHead>
-                      <TableHead className="type-table-head h-11 text-right px-5">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingC.map((r, i) => {
-                      const m = s.members.find((x) => x.id === r.memberId);
-                      return (
-                        <motion.tr
-                          key={r.id}
-                          custom={i}
-                          variants={staggerRow}
-                          initial="hidden"
-                          animate="show"
-                          className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
-                        >
-                          <TableCell className="font-bold text-[#EEF2F0] text-[14px] type-table-body px-5 py-4">
-                            {m?.firstName} {m?.lastName}
-                          </TableCell>
-                          <TableCell className="static-financial-credit-text type-mono-value text-[14px] font-semibold">{fmtMoney(r.amount)}</TableCell>
-                          <TableCell className="type-mono-value text-[#EEF2F0]">{fmtDate(r.date)}</TableCell>
-                          <TableCell className="py-4"><StatusBadge status={r.status} /></TableCell>
-                          <TableCell className="text-right px-5 py-4 space-x-2">
-                            <Button
-                              size="sm"
-                              disabled={approvingCreditId === r.id}
-                              className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer min-w-[70px]"
-                              onClick={async () => {
-                                setApprovingCreditId(r.id);
-                                try {
-                                  await s.approveCredit(r.id);
-                                  toast.success("Credit approved & balance updated");
-                                } catch (error: any) {
-                                  toast.error(error.message || "Failed to approve credit request.");
-                                } finally {
-                                  setApprovingCreditId(null);
-                                }
-                              }}
+                    <Table>
+                      <TableHeader className="bg-[#0C0F0E]/60">
+                        <TableRow className="border-b border-[rgba(255,255,255,0.06)] hover:bg-transparent">
+                          <TableHead className="type-table-head h-11 px-5">Member</TableHead>
+                          <TableHead className="type-table-head h-11">Amount</TableHead>
+                          <TableHead className="type-table-head h-11">Date</TableHead>
+                          <TableHead className="type-table-head h-11">Status</TableHead>
+                          <TableHead className="type-table-head h-11 text-right px-5">
+                            Actions
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingC.map((r, i) => {
+                          const m = s.members.find((x) => x.id === r.memberId);
+                          return (
+                            <motion.tr
+                              key={r.id}
+                              custom={i}
+                              variants={staggerRow}
+                              initial="hidden"
+                              animate="show"
+                              className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
                             >
-                              {approvingCreditId === r.id ? <BtnSpinner /> : "Approve"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={rejectingCreditId === r.id}
-                              className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer min-w-[60px]"
-                              onClick={async () => {
-                                setRejectingCreditId(r.id);
-                                try {
-                                  await s.rejectCredit(r.id);
-                                  toast.success("Credit request rejected");
-                                } catch (error: any) {
-                                  toast.error(error.message || "Failed to reject credit request.");
-                                } finally {
-                                  setRejectingCreditId(null);
-                                }
-                              }}
-                            >
-                              {rejectingCreditId === r.id ? <BtnSpinner /> : "Reject"}
-                            </Button>
-                          </TableCell>
-                        </motion.tr>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                              <TableCell className="font-bold text-[#EEF2F0] text-[14px] type-table-body px-5 py-4">
+                                {m?.firstName} {m?.lastName}
+                              </TableCell>
+                              <TableCell className="static-financial-credit-text type-mono-value text-[14px] font-semibold">
+                                {fmtMoney(r.amount)}
+                              </TableCell>
+                              <TableCell className="type-mono-value text-[#EEF2F0]">
+                                {fmtDate(r.date)}
+                              </TableCell>
+                              <TableCell className="py-4">
+                                <StatusBadge status={r.status} />
+                              </TableCell>
+                              <TableCell className="text-right px-5 py-4 space-x-2">
+                                <Button
+                                  size="sm"
+                                  disabled={approvingCreditId === r.id}
+                                  className="btn-premium-solid h-8 text-[11px] px-3 font-semibold cursor-pointer min-w-[70px]"
+                                  onClick={async () => {
+                                    setApprovingCreditId(r.id);
+                                    try {
+                                      await s.approveCredit(r.id);
+                                      toast.success("Credit approved & balance updated");
+                                    } catch (error: any) {
+                                      toast.error(
+                                        error.message || "Failed to approve credit request.",
+                                      );
+                                    } finally {
+                                      setApprovingCreditId(null);
+                                    }
+                                  }}
+                                >
+                                  {approvingCreditId === r.id ? <BtnSpinner /> : "Approve"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={rejectingCreditId === r.id}
+                                  className="btn-premium-outline h-8 text-[11px] px-3 cursor-pointer min-w-[60px]"
+                                  onClick={async () => {
+                                    setRejectingCreditId(r.id);
+                                    try {
+                                      await s.rejectCredit(r.id);
+                                      toast.success("Credit request rejected");
+                                    } catch (error: any) {
+                                      toast.error(
+                                        error.message || "Failed to reject credit request.",
+                                      );
+                                    } finally {
+                                      setRejectingCreditId(null);
+                                    }
+                                  }}
+                                >
+                                  {rejectingCreditId === r.id ? <BtnSpinner /> : "Reject"}
+                                </Button>
+                              </TableCell>
+                            </motion.tr>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   }
                 />
               </CardContent>
@@ -704,13 +779,16 @@ function Approvals() {
               Approve {approveTarget?.firstName} {approveTarget?.lastName}
             </DialogTitle>
             <DialogDescription className="text-[#8A8A98]">
-              Set membership options. Invitations are sent later when you release a schedule or training.
+              Set membership options. Invitations are sent later when you release a schedule or
+              training.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Member type</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Member type
+              </Label>
               <Select value={opts.memberType} onValueChange={(v) => setMemberType(v as MemberType)}>
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue />
@@ -723,20 +801,25 @@ function Approvals() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Grade</Label>
-              <Select value={opts.grade} onValueChange={(v) => setOpts((p) => ({ ...p, grade: v }))}>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Grade
+              </Label>
+              <Select
+                value={opts.grade}
+                onValueChange={(v) => setOpts((p) => ({ ...p, grade: v }))}
+              >
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
                   {(opts.memberType === "junior" ? juniorGrades : adultGrades).map((g) => (
-                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                    <SelectItem key={g} value={g}>
+                      {g}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-
 
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
@@ -771,7 +854,9 @@ function Approvals() {
             {opts.memberType === "junior" && (
               <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
                 <div>
-                  <Label className="text-[11px] font-medium text-[#F1F0EE]">Play schedule eligible</Label>
+                  <Label className="text-[11px] font-medium text-[#F1F0EE]">
+                    Play schedule eligible
+                  </Label>
                   <p className="text-xs text-muted-foreground">
                     Family head can enroll this junior in play sessions.
                   </p>
@@ -785,14 +870,18 @@ function Approvals() {
 
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
-                <Label className="text-[11px] font-medium text-[#F1F0EE]">Bypass Credit Consumption</Label>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">
+                  Bypass Credit Consumption
+                </Label>
                 <p className="text-xs text-muted-foreground">
                   Do not deduct credits when participating in play schedules.
                 </p>
               </div>
               <Switch
                 checked={opts.skipCreditConsumption}
-                onCheckedChange={(skipCreditConsumption) => setOpts((p) => ({ ...p, skipCreditConsumption }))}
+                onCheckedChange={(skipCreditConsumption) =>
+                  setOpts((p) => ({ ...p, skipCreditConsumption }))
+                }
               />
             </div>
 
@@ -800,7 +889,8 @@ function Approvals() {
               <div>
                 <Label className="text-[11px] font-medium text-[#F1F0EE]">Apply Discount</Label>
                 <p className="text-xs text-muted-foreground">
-                  Use {opts.memberType === "junior" ? "junior" : "adult"} discount settings on play and training fees.
+                  Use {opts.memberType === "junior" ? "junior" : "adult"} discount settings on play
+                  and training fees.
                 </p>
               </div>
               <Switch
@@ -811,7 +901,11 @@ function Approvals() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" className="btn-premium-outline cursor-pointer" onClick={() => setApproveTarget(null)}>
+            <Button
+              variant="outline"
+              className="btn-premium-outline cursor-pointer"
+              onClick={() => setApproveTarget(null)}
+            >
               Cancel
             </Button>
             <Button
@@ -845,7 +939,9 @@ function Approvals() {
 
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Grade</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Grade
+              </Label>
               <Select
                 value={juniorOpts.grade || undefined}
                 onValueChange={(grade) => setJuniorOpts((p) => ({ ...p, grade }))}
@@ -876,7 +972,9 @@ function Approvals() {
 
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
-                <Label className="text-[11px] font-medium text-[#F1F0EE]">Play schedule eligible</Label>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">
+                  Play schedule eligible
+                </Label>
                 <p className="text-xs text-muted-foreground">
                   Family head can enroll this junior in play sessions.
                 </p>
@@ -890,7 +988,9 @@ function Approvals() {
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
                 <Label className="text-[11px] font-medium text-[#F1F0EE]">Training eligible</Label>
-                <p className="text-xs text-muted-foreground">Can be invited to junior training sessions.</p>
+                <p className="text-xs text-muted-foreground">
+                  Can be invited to junior training sessions.
+                </p>
               </div>
               <Switch
                 checked={juniorOpts.trainingEligible}

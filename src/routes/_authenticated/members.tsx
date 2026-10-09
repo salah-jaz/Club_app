@@ -1,4 +1,11 @@
-import { createFileRoute, Link, Outlet, useMatches, useNavigate, Navigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useMatches,
+  useNavigate,
+  Navigate,
+} from "@tanstack/react-router";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { useCan } from "@/lib/permissions";
 import { useMemo, useRef, useState } from "react";
@@ -10,9 +17,29 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  Plus, Pencil, Wallet, LayoutGrid, List, Users, UserRound, Trophy,
-  Upload, Download, Mail, IdCard, CheckSquare, Square, ChevronDown, ChevronRight,
-  Phone, Calendar, User, CheckCircle2, XCircle, Trash2, LogIn,
+  Plus,
+  Pencil,
+  Wallet,
+  LayoutGrid,
+  List,
+  Users,
+  UserRound,
+  Trophy,
+  Upload,
+  Download,
+  Mail,
+  IdCard,
+  CheckSquare,
+  Square,
+  ChevronDown,
+  ChevronRight,
+  Phone,
+  Calendar,
+  User,
+  CheckCircle2,
+  XCircle,
+  Trash2,
+  LogIn,
 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
@@ -27,7 +54,14 @@ import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { Member } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -67,7 +101,11 @@ function sortMembers(list: Member[], sortBy: string): Member[] {
  * (parentMemberId, or same userId family account).
  * Adult / Junior filters stay flat (only that type).
  */
-function buildMemberDisplayRows(list: Member[], nestFamilies: boolean, sortBy: string): MemberDisplayRow[] {
+function buildMemberDisplayRows(
+  list: Member[],
+  nestFamilies: boolean,
+  sortBy: string,
+): MemberDisplayRow[] {
   const sorted = sortMembers(list, sortBy);
   if (!nestFamilies) {
     return sorted.map((member) => ({ member, depth: 0 as const, childCount: 0 }));
@@ -90,10 +128,7 @@ function buildMemberDisplayRows(list: Member[], nestFamilies: boolean, sortBy: s
     // Fallback: same login account as an adult in the list
     if (!parentId && m.userId) {
       const adultSibling = sorted.find(
-        (a) =>
-          a.id !== m.id &&
-          a.userId === m.userId &&
-          a.memberType.toLowerCase() === "adult",
+        (a) => a.id !== m.id && a.userId === m.userId && a.memberType.toLowerCase() === "adult",
       );
       if (adultSibling) parentId = adultSibling.id;
     }
@@ -123,10 +158,7 @@ function buildMemberDisplayRows(list: Member[], nestFamilies: boolean, sortBy: s
 
   return rows;
 }
-import {
-  ConfirmDeleteDialog,
-  type ConfirmDeleteRequest,
-} from "@/components/ConfirmDeleteDialog";
+import { ConfirmDeleteDialog, type ConfirmDeleteRequest } from "@/components/ConfirmDeleteDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -226,7 +258,11 @@ function buildMemberBulkTemplate(adultGradesIn: string[], juniorGradesIn: string
     headers.map(csvEscapeCell).join(","),
     ...exampleRows.map((row) => row.map(csvEscapeCell).join(",")),
     blank.join(","),
-    ["REFERENCE_DO_NOT_IMPORT", "Delete this section before uploading", ...Array(headers.length - 2).fill("")]
+    [
+      "REFERENCE_DO_NOT_IMPORT",
+      "Delete this section before uploading",
+      ...Array(headers.length - 2).fill(""),
+    ]
       .map(csvEscapeCell)
       .join(","),
     ...refRows.map((r) =>
@@ -268,7 +304,6 @@ function MembersLayout() {
   const activeRole = useStore((s) => s.activeRole) || user?.role;
   const matches = useMatches();
   const isIndex = matches[matches.length - 1].routeId === Route.id;
-  if (activeRole !== "admin") return <Navigate to="/dashboard" />;
   if (!isIndex) return <Outlet />;
   return <MembersList />;
 }
@@ -303,7 +338,9 @@ function MemberStatCard({
         <CardContent className="p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase">{label}</p>
+              <p className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase">
+                {label}
+              </p>
               <p className="type-stat-value mt-1.5 text-2xl sm:text-3xl">
                 <AnimatedCounter value={value} />
               </p>
@@ -338,22 +375,34 @@ function MemberTags({ member }: { member: Member }) {
         {isJunior ? "Junior" : "Adult"}
       </Badge>
       {member.grade && (
-        <Badge variant="outline" className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#C4D4CF] px-2 py-0">
+        <Badge
+          variant="outline"
+          className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#C4D4CF] px-2 py-0"
+        >
           {member.grade}
         </Badge>
       )}
       {member.membership && (
-        <Badge variant="outline" className="text-[10px] font-medium bg-[#2DD4BF]/10 text-[#5EEAD4] border-[#2DD4BF]/25 px-2 py-0">
+        <Badge
+          variant="outline"
+          className="text-[10px] font-medium bg-[#2DD4BF]/10 text-[#5EEAD4] border-[#2DD4BF]/25 px-2 py-0"
+        >
           Member
         </Badge>
       )}
       {member.trainingEligible && (
-        <Badge variant="outline" className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#8FA89F] px-2 py-0">
+        <Badge
+          variant="outline"
+          className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#8FA89F] px-2 py-0"
+        >
           Training
         </Badge>
       )}
       {member.playEligible && (
-        <Badge variant="outline" className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#93C5FD] px-2 py-0">
+        <Badge
+          variant="outline"
+          className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#93C5FD] px-2 py-0"
+        >
           Play
         </Badge>
       )}
@@ -375,7 +424,9 @@ function MemberActions({
   const user = useCurrentUser()!;
   const loginAs = useStore((s) => s.loginAs);
   const isJunior = member.memberType.toLowerCase() === "junior";
-  const canEdit = (activeRole === "admin" && useCan("members.edit")) || (activeRole === "member" && (isJunior || member.userId === user.id));
+  const canEdit =
+    (activeRole === "admin" && useCan("members.edit")) ||
+    (activeRole === "member" && (isJunior || member.userId === user.id));
   const canCredits = activeRole === "admin" || activeRole === "member";
   const canDelete = activeRole === "admin" && useCan("members.delete");
   const canLoginAs = activeRole === "admin" && useCan("members.edit");
@@ -394,7 +445,10 @@ function MemberActions({
       {canLoginAs && !isJunior && (
         <Button
           variant="outline"
-          className={cn("bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 hover:cursor-pointer min-w-0", btnClass)}
+          className={cn(
+            "bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25 hover:bg-[#10B981]/20 hover:cursor-pointer min-w-0",
+            btnClass,
+          )}
           onClick={async (e) => {
             e.stopPropagation();
             if (confirm(`Login as ${member.firstName} ${member.lastName}?`)) {
@@ -480,7 +534,12 @@ function MemberDetailDialog({
   const isJunior = member.memberType.toLowerCase() === "junior";
   const parentMember = member.parentMemberId
     ? members.find((m) => m.id === member.parentMemberId)
-    : members.find((m) => m.id !== member.id && m.userId === member.userId && m.memberType.toLowerCase() === "adult");
+    : members.find(
+        (m) =>
+          m.id !== member.id &&
+          m.userId === member.userId &&
+          m.memberType.toLowerCase() === "adult",
+      );
 
   const walletMember = isJunior && parentMember ? parentMember : member;
   const childMembers = members.filter(
@@ -490,7 +549,9 @@ function MemberDetailDialog({
         (m.userId === member.userId && m.memberType.toLowerCase() === "junior")),
   );
 
-  const canEdit = (activeRole === "admin" && canEditMembers) || (activeRole === "member" && (isJunior || member.userId === user.id));
+  const canEdit =
+    (activeRole === "admin" && canEditMembers) ||
+    (activeRole === "member" && (isJunior || member.userId === user.id));
   const canCredits = activeRole === "admin" || activeRole === "member";
   const canDelete = activeRole === "admin" && canDeleteMembersPerm;
   const canLoginAs = activeRole === "admin" && canEditMembers;
@@ -543,7 +604,9 @@ function MemberDetailDialog({
           {/* Member Privileges & Badges */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="rounded-xl border border-white/[0.06] bg-[#0C0F0E] p-3 space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7F78]">Membership</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7F78]">
+                Membership
+              </p>
               <div className="flex items-center gap-1.5 font-medium text-xs">
                 {member.membership ? (
                   <span className="text-[#5EEAD4] flex items-center gap-1">
@@ -558,12 +621,16 @@ function MemberDetailDialog({
             </div>
 
             <div className="rounded-xl border border-white/[0.06] bg-[#0C0F0E] p-3 space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7F78]">Grade / Level</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7F78]">
+                Grade / Level
+              </p>
               <p className="text-xs font-semibold text-[#EEF2F0]">{member.grade || "Unassigned"}</p>
             </div>
 
             <div className="rounded-xl border border-white/[0.06] bg-[#0C0F0E] p-3 space-y-1 col-span-2 sm:col-span-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7F78]">Eligibilities</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7F78]">
+                Eligibilities
+              </p>
               <div className="flex flex-wrap gap-1 text-[11px]">
                 {member.trainingEligible && (
                   <span className="px-1.5 py-0.5 rounded bg-white/[0.05] text-[#8FA89F] border border-white/10">
@@ -593,7 +660,9 @@ function MemberDetailDialog({
                 <p className="text-xs text-[#8FA89F] mt-1">
                   Junior members share their parent adult’s wallet (
                   <span className="font-semibold text-[#EEF2F0]">
-                    {parentMember ? `${parentMember.firstName} ${parentMember.lastName}` : "Parent Account"}
+                    {parentMember
+                      ? `${parentMember.firstName} ${parentMember.lastName}`
+                      : "Parent Account"}
                   </span>
                   ).
                 </p>
@@ -656,14 +725,18 @@ function MemberDetailDialog({
                     </p>
                   </div>
                   {parentMember.biMemberId && (
-                    <span className="font-mono text-[11px] text-[#FBBF24]">{parentMember.biMemberId}</span>
+                    <span className="font-mono text-[11px] text-[#FBBF24]">
+                      {parentMember.biMemberId}
+                    </span>
                   )}
                 </div>
               )}
 
               {childMembers.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[11px] text-[#8FA89F]">Linked Junior Sub-members ({childMembers.length}):</p>
+                  <p className="text-[11px] text-[#8FA89F]">
+                    Linked Junior Sub-members ({childMembers.length}):
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {childMembers.map((c) => (
                       <div
@@ -674,9 +747,14 @@ function MemberDetailDialog({
                           <p className="font-medium text-[#EEF2F0] truncate">
                             {c.firstName} {c.lastName}
                           </p>
-                          <p className="text-[10px] text-[#6B7F78] capitalize">{c.grade || "Junior"}</p>
+                          <p className="text-[10px] text-[#6B7F78] capitalize">
+                            {c.grade || "Junior"}
+                          </p>
                         </div>
-                        <Badge variant="outline" className="text-[9px] border-[#F59E0B]/30 text-[#FBBF24] shrink-0">
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] border-[#F59E0B]/30 text-[#FBBF24] shrink-0"
+                        >
                           Junior
                         </Badge>
                       </div>
@@ -710,14 +788,22 @@ function MemberDetailDialog({
               </Button>
             )}
             {canEdit && (
-              <Button asChild variant="outline" className="btn-premium-outline cursor-pointer h-9 text-xs">
+              <Button
+                asChild
+                variant="outline"
+                className="btn-premium-outline cursor-pointer h-9 text-xs"
+              >
                 <Link to="/members/$id/edit" params={{ id: member.id }}>
                   <Pencil className="size-3.5 mr-1.5" /> Edit details
                 </Link>
               </Button>
             )}
             {canCredits && (
-              <Button asChild variant="outline" className="btn-premium-violet-outline cursor-pointer h-9 text-xs">
+              <Button
+                asChild
+                variant="outline"
+                className="btn-premium-violet-outline cursor-pointer h-9 text-xs"
+              >
                 <Link to={`/credits?memberId=${member.id}` as any}>
                   <Wallet className="size-3.5 mr-1.5" /> Wallet / Credit
                 </Link>
@@ -745,7 +831,7 @@ function MemberDetailDialog({
 
 function MembersList() {
   // Temporarily hide row selection + Bulk actions UI (set true to restore)
-  const SHOW_MEMBER_BULK_UI = false;
+  const SHOW_MEMBER_BULK_UI = true;
 
   const navigate = useNavigate();
   const user = useCurrentUser()!;
@@ -758,7 +844,10 @@ function MembersList() {
   const canDeleteMembers = activeRole === "admin" && useCan("members.delete");
   const store = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-members", "list");
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode(
+    "clubapp-view-mode-members",
+    "list",
+  );
   const [templateImporting, setTemplateImporting] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
@@ -788,8 +877,12 @@ function MembersList() {
     const trainingInvites = (state.trainingInvites ?? []).filter((i) => i.memberId === member.id);
     const trainingDateLinks = (state.trainingDates ?? []).filter((d) => d.memberId === member.id);
     const txCount = (state.transactions ?? []).filter((t) => t.memberId === member.id).length;
-    const creditCount = (state.creditRequests ?? []).filter((cr) => cr.memberId === member.id).length;
-    const leagueCount = (state.leagueGroups ?? []).filter((g) => g.memberIds?.includes(member.id)).length;
+    const creditCount = (state.creditRequests ?? []).filter(
+      (cr) => cr.memberId === member.id,
+    ).length;
+    const leagueCount = (state.leagueGroups ?? []).filter((g) =>
+      g.memberIds?.includes(member.id),
+    ).length;
 
     const scheduleIds = [...new Set(playInvites.map((i) => i.scheduleId))];
     const trainingIds = [
@@ -838,18 +931,8 @@ function MembersList() {
     });
   };
 
-  const {
-    search,
-    filters,
-    sortBy,
-    setSearch,
-    setFilter,
-    clearFilters,
-    setSortBy,
-  } = useSearchFilters(
-    { category: "all", status: "all", balance: "all", league: "all" },
-    "name-asc",
-  );
+  const { search, filters, sortBy, setSearch, setFilter, clearFilters, setSortBy } =
+    useSearchFilters({ category: "all", status: "all", balance: "all", league: "all" }, "name-asc");
 
   const filterConfig = [
     {
@@ -948,20 +1031,27 @@ function MembersList() {
         ),
     });
 
-  const stats = useMemo(() => ({
-    total: baseMembers.length,
-    adults: baseMembers.filter((m) => m.memberType.toLowerCase() === "adult").length,
-    juniors: baseMembers.filter((m) => m.memberType.toLowerCase() === "junior").length,
-    league: baseMembers.filter((m) => leagueMemberIds.has(m.id)).length,
-    active: baseMembers.filter((m) => m.status === "active").length,
-  }), [baseMembers, leagueMemberIds]);
+  const stats = useMemo(
+    () => ({
+      total: baseMembers.length,
+      adults: baseMembers.filter((m) => m.memberType.toLowerCase() === "adult").length,
+      juniors: baseMembers.filter((m) => m.memberType.toLowerCase() === "junior").length,
+      league: baseMembers.filter((m) => leagueMemberIds.has(m.id)).length,
+      active: baseMembers.filter((m) => m.status === "active").length,
+    }),
+    [baseMembers, leagueMemberIds],
+  );
 
   const processed = useMemo(() => {
     let list = baseMembers.filter((m) => {
       const fullName = `${m.firstName} ${m.lastName}`.toLowerCase();
       const email = m.email.toLowerCase();
       const q = search.toLowerCase();
-      return fullName.includes(q) || email.includes(q) || (m.biMemberId?.toLowerCase().includes(q) ?? false);
+      return (
+        fullName.includes(q) ||
+        email.includes(q) ||
+        (m.biMemberId?.toLowerCase().includes(q) ?? false)
+      );
     });
 
     if (filters.category !== "all") {
@@ -1007,8 +1097,7 @@ function MembersList() {
     });
   };
 
-  const hasActiveFilters =
-    !!search || Object.values(filters).some((f) => f !== "all");
+  const hasActiveFilters = !!search || Object.values(filters).some((f) => f !== "all");
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected =
@@ -1065,9 +1154,7 @@ function MembersList() {
     const inPlayOrTraining = scheduleNames.length > 0 || trainingNames.length > 0;
 
     setDeleteRequest({
-      title: inPlayOrTraining
-        ? "Members are in schedules or trainings"
-        : "Delete members",
+      title: inPlayOrTraining ? "Members are in schedules or trainings" : "Delete members",
       entityName: label,
       related: [
         { label: ids.length === 1 ? "member" : "members", count: ids.length },
@@ -1096,7 +1183,13 @@ function MembersList() {
   };
 
   const quickFilters = [
-    { id: "all", label: "All", apply: () => { clearFilters(); } },
+    {
+      id: "all",
+      label: "All",
+      apply: () => {
+        clearFilters();
+      },
+    },
     { id: "adult", label: "Adults", apply: () => setFilter("category", "adult") },
     { id: "junior", label: "Juniors", apply: () => setFilter("category", "junior") },
     { id: "league", label: "In Groups", apply: () => setFilter("league", "league") },
@@ -1126,11 +1219,9 @@ function MembersList() {
     setTemplateImporting(true);
     const loadingToast = toast.loading("Importing example members...");
     try {
-      const file = new File(
-        [memberTemplate.examplesCsvText],
-        "member_template_examples.csv",
-        { type: "text/csv" },
-      );
+      const file = new File([memberTemplate.examplesCsvText], "member_template_examples.csv", {
+        type: "text/csv",
+      });
       const created = await store.bulkUploadMembers(file, { allowExamples: true });
       toast.dismiss(loadingToast);
       if (created > 0) {
@@ -1188,7 +1279,8 @@ function MembersList() {
             <DialogTitle className="text-[#F1F0EE]">Bulk upload template</DialogTitle>
             <DialogDescription className="text-[#8A8A98] text-left">
               Includes <span className="text-[#FBBF24] font-medium">parent_bi_member_id</span> so
-              juniors nest under adults. Download the CSV to edit, or import these examples directly.
+              juniors nest under adults. Download the CSV to edit, or import these examples
+              directly.
             </DialogDescription>
           </DialogHeader>
 
@@ -1209,11 +1301,11 @@ function MembersList() {
             </div>
 
             <div className="rounded-lg border border-[rgba(245,158,11,0.30)] bg-[rgba(245,158,11,0.08)] px-3 py-2.5 text-[12px] text-[#F1F0EE]">
-              <span className="font-semibold text-[#FBBF24]">Parent linking:</span>{" "}
-              For each <span className="font-mono text-[#34D399]">junior</span> row, set{" "}
-              <span className="font-mono text-[#FBBF24]">parent_bi_member_id</span> to the adult&apos;s{" "}
-              <span className="font-mono">bi_member_id</span>. Leave it empty for adults.
-              Example juniors in this template already point at BI-01 … BI-10.
+              <span className="font-semibold text-[#FBBF24]">Parent linking:</span> For each{" "}
+              <span className="font-mono text-[#34D399]">junior</span> row, set{" "}
+              <span className="font-mono text-[#FBBF24]">parent_bi_member_id</span> to the
+              adult&apos;s <span className="font-mono">bi_member_id</span>. Leave it empty for
+              adults. Example juniors in this template already point at BI-01 … BI-10.
             </div>
 
             <div className="rounded-xl border border-[rgba(255,255,255,0.08)] overflow-hidden">
@@ -1249,7 +1341,9 @@ function MembersList() {
                               className={cn(
                                 "px-3 py-2 text-[11px] whitespace-nowrap",
                                 header === "member_type" && "text-[#34D399] font-medium",
-                                header === "parent_bi_member_id" && cell && "text-[#FBBF24] font-medium",
+                                header === "parent_bi_member_id" &&
+                                  cell &&
+                                  "text-[#FBBF24] font-medium",
                                 header === "grade" && "text-[#34D399] font-medium",
                                 String(cell).includes("@example.com") && "text-[#FBBF24]",
                               )}
@@ -1350,7 +1444,13 @@ function MembersList() {
         actions={
           <div className="flex flex-wrap gap-2 w-full min-w-0 justify-start md:justify-end">
             <ReportTriggerButton onClick={openMembersReport} />
-            <input type="file" ref={fileInputRef} onChange={handleBulkUpload} accept=".csv" className="hidden" />
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleBulkUpload}
+              accept=".csv"
+              className="hidden"
+            />
             {canBulkUpload && (
               <>
                 <Button
@@ -1372,7 +1472,10 @@ function MembersList() {
               </>
             )}
             {canAddMembers && (activeRole === "admin" || activeRole === "member") && (
-              <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer shrink-0">
+              <Button
+                asChild
+                className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer shrink-0"
+              >
                 <Link to="/members/add">
                   <Plus className="size-4 mr-1.5 shrink-0" />
                   <span className="whitespace-nowrap">Add member</span>
@@ -1390,10 +1493,34 @@ function MembersList() {
         animate="show"
         className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
       >
-        <MemberStatCard label="Total" value={stats.total} hint="Registered members" icon={Users} index={0} />
-        <MemberStatCard label="Adults" value={stats.adults} hint={`${stats.juniors} juniors`} icon={UserRound} index={1} />
-        <MemberStatCard label="In Groups" value={stats.league} hint="In a group" icon={Trophy} index={2} />
-        <MemberStatCard label="Active" value={stats.active} hint="Currently active" icon={Users} index={3} />
+        <MemberStatCard
+          label="Total"
+          value={stats.total}
+          hint="Registered members"
+          icon={Users}
+          index={0}
+        />
+        <MemberStatCard
+          label="Adults"
+          value={stats.adults}
+          hint={`${stats.juniors} juniors`}
+          icon={UserRound}
+          index={1}
+        />
+        <MemberStatCard
+          label="In Groups"
+          value={stats.league}
+          hint="In a group"
+          icon={Trophy}
+          index={2}
+        />
+        <MemberStatCard
+          label="Active"
+          value={stats.active}
+          hint="Currently active"
+          icon={Users}
+          index={3}
+        />
       </motion.div>
 
       <SearchFilterBar
@@ -1447,12 +1574,13 @@ function MembersList() {
         <div className="text-sm text-[#8FA89F]">
           Showing <span className="text-[#EEF2F0] font-semibold">{visibleRows.length}</span>
           {visibleRows.length !== baseMembers.length && (
-            <> of <span className="text-[#EEF2F0] font-semibold">{baseMembers.length}</span></>
+            <>
+              {" "}
+              of <span className="text-[#EEF2F0] font-semibold">{baseMembers.length}</span>
+            </>
           )}{" "}
           members
-          {nestFamilies && (
-            <span className="text-[#6B7F78]"> · juniors nested under adults</span>
-          )}
+          {nestFamilies && <span className="text-[#6B7F78]"> · juniors nested under adults</span>}
           {SHOW_MEMBER_BULK_UI && selectedIds.length > 0 && (
             <>
               {" · "}
@@ -1535,7 +1663,9 @@ function MembersList() {
               disabled={isMobile}
               className={cn(
                 "p-1.5 rounded-md transition-all",
-                viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                viewMode === "list"
+                  ? "bg-[#1A2120] text-[#2FD9A0]"
+                  : "text-[#8FA89F] hover:text-[#EEF2F0]",
                 isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
               )}
               title={isMobile ? "Table view available on larger screens" : "Table view"}
@@ -1547,7 +1677,9 @@ function MembersList() {
               onClick={() => setViewMode("grid")}
               className={cn(
                 "p-1.5 rounded-md transition-all cursor-pointer",
-                viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                viewMode === "grid"
+                  ? "bg-[#1A2120] text-[#2FD9A0]"
+                  : "text-[#8FA89F] hover:text-[#EEF2F0]",
               )}
               title="Card view"
             >
@@ -1566,7 +1698,13 @@ function MembersList() {
               ? "No members match your search or filters. Try a different keyword or clear filters."
               : "No members have been added yet. Add your first member to get started."
           }
-          ctaLabel={hasActiveFilters ? "Clear filters" : activeRole !== "volunteer" ? "Add member" : undefined}
+          ctaLabel={
+            hasActiveFilters
+              ? "Clear filters"
+              : activeRole !== "volunteer"
+                ? "Add member"
+                : undefined
+          }
           onCta={hasActiveFilters ? clearFilters : undefined}
           ctaTo={!hasActiveFilters && activeRole !== "volunteer" ? "/members/add" : undefined}
         />
@@ -1579,7 +1717,9 @@ function MembersList() {
         >
           {visibleRows.map(({ member: m, depth, childCount = 0 }) => {
             const isJunior = m.memberType.toLowerCase() === "junior";
-            const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
+            const avatarBg = isJunior
+              ? "bg-[#1A1A0A] text-[#F59E0B]"
+              : "bg-[#0D2E22] text-[#10B981]";
             const isExpanded = expandedFamilyIds.has(m.id);
             return (
               <motion.div
@@ -1587,7 +1727,10 @@ function MembersList() {
                 variants={staggerItem}
                 whileHover={{ y: -3 }}
                 transition={{ duration: 0.18 }}
-                className={cn("w-full min-w-0", depth === 1 && "sm:col-span-2 xl:col-span-1 xl:ml-4")}
+                className={cn(
+                  "w-full min-w-0",
+                  depth === 1 && "sm:col-span-2 xl:col-span-1 xl:ml-4",
+                )}
               >
                 <Card
                   tabIndex={0}
@@ -1619,7 +1762,11 @@ function MembersList() {
                             }}
                             className="size-7 shrink-0 rounded-md grid place-items-center text-[#8FA89F] hover:text-[#EEF2F0] hover:bg-white/[0.06] transition-colors"
                             aria-expanded={isExpanded}
-                            aria-label={isExpanded ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}` : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`}
+                            aria-label={
+                              isExpanded
+                                ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}`
+                                : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`
+                            }
                           >
                             {isExpanded ? (
                               <ChevronDown className="size-4" />
@@ -1629,7 +1776,10 @@ function MembersList() {
                           </button>
                         ) : null}
                         {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
-                          <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center">
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="shrink-0 flex items-center"
+                          >
                             <Checkbox
                               checked={selectedSet.has(m.id)}
                               onCheckedChange={(v) => toggleSelect(m.id, v === true)}
@@ -1638,9 +1788,17 @@ function MembersList() {
                             />
                           </div>
                         )}
-                        <Avatar className={cn("border border-white/10 shrink-0", depth === 1 ? "size-9" : "size-10 sm:size-11")}>
-                          <AvatarFallback className={cn(avatarBg, "font-semibold text-xs sm:text-sm")}>
-                            {m.firstName[0]}{m.lastName[0]}
+                        <Avatar
+                          className={cn(
+                            "border border-white/10 shrink-0",
+                            depth === 1 ? "size-9" : "size-10 sm:size-11",
+                          )}
+                        >
+                          <AvatarFallback
+                            className={cn(avatarBg, "font-semibold text-xs sm:text-sm")}
+                          >
+                            {m.firstName[0]}
+                            {m.lastName[0]}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
@@ -1649,12 +1807,18 @@ function MembersList() {
                               {m.firstName} {m.lastName}
                             </h3>
                             {depth === 1 && (
-                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24] shrink-0">
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24] shrink-0"
+                              >
                                 Sub-member
                               </Badge>
                             )}
                             {depth === 0 && childCount > 0 && (
-                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F] shrink-0">
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F] shrink-0"
+                              >
                                 {childCount} junior{childCount === 1 ? "" : "s"}
                               </Badge>
                             )}
@@ -1674,28 +1838,46 @@ function MembersList() {
 
                     <div className="grid grid-cols-2 gap-2.5 sm:gap-3 text-xs min-w-0">
                       <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5 min-w-0">
-                        <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">Balance</p>
+                        <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">
+                          Balance
+                        </p>
                         {m.memberType === "junior" ? (
-                          <p className="font-mono text-[#6B7F78] text-sm" title="Junior members share the parent adult's wallet">
+                          <p
+                            className="font-mono text-[#6B7F78] text-sm"
+                            title="Junior members share the parent adult's wallet"
+                          >
                             —
                           </p>
                         ) : (
-                          <p className={cn("font-mono font-semibold text-sm truncate min-w-0", m.credit < 0 ? "text-[#F87171]" : "text-[#34D399]")}>
+                          <p
+                            className={cn(
+                              "font-mono font-semibold text-sm truncate min-w-0",
+                              m.credit < 0 ? "text-[#F87171]" : "text-[#34D399]",
+                            )}
+                          >
                             {fmtMoney(m.credit)}
                           </p>
                         )}
                       </div>
                       <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5 min-w-0">
-                        <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">BI ID</p>
+                        <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">
+                          BI ID
+                        </p>
                         <p className="font-mono text-[#C4D4CF] flex items-center gap-1 min-w-0">
                           <IdCard className="size-3 shrink-0 text-[#6B7F78]" />
-                          <span className="truncate text-xs sm:text-sm min-w-0">{m.biMemberId || "—"}</span>
+                          <span className="truncate text-xs sm:text-sm min-w-0">
+                            {m.biMemberId || "—"}
+                          </span>
                         </p>
                       </div>
                     </div>
 
                     <div className="mt-auto pt-1 min-w-0">
-                      <MemberActions member={m} activeRole={activeRole} onRequestDelete={requestDeleteMember} />
+                      <MemberActions
+                        member={m}
+                        activeRole={activeRole}
+                        onRequestDelete={requestDeleteMember}
+                      />
                     </div>
                   </CardContent>
                 </Card>
@@ -1712,7 +1894,9 @@ function MembersList() {
                   {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
                     <TableHead className="type-table-head h-11 px-4 w-10">
                       <Checkbox
-                        checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                        checked={
+                          allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false
+                        }
                         onCheckedChange={(v) => toggleSelectAllVisible(v === true)}
                         className="border-white/30 data-[state=checked]:bg-[#FBBF24] data-[state=checked]:border-[#FBBF24] data-[state=checked]:text-[#111]"
                         aria-label="Select all visible members"
@@ -1725,13 +1909,17 @@ function MembersList() {
                   <TableHead className="type-table-head h-11">Flags</TableHead>
                   <TableHead className="type-table-head h-11 text-right">Balance</TableHead>
                   <TableHead className="type-table-head h-11">Status</TableHead>
-                  <TableHead className="type-table-head h-11 text-right px-4 min-w-[200px]">Actions</TableHead>
+                  <TableHead className="type-table-head h-11 text-right px-4 min-w-[200px]">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visibleRows.map(({ member: m, depth, childCount = 0 }) => {
                   const isJunior = m.memberType.toLowerCase() === "junior";
-                  const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
+                  const avatarBg = isJunior
+                    ? "bg-[#1A1A0A] text-[#F59E0B]"
+                    : "bg-[#0D2E22] text-[#10B981]";
                   const isExpanded = expandedFamilyIds.has(m.id);
                   return (
                     <TableRow
@@ -1779,7 +1967,11 @@ function MembersList() {
                               }}
                               className="size-7 shrink-0 rounded-md grid place-items-center text-[#8FA89F] hover:text-[#EEF2F0] hover:bg-white/[0.06] transition-colors"
                               aria-expanded={isExpanded}
-                              aria-label={isExpanded ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}` : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`}
+                              aria-label={
+                                isExpanded
+                                  ? `Hide ${childCount} junior${childCount === 1 ? "" : "s"}`
+                                  : `Show ${childCount} junior${childCount === 1 ? "" : "s"}`
+                              }
                             >
                               {isExpanded ? (
                                 <ChevronDown className="size-4" />
@@ -1790,9 +1982,15 @@ function MembersList() {
                           ) : depth === 0 ? (
                             <span className="size-7 shrink-0" aria-hidden />
                           ) : null}
-                          <Avatar className={cn("border border-white/10 shrink-0", depth === 1 ? "size-8" : "size-9")}>
+                          <Avatar
+                            className={cn(
+                              "border border-white/10 shrink-0",
+                              depth === 1 ? "size-8" : "size-9",
+                            )}
+                          >
                             <AvatarFallback className={cn(avatarBg, "font-semibold text-xs")}>
-                              {m.firstName[0]}{m.lastName[0]}
+                              {m.firstName[0]}
+                              {m.lastName[0]}
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
@@ -1801,12 +1999,18 @@ function MembersList() {
                                 {m.firstName} {m.lastName}
                               </p>
                               {depth === 1 && (
-                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24]">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24]"
+                                >
                                   Sub-member
                                 </Badge>
                               )}
                               {depth === 0 && childCount > 0 && (
-                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]"
+                                >
                                   {childCount} junior{childCount === 1 ? "" : "s"}
                                 </Badge>
                               )}
@@ -1820,13 +2024,28 @@ function MembersList() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1 max-w-[140px]">
                           {m.membership && (
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#2DD4BF]/30 text-[#5EEAD4]">M</Badge>
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1.5 py-0 border-[#2DD4BF]/30 text-[#5EEAD4]"
+                            >
+                              M
+                            </Badge>
                           )}
                           {m.trainingEligible && (
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]">T</Badge>
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]"
+                            >
+                              T
+                            </Badge>
                           )}
                           {m.playEligible && (
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#3B82F6]/30 text-[#93C5FD]">P</Badge>
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1.5 py-0 border-[#3B82F6]/30 text-[#93C5FD]"
+                            >
+                              P
+                            </Badge>
                           )}
                           {!m.membership && !m.trainingEligible && !m.playEligible && (
                             <span className="text-[#6B7F78] text-xs">—</span>
@@ -1838,7 +2057,11 @@ function MembersList() {
                           "type-mono-value text-right",
                           m.memberType !== "junior" && m.credit < 0 && "text-[#F87171]",
                         )}
-                        title={m.memberType === "junior" ? "Junior members share the parent adult's wallet" : undefined}
+                        title={
+                          m.memberType === "junior"
+                            ? "Junior members share the parent adult's wallet"
+                            : undefined
+                        }
                       >
                         {m.memberType === "junior" ? (
                           <span className="text-[#6B7F78]">—</span>
@@ -1846,9 +2069,16 @@ function MembersList() {
                           fmtMoney(m.credit)
                         )}
                       </TableCell>
-                      <TableCell><StatusBadge status={m.status} /></TableCell>
+                      <TableCell>
+                        <StatusBadge status={m.status} />
+                      </TableCell>
                       <TableCell className="text-right px-4">
-                        <MemberActions member={m} activeRole={activeRole} onRequestDelete={requestDeleteMember} compact />
+                        <MemberActions
+                          member={m}
+                          activeRole={activeRole}
+                          onRequestDelete={requestDeleteMember}
+                          compact
+                        />
                       </TableCell>
                     </TableRow>
                   );
@@ -1857,9 +2087,14 @@ function MembersList() {
             </Table>
           </div>
           <div className="px-4 py-2.5 border-t border-border text-[10px] text-muted-foreground bg-muted/30">
-            Flags: <span className="text-[#5EEAD4]">M</span> = Membership · <span className="text-[#8FA89F]">T</span> = Training eligible
+            Flags: <span className="text-[#5EEAD4]">M</span> = Membership ·{" "}
+            <span className="text-[#8FA89F]">T</span> = Training eligible
             {nestFamilies && (
-              <> · Click <span className="text-[#EEF2F0]">›</span> to show juniors · <span className="text-[#FBBF24]">Sub-member</span> = junior under that adult</>
+              <>
+                {" "}
+                · Click <span className="text-[#EEF2F0]">›</span> to show juniors ·{" "}
+                <span className="text-[#FBBF24]">Sub-member</span> = junior under that adult
+              </>
             )}
           </div>
         </div>

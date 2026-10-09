@@ -19,7 +19,9 @@ function EditMember() {
   const canEditMembers = useCan("members.edit");
   if (!member) return <Navigate to="/members" />;
   const isJunior = member.memberType.toLowerCase() === "junior";
-  const canEdit = (activeRole === "admin" && canEditMembers) || (activeRole === "member" && (isJunior || member.userId === user.id));
+  const canEdit =
+    (activeRole === "admin" && canEditMembers) ||
+    (activeRole === "member" && (isJunior || member.userId === user.id));
   if (!canEdit) return <Navigate to="/members" />;
 
   const isAdmin = activeRole === "admin";
@@ -30,9 +32,7 @@ function EditMember() {
       <PageHeader
         title={isAdmin ? `Edit ${member.firstName}` : `Edit family member`}
         description={
-          isJunior
-            ? "Update this junior’s club profile."
-            : "Update this adult’s club profile."
+          isJunior ? "Update this junior’s club profile." : "Update this adult’s club profile."
         }
         backTo="/members"
       />

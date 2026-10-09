@@ -5,18 +5,20 @@ namespace Tests\Feature;
 use App\Models\Training;
 use App\Models\User;
 use App\Models\Location;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TrainingRFMSynchronizationTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     protected User $admin;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        \Carbon\Carbon::setTestNow('2026-07-01 10:00:00');
 
         Location::firstOrCreate(['name' => 'Court 1']);
         Training::query()->delete();

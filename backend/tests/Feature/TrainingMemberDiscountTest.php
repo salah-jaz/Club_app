@@ -28,6 +28,8 @@ class TrainingMemberDiscountTest extends TestCase
     {
         parent::setUp();
 
+        \Carbon\Carbon::setTestNow('2026-07-01 10:00:00');
+
         Grade::firstOrCreate(['name' => 'Grade A'], ['type' => 'junior']);
         Location::firstOrCreate(['name' => 'Court 1']);
 
@@ -110,9 +112,25 @@ class TrainingMemberDiscountTest extends TestCase
             'training_eligible' => true,
         ]);
 
+        $noDiscUser = User::firstOrCreate(
+            ['id' => 'u_member_nodisc_test'],
+            [
+                'first_name' => 'NoDisc',
+                'last_name' => 'User',
+                'sex' => 'male',
+                'dob' => '1994-04-04',
+                'email' => 'nodisc_user@test.com',
+                'mobile' => '+1987654399',
+                'address' => 'Test Address',
+                'password' => bcrypt('password'),
+                'role' => 'member',
+                'status' => 'active',
+            ]
+        );
+
         $this->noDiscountMember = Member::create([
             'id' => 'm_nodisc',
-            'user_id' => $this->memberUser->id,
+            'user_id' => $noDiscUser->id,
             'first_name' => 'NoDiscount',
             'last_name' => 'Member',
             'sex' => 'male',

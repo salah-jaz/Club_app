@@ -8,14 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Trash2, Plus, HelpCircle, Pencil, Check, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import {
-  ConfirmDeleteDialog,
-  type ConfirmDeleteRequest,
-} from "@/components/ConfirmDeleteDialog";
+import { ConfirmDeleteDialog, type ConfirmDeleteRequest } from "@/components/ConfirmDeleteDialog";
 import { TIMEZONE_OPTIONS, resolveTimezone } from "@/lib/timezones";
 import type { PlayerPositionItem, HolidayItem } from "@/lib/types";
 
@@ -92,7 +95,9 @@ function EditableConfigRow({
     <div className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs gap-2">
       <div className="flex items-center gap-2 min-w-0">
         {rankLabel && (
-          <span className="shrink-0 font-mono text-[10px] text-[#8FA89F] w-5 text-center">{rankLabel}</span>
+          <span className="shrink-0 font-mono text-[10px] text-[#8FA89F] w-5 text-center">
+            {rankLabel}
+          </span>
         )}
         <span className="text-[#F1F0EE] font-medium truncate">{value}</span>
       </div>
@@ -306,7 +311,9 @@ function SettingsPage() {
     toast.success(`Theme switched to ${mode} mode`);
   };
 
-  const [localColorTheme, setLocalColorTheme] = useState<"emerald" | "sapphire" | "ruby" | "amber" | "amethyst" | "custom">(() => {
+  const [localColorTheme, setLocalColorTheme] = useState<
+    "emerald" | "sapphire" | "ruby" | "amber" | "amethyst" | "custom"
+  >(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("clubapp-color-theme") as any) || "sapphire";
     }
@@ -345,41 +352,43 @@ function SettingsPage() {
     }
   };
 
-  const handleColorThemeChange = (color: "emerald" | "sapphire" | "ruby" | "amber" | "amethyst" | "custom") => {
+  const handleColorThemeChange = (
+    color: "emerald" | "sapphire" | "ruby" | "amber" | "amethyst" | "custom",
+  ) => {
     setLocalColorTheme(color);
     localStorage.setItem("clubapp-color-theme", color);
-    
+
     document.documentElement.classList.forEach((cls) => {
       if (cls.startsWith("theme-")) {
         document.documentElement.classList.remove(cls);
       }
     });
-    
+
     if (color === "custom") {
       document.documentElement.classList.add("theme-custom");
       applyCustomTheme(customHex, customSecHex, localTheme === "light");
     } else {
       const root = document.documentElement;
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--ring');
-      root.style.removeProperty('--sidebar-primary');
-      root.style.removeProperty('--sidebar-ring');
-      root.style.removeProperty('--violet');
-      root.style.removeProperty('--input-border-focus');
-      root.style.removeProperty('--accent-foreground');
-      root.style.removeProperty('--success-text');
-      root.style.removeProperty('--success-color');
-      root.style.removeProperty('--border-accent');
-      root.style.removeProperty('--violet-dim');
-      root.style.removeProperty('--bg-glass');
-      root.style.removeProperty('--gold');
-      root.style.removeProperty('--gold-dim');
-      root.style.removeProperty('--success-bg');
-      root.style.removeProperty('--success-border');
-      
+      root.style.removeProperty("--primary");
+      root.style.removeProperty("--ring");
+      root.style.removeProperty("--sidebar-primary");
+      root.style.removeProperty("--sidebar-ring");
+      root.style.removeProperty("--violet");
+      root.style.removeProperty("--input-border-focus");
+      root.style.removeProperty("--accent-foreground");
+      root.style.removeProperty("--success-text");
+      root.style.removeProperty("--success-color");
+      root.style.removeProperty("--border-accent");
+      root.style.removeProperty("--violet-dim");
+      root.style.removeProperty("--bg-glass");
+      root.style.removeProperty("--gold");
+      root.style.removeProperty("--gold-dim");
+      root.style.removeProperty("--success-bg");
+      root.style.removeProperty("--success-border");
+
       document.documentElement.classList.add(`theme-${color}`);
     }
-    
+
     window.dispatchEvent(new Event("clubapp-color-theme-changed"));
     toast.success(`Color Theme switched to ${color}`);
   };
@@ -540,7 +549,7 @@ function SettingsPage() {
 
     const testEmail = window.prompt(
       "Enter the recipient email address for the SMTP test:",
-      currentUser?.email || "admin@club.com"
+      currentUser?.email || "admin@club.com",
     );
     if (testEmail === null) {
       return;
@@ -607,11 +616,14 @@ function SettingsPage() {
     try {
       await updateSettings({
         adultDiscountMode,
-        adultDiscountPercent: adultDiscountMode === "percent" ? Number(adultDiscountPercent) || 0 : 0,
+        adultDiscountPercent:
+          adultDiscountMode === "percent" ? Number(adultDiscountPercent) || 0 : 0,
         adultDiscountAmount: adultDiscountMode === "amount" ? Number(adultDiscountAmount) || 0 : 0,
         juniorDiscountMode,
-        juniorDiscountPercent: juniorDiscountMode === "percent" ? Number(juniorDiscountPercent) || 0 : 0,
-        juniorDiscountAmount: juniorDiscountMode === "amount" ? Number(juniorDiscountAmount) || 0 : 0,
+        juniorDiscountPercent:
+          juniorDiscountMode === "percent" ? Number(juniorDiscountPercent) || 0 : 0,
+        juniorDiscountAmount:
+          juniorDiscountMode === "amount" ? Number(juniorDiscountAmount) || 0 : 0,
       });
       toast.success("Discount settings saved successfully");
     } catch (err: any) {
@@ -653,12 +665,13 @@ function SettingsPage() {
       title: "Delete coach",
       entityName: c,
       related: [
-        { label: trainingCount === 1 ? "training program" : "training programs", count: trainingCount },
+        {
+          label: trainingCount === 1 ? "training program" : "training programs",
+          count: trainingCount,
+        },
       ],
       warning:
-        trainingCount > 0
-          ? "This coach is assigned to existing training programs."
-          : undefined,
+        trainingCount > 0 ? "This coach is assigned to existing training programs." : undefined,
       onConfirm: async () => {
         const updated = coaches.filter((item) => item !== c);
         setCoaches(updated);
@@ -799,8 +812,8 @@ function SettingsPage() {
       toast.error("Holiday date already exists");
       return;
     }
-    const updatedItems = [...holidayItems, { name: trimmedName, date: newHolidayDate }].sort((a, b) =>
-      a.date.localeCompare(b.date),
+    const updatedItems = [...holidayItems, { name: trimmedName, date: newHolidayDate }].sort(
+      (a, b) => a.date.localeCompare(b.date),
     );
     const updatedDates = updatedItems.map((h) => h.date);
     setHolidayItems(updatedItems);
@@ -838,7 +851,10 @@ function SettingsPage() {
     setHolidays(updatedDates);
     setEditingHolidayDate(null);
     setNewHolidayName("");
-    saveUpdatedList({ holidayItems: updatedItems, holidays: updatedDates }, "Holiday updated successfully");
+    saveUpdatedList(
+      { holidayItems: updatedItems, holidays: updatedDates },
+      "Holiday updated successfully",
+    );
   };
 
   const handleCancelEditHoliday = () => {
@@ -902,7 +918,7 @@ function SettingsPage() {
       playerPositions?: string[];
       playerPositionItems?: PlayerPositionItem[];
     },
-    successMsg: string
+    successMsg: string,
   ) => {
     try {
       await updateSettings(payload);
@@ -981,16 +997,36 @@ function SettingsPage() {
                         <SelectValue placeholder="Select Currency" />
                       </SelectTrigger>
                       <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                        <SelectItem value="$" className="cursor-pointer hover:bg-white/5">USD ($)</SelectItem>
-                        <SelectItem value="£" className="cursor-pointer hover:bg-white/5">GBP (£)</SelectItem>
-                        <SelectItem value="€" className="cursor-pointer hover:bg-white/5">EUR (€)</SelectItem>
-                        <SelectItem value="₹" className="cursor-pointer hover:bg-white/5">INR (₹)</SelectItem>
-                        <SelectItem value="¥" className="cursor-pointer hover:bg-white/5">JPY (¥)</SelectItem>
-                        <SelectItem value="CA$" className="cursor-pointer hover:bg-white/5">CAD (CA$)</SelectItem>
-                        <SelectItem value="A$" className="cursor-pointer hover:bg-white/5">AUD (A$)</SelectItem>
-                        <SelectItem value="S$" className="cursor-pointer hover:bg-white/5">SGD (S$)</SelectItem>
-                        <SelectItem value="RM" className="cursor-pointer hover:bg-white/5">MYR (RM)</SelectItem>
-                        <SelectItem value="AED" className="cursor-pointer hover:bg-white/5">AED (AED)</SelectItem>
+                        <SelectItem value="$" className="cursor-pointer hover:bg-white/5">
+                          USD ($)
+                        </SelectItem>
+                        <SelectItem value="£" className="cursor-pointer hover:bg-white/5">
+                          GBP (£)
+                        </SelectItem>
+                        <SelectItem value="€" className="cursor-pointer hover:bg-white/5">
+                          EUR (€)
+                        </SelectItem>
+                        <SelectItem value="₹" className="cursor-pointer hover:bg-white/5">
+                          INR (₹)
+                        </SelectItem>
+                        <SelectItem value="¥" className="cursor-pointer hover:bg-white/5">
+                          JPY (¥)
+                        </SelectItem>
+                        <SelectItem value="CA$" className="cursor-pointer hover:bg-white/5">
+                          CAD (CA$)
+                        </SelectItem>
+                        <SelectItem value="A$" className="cursor-pointer hover:bg-white/5">
+                          AUD (A$)
+                        </SelectItem>
+                        <SelectItem value="S$" className="cursor-pointer hover:bg-white/5">
+                          SGD (S$)
+                        </SelectItem>
+                        <SelectItem value="RM" className="cursor-pointer hover:bg-white/5">
+                          MYR (RM)
+                        </SelectItem>
+                        <SelectItem value="AED" className="cursor-pointer hover:bg-white/5">
+                          AED (AED)
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1044,7 +1080,11 @@ function SettingsPage() {
                   <div className="flex items-center gap-4 pt-1.5">
                     {appLogoBase64 ? (
                       <div className="relative size-12 bg-white/5 rounded border border-white/[0.06] flex items-center justify-center overflow-hidden shrink-0">
-                        <img src={appLogoBase64} alt="Preview" className="size-full object-contain" />
+                        <img
+                          src={appLogoBase64}
+                          alt="Preview"
+                          className="size-full object-contain"
+                        />
                         <button
                           type="button"
                           onClick={() => setAppLogoBase64(null)}
@@ -1059,7 +1099,8 @@ function SettingsPage() {
                       </div>
                     )}
                     <span className="text-[11px] text-muted-foreground/60 leading-relaxed font-light">
-                      Upload a square PNG or JPEG logo (recommended size 64x64px). If not uploaded, the text logo above will be used.
+                      Upload a square PNG or JPEG logo (recommended size 64x64px). If not uploaded,
+                      the text logo above will be used.
                     </span>
                   </div>
                 </div>
@@ -1071,7 +1112,9 @@ function SettingsPage() {
                         Automatic Publish & Rotation
                       </Label>
                       <p className="text-[11px] text-muted-foreground/80 font-light leading-relaxed">
-                        When enabled, released play schedules automatically generate court rotation and publish it when the Cancellation Lock Window is reached. Create and release remain manual.
+                        When enabled, released play schedules automatically generate court rotation
+                        and publish it when the Cancellation Lock Window is reached. Create and
+                        release remain manual.
                       </p>
                     </div>
                     <Switch
@@ -1095,7 +1138,10 @@ function SettingsPage() {
                       />
                     </div>
                     <p className="text-[10px] text-muted-foreground/60 font-light leading-relaxed">
-                      Hours before match start when accepted members can no longer cancel. {autoPublishRotation ? `At that time court rotation is generated and published automatically (${cancellationLockHours || 0} hour(s) before start).` : "Automatic generate and publish is off: rotation stays manual, but cancellations still close at this window."}
+                      Hours before match start when accepted members can no longer cancel.{" "}
+                      {autoPublishRotation
+                        ? `At that time court rotation is generated and published automatically (${cancellationLockHours || 0} hour(s) before start).`
+                        : "Automatic generate and publish is off: rotation stays manual, but cancellations still close at this window."}
                     </p>
                   </div>
                 </div>
@@ -1106,7 +1152,8 @@ function SettingsPage() {
                       Member Portal / Login Page Content
                     </h4>
                     <p className="text-[11px] text-muted-foreground/70 font-light mt-0.5">
-                      Customize the branding hero headline and tagline shown to members on the login and registration portal.
+                      Customize the branding hero headline and tagline shown to members on the login
+                      and registration portal.
                     </p>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -1173,16 +1220,20 @@ function SettingsPage() {
             <CardContent className="pt-6">
               <form onSubmit={handleSaveDiscounts} className="space-y-6">
                 <p className="text-xs text-muted-foreground font-light">
-                  Choose percentage or fixed amount for each member type — only one applies.
-                  Only members with &quot;Apply Discount&quot; enabled receive these rates on play and
+                  Choose percentage or fixed amount for each member type — only one applies. Only
+                  members with &quot;Apply Discount&quot; enabled receive these rates on play and
                   training fees.
                 </p>
                 <div className="grid sm:grid-cols-2 gap-6">
                   <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#34D399] uppercase">Adult</h3>
+                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                        Adult
+                      </h3>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">%</span>
+                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">
+                          %
+                        </span>
                         <Switch
                           checked={adultDiscountMode === "amount"}
                           onCheckedChange={(checked) =>
@@ -1190,7 +1241,9 @@ function SettingsPage() {
                           }
                           aria-label="Adult discount type"
                         />
-                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">Amount</span>
+                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">
+                          Amount
+                        </span>
                       </div>
                     </div>
                     {adultDiscountMode === "percent" ? (
@@ -1226,9 +1279,13 @@ function SettingsPage() {
                   </div>
                   <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#818CF8] uppercase">Junior</h3>
+                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#818CF8] uppercase">
+                        Junior
+                      </h3>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">%</span>
+                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">
+                          %
+                        </span>
                         <Switch
                           checked={juniorDiscountMode === "amount"}
                           onCheckedChange={(checked) =>
@@ -1236,7 +1293,9 @@ function SettingsPage() {
                           }
                           aria-label="Junior discount type"
                         />
-                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">Amount</span>
+                        <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">
+                          Amount
+                        </span>
                       </div>
                     </div>
                     {juniorDiscountMode === "percent" ? (
@@ -1290,7 +1349,9 @@ function SettingsPage() {
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
           <CardHeader className="pb-3 border-b border-white/[0.03]">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
-              {currentUser?.role === "admin" ? "Admin Credentials & Profile" : "Profile Details & Credentials"}
+              {currentUser?.role === "admin"
+                ? "Admin Credentials & Profile"
+                : "Profile Details & Credentials"}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
@@ -1354,8 +1415,12 @@ function SettingsPage() {
                       <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                      <SelectItem value="male" className="cursor-pointer hover:bg-white/5">Male</SelectItem>
-                      <SelectItem value="female" className="cursor-pointer hover:bg-white/5">Female</SelectItem>
+                      <SelectItem value="male" className="cursor-pointer hover:bg-white/5">
+                        Male
+                      </SelectItem>
+                      <SelectItem value="female" className="cursor-pointer hover:bg-white/5">
+                        Female
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1435,16 +1500,27 @@ function SettingsPage() {
               {/* Theme Mode */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.03]">
                 <div>
-                  <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">App Theme Mode</Label>
-                  <p className="text-xs text-muted-foreground mt-1 font-light">Select your preferred color layout theme for the portal.</p>
+                  <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">
+                    App Theme Mode
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1 font-light">
+                    Select your preferred color layout theme for the portal.
+                  </p>
                 </div>
-                <Select value={localTheme} onValueChange={(v) => handleThemeChange(v as "dark" | "light")}>
+                <Select
+                  value={localTheme}
+                  onValueChange={(v) => handleThemeChange(v as "dark" | "light")}
+                >
                   <SelectTrigger className="w-full sm:w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="dark" className="cursor-pointer hover:bg-white/5 text-xs">Dark Mode</SelectItem>
-                    <SelectItem value="light" className="cursor-pointer hover:bg-white/5 text-xs">Light Mode</SelectItem>
+                    <SelectItem value="dark" className="cursor-pointer hover:bg-white/5 text-xs">
+                      Dark Mode
+                    </SelectItem>
+                    <SelectItem value="light" className="cursor-pointer hover:bg-white/5 text-xs">
+                      Light Mode
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1452,20 +1528,45 @@ function SettingsPage() {
               {/* Color Scheme Preset */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">Brand Color Theme</Label>
-                  <p className="text-xs text-muted-foreground mt-1 font-light">Select your preferred branding colors for accents, buttons, and badges.</p>
+                  <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">
+                    Brand Color Theme
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1 font-light">
+                    Select your preferred branding colors for accents, buttons, and badges.
+                  </p>
                 </div>
-                <Select value={localColorTheme} onValueChange={(v) => handleColorThemeChange(v as any)}>
+                <Select
+                  value={localColorTheme}
+                  onValueChange={(v) => handleColorThemeChange(v as any)}
+                >
                   <SelectTrigger className="w-full sm:w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="emerald" className="cursor-pointer hover:bg-white/5 text-xs">Emerald Green</SelectItem>
-                    <SelectItem value="sapphire" className="cursor-pointer hover:bg-white/5 text-xs">Sapphire Blue (Default)</SelectItem>
-                    <SelectItem value="ruby" className="cursor-pointer hover:bg-white/5 text-xs">Ruby Crimson</SelectItem>
-                    <SelectItem value="amber" className="cursor-pointer hover:bg-white/5 text-xs">Amber Gold</SelectItem>
-                    <SelectItem value="amethyst" className="cursor-pointer hover:bg-white/5 text-xs">Amethyst Purple</SelectItem>
-                    <SelectItem value="custom" className="cursor-pointer hover:bg-white/5 text-xs">Custom Theme Color</SelectItem>
+                    <SelectItem value="emerald" className="cursor-pointer hover:bg-white/5 text-xs">
+                      Emerald Green
+                    </SelectItem>
+                    <SelectItem
+                      value="sapphire"
+                      className="cursor-pointer hover:bg-white/5 text-xs"
+                    >
+                      Sapphire Blue (Default)
+                    </SelectItem>
+                    <SelectItem value="ruby" className="cursor-pointer hover:bg-white/5 text-xs">
+                      Ruby Crimson
+                    </SelectItem>
+                    <SelectItem value="amber" className="cursor-pointer hover:bg-white/5 text-xs">
+                      Amber Gold
+                    </SelectItem>
+                    <SelectItem
+                      value="amethyst"
+                      className="cursor-pointer hover:bg-white/5 text-xs"
+                    >
+                      Amethyst Purple
+                    </SelectItem>
+                    <SelectItem value="custom" className="cursor-pointer hover:bg-white/5 text-xs">
+                      Custom Theme Color
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1475,11 +1576,17 @@ function SettingsPage() {
                 <div className="space-y-4 pt-4 border-t border-white/[0.03] animate-in fade-in-50 duration-200">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                      <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">Select Primary Accent Color</Label>
-                      <p className="text-xs text-muted-foreground mt-1 font-light">Pick a custom primary brand color for your portal interface.</p>
+                      <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">
+                        Select Primary Accent Color
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1 font-light">
+                        Pick a custom primary brand color for your portal interface.
+                      </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-mono text-muted-foreground uppercase">{customHex}</span>
+                      <span className="text-xs font-mono text-muted-foreground uppercase">
+                        {customHex}
+                      </span>
                       <input
                         type="color"
                         value={customHex}
@@ -1491,11 +1598,17 @@ function SettingsPage() {
 
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-white/[0.03]">
                     <div>
-                      <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">Select Secondary Accent Color</Label>
-                      <p className="text-xs text-muted-foreground mt-1 font-light">Pick a custom secondary color (for credits, positive amounts, and badges).</p>
+                      <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">
+                        Select Secondary Accent Color
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1 font-light">
+                        Pick a custom secondary color (for credits, positive amounts, and badges).
+                      </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-mono text-muted-foreground uppercase">{customSecHex}</span>
+                      <span className="text-xs font-mono text-muted-foreground uppercase">
+                        {customSecHex}
+                      </span>
                       <input
                         type="color"
                         value={customSecHex}
@@ -1556,9 +1669,15 @@ function SettingsPage() {
                           <SelectValue placeholder="Select Encryption" />
                         </SelectTrigger>
                         <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                          <SelectItem value="tls" className="cursor-pointer hover:bg-white/5">TLS</SelectItem>
-                          <SelectItem value="ssl" className="cursor-pointer hover:bg-white/5">SSL</SelectItem>
-                          <SelectItem value="none" className="cursor-pointer hover:bg-white/5">None</SelectItem>
+                          <SelectItem value="tls" className="cursor-pointer hover:bg-white/5">
+                            TLS
+                          </SelectItem>
+                          <SelectItem value="ssl" className="cursor-pointer hover:bg-white/5">
+                            SSL
+                          </SelectItem>
+                          <SelectItem value="none" className="cursor-pointer hover:bg-white/5">
+                            None
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1611,7 +1730,23 @@ function SettingsPage() {
                   </div>
 
                   <div className="text-[11px] text-muted-foreground/60 leading-relaxed font-light mt-2 bg-[#1A2120]/40 p-3 rounded-lg border border-white/[0.02]">
-                    <strong className="text-[#34D399] font-medium">Google SMTP Setup Tip:</strong> Use <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">smtp.gmail.com</code> with port <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">587</code> and encryption <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">TLS</code>. You must create an <strong>App Password</strong> in your Google Account settings. Standard Gmail accounts have a daily limit of 500 emails/day (error 550 5.4.5). Leave the host blank to disable SMTP and fallback to application log capture.
+                    <strong className="text-[#34D399] font-medium">Google SMTP Setup Tip:</strong>{" "}
+                    Use{" "}
+                    <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">
+                      smtp.gmail.com
+                    </code>{" "}
+                    with port{" "}
+                    <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">
+                      587
+                    </code>{" "}
+                    and encryption{" "}
+                    <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">
+                      TLS
+                    </code>
+                    . You must create an <strong>App Password</strong> in your Google Account
+                    settings. Standard Gmail accounts have a daily limit of 500 emails/day (error
+                    550 5.4.5). Leave the host blank to disable SMTP and fallback to application log
+                    capture.
                   </div>
 
                   <div className="flex justify-end gap-3 pt-2">
@@ -1663,7 +1798,9 @@ function SettingsPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
                   {locations.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-muted-foreground/60">No locations configured.</div>
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">
+                      No locations configured.
+                    </div>
                   ) : (
                     locations.map((loc) => (
                       <EditableConfigRow
@@ -1673,7 +1810,9 @@ function SettingsPage() {
                         editValue={editingValue}
                         onEditValueChange={setEditingValue}
                         onStartEdit={() => startEditing("locations", loc)}
-                        onSave={() => renameListItem("locations", locations, setLocations, "Location")}
+                        onSave={() =>
+                          renameListItem("locations", locations, setLocations, "Location")
+                        }
                         onCancel={cancelEditing}
                         onDelete={() => handleDeleteLocation(loc)}
                       />
@@ -1709,7 +1848,9 @@ function SettingsPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
                   {coaches.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-muted-foreground/60">No coaches configured.</div>
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">
+                      No coaches configured.
+                    </div>
                   ) : (
                     coaches.map((c) => (
                       <EditableConfigRow
@@ -1734,12 +1875,15 @@ function SettingsPage() {
               <CardHeader className="pb-3 border-b border-white/[0.03]">
                 <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center justify-between">
                   <span>Adult Grades</span>
-                  <span className="text-[10px] text-muted-foreground font-normal">For Adult Members</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    For Adult Members
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
                 <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
-                  Order from strongest (top, rank 1) to weakest. Court rotation groups similar grades together.
+                  Order from strongest (top, rank 1) to weakest. Court rotation groups similar
+                  grades together.
                 </p>
                 <div className="flex gap-2 mb-4">
                   <Input
@@ -1759,7 +1903,9 @@ function SettingsPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
                   {adultGrades.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-muted-foreground/60">No adult grades configured.</div>
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">
+                      No adult grades configured.
+                    </div>
                   ) : (
                     adultGrades.map((g, index) => (
                       <EditableConfigRow
@@ -1770,13 +1916,19 @@ function SettingsPage() {
                         editValue={editingValue}
                         onEditValueChange={setEditingValue}
                         onStartEdit={() => startEditing("adultGrades", g)}
-                        onSave={() => renameListItem("adultGrades", adultGrades, setAdultGrades, "Adult Grade")}
+                        onSave={() =>
+                          renameListItem("adultGrades", adultGrades, setAdultGrades, "Adult Grade")
+                        }
                         onCancel={cancelEditing}
                         onDelete={() => handleDeleteAdultGrade(g)}
                         canMoveUp={index > 0}
                         canMoveDown={index < adultGrades.length - 1}
-                        onMoveUp={() => moveGrade("adultGrades", adultGrades, setAdultGrades, index, -1)}
-                        onMoveDown={() => moveGrade("adultGrades", adultGrades, setAdultGrades, index, 1)}
+                        onMoveUp={() =>
+                          moveGrade("adultGrades", adultGrades, setAdultGrades, index, -1)
+                        }
+                        onMoveDown={() =>
+                          moveGrade("adultGrades", adultGrades, setAdultGrades, index, 1)
+                        }
                       />
                     ))
                   )}
@@ -1789,12 +1941,15 @@ function SettingsPage() {
               <CardHeader className="pb-3 border-b border-white/[0.03]">
                 <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#818CF8] uppercase flex items-center justify-between">
                   <span>Junior Grades</span>
-                  <span className="text-[10px] text-muted-foreground font-normal">For Junior Members</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    For Junior Members
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 flex-1 flex flex-col">
                 <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
-                  Order from strongest (top, rank 1) to weakest. Used when you need grade strength for juniors.
+                  Order from strongest (top, rank 1) to weakest. Used when you need grade strength
+                  for juniors.
                 </p>
                 <div className="flex gap-2 mb-4">
                   <Input
@@ -1814,7 +1969,9 @@ function SettingsPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
                   {juniorGrades.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-muted-foreground/60">No junior grades configured.</div>
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">
+                      No junior grades configured.
+                    </div>
                   ) : (
                     juniorGrades.map((g, index) => (
                       <EditableConfigRow
@@ -1825,13 +1982,24 @@ function SettingsPage() {
                         editValue={editingValue}
                         onEditValueChange={setEditingValue}
                         onStartEdit={() => startEditing("juniorGrades", g)}
-                        onSave={() => renameListItem("juniorGrades", juniorGrades, setJuniorGrades, "Junior Grade")}
+                        onSave={() =>
+                          renameListItem(
+                            "juniorGrades",
+                            juniorGrades,
+                            setJuniorGrades,
+                            "Junior Grade",
+                          )
+                        }
                         onCancel={cancelEditing}
                         onDelete={() => handleDeleteJuniorGrade(g)}
                         canMoveUp={index > 0}
                         canMoveDown={index < juniorGrades.length - 1}
-                        onMoveUp={() => moveGrade("juniorGrades", juniorGrades, setJuniorGrades, index, -1)}
-                        onMoveDown={() => moveGrade("juniorGrades", juniorGrades, setJuniorGrades, index, 1)}
+                        onMoveUp={() =>
+                          moveGrade("juniorGrades", juniorGrades, setJuniorGrades, index, -1)
+                        }
+                        onMoveDown={() =>
+                          moveGrade("juniorGrades", juniorGrades, setJuniorGrades, index, 1)
+                        }
                       />
                     ))
                   )}
@@ -1850,7 +2018,9 @@ function SettingsPage() {
                 {editingHolidayDate ? (
                   <div className="grid sm:grid-cols-1 md:grid-cols-5 gap-3 mb-4 items-end">
                     <div className="space-y-1 md:col-span-2">
-                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Name</Label>
+                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">
+                        Holiday Name
+                      </Label>
                       <Input
                         type="text"
                         placeholder="e.g. Christmas Day"
@@ -1861,9 +2031,13 @@ function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-1 md:col-span-2">
-                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Date</Label>
+                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">
+                        Holiday Date
+                      </Label>
                       <div className="bg-[#1A2120]/60 border border-[rgba(255,255,255,0.06)] rounded-lg h-9 flex items-center px-3">
-                        <span className="text-[#8A8A98] font-mono text-xs">{editingHolidayDate}</span>
+                        <span className="text-[#8A8A98] font-mono text-xs">
+                          {editingHolidayDate}
+                        </span>
                       </div>
                     </div>
                     <div className="flex gap-2 md:col-span-1">
@@ -1886,7 +2060,9 @@ function SettingsPage() {
                 ) : (
                   <div className="grid sm:grid-cols-1 md:grid-cols-5 gap-3 mb-4 items-end">
                     <div className="space-y-1 md:col-span-2">
-                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Name</Label>
+                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">
+                        Holiday Name
+                      </Label>
                       <Input
                         type="text"
                         placeholder="e.g. Christmas Day"
@@ -1896,7 +2072,9 @@ function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-1 md:col-span-2">
-                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">Holiday Date</Label>
+                      <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">
+                        Holiday Date
+                      </Label>
                       <Input
                         type="date"
                         value={newHolidayDate}
@@ -1916,7 +2094,8 @@ function SettingsPage() {
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 overflow-y-auto max-h-[300px] pr-1">
                   {holidayItems.length === 0 ? (
                     <div className="text-center py-8 text-xs text-muted-foreground/60 sm:col-span-2 lg:col-span-3">
-                      No holidays registered. Weekly training sessions will generate on all consecutive dates.
+                      No holidays registered. Weekly training sessions will generate on all
+                      consecutive dates.
                     </div>
                   ) : (
                     holidayItems.map((h) => (
@@ -1929,7 +2108,9 @@ function SettingsPage() {
                         }`}
                       >
                         <div className="flex flex-col min-w-0 pr-2">
-                          <span className="text-[#F1F0EE] font-medium truncate">{h.name || "Club Holiday"}</span>
+                          <span className="text-[#F1F0EE] font-medium truncate">
+                            {h.name || "Club Holiday"}
+                          </span>
                           <span className="text-[#8A8A98] font-mono text-[11px]">{h.date}</span>
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
@@ -1985,13 +2166,17 @@ function SettingsPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-[280px] pr-1 space-y-1">
                   {playerPositionItems.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-muted-foreground/60">No player positions configured.</div>
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">
+                      No player positions configured.
+                    </div>
                   ) : (
                     playerPositionItems.map((pos) => (
                       <div key={pos.name} className="space-y-0">
                         <EditableConfigRow
                           value={pos.name}
-                          isEditing={editingList === "playerPositions" && editingOriginal === pos.name}
+                          isEditing={
+                            editingList === "playerPositions" && editingOriginal === pos.name
+                          }
                           editValue={editingValue}
                           onEditValueChange={setEditingValue}
                           onStartEdit={() => startEditing("playerPositions", pos.name)}
@@ -2032,7 +2217,6 @@ function SettingsPage() {
             </Card>
           </>
         )}
-
       </div>
     </div>
   );

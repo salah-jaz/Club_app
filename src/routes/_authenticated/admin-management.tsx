@@ -5,21 +5,43 @@ import { permissionActionLabel, useCan, useCanModule } from "@/lib/permissions";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Shield, Key, Eye, EyeOff, RotateCcw } from "lucide-react";
@@ -33,7 +55,13 @@ export const Route = createFileRoute("/_authenticated/admin-management")({
 
 function BtnSpinner() {
   return (
-    <svg className="animate-spin size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <svg
+      className="animate-spin size-3.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+    >
       <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
       <path d="M12 2a10 10 0 0 1 10 10" />
     </svg>
@@ -131,7 +159,10 @@ function PermissionMatrix({
                 <span className="text-[12px] font-semibold text-[#F1F0EE] tracking-wide">
                   {moduleLabel(module)}
                 </span>
-                <Badge variant="secondary" className="ml-auto text-[10px] h-5 bg-white/5 text-[#8A8A98]">
+                <Badge
+                  variant="secondary"
+                  className="ml-auto text-[10px] h-5 bg-white/5 text-[#8A8A98]"
+                >
                   {perms.filter((p) => selected.has(p.id)).length}/{perms.length}
                 </Badge>
               </div>
@@ -188,14 +219,25 @@ function RoleFormDialog({
   }, [open, role]);
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error("Role name is required"); return; }
+    if (!name.trim()) {
+      toast.error("Role name is required");
+      return;
+    }
     setSaving(true);
     try {
       if (isEdit) {
-        await s.updateAdminRole(role!.id, { name: name.trim(), description: desc.trim() || undefined, permissionIds: [...perms] });
+        await s.updateAdminRole(role!.id, {
+          name: name.trim(),
+          description: desc.trim() || undefined,
+          permissionIds: [...perms],
+        });
         toast.success("Role updated");
       } else {
-        await s.createAdminRole({ name: name.trim(), description: desc.trim() || undefined, permissionIds: [...perms] });
+        await s.createAdminRole({
+          name: name.trim(),
+          description: desc.trim() || undefined,
+          permissionIds: [...perms],
+        });
         toast.success("Role created");
       }
       onOpenChange(false);
@@ -210,15 +252,21 @@ function RoleFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-[#F1F0EE]">{isEdit ? "Edit role" : "Create role"}</DialogTitle>
+          <DialogTitle className="text-[#F1F0EE]">
+            {isEdit ? "Edit role" : "Create role"}
+          </DialogTitle>
           <DialogDescription className="text-[#8A8A98]">
-            {isEdit ? "Update role name and permissions." : "Define a new admin role with specific permissions."}
+            {isEdit
+              ? "Update role name and permissions."
+              : "Define a new admin role with specific permissions."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Role Name</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Role Name
+              </Label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -228,7 +276,9 @@ function RoleFormDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Description</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Description
+              </Label>
               <Input
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
@@ -247,16 +297,29 @@ function RoleFormDialog({
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase mb-2 block">
                 Permissions
               </Label>
-              <PermissionMatrix allPermissions={allPermissions} selected={perms} onChange={setPerms} />
+              <PermissionMatrix
+                allPermissions={allPermissions}
+                selected={perms}
+                onChange={setPerms}
+              />
             </div>
           )}
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" className="btn-premium-outline cursor-pointer" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button
+            variant="outline"
+            className="btn-premium-outline cursor-pointer"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
             Cancel
           </Button>
           {!isSuperRole && (
-            <Button className="btn-premium-solid cursor-pointer" onClick={handleSave} disabled={saving}>
+            <Button
+              className="btn-premium-solid cursor-pointer"
+              onClick={handleSave}
+              disabled={saving}
+            >
               {saving ? <BtnSpinner /> : null}
               {isEdit ? "Save changes" : "Create role"}
             </Button>
@@ -357,7 +420,9 @@ function AdminUserFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-[#F1F0EE]">{isEdit ? "Edit admin" : "Create admin"}</DialogTitle>
+          <DialogTitle className="text-[#F1F0EE]">
+            {isEdit ? "Edit admin" : "Create admin"}
+          </DialogTitle>
           <DialogDescription className="text-[#8A8A98]">
             {isEdit ? "Update this admin account." : "Create a new admin with a specific role."}
           </DialogDescription>
@@ -365,25 +430,52 @@ function AdminUserFormDialog({
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">First Name</Label>
-              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                First Name
+              </Label>
+              <Input
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Last Name</Label>
-              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Last Name
+              </Label>
+              <Input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Email</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+            <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+              Email
+            </Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+            />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Mobile (optional)</Label>
-            <Input value={mobile} onChange={(e) => setMobile(e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+            <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+              Mobile (optional)
+            </Label>
+            <Input
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+            />
           </div>
           {!isEdit && (
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Password</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Password
+              </Label>
               <div className="relative">
                 <Input
                   type={showPw ? "text" : "password"}
@@ -402,7 +494,9 @@ function AdminUserFormDialog({
             </div>
           )}
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Admin Role</Label>
+            <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+              Admin Role
+            </Label>
             <Select value={roleId} onValueChange={setRoleId}>
               <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg cursor-pointer">
                 <SelectValue placeholder="Select role" />
@@ -419,10 +513,19 @@ function AdminUserFormDialog({
           </div>
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" className="btn-premium-outline cursor-pointer" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button
+            variant="outline"
+            className="btn-premium-outline cursor-pointer"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
             Cancel
           </Button>
-          <Button className="btn-premium-solid cursor-pointer" onClick={handleSave} disabled={saving}>
+          <Button
+            className="btn-premium-solid cursor-pointer"
+            onClick={handleSave}
+            disabled={saving}
+          >
             {saving ? <BtnSpinner /> : null}
             {isEdit ? "Save changes" : "Create admin"}
           </Button>
@@ -449,11 +552,17 @@ function ResetPasswordDialog({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) { setPw(""); setShowPw(false); }
+    if (open) {
+      setPw("");
+      setShowPw(false);
+    }
   }, [open]);
 
   const handleSave = async () => {
-    if (pw.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    if (pw.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
     setSaving(true);
     try {
       await s.resetAdminPassword(adminUser!.id, pw);
@@ -476,7 +585,9 @@ function ResetPasswordDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5 py-2">
-          <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">New Password</Label>
+          <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+            New Password
+          </Label>
           <div className="relative">
             <Input
               type={showPw ? "text" : "password"}
@@ -494,8 +605,19 @@ function ResetPasswordDialog({
           </div>
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" className="btn-premium-outline cursor-pointer" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-          <Button className="btn-premium-solid cursor-pointer" onClick={handleSave} disabled={saving}>
+          <Button
+            variant="outline"
+            className="btn-premium-outline cursor-pointer"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="btn-premium-solid cursor-pointer"
+            onClick={handleSave}
+            disabled={saving}
+          >
             {saving ? <BtnSpinner /> : null}
             Reset password
           </Button>
@@ -542,10 +664,22 @@ function AdminManagement() {
   const [deletingUser, setDeletingUser] = useState(false);
   const [resetPwTarget, setResetPwTarget] = useState<User | null>(null);
 
-  const openCreateRole = () => { setEditRole(null); setRoleDialogOpen(true); };
-  const openEditRole = (r: AdminRole) => { setEditRole(r); setRoleDialogOpen(true); };
-  const openCreateUser = () => { setEditUser(null); setUserDialogOpen(true); };
-  const openEditUser = (u: User) => { setEditUser(u); setUserDialogOpen(true); };
+  const openCreateRole = () => {
+    setEditRole(null);
+    setRoleDialogOpen(true);
+  };
+  const openEditRole = (r: AdminRole) => {
+    setEditRole(r);
+    setRoleDialogOpen(true);
+  };
+  const openCreateUser = () => {
+    setEditUser(null);
+    setUserDialogOpen(true);
+  };
+  const openEditUser = (u: User) => {
+    setEditUser(u);
+    setUserDialogOpen(true);
+  };
 
   const handleDeleteRole = async () => {
     if (!deleteRoleTarget) return;
@@ -590,10 +724,7 @@ function AdminManagement() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Club Admin"
-        description="Manage admin accounts and roles."
-      />
+      <PageHeader title="Club Admin" description="Manage admin accounts and roles." />
 
       <Tabs defaultValue="users" className="w-full">
         <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-6 h-auto min-h-10 max-w-full overflow-x-auto flex-wrap sm:flex-nowrap gap-1">
@@ -616,24 +747,41 @@ function AdminManagement() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[13px] font-semibold text-[#F1F0EE]">Admin Accounts</h2>
             {canAddAdmin && (
-            <Button size="sm" className="btn-premium-solid h-8 px-3 text-xs cursor-pointer" onClick={openCreateUser}>
-              <Plus className="size-3.5 mr-1.5" /> Add admin
-            </Button>
+              <Button
+                size="sm"
+                className="btn-premium-solid h-8 px-3 text-xs cursor-pointer"
+                onClick={openCreateUser}
+              >
+                <Plus className="size-3.5 mr-1.5" /> Add admin
+              </Button>
             )}
           </div>
           {visibleAdminUsers.length === 0 ? (
-            <EmptyIllustration title="No admin users found" description="Create an admin user to get started." />
+            <EmptyIllustration
+              title="No admin users found"
+              description="Create an admin user to get started."
+            />
           ) : (
             <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] overflow-hidden">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-b border-white/[0.04] hover:bg-transparent">
-                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3">Name</TableHead>
-                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3">Email</TableHead>
-                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3">Role</TableHead>
-                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3">Status</TableHead>
-                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3 text-right">Actions</TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3">
+                        Name
+                      </TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3">
+                        Email
+                      </TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3">
+                        Role
+                      </TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3">
+                        Status
+                      </TableHead>
+                      <TableHead className="text-[10px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase px-5 py-3 text-right">
+                        Actions
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -641,34 +789,52 @@ function AdminManagement() {
                       const role = au.adminRoleId ? roleById.get(au.adminRoleId) : null;
                       const isSelf = au.id === user.id;
                       return (
-                        <TableRow key={au.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                        <TableRow
+                          key={au.id}
+                          className="border-b border-white/[0.03] hover:bg-white/[0.02]"
+                        >
                           <TableCell className="px-5 py-3">
                             <div className="flex items-center gap-2.5">
                               <div className="size-8 rounded-full bg-[#10B981]/15 text-[#34D399] grid place-items-center text-[11px] font-bold shrink-0">
-                                {au.firstName?.[0]}{au.lastName?.[0]}
+                                {au.firstName?.[0]}
+                                {au.lastName?.[0]}
                               </div>
                               <div>
                                 <div className="text-[13px] font-semibold text-[#F1F0EE]">
                                   {au.firstName} {au.lastName}
-                                  {isSelf && <span className="text-[10px] text-[#8A8A98] ml-1.5">(you)</span>}
+                                  {isSelf && (
+                                    <span className="text-[10px] text-[#8A8A98] ml-1.5">(you)</span>
+                                  )}
                                 </div>
                                 {au.isSuperAdmin && (
-                                  <span className="text-[10px] text-[#F59E0B] font-medium">Super Admin</span>
+                                  <span className="text-[10px] text-[#F59E0B] font-medium">
+                                    Super Admin
+                                  </span>
                                 )}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="px-5 py-3 text-[12px] text-[#C4D4CF]">{au.email}</TableCell>
+                          <TableCell className="px-5 py-3 text-[12px] text-[#C4D4CF]">
+                            {au.email}
+                          </TableCell>
                           <TableCell className="px-5 py-3">
-                            <Badge variant="secondary" className="text-[10px] bg-[#10B981]/10 text-[#34D399] border-[#10B981]/20">
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] bg-[#10B981]/10 text-[#34D399] border-[#10B981]/20"
+                            >
                               {au.adminRoleName ?? role?.name ?? "—"}
                             </Badge>
                           </TableCell>
                           <TableCell className="px-5 py-3">
-                            <Badge variant="secondary" className={cn(
-                              "text-[10px]",
-                              au.status === "active" ? "bg-[#10B981]/10 text-[#34D399]" : "bg-[#EF4444]/10 text-[#EF4444]"
-                            )}>
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "text-[10px]",
+                                au.status === "active"
+                                  ? "bg-[#10B981]/10 text-[#34D399]"
+                                  : "bg-[#EF4444]/10 text-[#EF4444]",
+                              )}
+                            >
                               {au.status}
                             </Badge>
                           </TableCell>
@@ -724,31 +890,49 @@ function AdminManagement() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[13px] font-semibold text-[#F1F0EE]">Admin Roles</h2>
             {canAddAdmin && (
-            <Button size="sm" className="btn-premium-solid h-8 px-3 text-xs cursor-pointer" onClick={openCreateRole}>
-              <Plus className="size-3.5 mr-1.5" /> Add role
-            </Button>
+              <Button
+                size="sm"
+                className="btn-premium-solid h-8 px-3 text-xs cursor-pointer"
+                onClick={openCreateRole}
+              >
+                <Plus className="size-3.5 mr-1.5" /> Add role
+              </Button>
             )}
           </div>
           {visibleAdminRoles.length === 0 ? (
-            <EmptyIllustration title="No roles found" description="Create an admin role to get started." />
+            <EmptyIllustration
+              title="No roles found"
+              description="Create an admin role to get started."
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {visibleAdminRoles.map((r) => (
-                <Card key={r.id} className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[#10B981]/20 transition-colors">
+                <Card
+                  key={r.id}
+                  className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[#10B981]/20 transition-colors"
+                >
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className={cn(
-                          "size-9 rounded-lg grid place-items-center shrink-0",
-                          r.isSuper ? "bg-[#F59E0B]/15 text-[#F59E0B]" : "bg-[#10B981]/15 text-[#34D399]"
-                        )}>
+                        <div
+                          className={cn(
+                            "size-9 rounded-lg grid place-items-center shrink-0",
+                            r.isSuper
+                              ? "bg-[#F59E0B]/15 text-[#F59E0B]"
+                              : "bg-[#10B981]/15 text-[#34D399]",
+                          )}
+                        >
                           {r.isSuper ? <Shield className="size-4" /> : <Key className="size-4" />}
                         </div>
                         <div className="min-w-0">
-                          <CardTitle className="text-[14px] font-semibold text-[#F1F0EE] truncate">{r.name}</CardTitle>
+                          <CardTitle className="text-[14px] font-semibold text-[#F1F0EE] truncate">
+                            {r.name}
+                          </CardTitle>
                           {r.description && (
                             <p className="text-[11px] text-[#8A8A98] mt-0.5 line-clamp-1">
-                              {r.description.replace(/league[_\s]groups/gi, "groups").replace(/league/gi, "group")}
+                              {r.description
+                                .replace(/league[_\s]groups/gi, "groups")
+                                .replace(/league/gi, "group")}
                             </p>
                           )}
                         </div>
@@ -783,7 +967,10 @@ function AdminManagement() {
                         {r.isSuper ? "All" : r.permissionIds.length} permissions
                       </Badge>
                       {r.isSystem && (
-                        <Badge variant="secondary" className="text-[10px] bg-[#3B82F6]/10 text-[#60A5FA]">
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] bg-[#3B82F6]/10 text-[#60A5FA]"
+                        >
                           System
                         </Badge>
                       )}
@@ -828,15 +1015,24 @@ function AdminManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[#F1F0EE]">Delete role?</AlertDialogTitle>
             <AlertDialogDescription className="text-[#C4D4CF]">
-              Delete <strong className="text-[#F1F0EE]">{deleteRoleTarget?.name}</strong>? Admin users assigned to this role will need a new role.
+              Delete <strong className="text-[#F1F0EE]">{deleteRoleTarget?.name}</strong>? Admin
+              users assigned to this role will need a new role.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2">
-            <AlertDialogCancel className="btn-premium-outline cursor-pointer" disabled={deletingRole}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel
+              className="btn-premium-outline cursor-pointer"
+              disabled={deletingRole}
+            >
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-[#EF4444] hover:bg-[#DC2626] text-white cursor-pointer"
               disabled={deletingRole}
-              onClick={(e) => { e.preventDefault(); void handleDeleteRole(); }}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteRole();
+              }}
             >
               {deletingRole ? "Deleting…" : "Delete role"}
             </AlertDialogAction>
@@ -850,16 +1046,27 @@ function AdminManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[#F1F0EE]">Delete admin?</AlertDialogTitle>
             <AlertDialogDescription className="text-[#C4D4CF]">
-              Remove admin access for <strong className="text-[#F1F0EE]">{deleteUserTarget?.firstName} {deleteUserTarget?.lastName}</strong>?
-              This cannot be undone.
+              Remove admin access for{" "}
+              <strong className="text-[#F1F0EE]">
+                {deleteUserTarget?.firstName} {deleteUserTarget?.lastName}
+              </strong>
+              ? This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2">
-            <AlertDialogCancel className="btn-premium-outline cursor-pointer" disabled={deletingUser}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel
+              className="btn-premium-outline cursor-pointer"
+              disabled={deletingUser}
+            >
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-[#EF4444] hover:bg-[#DC2626] text-white cursor-pointer"
               disabled={deletingUser}
-              onClick={(e) => { e.preventDefault(); void handleDeleteUser(); }}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteUser();
+              }}
             >
               {deletingUser ? "Deleting…" : "Delete admin"}
             </AlertDialogAction>

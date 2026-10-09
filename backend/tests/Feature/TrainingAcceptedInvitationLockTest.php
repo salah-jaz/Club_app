@@ -9,12 +9,12 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Member;
 use App\Models\Location;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TrainingAcceptedInvitationLockTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     protected User $admin;
     protected Member $member1;
@@ -24,6 +24,7 @@ class TrainingAcceptedInvitationLockTest extends TestCase
     {
         parent::setUp();
 
+        \Carbon\Carbon::setTestNow('2026-06-15 10:00:00');
         Location::firstOrCreate(['name' => 'Main Hall']);
         $grade = \App\Models\Grade::firstOrCreate(['name' => 'Grade A'], ['type' => 'junior']);
         Training::query()->delete();

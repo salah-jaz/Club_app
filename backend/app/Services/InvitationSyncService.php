@@ -179,19 +179,32 @@ class InvitationSyncService
                 ->first();
 
             if ($isEligible) {
+                $parentId = $tr->parent_id ?: $tr->id;
+                $series = Training::where('parent_id', $parentId)
+                    ->orWhere('id', $parentId)
+                    ->orderBy('start_date', 'asc')
+                    ->get();
+
+                $trYearMonth = \Carbon\Carbon::parse($tr->start_date)->format('Y-m');
+                $monthSessions = $series->filter(function ($sItem) use ($trYearMonth) {
+                    return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $trYearMonth;
+                });
+                $monthSessionIds = $monthSessions->pluck('id')->all();
+
+                $hasAcceptedInMonth = TrainingInvitation::whereIn('training_id', $monthSessionIds)
+                    ->where('member_id', $member->id)
+                    ->where('status', 'accepted')
+                    ->exists();
+
+                if ($hasAcceptedInMonth) {
+                    TrainingInvitation::whereIn('training_id', $monthSessionIds)
+                        ->where('member_id', $member->id)
+                        ->where('status', '!=', 'accepted')
+                        ->delete();
+                    continue;
+                }
+
                 if (!$invite) {
-                    $parentId = $tr->parent_id ?: $tr->id;
-                    $series = Training::where('parent_id', $parentId)
-                        ->orWhere('id', $parentId)
-                        ->orderBy('start_date', 'asc')
-                        ->get();
-
-                    $trYearMonth = \Carbon\Carbon::parse($tr->start_date)->format('Y-m');
-                    $monthSessions = $series->filter(function ($sItem) use ($trYearMonth) {
-                        return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $trYearMonth;
-                    });
-                    $monthSessionIds = $monthSessions->pluck('id')->all();
-
                     // Only create a pending placeholder if admin has not already sent
                     // configured weeks for this member. Sending stays manual via Send.
                     $hasConfiguredInvites = TrainingInvitation::whereIn('training_id', $monthSessionIds)
@@ -268,6 +281,19 @@ class InvitationSyncService
         $monthSessionIds = $monthSessions->pluck('id')->all();
 
         foreach ($eligibleMembers as $member) {
+            $hasAcceptedInMonth = TrainingInvitation::whereIn('training_id', $monthSessionIds)
+                ->where('member_id', $member->id)
+                ->where('status', 'accepted')
+                ->exists();
+
+            if ($hasAcceptedInMonth) {
+                TrainingInvitation::whereIn('training_id', $monthSessionIds)
+                    ->where('member_id', $member->id)
+                    ->where('status', '!=', 'accepted')
+                    ->delete();
+                continue;
+            }
+
             $invite = TrainingInvitation::where('training_id', $tr->id)
                 ->where('member_id', $member->id)
                 ->first();

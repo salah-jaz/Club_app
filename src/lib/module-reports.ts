@@ -56,9 +56,7 @@ function summarize(
     {
       label: "Member",
       value:
-        values.memberId && values.memberId !== "all"
-          ? memberLabel(members, values.memberId)
-          : "",
+        values.memberId && values.memberId !== "all" ? memberLabel(members, values.memberId) : "",
       hideIf: ["all"],
     },
     {
@@ -246,13 +244,15 @@ export function exportSchedulesReport(
   const state = useStore.getState();
   const transactions = state.transactions;
   const filtered = filterSchedulesForReport(schedules, invites, filters);
-  
+
   const rows = filtered.map((sch) => {
-    const acceptedInvites = invites.filter((i) => i.scheduleId === sch.id && i.status === "accepted");
+    const acceptedInvites = invites.filter(
+      (i) => i.scheduleId === sch.id && i.status === "accepted",
+    );
     const acceptedCount = acceptedInvites.length;
-    
+
     // Calculate Net Amount from UNIQUE accepted members
-    const uniqueAcceptedMembers = new Set(acceptedInvites.map(i => i.memberId));
+    const uniqueAcceptedMembers = new Set(acceptedInvites.map((i) => i.memberId));
     let netAmount = 0;
 
     for (const memberId of uniqueAcceptedMembers) {
@@ -265,8 +265,8 @@ export function exportSchedulesReport(
 
       const memberName = `${member.firstName} ${member.lastName}`;
       const descMatch = `Play session: ${sch.name} - ${memberName}`;
-      
-      const debits = transactions.filter(t => t.type === 'debit' && t.description === descMatch);
+
+      const debits = transactions.filter((t) => t.type === "debit" && t.description === descMatch);
 
       if (debits.length > 0) {
         netAmount += debits.reduce((sum, t) => sum + t.amount, 0);
@@ -276,15 +276,16 @@ export function exportSchedulesReport(
           netAmount += baseFee;
         } else {
           const type = member.memberType === "adult" ? "adult" : "junior";
-          const percent = type === "adult" ? state.adultDiscountPercent : state.juniorDiscountPercent;
+          const percent =
+            type === "adult" ? state.adultDiscountPercent : state.juniorDiscountPercent;
           const amount = type === "adult" ? state.adultDiscountAmount : state.juniorDiscountAmount;
           const mode = type === "adult" ? state.adultDiscountMode : state.juniorDiscountMode;
-          
+
           let fee = baseFee;
           if (mode === "percent" && percent > 0) {
-             fee = fee * (1 - Math.min(percent, 100) / 100);
+            fee = fee * (1 - Math.min(percent, 100) / 100);
           } else if (mode === "amount" && amount > 0) {
-             fee = fee - amount;
+            fee = fee - amount;
           }
           netAmount += Math.max(0, fee);
         }
@@ -357,9 +358,7 @@ export function filterTrainingsForReport(
     if (filters.type !== "all" && (t.targetType || "adult") !== filters.type) return false;
     if (filters.category !== "all" && t.location !== filters.category) return false;
     if (filters.memberId && filters.memberId !== "all") {
-      const linked = invites.some(
-        (i) => i.trainingId === t.id && i.memberId === filters.memberId,
-      );
+      const linked = invites.some((i) => i.trainingId === t.id && i.memberId === filters.memberId);
       if (!linked) return false;
     }
     return true;
@@ -384,7 +383,7 @@ export function exportTrainingsReport(
     const d = new Date(t.startDate);
     const targetMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const pid = t.parentId || t.id;
-    
+
     const monthSessions = trainings.filter((other) => {
       const otherPid = other.parentId || other.id;
       if (otherPid !== pid) return false;
@@ -392,12 +391,12 @@ export function exportTrainingsReport(
       const otherMonth = `${otherD.getFullYear()}-${String(otherD.getMonth() + 1).padStart(2, "0")}`;
       return otherMonth === targetMonth;
     });
-    
+
     const monthSessionIds = new Set(monthSessions.map((ms) => ms.id));
-    
+
     let totalRetained = 0;
     const memberInvitesMap = new Map<string, typeof invites>();
-    
+
     for (const inv of invites) {
       if (monthSessionIds.has(inv.trainingId) && inv.status === "accepted") {
         if (!memberInvitesMap.has(inv.memberId)) {
@@ -406,11 +405,11 @@ export function exportTrainingsReport(
         memberInvitesMap.get(inv.memberId)!.push(inv);
       }
     }
-    
+
     for (const [memberId, memberInvs] of memberInvitesMap.entries()) {
       const m = members.find((mb) => mb.id === memberId);
       if (!m || m.skipCreditConsumption) continue;
-      
+
       let memberPaidForMonth = 0;
       for (const inv of memberInvs) {
         if (inv.acceptedAmount !== undefined && inv.acceptedAmount !== null) {
@@ -425,20 +424,20 @@ export function exportTrainingsReport(
           memberPaidForMonth += baseMemberWeekFee;
         }
       }
-      
+
       const memberName = `${m.firstName} ${m.lastName}`;
-      const relevantRefunds = transactions.filter(txn => {
-        if (txn.type !== 'refund') return false;
+      const relevantRefunds = transactions.filter((txn) => {
+        if (txn.type !== "refund") return false;
         if (!txn.description.includes(memberName)) return false;
-        
-        return Array.from(monthSessionIds).some(tId => {
-          const sessionTraining = trainings.find(tr => tr.id === tId);
+
+        return Array.from(monthSessionIds).some((tId) => {
+          const sessionTraining = trainings.find((tr) => tr.id === tId);
           return sessionTraining && txn.description.includes(sessionTraining.name);
         });
       });
-      
+
       const memberRefundsForMonth = relevantRefunds.reduce((sum, txn) => sum + txn.amount, 0);
-      
+
       totalRetained += Math.max(0, memberPaidForMonth - memberRefundsForMonth);
     }
 
@@ -679,9 +678,10 @@ export function filterApprovalsForReport(
   filters: ReportFilterValues,
   members: Member[],
 ): ApprovalReportRow[] {
-  const target = filters.memberId && filters.memberId !== "all"
-    ? members.find((m) => m.id === filters.memberId)
-    : undefined;
+  const target =
+    filters.memberId && filters.memberId !== "all"
+      ? members.find((m) => m.id === filters.memberId)
+      : undefined;
 
   return rows.filter((row) => {
     if (!inDateRange(row.date || undefined, filters.fromDate, filters.toDate)) return false;
@@ -690,7 +690,10 @@ export function filterApprovalsForReport(
     if (filters.category !== "all") {
       if (filters.category === "adult" && row.kind !== "member") return false;
       if (filters.category === "junior" && row.kind !== "junior") return false;
-      if (["credit", "debit", "refund"].includes(filters.category) && row.type !== filters.category) {
+      if (
+        ["credit", "debit", "refund"].includes(filters.category) &&
+        row.type !== filters.category
+      ) {
         return false;
       }
     }
@@ -701,8 +704,7 @@ export function filterApprovalsForReport(
         row.kind === "junior" &&
         members.some(
           (j) =>
-            j.id === row.memberId &&
-            (j.parentMemberId === target.id || j.userId === target.userId),
+            j.id === row.memberId && (j.parentMemberId === target.id || j.userId === target.userId),
         );
       if (!matchesSelf && !matchesUser && !matchesParent) return false;
     }
@@ -721,7 +723,11 @@ export function exportApprovalsReport(
   const exportBody = filtered.map((r) => ({
     date: formatReportDate(r.date || undefined),
     kind:
-      r.kind === "member" ? "Member request" : r.kind === "junior" ? "Junior request" : "Credit request",
+      r.kind === "member"
+        ? "Member request"
+        : r.kind === "junior"
+          ? "Junior request"
+          : "Credit request",
     name: r.name,
     type: r.type,
     status: r.status,

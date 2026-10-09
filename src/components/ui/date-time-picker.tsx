@@ -72,7 +72,7 @@ export function DateTimePicker({
   // Extract initial 12-hour state
   const currentHour24 = parsedDate ? parsedDate.getHours() : 19; // Default 7 PM
   const currentMinutes = parsedDate ? parsedDate.getMinutes() : 0;
-  
+
   const initialAmPm: "AM" | "PM" = currentHour24 >= 12 ? "PM" : "AM";
   let initialHour12 = currentHour24 % 12;
   if (initialHour12 === 0) initialHour12 = 12;
@@ -97,7 +97,7 @@ export function DateTimePicker({
   // Helper to compute ISO/datetime-local string "YYYY-MM-DDTHH:mm"
   const emitValue = (baseDate: Date | null, h12: number, min: number, period: "AM" | "PM") => {
     const targetDate = baseDate ?? new Date();
-    
+
     let h24 = h12 % 12;
     if (period === "PM") h24 += 12;
 
@@ -107,7 +107,10 @@ export function DateTimePicker({
     const hours = String(h24).padStart(2, "0");
     const minutes = String(min).padStart(2, "0");
 
-    const formatted = clampToMinDateTime(`${year}-${month}-${day}T${hours}:${minutes}`, minDateTime);
+    const formatted = clampToMinDateTime(
+      `${year}-${month}-${day}T${hours}:${minutes}`,
+      minDateTime,
+    );
     onChange(formatted);
   };
 
@@ -223,7 +226,11 @@ export function DateTimePicker({
                       className="w-full bg-background border border-border text-foreground h-8 text-xs pl-2 pr-6 font-mono rounded-md appearance-none hover:border-ring focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer"
                     >
                       {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                        <option key={h} value={String(h)} className="bg-popover text-foreground font-mono">
+                        <option
+                          key={h}
+                          value={String(h)}
+                          className="bg-popover text-foreground font-mono"
+                        >
                           {String(h).padStart(2, "0")}
                         </option>
                       ))}
@@ -244,7 +251,11 @@ export function DateTimePicker({
                       className="w-full bg-background border border-border text-foreground h-8 text-xs pl-2 pr-6 font-mono rounded-md appearance-none hover:border-ring focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer"
                     >
                       {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
-                        <option key={m} value={String(m)} className="bg-popover text-foreground font-mono">
+                        <option
+                          key={m}
+                          value={String(m)}
+                          className="bg-popover text-foreground font-mono"
+                        >
                           {String(m).padStart(2, "0")}
                         </option>
                       ))}
@@ -327,4 +338,3 @@ export function DateTimePicker({
     </Popover>
   );
 }
-

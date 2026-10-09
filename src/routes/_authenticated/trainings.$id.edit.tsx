@@ -10,7 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   AlertDialog,
@@ -97,7 +103,7 @@ function EditTraining() {
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.startDate), [f.startDate]);
 
   const targetLeagueGroups = useMemo(() => {
-    return leagueGroups.filter(g => g.groupType?.toLowerCase() === f.targetType);
+    return leagueGroups.filter((g) => g.groupType?.toLowerCase() === f.targetType);
   }, [leagueGroups, f.targetType]);
 
   const leagueStats = useMemo(() => {
@@ -107,7 +113,10 @@ function EditTraining() {
     let totalSlots = 0;
     for (const group of targetLeagueGroups) {
       if (f.leagueGroupIds.includes(group.id)) {
-        const ids = Array.isArray(group.memberIds) && group.memberIds.length > 0 ? group.memberIds : group.members?.map((m) => m.id) || [];
+        const ids =
+          Array.isArray(group.memberIds) && group.memberIds.length > 0
+            ? group.memberIds
+            : group.members?.map((m) => m.id) || [];
         totalSlots += ids.length;
         ids.forEach((id) => {
           if (id) memberCounts.set(id, (memberCounts.get(id) || 0) + 1);
@@ -134,11 +143,13 @@ function EditTraining() {
     if (isoDates.length === 0) return null;
 
     const dates = isoDates.map(
-      (iso: string) => new Date(`${iso}T${f.startDate.split("T")[1] || "00:00"}`)
+      (iso: string) => new Date(`${iso}T${f.startDate.split("T")[1] || "00:00"}`),
     );
     const lastSession = dates[dates.length - 1];
     const endIso = `${lastSession.getFullYear()}-${String(lastSession.getMonth() + 1).padStart(2, "0")}-${String(lastSession.getDate()).padStart(2, "0")}`;
-    const endLabel = parseScheduleDateTime(`${endIso}T${String(lastSession.getHours()).padStart(2, "0")}:${String(lastSession.getMinutes()).padStart(2, "0")}`);
+    const endLabel = parseScheduleDateTime(
+      `${endIso}T${String(lastSession.getHours()).padStart(2, "0")}:${String(lastSession.getMinutes()).padStart(2, "0")}`,
+    );
 
     return {
       weeks,
@@ -156,14 +167,17 @@ function EditTraining() {
     setF((p) => ({
       ...p,
       startDate: value,
-      name: !nameTouched && parsed ? parsed.label : p.name,
+      name: parsed ? parsed.label : p.name,
     }));
+    setNameTouched(false);
   };
 
   const executeSave = async () => {
     const weeks = Number(f.repeatWeeks);
     if (isNaN(weeks) || weeks < 1 || weeks > 5) {
-      toast.error("Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.");
+      toast.error(
+        "Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.",
+      );
       return;
     }
     if (isScheduleDateTimeInPast(f.startDate)) {
@@ -172,7 +186,8 @@ function EditTraining() {
     }
     setSubmitting(true);
     try {
-      const totalSessions = repeatPreview?.totalSessions || weeks * Math.max(1, Number(f.repeatMonths) || 1);
+      const totalSessions =
+        repeatPreview?.totalSessions || weeks * Math.max(1, Number(f.repeatMonths) || 1);
       const computedEndDate = repeatPreview?.endIso || f.endDate || f.startDate.split("T")[0];
 
       const payload = {
@@ -206,7 +221,9 @@ function EditTraining() {
     e.preventDefault();
     const newWeeks = Number(f.repeatWeeks);
     if (isNaN(newWeeks) || newWeeks < 1 || newWeeks > 5) {
-      toast.error("Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.");
+      toast.error(
+        "Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.",
+      );
       return;
     }
     if (!f.targetType) {
@@ -255,10 +272,15 @@ function EditTraining() {
         backTo="/trainings"
       />
 
-      <AlertDialog open={!!dialogState?.open} onOpenChange={(open) => !open && setDialogState(null)}>
+      <AlertDialog
+        open={!!dialogState?.open}
+        onOpenChange={(open) => !open && setDialogState(null)}
+      >
         <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.1)] text-[#F1F0EE]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#F1F0EE]">Confirm Training Program Changes</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#F1F0EE]">
+              Confirm Training Program Changes
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-[#8A8A98]">
               {dialogState?.message}
             </AlertDialogDescription>
@@ -286,7 +308,9 @@ function EditTraining() {
           </CardHeader>
           <CardContent className="pt-4 grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Start Date & Time</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Start Date & Time
+              </Label>
               <DateTimePicker
                 value={f.startDate}
                 onChange={onDateChange}
@@ -296,23 +320,37 @@ function EditTraining() {
               {scheduleWhen && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
-                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Day</p>
-                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.day}</p>
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Day
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">
+                      {scheduleWhen.day}
+                    </p>
                   </div>
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
-                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Date</p>
-                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.date}</p>
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Date
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">
+                      {scheduleWhen.date}
+                    </p>
                   </div>
                   <div className="rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-2">
-                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Time</p>
-                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">{scheduleWhen.time}</p>
+                    <p className="text-[9px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Time
+                    </p>
+                    <p className="text-[13px] font-semibold text-[#F1F0EE] mt-0.5">
+                      {scheduleWhen.time}
+                    </p>
                   </div>
                 </div>
               )}
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Program Name</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Program Name
+              </Label>
               <Input
                 required
                 value={f.name}
@@ -324,22 +362,30 @@ function EditTraining() {
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
               />
               {!nameTouched && scheduleWhen && (
-                <p className="text-[11px] text-[#8A8A98]">Auto-filled from the selected date &amp; time. Edit anytime.</p>
+                <p className="text-[11px] text-[#8A8A98]">
+                  Auto-filled from the selected date &amp; time. Edit anytime.
+                </p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Repeat for Weeks</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Repeat for Weeks
+              </Label>
               <Input
                 required
                 type="number"
                 min={1}
                 max={5}
                 value={f.repeatWeeks}
-                onChange={(e) => set("repeatWeeks", e.target.value === "" ? "" : Number(e.target.value))}
+                onChange={(e) =>
+                  set("repeatWeeks", e.target.value === "" ? "" : Number(e.target.value))
+                }
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
               />
-              <p className="text-[11px] text-[#8A8A98]">Number of weekly sessions to create per month (1–5).</p>
+              <p className="text-[11px] text-[#8A8A98]">
+                Number of weekly sessions to create per month (1–5).
+              </p>
               {Number(f.repeatWeeks) > 5 && (
                 <p className="text-[11px] text-[#EF4444] font-medium">
                   Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.
@@ -348,14 +394,18 @@ function EditTraining() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Repeat for Months</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Repeat for Months
+              </Label>
               <Input
                 required
                 type="number"
                 min={1}
                 max={24}
                 value={f.repeatMonths}
-                onChange={(e) => set("repeatMonths", Math.max(1, Math.min(24, +e.target.value || 1)))}
+                onChange={(e) =>
+                  set("repeatMonths", Math.max(1, Math.min(24, +e.target.value || 1)))
+                }
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
               />
               <p className="text-[11px] text-[#8A8A98]">
@@ -366,7 +416,9 @@ function EditTraining() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Maximum Slots (Capacity)</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Maximum Slots (Capacity)
+              </Label>
               <Input
                 required
                 type="number"
@@ -390,13 +442,30 @@ function EditTraining() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Session Duration</Label>
-              <Input required value={f.duration} onChange={(e) => set("duration", e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Session Duration
+              </Label>
+              <Input
+                required
+                value={f.duration}
+                onChange={(e) => set("duration", e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Training Fees</Label>
-              <Input required type="number" min={0} step={0.01} value={f.fees} onChange={(e) => set("fees", +e.target.value)} className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono" />
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Training Fees
+              </Label>
+              <Input
+                required
+                type="number"
+                min={0}
+                step={0.01}
+                value={f.fees}
+                onChange={(e) => set("fees", +e.target.value)}
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -406,7 +475,7 @@ function EditTraining() {
               <Select
                 value={f.targetType}
                 onValueChange={(v: "adult" | "junior") => {
-                  setF(p => ({ ...p, targetType: v, leagueGroupIds: [] })); // Reset group selections on type change
+                  setF((p) => ({ ...p, targetType: v, leagueGroupIds: [] })); // Reset group selections on type change
                 }}
               >
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
@@ -420,7 +489,9 @@ function EditTraining() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Coach Name</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Coach Name
+              </Label>
               <Select value={f.coach} onValueChange={(v) => set("coach", v)}>
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue placeholder="Select Coach" />
@@ -436,7 +507,9 @@ function EditTraining() {
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Location</Label>
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Location
+              </Label>
               <Select value={f.location} onValueChange={(v) => set("location", v)}>
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue placeholder="Select Location" />
@@ -462,10 +535,17 @@ function EditTraining() {
           <CardContent className="pt-4 space-y-4">
             <div className="flex items-center justify-between rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 p-3">
               <div>
-                <Label className="text-[11px] font-medium text-[#F1F0EE]">Enable Group Selection</Label>
-                <p className="text-xs text-muted-foreground">Automatically enroll members from selected {f.targetType} groups</p>
+                <Label className="text-[11px] font-medium text-[#F1F0EE]">
+                  Enable Group Selection
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Automatically enroll members from selected {f.targetType} groups
+                </p>
               </div>
-              <Switch checked={f.isGroupTraining} onCheckedChange={(v) => set("isGroupTraining", v)} />
+              <Switch
+                checked={f.isGroupTraining}
+                onCheckedChange={(v) => set("isGroupTraining", v)}
+              />
             </div>
 
             {f.isGroupTraining && (
@@ -481,7 +561,11 @@ function EditTraining() {
           </CardContent>
         </Card>
         <div className="flex justify-end">
-          <Button type="submit" disabled={submitting} className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer">
+          <Button
+            type="submit"
+            disabled={submitting}
+            className="btn-premium-solid h-10 px-6 font-semibold cursor-pointer"
+          >
             {submitting ? "Updating…" : "Update program"}
           </Button>
         </div>

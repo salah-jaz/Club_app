@@ -127,7 +127,10 @@ function LoginPage() {
         footer={
           <>
             New here?{" "}
-            <Link to="/register" className="text-[var(--primary)] font-medium hover:underline transition-all">
+            <Link
+              to="/register"
+              className="text-[var(--primary)] font-medium hover:underline transition-all"
+            >
               Create an account
             </Link>
           </>
@@ -135,21 +138,31 @@ function LoginPage() {
       >
         <form onSubmit={onLoginSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">Email Address</Label>
-            <Input 
-              id="email" 
+            <Label
+              htmlFor="email"
+              className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase"
+            >
+              Email Address
+            </Label>
+            <Input
+              id="email"
               type="email"
               name="email"
               autoComplete="username"
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)} 
-              required 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
               className="border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] h-10 rounded-lg"
             />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">Password</Label>
+              <Label
+                htmlFor="password"
+                className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase"
+              >
+                Password
+              </Label>
               <button
                 type="button"
                 onClick={() => setMode("forgot_email")}
@@ -175,11 +188,19 @@ function LoginPage() {
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-[var(--foreground)] cursor-pointer"
                 onClick={() => setShowPassword((v) => !v)}
               >
-                {showPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+                {showPassword ? (
+                  <EyeOff className="size-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="size-4" aria-hidden="true" />
+                )}
               </button>
             </div>
           </div>
-          <Button type="submit" disabled={loading} className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full btn-premium-solid h-10 font-semibold cursor-pointer"
+          >
             {loading ? "Signing in..." : "Sign in"}
           </Button>
         </form>
@@ -205,23 +226,32 @@ function LoginPage() {
       >
         <form onSubmit={onSendOtpSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="reset-email" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">Email Address</Label>
+            <Label
+              htmlFor="reset-email"
+              className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase"
+            >
+              Email Address
+            </Label>
             <div className="relative">
-              <Input 
-                id="reset-email" 
+              <Input
+                id="reset-email"
                 type="email"
                 name="email"
                 autoComplete="email"
                 placeholder="your.email@example.com"
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-                required 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
                 className="border-[rgba(255,255,255,0.06)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] h-10 rounded-lg !pl-10"
               />
               <Mail className="size-4 text-[#8A8A98] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
-          <Button type="submit" disabled={loading} className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full btn-premium-solid h-10 font-semibold cursor-pointer"
+          >
             {loading ? "Sending OTP..." : "Send OTP Code"}
           </Button>
         </form>
@@ -252,12 +282,20 @@ function LoginPage() {
             </p>
             <p className="text-[var(--secondary-foreground,#4E615B)] dark:text-[#8A9E98] leading-relaxed">
               An email containing a 6-digit verification code (OTP) has been sent to{" "}
-              <span className="font-semibold text-[var(--foreground,#0C0F0E)] dark:text-white tracking-wide">{maskedEmail}</span>. Please enter that code below:
+              <span className="font-semibold text-[var(--foreground,#0C0F0E)] dark:text-white tracking-wide">
+                {maskedEmail}
+              </span>
+              . Please enter that code below:
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="otp" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">Enter 6-Digit OTP</Label>
+            <Label
+              htmlFor="otp"
+              className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase"
+            >
+              Enter 6-Digit OTP
+            </Label>
             <div className="relative">
               <Input
                 id="otp"
@@ -273,7 +311,11 @@ function LoginPage() {
             </div>
           </div>
 
-          <Button type="submit" disabled={loading || otp.length !== 6} className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">
+          <Button
+            type="submit"
+            disabled={loading || otp.length !== 6}
+            className="w-full btn-premium-solid h-10 font-semibold cursor-pointer"
+          >
             {loading ? "Verifying..." : "Verify OTP Code"}
           </Button>
 
@@ -311,12 +353,20 @@ function LoginPage() {
         <div className="p-3.5 bg-[var(--violet-dim,rgba(16,185,129,0.08))] border border-[var(--border-accent,rgba(16,185,129,0.2))] rounded-lg text-xs text-[var(--secondary-foreground,#4E615B)] dark:text-[#8A9E98] flex items-center gap-2">
           <ShieldCheck className="size-4 text-[var(--primary)] shrink-0" />
           <span>
-            OTP verified successfully for <strong className="font-semibold text-[var(--foreground,#0C0F0E)] dark:text-white">{maskedEmail}</strong>
+            OTP verified successfully for{" "}
+            <strong className="font-semibold text-[var(--foreground,#0C0F0E)] dark:text-white">
+              {maskedEmail}
+            </strong>
           </span>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="new-password" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">New Password</Label>
+          <Label
+            htmlFor="new-password"
+            className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase"
+          >
+            New Password
+          </Label>
           <div className="relative">
             <Input
               id="new-password"
@@ -335,13 +385,22 @@ function LoginPage() {
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-[var(--foreground)] cursor-pointer"
               onClick={() => setShowNewPassword((v) => !v)}
             >
-              {showNewPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+              {showNewPassword ? (
+                <EyeOff className="size-4" aria-hidden="true" />
+              ) : (
+                <Eye className="size-4" aria-hidden="true" />
+              )}
             </button>
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="confirm-password" className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase">Confirm New Password</Label>
+          <Label
+            htmlFor="confirm-password"
+            className="text-xs font-medium tracking-wider text-[#8A8A98] uppercase"
+          >
+            Confirm New Password
+          </Label>
           <div className="relative">
             <Input
               id="confirm-password"
@@ -360,15 +419,23 @@ function LoginPage() {
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8A8A98] hover:text-[var(--foreground)] cursor-pointer"
               onClick={() => setShowConfirmPassword((v) => !v)}
             >
-              {showConfirmPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+              {showConfirmPassword ? (
+                <EyeOff className="size-4" aria-hidden="true" />
+              ) : (
+                <Eye className="size-4" aria-hidden="true" />
+              )}
             </button>
           </div>
         </div>
 
-        <Button type="submit" disabled={loading} className="w-full btn-premium-solid h-10 font-semibold cursor-pointer">
+        <Button
+          type="submit"
+          disabled={loading}
+          className="w-full btn-premium-solid h-10 font-semibold cursor-pointer"
+        >
           {loading ? "Updating Password..." : "Confirm & Reset Password"}
         </Button>
       </form>
     </AuthShell>
   );
-}
+}

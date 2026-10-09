@@ -10,7 +10,11 @@ import { toast } from "sonner";
 import type { PlaySchedule, Rotation, RotationRound } from "@/lib/types";
 
 /** Parse values like "15 min", "20 minutes", "15m" into minutes. */
-export function parseSlotMinutes(slotDuration: string, slotHours: number, roundCount: number): number {
+export function parseSlotMinutes(
+  slotDuration: string,
+  slotHours: number,
+  roundCount: number,
+): number {
   const match = String(slotDuration || "").match(/(\d+(?:\.\d+)?)/);
   if (match) {
     const n = parseFloat(match[1]);
@@ -151,11 +155,7 @@ function applyMove(
   if (!tCourt) return rounds;
 
   // Same slot after remove (empty) — just place back
-  if (
-    source.kind === "court" &&
-    source.courtNo === target.courtNo &&
-    source.slot === target.slot
-  ) {
+  if (source.kind === "court" && source.courtNo === target.courtNo && source.slot === target.slot) {
     tCourt.players[target.slot] = moving;
     return next;
   }
@@ -234,8 +234,7 @@ export function CourtRotationView({
     return roundsForYou.length > 0;
   }, [editing, myMemberIds.size, roundsForYou.length]);
 
-  const visibleRoundList =
-    showCourtFilter && courtFilter === "your" ? roundsForYou : rounds;
+  const visibleRoundList = showCourtFilter && courtFilter === "your" ? roundsForYou : rounds;
 
   // Keep selected round valid when switching Your Court / All Courts
   const effectiveRoundValue = visibleRoundList.some((r) => `r${r.round}` === activeRound)
@@ -349,12 +348,17 @@ export function CourtRotationView({
                 ? "bg-[#1A2120] border-[rgba(245,158,11,0.35)] text-[#FBBF24]"
                 : "bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE]"
             : "bg-[#1A2120]/60 border-dashed border-[rgba(255,255,255,0.08)] text-[#4A5E58]",
-          editing && canDrag && "cursor-grab active:cursor-grabbing hover:border-[rgba(16,185,129,0.45)]",
+          editing &&
+            canDrag &&
+            "cursor-grab active:cursor-grabbing hover:border-[rgba(16,185,129,0.45)]",
           editing && !playerId && "cursor-pointer",
           isOver && editing && "border-[#10B981]/60 bg-[#10B981]/10 ring-1 ring-[#10B981]/30",
           isDragging && "opacity-40",
           editing && playerId && "inline-flex items-center justify-center gap-1",
-          showGrade && playerId && !opts.resting && "flex flex-col items-center justify-center gap-0.5",
+          showGrade &&
+            playerId &&
+            !opts.resting &&
+            "flex flex-col items-center justify-center gap-0.5",
           showGrade && playerId && opts.resting && "inline-flex flex-col items-center gap-0.5",
         )}
         title={
@@ -428,11 +432,7 @@ export function CourtRotationView({
           Drag players between court slots and resting. Drop onto another player to swap.
         </p>
       )}
-      <Tabs
-        value={effectiveRoundValue}
-        onValueChange={setActiveRound}
-        className="w-full"
-      >
+      <Tabs value={effectiveRoundValue} onValueChange={setActiveRound} className="w-full">
         <TabsList className="bg-[#131916] border border-[rgba(255,255,255,0.06)] p-1 rounded-lg inline-flex mb-4 h-10 max-w-full w-full sm:w-auto overflow-x-auto">
           {visibleRoundList.map((r) => (
             <TabsTrigger
@@ -474,119 +474,137 @@ export function CourtRotationView({
           </p>
         ) : (
           rounds.map((r, roundIdx) => {
-          const courtTime = getCourtTimeRange(schedule, r.round, roundCount);
-          const yourCourts = r.courts.filter((c) =>
-            (c.players || []).some((p) => p && myMemberIds.has(p)),
-          );
-          const isMemberRestingInRound = (r.resting || []).some((p) => p && myMemberIds.has(p));
-          const showYourOnly = showCourtFilter && courtFilter === "your";
-          if (showYourOnly && yourCourts.length === 0 && !isMemberRestingInRound) return null;
-          const visibleCourts = showYourOnly ? yourCourts : r.courts;
-          const showResting = showYourOnly ? isMemberRestingInRound : true;
+            const courtTime = getCourtTimeRange(schedule, r.round, roundCount);
+            const yourCourts = r.courts.filter((c) =>
+              (c.players || []).some((p) => p && myMemberIds.has(p)),
+            );
+            const isMemberRestingInRound = (r.resting || []).some((p) => p && myMemberIds.has(p));
+            const showYourOnly = showCourtFilter && courtFilter === "your";
+            if (showYourOnly && yourCourts.length === 0 && !isMemberRestingInRound) return null;
+            const visibleCourts = showYourOnly ? yourCourts : r.courts;
+            const showResting = showYourOnly ? isMemberRestingInRound : true;
 
-          return (
-            <TabsContent key={r.round} value={`r${r.round}`} className="focus-visible:outline-none space-y-6">
-              <div
-                className={cn(
-                  "grid gap-5",
-                  visibleCourts.length > 1 ? "md:grid-cols-2" : "grid-cols-1",
-                )}
+            return (
+              <TabsContent
+                key={r.round}
+                value={`r${r.round}`}
+                className="focus-visible:outline-none space-y-6"
               >
-                {visibleCourts.map((c) => (
-                  <Card
-                    key={c.courtNo}
-                    className={cn(
-                      "bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top",
-                      visibleCourts.length === 1 && "md:max-w-none",
-                    )}
-                  >
-                    <CardHeader className="pb-3 border-b border-white/[0.03]">
-                      <CardTitle className="text-[12px] font-semibold text-[#F1F0EE] flex flex-col xs:flex-row sm:flex-row sm:items-center justify-between gap-2">
-                        <span className="flex items-center gap-2">
-                          <Trophy className="size-4 text-[#34D399]" /> Court {c.courtNo}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-[#34D399] tracking-normal whitespace-nowrap">
-                          <Clock className="size-3.5 opacity-80" aria-hidden="true" />
-                          {courtTime.label}
-                        </span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4 grid grid-cols-2 gap-2.5">
-                      {[0, 1, 2, 3].map((idx) => {
-                        const p = c.players[idx] || "";
-                        const key = `r${roundIdx}-c${c.courtNo}-s${idx}`;
-                        const source: DragSource | undefined = p
-                          ? { kind: "court", roundIdx, courtNo: c.courtNo, slot: idx, playerId: p }
-                          : undefined;
-                        return playerChip(p || undefined, {
-                          key,
-                          source,
-                          dropTarget: { kind: "court", roundIdx, courtNo: c.courtNo, slot: idx, playerId: p || "" },
-                          empty: !p,
-                        });
-                      })}
-                    </CardContent>
-                  </Card>
-                ))}
-
-                {showResting && (
-                <Card
+                <div
                   className={cn(
-                    "md:col-span-2 bg-[#131916] border-[rgba(255,255,255,0.06)]",
-                    editing && dragOverKey === `r${roundIdx}-rest-zone` && "border-[#10B981]/40",
+                    "grid gap-5",
+                    visibleCourts.length > 1 ? "md:grid-cols-2" : "grid-cols-1",
                   )}
-                  onDragOver={
-                    editing
-                      ? (e) => {
-                          e.preventDefault();
-                          setDragOverKey(`r${roundIdx}-rest-zone`);
-                        }
-                      : undefined
-                  }
-                  onDrop={
-                    editing
-                      ? (e) => {
-                          e.preventDefault();
-                          setDragOverKey(null);
-                          const source = parseSource(e);
-                          if (!source || source.roundIdx !== roundIdx) return;
-                          if (source.kind === "rest") return; // already resting
-                          setRounds(applyMove(rounds, source, { kind: "rest-zone", roundIdx }));
-                        }
-                      : undefined
-                  }
                 >
-                  <CardHeader className="pb-3 border-b border-white/[0.03]">
-                    <CardTitle className="text-[11px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
-                      Resting Players (Bye)
-                      {editing && (
-                        <span className="ml-2 normal-case tracking-normal font-normal text-[#6B7F78]">
-                          — drop here to rest
-                        </span>
+                  {visibleCourts.map((c) => (
+                    <Card
+                      key={c.courtNo}
+                      className={cn(
+                        "bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top",
+                        visibleCourts.length === 1 && "md:max-w-none",
                       )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-4 flex flex-wrap gap-2 min-h-[48px]">
-                    {r.resting.length === 0 && (
-                      <p className="text-[12px] text-[#4A5E58]">
-                        {editing ? "Drop a player here for a bye" : "No resting players"}
-                      </p>
-                    )}
-                    {r.resting.map((p, restIdx) =>
-                      playerChip(p, {
-                        key: `r${roundIdx}-rest-${restIdx}-${p}`,
-                        source: { kind: "rest", roundIdx, restIdx, playerId: p },
-                        dropTarget: { kind: "rest", roundIdx, restIdx, playerId: p },
-                        resting: true,
-                      }),
-                    )}
-                  </CardContent>
-                </Card>
-                )}
-              </div>
-            </TabsContent>
-          );
-        })
+                    >
+                      <CardHeader className="pb-3 border-b border-white/[0.03]">
+                        <CardTitle className="text-[12px] font-semibold text-[#F1F0EE] flex flex-col xs:flex-row sm:flex-row sm:items-center justify-between gap-2">
+                          <span className="flex items-center gap-2">
+                            <Trophy className="size-4 text-[#34D399]" /> Court {c.courtNo}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-[#34D399] tracking-normal whitespace-nowrap">
+                            <Clock className="size-3.5 opacity-80" aria-hidden="true" />
+                            {courtTime.label}
+                          </span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4 grid grid-cols-2 gap-2.5">
+                        {[0, 1, 2, 3].map((idx) => {
+                          const p = c.players[idx] || "";
+                          const key = `r${roundIdx}-c${c.courtNo}-s${idx}`;
+                          const source: DragSource | undefined = p
+                            ? {
+                                kind: "court",
+                                roundIdx,
+                                courtNo: c.courtNo,
+                                slot: idx,
+                                playerId: p,
+                              }
+                            : undefined;
+                          return playerChip(p || undefined, {
+                            key,
+                            source,
+                            dropTarget: {
+                              kind: "court",
+                              roundIdx,
+                              courtNo: c.courtNo,
+                              slot: idx,
+                              playerId: p || "",
+                            },
+                            empty: !p,
+                          });
+                        })}
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {showResting && (
+                    <Card
+                      className={cn(
+                        "md:col-span-2 bg-[#131916] border-[rgba(255,255,255,0.06)]",
+                        editing &&
+                          dragOverKey === `r${roundIdx}-rest-zone` &&
+                          "border-[#10B981]/40",
+                      )}
+                      onDragOver={
+                        editing
+                          ? (e) => {
+                              e.preventDefault();
+                              setDragOverKey(`r${roundIdx}-rest-zone`);
+                            }
+                          : undefined
+                      }
+                      onDrop={
+                        editing
+                          ? (e) => {
+                              e.preventDefault();
+                              setDragOverKey(null);
+                              const source = parseSource(e);
+                              if (!source || source.roundIdx !== roundIdx) return;
+                              if (source.kind === "rest") return; // already resting
+                              setRounds(applyMove(rounds, source, { kind: "rest-zone", roundIdx }));
+                            }
+                          : undefined
+                      }
+                    >
+                      <CardHeader className="pb-3 border-b border-white/[0.03]">
+                        <CardTitle className="text-[11px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase">
+                          Resting Players (Bye)
+                          {editing && (
+                            <span className="ml-2 normal-case tracking-normal font-normal text-[#6B7F78]">
+                              — drop here to rest
+                            </span>
+                          )}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4 flex flex-wrap gap-2 min-h-[48px]">
+                        {r.resting.length === 0 && (
+                          <p className="text-[12px] text-[#4A5E58]">
+                            {editing ? "Drop a player here for a bye" : "No resting players"}
+                          </p>
+                        )}
+                        {r.resting.map((p, restIdx) =>
+                          playerChip(p, {
+                            key: `r${roundIdx}-rest-${restIdx}-${p}`,
+                            source: { kind: "rest", roundIdx, restIdx, playerId: p },
+                            dropTarget: { kind: "rest", roundIdx, restIdx, playerId: p },
+                            resting: true,
+                          }),
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </TabsContent>
+            );
+          })
         )}
       </Tabs>
     </div>

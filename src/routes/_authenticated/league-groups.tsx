@@ -10,12 +10,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
-import { Plus, Pencil, Trash2, Users, Save, X, ShieldCheck, LayoutGrid, List, Eye, Search } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Users,
+  Save,
+  X,
+  ShieldCheck,
+  LayoutGrid,
+  List,
+  Eye,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -23,10 +48,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  ConfirmDeleteDialog,
-  type ConfirmDeleteRequest,
-} from "@/components/ConfirmDeleteDialog";
+import { ConfirmDeleteDialog, type ConfirmDeleteRequest } from "@/components/ConfirmDeleteDialog";
 import type { LeagueGroup } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/league-groups")({
@@ -87,9 +109,7 @@ function MemberLeagueGroupsView() {
   );
 
   const filteredGroups = useMemo(() => {
-    let result = leagueGroups.filter((g) =>
-      (g.memberIds || []).some((id) => myMemberIds.has(id)),
-    );
+    let result = leagueGroups.filter((g) => (g.memberIds || []).some((id) => myMemberIds.has(id)));
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter((g) => {
@@ -129,7 +149,9 @@ function MemberLeagueGroupsView() {
       <Dialog open={!!viewingGroup} onOpenChange={(open) => !open && setViewingGroup(null)}>
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#F1F0EE]">{viewingGroup?.name ?? "Group members"}</DialogTitle>
+            <DialogTitle className="text-[#F1F0EE]">
+              {viewingGroup?.name ?? "Group members"}
+            </DialogTitle>
             <DialogDescription className="text-[#8A8A98]">
               {viewingGroup?.description?.trim()
                 ? viewingGroup.description
@@ -171,23 +193,24 @@ function MemberLeagueGroupsView() {
                         {info.position}
                       </span>
                     ) : (
-                      <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">no position</span>
+                      <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">
+                        no position
+                      </span>
                     )}
                   </div>
                 );
               })}
               {(viewingGroup.memberIds || []).length === 0 && (
-                <p className="text-[12px] text-[#8A8A98] text-center py-6">No members in this group.</p>
+                <p className="text-[12px] text-[#8A8A98] text-center py-6">
+                  No members in this group.
+                </p>
               )}
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      <PageHeader
-        title="Groups"
-        description="View your groups, positions, and teammates."
-      />
+      <PageHeader title="Groups" description="View your groups, positions, and teammates." />
 
       <SearchFilterBar
         searchPlaceholder="Search groups or members..."
@@ -212,7 +235,9 @@ function MemberLeagueGroupsView() {
               onClick={() => setViewMode("grid")}
               className={cn(
                 "px-2 h-full rounded-md transition-all cursor-pointer flex items-center",
-                viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                viewMode === "grid"
+                  ? "bg-[#1A2120] text-[#2FD9A0]"
+                  : "text-[#8FA89F] hover:text-[#EEF2F0]",
               )}
               title="Grid view"
             >
@@ -224,7 +249,9 @@ function MemberLeagueGroupsView() {
               disabled={isMobile}
               className={cn(
                 "px-2 h-full rounded-md transition-all flex items-center",
-                viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                viewMode === "list"
+                  ? "bg-[#1A2120] text-[#2FD9A0]"
+                  : "text-[#8FA89F] hover:text-[#EEF2F0]",
                 isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
               )}
               title={isMobile ? "List view available on larger screens" : "List view"}
@@ -279,11 +306,18 @@ function MemberLeagueGroupsView() {
                   <div>
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">{g.name}</h3>
-                        <span className={cn(
-                          "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
-                          g.groupType === "Junior" ? "bg-sky-500/20 text-sky-400" : "bg-amber-500/20 text-amber-400"
-                        )} title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}>
+                        <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">
+                          {g.name}
+                        </h3>
+                        <span
+                          className={cn(
+                            "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
+                            g.groupType === "Junior"
+                              ? "bg-sky-500/20 text-sky-400"
+                              : "bg-amber-500/20 text-amber-400",
+                          )}
+                          title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}
+                        >
                           {g.groupType === "Junior" ? "J" : "A"}
                         </span>
                       </div>
@@ -300,7 +334,10 @@ function MemberLeagueGroupsView() {
                     {groupMembers.length > 0 && (
                       <div className="mt-3 space-y-1">
                         {groupMembers.map((row) => (
-                          <div key={row.id} className="flex items-center justify-between gap-2 text-[11px]">
+                          <div
+                            key={row.id}
+                            className="flex items-center justify-between gap-2 text-[11px]"
+                          >
                             <span
                               className={cn(
                                 "truncate",
@@ -316,7 +353,9 @@ function MemberLeagueGroupsView() {
                                 {row.position}
                               </span>
                             ) : (
-                              <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">no position</span>
+                              <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">
+                                no position
+                              </span>
                             )}
                           </div>
                         ))}
@@ -351,16 +390,23 @@ function MemberLeagueGroupsView() {
                     <TableCell className="px-5 py-3.5 font-bold text-[14.5px] text-[#EEF2F0]">
                       <div className="flex items-center gap-2">
                         {g.name}
-                        <span className={cn(
-                          "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
-                          g.groupType === "Junior" ? "bg-sky-500/20 text-sky-400" : "bg-amber-500/20 text-amber-400"
-                        )} title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}>
+                        <span
+                          className={cn(
+                            "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
+                            g.groupType === "Junior"
+                              ? "bg-sky-500/20 text-sky-400"
+                              : "bg-amber-500/20 text-amber-400",
+                          )}
+                          title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}
+                        >
                           {g.groupType === "Junior" ? "J" : "A"}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell className="type-table-body">
-                      {g.description || <span className="text-[#4A4A5A] italic">No description</span>}
+                      {g.description || (
+                        <span className="text-[#4A4A5A] italic">No description</span>
+                      )}
                     </TableCell>
                     <TableCell className="type-mono-value">
                       <span className="flex items-center gap-1.5">
@@ -407,7 +453,10 @@ function AdminLeagueGroupsView() {
   const allMembers = useStore((s) => s.members);
   const [groupType, setGroupType] = useState<"Adult" | "Junior">("Adult");
   const members = allMembers.filter(
-    (m) => m.status === "active" && m.memberType.toLowerCase() === groupType.toLowerCase(),
+    (m) =>
+      m.status === "active" &&
+      m.membership === true &&
+      m.memberType.toLowerCase() === groupType.toLowerCase(),
   );
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const playerPositions = useStore((s) => s.playerPositions) || [];
@@ -448,7 +497,10 @@ function AdminLeagueGroupsView() {
       return 0;
     });
   }, [leagueGroups, allMembers, searchTerm, sortBy]);
-  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode("clubapp-view-mode-league-groups", "grid");
+  const { viewMode, setViewMode, isMobile } = useResponsiveViewMode(
+    "clubapp-view-mode-league-groups",
+    "grid",
+  );
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -580,7 +632,10 @@ function AdminLeagueGroupsView() {
       entityName: group.name,
       related: [
         { label: memberCount === 1 ? "member" : "members", count: memberCount },
-        { label: scheduleCount === 1 ? "linked schedule" : "linked schedules", count: scheduleCount },
+        {
+          label: scheduleCount === 1 ? "linked schedule" : "linked schedules",
+          count: scheduleCount,
+        },
       ],
       warning:
         memberCount > 0 || scheduleCount > 0
@@ -624,17 +679,22 @@ function AdminLeagueGroupsView() {
       />
       <PageHeader
         title="Groups"
-        description="Organize participants into groups to filter play invitations."
+        description="Organize participants into groups to filter play invitations & trainings."
         actions={
-          !isCreating && !editingId && canCreateGroup && (
-            <Button onClick={handleStartCreate} className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
+          !isCreating &&
+          !editingId &&
+          canCreateGroup && (
+            <Button
+              onClick={handleStartCreate}
+              className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer"
+            >
               <Plus className="size-4 mr-1.5" /> Create Group
             </Button>
           )
         }
       />
 
-      {(isCreating || editingId) ? (
+      {isCreating || editingId ? (
         <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
           <CardHeader>
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
@@ -646,7 +706,9 @@ function AdminLeagueGroupsView() {
               <div className="space-y-4">
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Group Name</Label>
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Group Name
+                    </Label>
                     <Input
                       required
                       value={name}
@@ -656,13 +718,36 @@ function AdminLeagueGroupsView() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Group Type</Label>
+                    <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                      Group Type
+                    </Label>
                     <Select
                       value={groupType}
                       onValueChange={(val: "Adult" | "Junior") => {
                         setGroupType(val);
-                        setSelectedMembers([]);
-                        setMemberPositions({});
+                        setSelectedMembers((prev) => {
+                          const validIds = prev.filter((id) => {
+                            const m = allMembers.find((x) => x.id === id);
+                            return (
+                              m &&
+                              m.status === "active" &&
+                              m.membership === true &&
+                              m.memberType.toLowerCase() === val.toLowerCase()
+                            );
+                          });
+
+                          setMemberPositions((posPrev) => {
+                            const newPos = { ...posPrev };
+                            for (const k of Object.keys(newPos)) {
+                              if (!validIds.includes(k)) {
+                                delete newPos[k];
+                              }
+                            }
+                            return newPos;
+                          });
+
+                          return validIds;
+                        });
                       }}
                     >
                       <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg">
@@ -676,7 +761,9 @@ function AdminLeagueGroupsView() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">Description</Label>
+                  <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                    Description
+                  </Label>
                   <Textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -704,7 +791,9 @@ function AdminLeagueGroupsView() {
                     </div>
                   </div>
                   {members.length === 0 ? (
-                    <p className="text-[12px] text-muted-foreground italic">No eligible participants found in members.</p>
+                    <p className="text-[12px] text-muted-foreground italic">
+                      No eligible participants found in members.
+                    </p>
                   ) : (
                     <div className="space-y-2">
                       <div className="relative">
@@ -743,7 +832,9 @@ function AdminLeagueGroupsView() {
                                     <div className="font-medium text-[#F1F0EE] text-[13px] truncate">
                                       {m.firstName} {m.lastName}
                                     </div>
-                                    <div className="text-[10px] text-muted-foreground">{m.grade}</div>
+                                    <div className="text-[10px] text-muted-foreground">
+                                      {m.grade}
+                                    </div>
                                   </div>
                                 </div>
                                 {isSelected && (
@@ -758,7 +849,11 @@ function AdminLeagueGroupsView() {
                                         </SelectTrigger>
                                         <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
                                           {playerPositions.map((pos) => (
-                                            <SelectItem key={pos} value={pos} className="text-[11px] cursor-pointer hover:bg-white/5">
+                                            <SelectItem
+                                              key={pos}
+                                              value={pos}
+                                              className="text-[11px] cursor-pointer hover:bg-white/5"
+                                            >
                                               {pos}
                                             </SelectItem>
                                           ))}
@@ -830,7 +925,9 @@ function AdminLeagueGroupsView() {
                   onClick={() => setViewMode("grid")}
                   className={cn(
                     "px-2 h-full rounded-md transition-all cursor-pointer flex items-center",
-                    viewMode === "grid" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                    viewMode === "grid"
+                      ? "bg-[#1A2120] text-[#2FD9A0]"
+                      : "text-[#8FA89F] hover:text-[#EEF2F0]",
                   )}
                   title="Grid view"
                 >
@@ -842,7 +939,9 @@ function AdminLeagueGroupsView() {
                   disabled={isMobile}
                   className={cn(
                     "px-2 h-full rounded-md transition-all flex items-center",
-                    viewMode === "list" ? "bg-[#1A2120] text-[#2FD9A0]" : "text-[#8FA89F] hover:text-[#EEF2F0]",
+                    viewMode === "list"
+                      ? "bg-[#1A2120] text-[#2FD9A0]"
+                      : "text-[#8FA89F] hover:text-[#EEF2F0]",
                     isMobile ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
                   )}
                   title={isMobile ? "List view available on larger screens" : "List view"}
@@ -863,7 +962,9 @@ function AdminLeagueGroupsView() {
                       {searchTerm ? "No matching groups found." : "No groups created yet."}
                     </h3>
                     <p className="text-[12px] font-light text-[#4A4A5A] max-w-[280px]">
-                      {searchTerm ? "Try adjusting your search terms." : "Create groups to target specific match invitations to a subset of players."}
+                      {searchTerm
+                        ? "Try adjusting your search terms."
+                        : "Create groups to target specific match invitations to a subset of players."}
                     </p>
                     {searchTerm && (
                       <Button
@@ -890,16 +991,26 @@ function AdminLeagueGroupsView() {
                   .filter((x) => x.member);
 
                 return (
-                  <Card key={g.id} className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-all duration-200">
+                  <Card
+                    key={g.id}
+                    className="bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.10)] hover:bg-[#1A2120] transition-all duration-200"
+                  >
                     <CardContent className="p-5 flex flex-col justify-between h-full">
                       <div>
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2 min-w-0">
-                            <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">{g.name}</h3>
-                            <span className={cn(
-                              "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
-                              g.groupType === "Junior" ? "bg-sky-500/20 text-sky-400" : "bg-amber-500/20 text-amber-400"
-                            )} title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}>
+                            <h3 className="font-semibold text-[15px] text-[#F1F0EE] truncate">
+                              {g.name}
+                            </h3>
+                            <span
+                              className={cn(
+                                "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
+                                g.groupType === "Junior"
+                                  ? "bg-sky-500/20 text-sky-400"
+                                  : "bg-amber-500/20 text-amber-400",
+                              )}
+                              title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}
+                            >
                               {g.groupType === "Junior" ? "J" : "A"}
                             </span>
                           </div>
@@ -908,13 +1019,18 @@ function AdminLeagueGroupsView() {
                           </div>
                         </div>
                         {g.description && (
-                          <p className="text-xs text-[#8A8A98] mt-2 font-light line-clamp-2 leading-relaxed">{g.description}</p>
+                          <p className="text-xs text-[#8A8A98] mt-2 font-light line-clamp-2 leading-relaxed">
+                            {g.description}
+                          </p>
                         )}
 
                         {groupMembers.length > 0 && (
                           <div className="mt-3 space-y-1">
                             {groupMembers.map(({ member, position }) => (
-                              <div key={member!.id} className="flex items-center justify-between gap-2 text-[11px]">
+                              <div
+                                key={member!.id}
+                                className="flex items-center justify-between gap-2 text-[11px]"
+                              >
                                 <span className="text-[#C1C1C8] truncate">
                                   {member!.firstName} {member!.lastName}
                                 </span>
@@ -924,7 +1040,9 @@ function AdminLeagueGroupsView() {
                                     {position}
                                   </span>
                                 ) : (
-                                  <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">no position</span>
+                                  <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">
+                                    no position
+                                  </span>
                                 )}
                               </div>
                             ))}
@@ -934,22 +1052,22 @@ function AdminLeagueGroupsView() {
 
                       <div className="mt-6 flex gap-2 w-full pt-3 border-t border-white/[0.03]">
                         {canEditGroup && (
-                        <Button
-                          variant="outline"
-                          className="flex-1 btn-premium-outline h-9 text-[12px] hover:cursor-pointer"
-                          onClick={() => handleStartEdit(g)}
-                        >
-                          <Pencil className="size-3.5 mr-1" /> Edit
-                        </Button>
+                          <Button
+                            variant="outline"
+                            className="flex-1 btn-premium-outline h-9 text-[12px] hover:cursor-pointer"
+                            onClick={() => handleStartEdit(g)}
+                          >
+                            <Pencil className="size-3.5 mr-1" /> Edit
+                          </Button>
                         )}
                         {canDeleteGroup && (
-                        <Button
-                          variant="destructive"
-                          className="flex-1 btn-premium-danger h-9 text-[12px] hover:cursor-pointer"
-                          onClick={() => handleDelete(g.id)}
-                        >
-                          <Trash2 className="size-3.5 mr-1" /> Delete
-                        </Button>
+                          <Button
+                            variant="destructive"
+                            className="flex-1 btn-premium-danger h-9 text-[12px] hover:cursor-pointer"
+                            onClick={() => handleDelete(g.id)}
+                          >
+                            <Trash2 className="size-3.5 mr-1" /> Delete
+                          </Button>
                         )}
                       </div>
                     </CardContent>
@@ -970,19 +1088,31 @@ function AdminLeagueGroupsView() {
                 </TableHeader>
                 <TableBody>
                   {filteredGroups.map((g) => (
-                    <TableRow key={g.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors">
+                    <TableRow
+                      key={g.id}
+                      className="border-b border-[rgba(255,255,255,0.04)] hover:bg-white/[0.02] transition-colors"
+                    >
                       <TableCell className="px-5 py-3.5 font-bold text-[14.5px] text-[#EEF2F0]">
                         <div className="flex items-center gap-2">
                           {g.name}
-                          <span className={cn(
-                            "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
-                            g.groupType === "Junior" ? "bg-sky-500/20 text-sky-400" : "bg-amber-500/20 text-amber-400"
-                          )} title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}>
+                          <span
+                            className={cn(
+                              "shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center justify-center min-w-[20px]",
+                              g.groupType === "Junior"
+                                ? "bg-sky-500/20 text-sky-400"
+                                : "bg-amber-500/20 text-amber-400",
+                            )}
+                            title={g.groupType === "Junior" ? "Junior Group" : "Adult Group"}
+                          >
                             {g.groupType === "Junior" ? "J" : "A"}
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="type-table-body">{g.description || <span className="text-[#4A4A5A] italic">No description</span>}</TableCell>
+                      <TableCell className="type-table-body">
+                        {g.description || (
+                          <span className="text-[#4A4A5A] italic">No description</span>
+                        )}
+                      </TableCell>
                       <TableCell className="type-mono-value">
                         <span className="flex items-center gap-1.5">
                           <Users className="size-3.5 text-[#10B981] mr-1.5" />
@@ -991,24 +1121,24 @@ function AdminLeagueGroupsView() {
                       </TableCell>
                       <TableCell className="text-right px-5 py-3 space-x-2">
                         {canEditGroup && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="btn-premium-outline h-8 text-xs hover:cursor-pointer"
-                          onClick={() => handleStartEdit(g)}
-                        >
-                          <Pencil className="size-3 mr-1" /> Edit
-                        </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="btn-premium-outline h-8 text-xs hover:cursor-pointer"
+                            onClick={() => handleStartEdit(g)}
+                          >
+                            <Pencil className="size-3 mr-1" /> Edit
+                          </Button>
                         )}
                         {canDeleteGroup && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="btn-premium-danger h-8 text-xs hover:cursor-pointer"
-                          onClick={() => handleDelete(g.id)}
-                        >
-                          <Trash2 className="size-3 mr-1" /> Delete
-                        </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="btn-premium-danger h-8 text-xs hover:cursor-pointer"
+                            onClick={() => handleDelete(g.id)}
+                          >
+                            <Trash2 className="size-3 mr-1" /> Delete
+                          </Button>
                         )}
                       </TableCell>
                     </TableRow>

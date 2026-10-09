@@ -68,7 +68,8 @@ export function MemberCombobox({
   const abortRef = useRef<AbortController | null>(null);
 
   const useServerSearch = members.length >= SERVER_SEARCH_THRESHOLD;
-  const selected = members.find((m) => m.id === value) ?? serverResults?.find((m) => m.id === value);
+  const selected =
+    members.find((m) => m.id === value) ?? serverResults?.find((m) => m.id === value);
 
   useEffect(() => {
     if (!useServerSearch) {
@@ -173,7 +174,9 @@ export function MemberCombobox({
   };
 
   const activeOptionId =
-    open && filtered[highlightIndex] ? `${listboxId}-option-${filtered[highlightIndex].id}` : undefined;
+    open && filtered[highlightIndex]
+      ? `${listboxId}-option-${filtered[highlightIndex].id}`
+      : undefined;
 
   return (
     <Popover
@@ -203,7 +206,9 @@ export function MemberCombobox({
             <span className="min-w-0 flex-1 truncate">
               <span className="font-medium text-[#EEF2F0]">{memberLabel(selected)}</span>
               <span className="text-[#6B7F78]"> · </span>
-              <span className="font-mono text-[12px] text-[#8FA89F]">{fmtMoney(selected.credit)}</span>
+              <span className="font-mono text-[12px] text-[#8FA89F]">
+                {fmtMoney(selected.credit)}
+              </span>
             </span>
           ) : (
             <span className="text-[#8A8A98]">{placeholder}</span>
@@ -258,7 +263,12 @@ export function MemberCombobox({
               data-form-type="other"
               className="h-9 w-full min-w-0 bg-transparent text-[13px] text-[#F1F0EE] outline-none placeholder:text-[#6B7F78] border-0 shadow-none ring-0 focus:ring-0 focus-visible:ring-0 rounded-none p-0"
             />
-            {loading && <Loader2 className="size-3.5 shrink-0 animate-spin text-[#8FA89F]" aria-hidden="true" />}
+            {loading && (
+              <Loader2
+                className="size-3.5 shrink-0 animate-spin text-[#8FA89F]"
+                aria-hidden="true"
+              />
+            )}
           </div>
         </div>
 
@@ -282,7 +292,9 @@ export function MemberCombobox({
         >
           {filtered.length === 0 ? (
             <div className="px-4 py-8 text-center" role="status">
-              <p className="text-sm text-[#8FA89F]">{loading ? "Searching…" : "No members found."}</p>
+              <p className="text-sm text-[#8FA89F]">
+                {loading ? "Searching…" : "No members found."}
+              </p>
               {!loading && query.trim() && (
                 <p className="mt-1 text-[11px] text-[#6B7F78]">Try a different name or BI ID</p>
               )}
