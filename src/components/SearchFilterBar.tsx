@@ -264,7 +264,7 @@ export function SearchFilterBar({
       <div className="px-3 sm:px-4 py-2.5 space-y-2.5">
         {/* Search + mobile filters trigger + optional actions */}
         {(showSearch || showMobileFilters || actions) && (
-          <div className="flex items-center gap-2 w-full min-w-0">
+          <div className="search-filter-row flex items-center gap-2 w-full min-w-0">
             {showSearch && (
               <div className="relative flex-1 min-w-0">
                 <Search

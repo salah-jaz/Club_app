@@ -844,7 +844,7 @@ function SchedulePage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+      <div className="admin-card-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
         {columns.map((col) => (
           <Card key={col.key} className="bg-[#131916] border-[rgba(255,255,255,0.06)]">
             <CardHeader className="pb-3 border-b border-[rgba(255,255,255,0.04)]">

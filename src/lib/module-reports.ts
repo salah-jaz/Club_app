@@ -232,6 +232,16 @@ export function filterSchedulesForReport(
   });
 }
 
+function parseReportDateTimeMs(value: string | null | undefined): number {
+  if (!value) return 0;
+  const str = String(value).trim();
+  const normalized = str.includes(" ") ? str.replace(" ", "T") : str;
+  const time = new Date(normalized).getTime();
+  if (!Number.isNaN(time)) return time;
+  const fallback = new Date(str).getTime();
+  return Number.isNaN(fallback) ? 0 : fallback;
+}
+
 export function exportSchedulesReport(
   schedules: PlaySchedule[],
   invites: PlayInvitation[],
@@ -245,7 +255,13 @@ export function exportSchedulesReport(
   const transactions = state.transactions;
   const filtered = filterSchedulesForReport(schedules, invites, filters);
 
-  const rows = filtered.map((sch) => {
+  const sorted = [...filtered].sort((a, b) => {
+    const diff = parseReportDateTimeMs(a.date) - parseReportDateTimeMs(b.date);
+    if (diff !== 0) return diff;
+    return (a.name || "").localeCompare(b.name || "") || (a.id || "").localeCompare(b.id || "");
+  });
+
+  const rows = sorted.map((sch) => {
     const acceptedInvites = invites.filter(
       (i) => i.scheduleId === sch.id && i.status === "accepted",
     );
@@ -379,7 +395,16 @@ export function exportTrainingsReport(
   const transactions = state.transactions;
 
   const filtered = filterTrainingsForReport(trainings, invites, filters);
-  const rows = filtered.map((t) => {
+
+  const sorted = [...filtered].sort((a, b) => {
+    const diff = parseReportDateTimeMs(a.startDate) - parseReportDateTimeMs(b.startDate);
+    if (diff !== 0) return diff;
+    const endDiff = parseReportDateTimeMs(a.endDate) - parseReportDateTimeMs(b.endDate);
+    if (endDiff !== 0) return endDiff;
+    return (a.name || "").localeCompare(b.name || "") || (a.id || "").localeCompare(b.id || "");
+  });
+
+  const rows = sorted.map((t) => {
     const d = new Date(t.startDate);
     const targetMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const pid = t.parentId || t.id;

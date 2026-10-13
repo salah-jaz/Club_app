@@ -2097,6 +2097,121 @@ button[role="switch"][data-state="checked"] {
   background-color: #ffffff !important;
 }
 
+/*
+ * Admin Play Schedules + Trainings only.
+ * Viewport breakpoints (sm/md/lg) ignore the sidebar, so these modules lay out
+ * as if they have the full screen. Flex rows then stay on one line, the content
+ * min-width exceeds the column, and the shell's overflow:hidden crops it.
+ * Container queries follow the real column width. Wide desktops are unchanged.
+ */
+.admin-module-fit {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: admin-module;
+}
+
+@container admin-module (max-width: 900px) {
+  .admin-module-fit :where(.flex > *, .grid > *) {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .admin-module-fit :where(.flex, [role="tablist"]) {
+    flex-wrap: wrap !important;
+    max-width: 100%;
+  }
+
+  .admin-module-fit :where([role="tablist"]) {
+    height: auto !important;
+    width: 100%;
+  }
+
+  .admin-module-fit :where(.truncate, .whitespace-nowrap, button, [role="tab"]) {
+    white-space: normal !important;
+  }
+
+  .admin-module-fit :where(.truncate) {
+    overflow: visible !important;
+    text-overflow: unset !important;
+    overflow-wrap: break-word;
+  }
+
+  /* Header rows that switch to horizontal at md still sit beside the sidebar. */
+  .admin-module-fit .md\:flex-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .admin-module-fit .search-filter-row {
+    flex-wrap: wrap !important;
+  }
+
+  .admin-module-fit .search-filter-row > :first-child {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .admin-module-fit :where(.overflow-x-auto, .overflow-auto) {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .admin-module-fit :where(.min-w-\[200px\], .min-w-\[160px\], .min-w-\[140px\]) {
+    min-width: 0 !important;
+  }
+
+  /* Desktop filter grids use lg: columns sized to the viewport, not this column. */
+  .admin-module-fit .lg\:grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* Keep icon buttons, checks, and switches at their own size. */
+  .admin-module-fit :where(
+    button[role="checkbox"],
+    button[role="switch"],
+    button:has(> svg:only-child),
+    a:has(> svg:only-child)
+  ) {
+    flex-shrink: 0 !important;
+    max-width: none !important;
+    min-width: min-content !important;
+    white-space: nowrap !important;
+  }
+
+  .admin-module-fit :where(svg) {
+    flex-shrink: 0;
+    max-width: none !important;
+  }
+}
+
+/* One card column until two columns can actually fit in the content area. */
+@container admin-module (max-width: 560px) {
+  .admin-module-fit .admin-card-grid,
+  .admin-module-fit .lg\:grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@container admin-module (min-width: 561px) and (max-width: 900px) {
+  .admin-module-fit .admin-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* sm:grid-cols-4 activates on the viewport while the sidebar still eats the column. */
+@container admin-module (max-width: 800px) {
+  .admin-module-fit .admin-form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-module-fit .md\:grid-cols-2:not(.admin-card-grid) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
 /* Prevent mobile browser (especially iOS Safari) input focus auto-zoom */
 @media screen and (max-width: 768px), (pointer: coarse) {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),

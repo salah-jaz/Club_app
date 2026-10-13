@@ -53,27 +53,7 @@ class InvitationSyncService
         $schedules = PlaySchedule::whereIn('status', ['released', 'rotated', 'published'])->get();
 
         foreach ($schedules as $sch) {
-            $isEligible = false;
-
-            if ($member->status === 'active') {
-                if ($member->member_type === 'adult') {
-                    if ((bool) $member->membership) {
-                        if ($sch->is_league_match && !empty($sch->league_group_ids)) {
-                            $inLeague = DB::table('league_group_member')
-                                ->whereIn('league_group_id', $sch->league_group_ids)
-                                ->where('member_id', $member->id)
-                                ->exists();
-                            $isEligible = $inLeague;
-                        } else {
-                            $isEligible = true;
-                        }
-                    }
-                } elseif ($member->member_type === 'junior') {
-                    if (!(bool) $sch->is_league_match && (bool) $member->play_eligible) {
-                        $isEligible = true;
-                    }
-                }
-            }
+            $isEligible = \App\Http\Controllers\Api\PlayScheduleController::isMemberEligibleForSchedule($member, $sch);
 
             $invites = PlayInvitation::where('schedule_id', $sch->id)
                 ->where('member_id', $member->id)
@@ -112,6 +92,13 @@ class InvitationSyncService
                     }
                 }
             } else {
+                if (!(bool) $member->membership) {
+                    // If Club Membership is turned OFF after an invitation exists, preserve it
+                    // without silently deleting financial, attendance, or transaction history.
+                    // Further acceptance and restricted session access are enforced at API level.
+                    continue;
+                }
+
                 if ($invite) {
                     $wasAccepted = $invite->status === 'accepted';
 

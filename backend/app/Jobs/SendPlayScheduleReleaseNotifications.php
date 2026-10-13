@@ -56,7 +56,7 @@ class SendPlayScheduleReleaseNotifications implements ShouldQueue
             }
 
             $member = Member::find($memberId);
-            if (!$member || empty($member->email)) {
+            if (!$member || empty($member->email) || $member->status !== 'active' || !(bool) $member->membership) {
                 continue;
             }
 

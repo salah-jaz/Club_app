@@ -16,6 +16,7 @@ use App\Helpers\MailHelper;
 use App\Helpers\PermissionHelper;
 use App\Helpers\FeeHelper;
 use App\Helpers\SessionTimingHelper;
+use App\Helpers\WalletHelper;
 use App\Jobs\SendPlayScheduleReleaseNotifications;
 use App\Services\BackgroundQueueService;
 use Illuminate\Http\Request;
@@ -24,11 +25,274 @@ use Illuminate\Support\Str;
 
 class PlayScheduleController extends Controller
 {
-    public function index()
+    public static function isMemberEligibleForSchedule(Member $member, PlaySchedule $schedule): bool
+    {
+        if ($member->status !== 'active' || !(bool) $member->membership) {
+            return false;
+        }
+
+        $groupIds = is_array($schedule->league_group_ids)
+            ? $schedule->league_group_ids
+            : (json_decode($schedule->league_group_ids ?? '[]', true) ?? []);
+        $groupIds = array_values(array_filter((array)$groupIds));
+        $hasSelectedGroups = !empty($groupIds);
+
+        if ($hasSelectedGroups) {
+            $inGroup = DB::table('league_group_member')
+                ->whereIn('league_group_id', $groupIds)
+                ->where('member_id', $member->id)
+                ->exists();
+
+            if (!$inGroup) {
+                return false;
+            }
+
+            if ($member->member_type === 'adult') {
+                return true;
+            }
+
+            if ($member->member_type === 'junior') {
+                return (bool) $member->play_eligible;
+            }
+
+            return false;
+        }
+
+        if ($member->member_type === 'adult') {
+            return true;
+        }
+
+        if ($member->member_type === 'junior') {
+            return !(bool) $schedule->is_league_match && (bool) $member->play_eligible;
+        }
+
+        return false;
+    }
+
+    public function index(?Request $request = null)
     {
         self::processAutoPublishAndRotation();
+        $user = $request ? $request->user() : auth()->user();
+
+        if ($request && ($request->query('dashboard') || $request->query('scope') === 'dashboard' || $request->query('upcoming'))) {
+            return $this->upcomingDashboardPlaySessions($request);
+        }
+
+        $isAdmin = $user && $user->role === 'admin';
+
         $schedules = PlaySchedule::orderBy('date', 'desc')->get();
-        return response()->json($schedules->map(fn(PlaySchedule $s) => $this->formatSchedule($s)));
+
+        if ($isAdmin || !$user) {
+            return response()->json($schedules->map(fn(PlaySchedule $s) => $this->formatSchedule($s)));
+        }
+
+        $familyMembers = Member::where('user_id', $user->id)
+            ->where('status', 'active')
+            ->get();
+        $eligibleFamilyMembers = $familyMembers->where('membership', true);
+        $eligibleMemberIds = $eligibleFamilyMembers->pluck('id')->all();
+
+        $acceptedOrWaitingScheduleIds = PlayInvitation::whereIn('member_id', $eligibleMemberIds)
+            ->whereIn('status', ['accepted', 'waiting'])
+            ->pluck('schedule_id')
+            ->all();
+
+        $visibleSchedules = $schedules->filter(function (PlaySchedule $sch) use ($eligibleFamilyMembers, $acceptedOrWaitingScheduleIds) {
+            $groupIds = is_array($sch->league_group_ids)
+                ? $sch->league_group_ids
+                : (json_decode($sch->league_group_ids ?? '[]', true) ?? []);
+            $groupIds = array_values(array_filter((array)$groupIds));
+            $hasSelectedGroups = !empty($groupIds);
+
+            if ($hasSelectedGroups) {
+                foreach ($eligibleFamilyMembers as $member) {
+                    if (self::isMemberEligibleForSchedule($member, $sch)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            if (in_array($sch->id, $acceptedOrWaitingScheduleIds, true)) {
+                return true;
+            }
+            foreach ($eligibleFamilyMembers as $member) {
+                if (self::isMemberEligibleForSchedule($member, $sch)) {
+                    return true;
+                }
+            }
+            return false;
+        });
+
+        return response()->json($visibleSchedules->map(fn(PlaySchedule $s) => $this->formatSchedule($s))->values());
+    }
+
+    public function upcomingDashboardPlaySessions(?Request $request = null)
+    {
+        self::processAutoPublishAndRotation();
+        $user = $request ? $request->user() : auth()->user();
+        if (!$user) {
+            return response()->json([]);
+        }
+
+        $now = SessionTimingHelper::now();
+
+        // Admin & Volunteer: See all future upcoming schedules that are not open/closed/cancelled
+        if ($user->role === 'admin' || $user->role === 'volunteer') {
+            $schedules = PlaySchedule::whereNotIn('status', ['open', 'closed', 'cancelled'])
+                ->orderBy('date', 'asc')
+                ->get()
+                ->filter(function (PlaySchedule $sch) use ($now) {
+                    $start = SessionTimingHelper::parseDateTime($sch->date);
+                    return $start->gt($now) && SessionTimingHelper::playSessionPhase($sch, $now) === SessionTimingHelper::PHASE_UPCOMING;
+                });
+
+            return response()->json($schedules->map(fn(PlaySchedule $s) => $this->formatSchedule($s))->values());
+        }
+
+        // Member: use the logged-in member's actual family relationships
+        $familyMembers = Member::where('user_id', $user->id)
+            ->where('status', 'active')
+            ->get();
+        $familyMemberIds = $familyMembers->pluck('id')->all();
+
+        if (empty($familyMemberIds)) {
+            return response()->json([]);
+        }
+
+        // Include a schedule if at least one family member has an Accepted or Waiting List invitation for it.
+        // Prevent duplicate schedule cards when multiple family members qualify for the same schedule (unique schedule_id).
+        $qualifyingScheduleIds = PlayInvitation::whereIn('member_id', $familyMemberIds)
+            ->whereIn('status', ['accepted', 'waiting'])
+            ->pluck('schedule_id')
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($qualifyingScheduleIds)) {
+            return response()->json([]);
+        }
+
+        // Show only future, upcoming Play Schedules.
+        // Exclude Cancelled, Closed, Finished, and past schedules (and unreleased 'open' status).
+        $schedules = PlaySchedule::whereIn('id', $qualifyingScheduleIds)
+            ->whereNotIn('status', ['open', 'closed', 'cancelled'])
+            ->orderBy('date', 'asc')
+            ->get();
+
+        $visibleSchedules = $schedules->filter(function (PlaySchedule $sch) use ($now, $familyMembers) {
+            $groupIds = is_array($sch->league_group_ids)
+                ? $sch->league_group_ids
+                : (json_decode($sch->league_group_ids ?? '[]', true) ?? []);
+            $groupIds = array_values(array_filter((array)$groupIds));
+            if (!empty($groupIds)) {
+                $isEligible = false;
+                foreach ($familyMembers as $member) {
+                    if (self::isMemberEligibleForSchedule($member, $sch)) {
+                        $isEligible = true;
+                        break;
+                    }
+                }
+                if (!$isEligible) {
+                    return false;
+                }
+            }
+
+            $start = SessionTimingHelper::parseDateTime($sch->date);
+            if ($start->lte($now)) {
+                return false;
+            }
+            return SessionTimingHelper::playSessionPhase($sch, $now) === SessionTimingHelper::PHASE_UPCOMING;
+        });
+
+        // Format schedules and attach family member statuses without exposing unrelated members' private invitations
+        $result = $visibleSchedules->map(function (PlaySchedule $s) use ($familyMembers) {
+            $formatted = $this->formatSchedule($s);
+            $invitations = PlayInvitation::where('schedule_id', $s->id)
+                ->whereIn('member_id', $familyMembers->pluck('id')->all())
+                ->get()
+                ->keyBy('member_id');
+
+            $familyStatuses = [];
+            foreach ($familyMembers as $m) {
+                $inv = $invitations->get($m->id);
+                $status = $inv ? $inv->status : null;
+                // If no invite record yet, check if eligible for this schedule
+                if ($status === null && (bool) $m->membership && self::isMemberEligibleForSchedule($m, $s)) {
+                    $status = 'open';
+                }
+                if ($status !== null) {
+                    $familyStatuses[] = [
+                        'memberId' => $m->id,
+                        'memberName' => trim($m->first_name . ' ' . $m->last_name),
+                        'memberFirstName' => $m->first_name,
+                        'memberType' => $m->member_type,
+                        'status' => $status,
+                    ];
+                }
+            }
+            $formatted['familyStatuses'] = $familyStatuses;
+            return $formatted;
+        })->values();
+
+        return response()->json($result);
+    }
+
+    public function show(Request $request, $id)
+    {
+        $sch = PlaySchedule::findOrFail($id);
+        $user = $request->user();
+
+        if (!$user || $user->role === 'admin') {
+            return response()->json($this->formatSchedule($sch));
+        }
+
+        $userMembers = Member::where('user_id', $user->id)
+            ->where('status', 'active')
+            ->where('membership', true)
+            ->get();
+
+        $isEligible = false;
+        foreach ($userMembers as $member) {
+            if (self::isMemberEligibleForSchedule($member, $sch)) {
+                $isEligible = true;
+                break;
+            }
+        }
+
+        if (!$isEligible) {
+            return response()->json(['message' => 'You do not have permission to view this schedule.'], 403);
+        }
+
+        return response()->json($this->formatSchedule($sch));
+    }
+
+    public function showPlayers(Request $request, $id)
+    {
+        $sch = PlaySchedule::findOrFail($id);
+        $user = $request->user();
+
+        if ($user && $user->role !== 'admin') {
+            $userMembers = Member::where('user_id', $user->id)
+                ->where('status', 'active')
+                ->where('membership', true)
+                ->get();
+
+            $isEligible = false;
+            foreach ($userMembers as $member) {
+                if (self::isMemberEligibleForSchedule($member, $sch)) {
+                    $isEligible = true;
+                    break;
+                }
+            }
+
+            if (!$isEligible) {
+                return response()->json(['message' => 'You do not have permission to view player details for this schedule.'], 403);
+            }
+        }
+
+        $invites = PlayInvitation::where('schedule_id', $id)->get();
+        return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
     }
 
     public function store(Request $request)
@@ -278,24 +542,42 @@ class PlayScheduleController extends Controller
         $sch->save();
 
         // Get active adult league participants and eligible juniors (non-league)
-        $eligibleAdults = Member::eligibleForPlay();
-        if ($sch->is_league_match && !empty($sch->league_group_ids)) {
-            $memberIds = DB::table('league_group_member')
-                ->whereIn('league_group_id', $sch->league_group_ids)
+        $groupIds = is_array($sch->league_group_ids)
+            ? $sch->league_group_ids
+            : (json_decode($sch->league_group_ids ?? '[]', true) ?? []);
+        $groupIds = array_values(array_filter((array)$groupIds));
+        $hasSelectedGroups = !empty($groupIds);
+
+        if ($hasSelectedGroups) {
+            $groupMemberIds = DB::table('league_group_member')
+                ->whereIn('league_group_id', $groupIds)
                 ->pluck('member_id')
+                ->unique()
+                ->values()
                 ->toArray();
-            $eligibleAdults = $eligibleAdults->whereIn('id', $memberIds);
+
+            $eligibleAdultsList = Member::eligibleForPlay()
+                ->whereIn('id', $groupMemberIds)
+                ->get();
+
+            $eligibleJuniorsList = Member::eligibleForPlayAsJunior()
+                ->whereIn('id', $groupMemberIds)
+                ->get();
+
+            $eligible = $eligibleAdultsList->concat($eligibleJuniorsList)->unique('id');
+        } else {
+            $eligibleAdults = Member::eligibleForPlay();
+            $eligibleAdultsList = $eligibleAdults->get();
+
+            $eligibleJuniorsList = collect();
+            if (!$sch->is_league_match) {
+                $eligibleJuniorsList = Member::eligibleForPlayAsJunior()->get();
+            }
+
+            $eligible = $eligibleAdultsList->concat($eligibleJuniorsList)->unique('id');
         }
-        $eligibleAdultsList = $eligibleAdults->get();
 
-        $eligibleJuniorsList = collect();
-        if (!$sch->is_league_match) {
-            $eligibleJuniorsList = Member::eligibleForPlayAsJunior()->get();
-        }
-
-        $eligible = $eligibleAdultsList->concat($eligibleJuniorsList)->unique('id');
-
-        $isLeague = (bool) $sch->is_league_match;
+        $isLeague = (bool) $sch->is_league_match || $hasSelectedGroups;
         $capacity = max((int) $sch->players, 1);
         $acceptedCount = 0;
         $releaseNotifications = [];
@@ -436,9 +718,13 @@ class PlayScheduleController extends Controller
             ], 422);
         }
 
-        if ($sch->is_league_match && !empty($sch->league_group_ids)) {
+        $groupIds = is_array($sch->league_group_ids)
+            ? $sch->league_group_ids
+            : (json_decode($sch->league_group_ids ?? '[]', true) ?? []);
+        $groupIds = array_values(array_filter((array)$groupIds));
+        if (!empty($groupIds)) {
             $groupMemberIds = DB::table('league_group_member')
-                ->whereIn('league_group_id', $sch->league_group_ids)
+                ->whereIn('league_group_id', $groupIds)
                 ->pluck('member_id')
                 ->all();
             $notInGroup = array_values(array_diff($memberIds, $groupMemberIds));
@@ -527,7 +813,7 @@ class PlayScheduleController extends Controller
      */
     private function resolveWalletMember(Member $member): Member
     {
-        return \App\Helpers\WalletHelper::resolveMember($member);
+        return WalletHelper::resolveMember($member);
     }
 
     private function acceptNewlyEnrolledInvite(PlaySchedule $sch, PlayInvitation $invite, ?Member $member): ?string
@@ -535,6 +821,10 @@ class PlayScheduleController extends Controller
         $sessionPhase = SessionTimingHelper::playSessionPhase($sch);
         if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
             return $message;
+        }
+
+        if (!$member || !self::isMemberEligibleForSchedule($member, $sch)) {
+            return 'Member is not eligible for this play session.';
         }
 
         // Prevent duplicate acceptance: check if member already accepted
@@ -551,7 +841,7 @@ class PlayScheduleController extends Controller
         if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
             $walletMember = $this->resolveWalletMember($member);
             $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
-            $currency = \App\Models\Setting::where('key', 'currency')->value('value') ?? '$';
+            $currency = Setting::where('key', 'currency')->value('value') ?? '$';
             if ($walletMember->credit < $estimatedFee) {
                 return "Insufficient credits. You need at least {$currency}{$estimatedFee} to accept this schedule.";
             }
@@ -613,6 +903,10 @@ class PlayScheduleController extends Controller
             }
 
             $nextMember = Member::find($next->member_id);
+            if (!$nextMember || !self::isMemberEligibleForSchedule($nextMember, $sch)) {
+                $next->delete();
+                continue;
+            }
             if (
                 $nextMember
                 && !$nextMember->skip_credit_consumption
@@ -635,6 +929,14 @@ class PlayScheduleController extends Controller
             $next->accepted_at = now();
             $next->save();
             $this->debitPlayInvite($sch, $next);
+
+            if ($nextMember) {
+                try {
+                    MailHelper::sendScheduleWaitingPromotionNotification($nextMember, $sch);
+                } catch (\Exception $e) {
+                    logger()->error("Waiting list promotion email failed for member {$nextMember->id}: " . $e->getMessage());
+                }
+            }
 
             $acceptedMemberIds[] = $next->member_id;
             $promoted[] = $next;
@@ -1335,13 +1637,15 @@ class PlayScheduleController extends Controller
         return $result;
     }
 
-    public function listInvitations(Request $request = null)
+    public function listInvitations(?Request $request = null)
     {
         self::processAutoPublishAndRotation();
 
         $user = $request ? $request->user() : auth()->user();
         $isAdmin = $user && $user->role === 'admin';
-        $userMemberIds = $user ? \App\Models\Member::where('user_id', $user->id)->pluck('id')->all() : [];
+        $userMembers = $user ? Member::where('user_id', $user->id)->get() : collect();
+        $userMemberIds = $userMembers->pluck('id')->all();
+        $eligibleUserMemberIds = $userMembers->where('status', 'active')->where('membership', true)->pluck('id')->all();
 
         $releasedSchedules = PlaySchedule::where('status', 'released')->get();
         foreach ($releasedSchedules as $relSch) {
@@ -1363,21 +1667,71 @@ class PlayScheduleController extends Controller
             }
 
             $schedule = $schedules->get($scheduleId);
-            $isPublishedOrClosed = $schedule && in_array($schedule->status, ['published', 'closed'], true);
+            if (!$schedule) {
+                continue;
+            }
 
-            $hasAccepted = false;
+            $groupIds = is_array($schedule->league_group_ids)
+                ? $schedule->league_group_ids
+                : (json_decode($schedule->league_group_ids ?? '[]', true) ?? []);
+            $groupIds = array_values(array_filter((array)$groupIds));
+            $hasSelectedGroups = !empty($groupIds);
+
+            if ($hasSelectedGroups) {
+                $isGroupEligible = false;
+                foreach ($userMembers as $uMember) {
+                    if (self::isMemberEligibleForSchedule($uMember, $schedule)) {
+                        $isGroupEligible = true;
+                        break;
+                    }
+                }
+                if (!$isGroupEligible) {
+                    continue;
+                }
+
+                $cleanScheduleInvites = $scheduleInvites->filter(function($inv) use ($userMemberIds, $eligibleUserMemberIds) {
+                    if (in_array($inv->member_id, $userMemberIds, true)) {
+                        return in_array($inv->member_id, $eligibleUserMemberIds, true);
+                    }
+                    return true;
+                });
+                $filteredInvites = $filteredInvites->merge($cleanScheduleInvites);
+                continue;
+            }
+
+            $hasActiveAcceptedOrWaiting = false;
             foreach ($scheduleInvites as $inv) {
-                if (in_array($inv->member_id, $userMemberIds) && $inv->status === 'accepted') {
-                    $hasAccepted = true;
+                if (in_array($inv->member_id, $eligibleUserMemberIds, true) && in_array($inv->status, ['accepted', 'waiting'], true)) {
+                    $hasActiveAcceptedOrWaiting = true;
                     break;
                 }
             }
 
-            if (!$isPublishedOrClosed || $hasAccepted) {
-                $filteredInvites = $filteredInvites->merge($scheduleInvites);
+            $hasEligibleFamilyMember = false;
+            foreach ($userMembers as $uMember) {
+                if (self::isMemberEligibleForSchedule($uMember, $schedule)) {
+                    $hasEligibleFamilyMember = true;
+                    break;
+                }
+            }
+
+            if (!$hasEligibleFamilyMember && !$hasActiveAcceptedOrWaiting) {
+                continue;
+            }
+
+            $isPublishedOrClosed = in_array($schedule->status, ['published', 'closed'], true);
+
+            if (!$isPublishedOrClosed || $hasActiveAcceptedOrWaiting) {
+                $cleanScheduleInvites = $scheduleInvites->filter(function($inv) use ($userMemberIds, $eligibleUserMemberIds) {
+                    if (in_array($inv->member_id, $userMemberIds, true)) {
+                        return in_array($inv->member_id, $eligibleUserMemberIds, true);
+                    }
+                    return true;
+                });
+                $filteredInvites = $filteredInvites->merge($cleanScheduleInvites);
             } else {
-                $userInvites = $scheduleInvites->filter(function($inv) use ($userMemberIds) {
-                    return in_array($inv->member_id, $userMemberIds);
+                $userInvites = $scheduleInvites->filter(function($inv) use ($eligibleUserMemberIds) {
+                    return in_array($inv->member_id, $eligibleUserMemberIds, true);
                 });
                 $filteredInvites = $filteredInvites->merge($userInvites);
             }
@@ -1397,15 +1751,32 @@ class PlayScheduleController extends Controller
             }
 
             if (!$isAdmin) {
-                $hasAccepted = false;
+                $groupIds = is_array($schedule->league_group_ids)
+                    ? $schedule->league_group_ids
+                    : (json_decode($schedule->league_group_ids ?? '[]', true) ?? []);
+                $groupIds = array_values(array_filter((array)$groupIds));
+                if (!empty($groupIds)) {
+                    $isGroupEligible = false;
+                    foreach ($userMembers as $uMember) {
+                        if (self::isMemberEligibleForSchedule($uMember, $schedule)) {
+                            $isGroupEligible = true;
+                            break;
+                        }
+                    }
+                    if (!$isGroupEligible) {
+                        continue;
+                    }
+                }
+
+                $hasActiveAcceptedOrWaiting = false;
                 $schInvites = $groupedInvites->get($scheduleId, collect());
                 foreach ($schInvites as $inv) {
-                    if (in_array($inv->member_id, $userMemberIds) && $inv->status === 'accepted') {
-                        $hasAccepted = true;
+                    if (in_array($inv->member_id, $eligibleUserMemberIds, true) && in_array($inv->status, ['accepted', 'waiting'], true)) {
+                        $hasActiveAcceptedOrWaiting = true;
                         break;
                     }
                 }
-                if (!$hasAccepted) {
+                if (!$hasActiveAcceptedOrWaiting) {
                     continue;
                 }
             }
@@ -1470,6 +1841,14 @@ class PlayScheduleController extends Controller
                 if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
                     return response()->json(['message' => $message], 422);
                 }
+
+                $member = Member::find($invite->member_id);
+                if (!$member || !self::isMemberEligibleForSchedule($member, $sch)) {
+                    return response()->json([
+                        'message' => 'Member is not eligible for this play session.',
+                    ], 422);
+                }
+
                 if (!in_array($invite->status, ['open', 'declined'], true)) {
                     return response()->json([
                         'message' => 'This invitation is already accepted or on the waiting list.',
@@ -1494,7 +1873,7 @@ class PlayScheduleController extends Controller
                 if ($member && !$member->skip_credit_consumption && !$skipsLeagueFee && !(bool) $sch->is_league_match) {
                     $walletMember = $this->resolveWalletMember($member);
                     $estimatedFee = FeeHelper::playSessionFee((float) $sch->session_rate, 0, 1, $member);
-                    $currency = \App\Models\Setting::where('key', 'currency')->value('value') ?? '$';
+                    $currency = Setting::where('key', 'currency')->value('value') ?? '$';
                     if ($walletMember->credit < $estimatedFee) {
                         return response()->json([
                             'message' => "Insufficient credits. You need at least {$currency}{$estimatedFee} to accept this schedule."
@@ -1742,18 +2121,39 @@ class PlayScheduleController extends Controller
         self::processAutoPublishAndRotation();
         $user = $request->user();
         $isAdmin = $user && $user->role === 'admin';
-        $userMemberIds = $user ? \App\Models\Member::where('user_id', $user->id)->pluck('id')->all() : [];
+        $userMembers = $user ? Member::where('user_id', $user->id)
+            ->where('status', 'active')
+            ->where('membership', true)
+            ->get() : collect();
+        $eligibleMemberIds = $userMembers->pluck('id')->all();
 
         $rotations = Rotation::all();
-        return response()->json($rotations->map(function ($r) use ($isAdmin, $userMemberIds) {
+        return response()->json($rotations->map(function ($r) use ($isAdmin, $eligibleMemberIds, $user, $userMembers) {
             $schedule = PlaySchedule::find($r->schedule_id);
             // Members only see rotations after publish; admins see drafts too.
             if (!$isAdmin && (!$schedule || !in_array($schedule->status, ['published', 'closed'], true))) {
                 return null;
             }
             if (!$isAdmin) {
+                $groupIds = is_array($schedule->league_group_ids)
+                    ? $schedule->league_group_ids
+                    : (json_decode($schedule->league_group_ids ?? '[]', true) ?? []);
+                $groupIds = array_values(array_filter((array)$groupIds));
+                if (!empty($groupIds)) {
+                    $isGroupEligible = false;
+                    foreach ($userMembers as $uMember) {
+                        if (self::isMemberEligibleForSchedule($uMember, $schedule)) {
+                            $isGroupEligible = true;
+                            break;
+                        }
+                    }
+                    if (!$isGroupEligible) {
+                        return null;
+                    }
+                }
+
                 $hasAccepted = PlayInvitation::where('schedule_id', $r->schedule_id)
-                    ->whereIn('member_id', $userMemberIds)
+                    ->whereIn('member_id', $eligibleMemberIds)
                     ->where('status', 'accepted')
                     ->exists();
                 if (!$hasAccepted) {

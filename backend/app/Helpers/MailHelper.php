@@ -128,6 +128,13 @@ class MailHelper
     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Session Fee:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{fee}</td></tr>
     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Status:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold; text-transform: uppercase;">{status}</td></tr>
 </table>';
+        } else if ($type === 'schedule_waiting_promotion') {
+            $extraHtml = "\n" . '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Date:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{date}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Location:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{location}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Session Fee:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{fee}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Status:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold; text-transform: uppercase; color: #10B981;">{status}</td></tr>
+</table>';
         } else if ($type === 'training') {
             $extraHtml = "\n" . '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;">Coach:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{coach}</td></tr>
@@ -200,6 +207,15 @@ class MailHelper
                 'heading' => '{title}',
                 'message' => "Hello {name},\n\nThe play schedule {schedule_name} has been {action_verb} by the club.",
                 'variables' => ['name', 'first_name', 'schedule_name', 'date', 'location', 'fee', 'status', 'title', 'action_verb', 'app_name', 'portal_url'],
+                'is_enabled' => true,
+            ],
+            'schedule_waiting_promotion' => [
+                'name' => 'Waiting List Promotion Notification',
+                'description' => 'Sent when a member on the waiting list is successfully promoted to accepted for a Play Schedule.',
+                'subject' => 'Promoted to Accepted: {schedule_name}',
+                'heading' => 'Waiting List Promotion',
+                'message' => "Hello {name},\n\nGreat news! A spot has opened up and you have been promoted from the waiting list to ACCEPTED for {schedule_name}.",
+                'variables' => ['name', 'first_name', 'schedule_name', 'date', 'location', 'fee', 'status', 'app_name', 'portal_url'],
                 'is_enabled' => true,
             ],
             'training' => [
@@ -385,6 +401,38 @@ class MailHelper
             'status' => $status,
             'title' => $title,
             'action_verb' => $actionVerb,
+            'app_name' => $appName,
+            'portal_url' => url('/'),
+        ];
+        $subject = self::interpolate($tpl['subject'], $vars);
+        $content = self::interpolate($tpl['body'], $vars);
+        self::sendEmail($member->email, $subject, $content);
+    }
+
+    public static function sendScheduleWaitingPromotionNotification($member, $schedule)
+    {
+        if (!self::isTemplateEnabled('schedule_waiting_promotion')) return;
+
+        $currency = Setting::where('key', 'currency')->value('value') ?? '$';
+        $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
+        
+        $estimatedFee = FeeHelper::playSessionFee(
+            (float)($schedule->session_rate ?? 0),
+            0,
+            1,
+            $member
+        );
+        $feeFormatted = $currency . number_format($estimatedFee, 2);
+
+        $tpl = self::getTemplate('schedule_waiting_promotion');
+        $vars = [
+            'name' => trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? '')),
+            'first_name' => $member->first_name ?? 'Member',
+            'schedule_name' => $schedule->name ?? 'Play Schedule',
+            'date' => $schedule->date ?? '',
+            'location' => $schedule->location ?? '',
+            'fee' => $feeFormatted,
+            'status' => 'ACCEPTED',
             'app_name' => $appName,
             'portal_url' => url('/'),
         ];
