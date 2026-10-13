@@ -125,7 +125,7 @@ class PlayScheduleReleasePerformanceTest extends TestCase
             'dob' => now()->subYears(10)->format('Y-m-d'),
             'grade' => 'Grade A',
             'member_type' => 'junior',
-            'membership' => false,
+            'membership' => true,
             'status' => 'active',
             'credit' => 0.0,
             'skip_credit_consumption' => false,

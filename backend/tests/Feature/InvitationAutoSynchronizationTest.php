@@ -84,7 +84,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'is_league_match' => false,
         ]);
 
-        // 2. Create Junior with play_eligible = OFF
+        // 2. Create Junior with membership = ON, play_eligible = OFF
         $junior = Member::create([
             'id' => 'm_kaja_muja',
             'user_id' => $this->admin->id,
@@ -95,7 +95,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'email' => 'kaja@test.com',
             'sex' => 'female',
             'member_type' => 'junior',
-            'membership' => false,
+            'membership' => true,
             'training_eligible' => false,
             'play_eligible' => false,
             'status' => 'active',
@@ -141,6 +141,20 @@ class InvitationAutoSynchronizationTest extends TestCase
             'is_league_match' => false,
         ]);
 
+        $userJohn = User::create([
+            'id' => 'u_john_sync',
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john.doe.user@test.com',
+            'mobile' => '+1234567899',
+            'address' => 'Test Address',
+            'sex' => 'male',
+            'dob' => '1992-03-03',
+            'password' => bcrypt('password'),
+            'role' => 'member',
+            'status' => 'active',
+        ]);
+
         // Admin creates a new adult member with membership = true
         $res = $this->actingAs($this->admin)->postJson('/api/members', [
             'firstName' => 'John',
@@ -152,7 +166,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'membership' => true,
             'status' => 'active',
             'grade' => 'Grade A',
-            'userId' => $this->admin->id,
+            'userId' => $userJohn->id,
         ]);
         $res->assertStatus(201);
         $newMemberId = $res->json('id');
@@ -190,7 +204,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'email' => 'tim@test.com',
             'sex' => 'male',
             'memberType' => 'junior',
-            'membership' => false,
+            'membership' => true,
             'playEligible' => true,
             'status' => 'active',
             'grade' => 'Beginner',
@@ -338,7 +352,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'email' => 'dup@test.com',
             'sex' => 'male',
             'member_type' => 'junior',
-            'membership' => false,
+            'membership' => true,
             'play_eligible' => true,
             'status' => 'active',
             'credit' => 0.00,
@@ -385,7 +399,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'email' => 'alex@test.com',
             'sex' => 'male',
             'member_type' => 'junior',
-            'membership' => false,
+            'membership' => true,
             'play_eligible' => true,
             'status' => 'active',
             'credit' => 50.00,
@@ -439,7 +453,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'email' => 'accepted@test.com',
             'sex' => 'female',
             'member_type' => 'junior',
-            'membership' => false,
+            'membership' => true,
             'play_eligible' => true,
             'status' => 'active',
             'credit' => 0.00,
@@ -456,7 +470,7 @@ class InvitationAutoSynchronizationTest extends TestCase
             'email' => 'waiting@test.com',
             'sex' => 'male',
             'member_type' => 'junior',
-            'membership' => false,
+            'membership' => true,
             'play_eligible' => true,
             'status' => 'active',
             'credit' => 0.00,

@@ -8,6 +8,31 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 use App\Services\InvitationSyncService;
 
+/**
+ * @property string $id
+ * @property int|null $user_id
+ * @property string|null $parent_member_id
+ * @property string|null $first_name
+ * @property string|null $last_name
+ * @property string $name
+ * @property string|null $nickname
+ * @property string|null $dob
+ * @property string|null $email
+ * @property string|null $mobile
+ * @property string|null $sex
+ * @property string|null $member_type
+ * @property bool $membership
+ * @property bool $training_eligible
+ * @property bool $play_eligible
+ * @property string|null $grade
+ * @property string|null $bi_member_id
+ * @property string $status
+ * @property float $credit
+ * @property bool $skip_credit_consumption
+ * @property bool $apply_discount
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
 class Member extends Model
 {
     public $incrementing = false;
@@ -129,6 +154,7 @@ class Member extends Model
     {
         return $query->where('member_type', 'junior')
             ->where('status', 'active')
+            ->where('membership', true)
             ->where('play_eligible', true);
     }
 

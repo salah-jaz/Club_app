@@ -5,6 +5,21 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property string $id
+ * @property string $training_id
+ * @property string $member_id
+ * @property string $status
+ * @property bool|null $apply_discount
+ * @property float|null $calculated_monthly_fee
+ * @property float|null $calculated_per_session_fee
+ * @property float|null $accepted_monthly_fee
+ * @property int|null $accepted_repeat_weeks
+ * @property float|null $accepted_per_session_fee
+ * @property float|null $accepted_amount
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
 class TrainingInvitation extends Model
 {
     public $incrementing = false;

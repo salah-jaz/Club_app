@@ -160,7 +160,7 @@ class LeagueGroupController extends Controller
         return $data;
     }
 
-    private function formatGroup(LeagueGroup $g): array
+    private function formatGroup($g): array
     {
         $memberIds       = [];
         $memberPositions = [];

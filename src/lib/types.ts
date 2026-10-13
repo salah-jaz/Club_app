@@ -113,6 +113,14 @@ export interface LeagueGroup {
   members?: LeagueGroupMember[];
 }
 
+export interface FamilyMemberStatus {
+  memberId: string;
+  memberName: string;
+  memberFirstName: string;
+  memberType: string;
+  status: string;
+}
+
 export interface PlaySchedule {
   id: string;
   parentId?: string | null;
@@ -130,6 +138,7 @@ export interface PlaySchedule {
   cancelReason?: string | null;
   isLeagueMatch?: boolean;
   leagueGroupIds?: string[];
+  familyStatuses?: FamilyMemberStatus[];
 }
 
 export type InviteStatus = "pending" | "open" | "accepted" | "declined" | "waiting";

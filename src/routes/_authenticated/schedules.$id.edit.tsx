@@ -387,7 +387,7 @@ function EditSchedule() {
               Capacity & Timing Details
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-4 grid sm:grid-cols-4 gap-4">
+          <CardContent className="admin-form-grid pt-4 grid sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                 Courts

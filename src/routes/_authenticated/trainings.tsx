@@ -44,8 +44,11 @@ function TrainingsLayout() {
   const matches = useMatches();
   const isIndex = matches[matches.length - 1].routeId === Route.id;
   if (activeRole !== "admin" && activeRole !== "volunteer") return <Navigate to="/dashboard" />;
-  if (!isIndex) return <Outlet />;
-  return <TrainingsList />;
+  return (
+    <div className="admin-module-fit min-w-0 w-full max-w-full">
+      {isIndex ? <TrainingsList /> : <Outlet />}
+    </div>
+  );
 }
 
 interface MonthlyCardItem {
@@ -727,7 +730,7 @@ function TrainingsList() {
               variants={staggerContainer}
               initial="hidden"
               animate="show"
-              className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5"
+              className="admin-card-grid grid sm:grid-cols-2 lg:grid-cols-3 gap-5"
             >
               {filteredCards.map((card) => {
                 const accepted = card.acceptedCount;

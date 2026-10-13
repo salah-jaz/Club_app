@@ -6,6 +6,26 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/**
+ * @property string $id
+ * @property string|null $parent_id
+ * @property int|null $repeat_weeks
+ * @property string $name
+ * @property string $date
+ * @property int $courts
+ * @property int $players
+ * @property float|null $slot_hours
+ * @property int|null $slot_duration
+ * @property float|null $session_rate
+ * @property float|null $hall_rate
+ * @property string|null $location
+ * @property string $status
+ * @property string|null $cancel_reason
+ * @property bool $is_league_match
+ * @property array|null $league_group_ids
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
 class PlaySchedule extends Model
 {
     public $incrementing = false;

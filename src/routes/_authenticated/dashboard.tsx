@@ -19,7 +19,7 @@ import { motion } from "framer-motion";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
-import type { PlaySchedule, Training } from "@/lib/types";
+import type { Member, PlayInvitation, PlaySchedule, Training } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useNow } from "@/hooks/useNow";
 import {
@@ -152,6 +152,9 @@ function ScheduleListCard({
   viewAllTo,
   viewAllLabel = "View All",
   footer,
+  myMembers,
+  playInvites,
+  isMemberRole = false,
 }: {
   title: string;
   schedules: PlaySchedule[];
@@ -163,6 +166,9 @@ function ScheduleListCard({
   viewAllTo?: string;
   viewAllLabel?: string;
   footer?: ReactNode;
+  myMembers?: Member[];
+  playInvites?: PlayInvitation[];
+  isMemberRole?: boolean;
 }) {
   return (
     <Card className="signature-card-top flex flex-col">
@@ -197,6 +203,50 @@ function ScheduleListCard({
               const iso = scheduleDateIso(sch.date);
               const isHoliday = !!iso && holidays.includes(iso);
               const rowTarget = viewAllTo || "/schedules";
+
+              const familyStatuses = (() => {
+                if (!isMemberRole) return [];
+                if (sch.familyStatuses && sch.familyStatuses.length > 0) {
+                  return sch.familyStatuses;
+                }
+                if (!myMembers || myMembers.length === 0) return [];
+                const list: {
+                  memberId: string;
+                  memberName: string;
+                  memberFirstName: string;
+                  memberType: string;
+                  status: string;
+                }[] = [];
+                for (const m of myMembers) {
+                  const inv = playInvites?.find(
+                    (pi) => pi.scheduleId === sch.id && pi.memberId === m.id,
+                  );
+                  let status: string | null = inv ? inv.status : null;
+                  if (status === null && m.membership) {
+                    const isEligible =
+                      m.status === "active" &&
+                      (m.memberType === "adult"
+                        ? !sch.isLeagueMatch ||
+                          !sch.leagueGroupIds ||
+                          sch.leagueGroupIds.length === 0
+                        : !sch.isLeagueMatch && m.playEligible);
+                    if (isEligible) {
+                      status = "open";
+                    }
+                  }
+                  if (status !== null) {
+                    list.push({
+                      memberId: m.id,
+                      memberName: `${m.firstName} ${m.lastName}`.trim(),
+                      memberFirstName: m.firstName,
+                      memberType: m.memberType,
+                      status,
+                    });
+                  }
+                }
+                return list;
+              })();
+
               return (
                 <motion.div
                   key={sch.id}
@@ -223,7 +273,24 @@ function ScheduleListCard({
                         {fmtDateTime(sch.date)} · {sch.location}
                       </div>
                     </div>
-                    <StatusBadge status={sch.status} />
+                    {isMemberRole && familyStatuses.length > 0 ? (
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        {familyStatuses.length === 1 ? (
+                          <StatusBadge kind="invitation" status={familyStatuses[0].status} />
+                        ) : (
+                          familyStatuses.map((fs) => (
+                            <div key={fs.memberId} className="flex items-center gap-1.5">
+                              <span className="text-[11px] text-[#8FA89F] font-medium truncate max-w-[100px]">
+                                {fs.memberFirstName}:
+                              </span>
+                              <StatusBadge kind="invitation" status={fs.status} />
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    ) : (
+                      <StatusBadge status={sch.status} />
+                    )}
                   </Link>
                 </motion.div>
               );
@@ -338,25 +405,35 @@ function Dashboard() {
 
   const myMemberIds = useMemo(() => new Set(myMembers.map((m) => m.id)), [myMembers]);
 
-  const upcomingPlaySessions = useMemo(
-    () =>
-      [...s.schedules]
-        .filter(
-          (x) =>
-            x.status !== "open" &&
-            x.status !== "closed" &&
-            x.status !== "cancelled" &&
-            getPlaySessionPhase(x, now) !== "finished" &&
-            (user.role === "admin" || user.role === "volunteer"
-              ? true
-              : s.playInvites.some(
-                  (i) =>
-                    i.scheduleId === x.id && i.status === "accepted" && myMemberIds.has(i.memberId),
-                )),
-        )
-        .sort((a, b) => (parseDateTimeMs(a.date) || 0) - (parseDateTimeMs(b.date) || 0)),
-    [s.schedules, s.playInvites, myMemberIds, user.role, now],
-  );
+  const upcomingPlaySessions = useMemo(() => {
+    const base =
+      user.role === "member" && s.upcomingPlaySessions && s.upcomingPlaySessions.length >= 0
+        ? s.upcomingPlaySessions
+        : s.schedules;
+
+    return [...base]
+      .filter(
+        (x) =>
+          x.status !== "open" &&
+          x.status !== "closed" &&
+          x.status !== "cancelled" &&
+          isSessionInFuture(x.date, now) &&
+          getPlaySessionPhase(x, now) !== "finished" &&
+          (user.role === "admin" || user.role === "volunteer"
+            ? true
+            : (x.familyStatuses &&
+                x.familyStatuses.some(
+                  (fs) => fs.status === "accepted" || fs.status === "waiting",
+                )) ||
+              s.playInvites.some(
+                (i) =>
+                  i.scheduleId === x.id &&
+                  myMemberIds.has(i.memberId) &&
+                  (i.status === "accepted" || i.status === "waiting"),
+              )),
+      )
+      .sort((a, b) => (parseDateTimeMs(a.date) || 0) - (parseDateTimeMs(b.date) || 0));
+  }, [s.upcomingPlaySessions, s.schedules, s.playInvites, myMemberIds, user.role, now]);
   const myTrainingInviteIds = useMemo(
     () =>
       new Set(
@@ -541,9 +618,7 @@ function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         <ScheduleListCard
-          title={
-            user.role === "member" ? "Upcoming Accepted Play Sessions" : "Upcoming Play Sessions"
-          }
+          title="Upcoming Play Sessions"
           schedules={upcomingPlaySessions}
           holidays={s.holidays ?? []}
           emptyTitle="No sessions scheduled"
@@ -552,6 +627,9 @@ function Dashboard() {
           emptyCtaTo={user.role === "admin" ? "/schedules" : undefined}
           viewAllTo={user.role === "admin" ? "/schedules" : "/events"}
           viewAllLabel="View All"
+          myMembers={myMembers}
+          playInvites={s.playInvites}
+          isMemberRole={user.role === "member"}
         />
 
         <TrainingListCard

@@ -30,6 +30,7 @@ interface State {
   creditRequests: CreditRequest[];
   transactions: Transaction[];
   schedules: PlaySchedule[];
+  upcomingPlaySessions: PlaySchedule[];
   playInvites: PlayInvitation[];
   rotations: Rotation[];
   trainings: Training[];
@@ -353,6 +354,7 @@ export const useStore = create<State>((set, get) => ({
   creditRequests: [],
   transactions: [],
   schedules: [],
+  upcomingPlaySessions: [],
   playInvites: [],
   leagueGroups: [],
   adminRoles: [],
@@ -501,6 +503,7 @@ export const useStore = create<State>((set, get) => ({
       const syncRes = await api.get<{
         members: Member[];
         schedules: PlaySchedule[];
+        upcomingPlaySessions?: PlaySchedule[];
         playInvites: PlayInvitation[];
         trainings: Training[];
         uniqueTrainingsCount: number;
@@ -545,6 +548,11 @@ export const useStore = create<State>((set, get) => ({
           juniorDiscountPercent?: number;
           juniorDiscountAmount?: number;
           juniorDiscountMode?: "percent" | "amount";
+          portalEyebrow?: string;
+          portalTitle?: string;
+          portalDescription?: string;
+          emailTemplates?: Record<string, EmailTemplateDefinition>;
+          [key: string]: any;
         };
         creditRequests: CreditRequest[];
         leagueGroups: LeagueGroup[];
@@ -554,6 +562,7 @@ export const useStore = create<State>((set, get) => ({
       const {
         members,
         schedules,
+        upcomingPlaySessions,
         playInvites,
         trainings,
         uniqueTrainingsCount,
@@ -569,6 +578,7 @@ export const useStore = create<State>((set, get) => ({
       set({
         members,
         schedules,
+        upcomingPlaySessions: upcomingPlaySessions || [],
         playInvites,
         trainings,
         uniqueTrainingsCount: uniqueTrainingsCount || 0,

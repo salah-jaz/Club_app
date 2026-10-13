@@ -1131,7 +1131,7 @@ function TrainingPage() {
           <Input
             value={memberSearch}
             onChange={(e) => setMemberSearch(e.target.value)}
-            placeholder="Search members by name, grade, or parent..."
+            placeholder="Search members"
             className="search-filter-input h-9 bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] text-xs rounded-lg pl-9"
           />
         </div>

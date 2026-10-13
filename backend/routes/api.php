@@ -65,7 +65,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/transactions/{id}', [TransactionController::class, 'destroy']);
 
     // Play Schedules & Rotations
+    Route::get('/schedules/upcoming-play-sessions', [PlayScheduleController::class, 'upcomingDashboardPlaySessions']);
+    Route::get('/dashboard/upcoming-play-sessions', [PlayScheduleController::class, 'upcomingDashboardPlaySessions']);
     Route::get('/schedules', [PlayScheduleController::class, 'index']);
+    Route::get('/schedules/{id}', [PlayScheduleController::class, 'show']);
+    Route::get('/schedules/{id}/players', [PlayScheduleController::class, 'showPlayers']);
     Route::post('/schedules', [PlayScheduleController::class, 'store']);
     Route::patch('/schedules/{id}', [PlayScheduleController::class, 'update']);
     Route::delete('/schedules/{id}', [PlayScheduleController::class, 'destroy']);

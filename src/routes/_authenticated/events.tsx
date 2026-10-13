@@ -115,6 +115,29 @@ function isEligibleForPlaySchedule(
   leagueGroups: { id: string; memberIds: string[] }[],
 ) {
   if (member.status !== "active") return false;
+  if (!member.membership) return false;
+
+  const groupIds = sch.leagueGroupIds || [];
+  const hasSelectedGroups = groupIds.length > 0;
+
+  if (hasSelectedGroups) {
+    const allowed = new Set(
+      leagueGroups
+        .filter((g) => groupIds.includes(g.id))
+        .flatMap((g) => g.memberIds || []),
+    );
+    if (!allowed.has(member.id)) {
+      return false;
+    }
+
+    if (member.memberType === "adult") {
+      return true;
+    }
+    if (member.memberType === "junior") {
+      return member.playEligible ?? false;
+    }
+    return false;
+  }
 
   if (member.memberType === "junior") {
     // Family head enrolls play-eligible juniors; league matches stay adult-only.
@@ -123,16 +146,8 @@ function isEligibleForPlaySchedule(
     return true;
   }
 
-  if (member.memberType !== "adult" || !member.membership) {
+  if (member.memberType !== "adult") {
     return false;
-  }
-  if (sch.isLeagueMatch && sch.leagueGroupIds && sch.leagueGroupIds.length > 0) {
-    const allowed = new Set(
-      leagueGroups
-        .filter((g) => sch.leagueGroupIds!.includes(g.id))
-        .flatMap((g) => g.memberIds || []),
-    );
-    return allowed.has(member.id);
   }
   return true;
 }
@@ -146,11 +161,13 @@ function Events() {
   const myMembers = s.members.filter((m) => m.userId === user.id);
   const myIds = myMembers.map((m) => m.id);
   const playEligibleJuniors = myMembers.filter(
-    (m) => m.memberType === "junior" && m.status === "active" && (m.playEligible ?? false),
+    (m) => m.memberType === "junior" && m.status === "active" && m.membership && (m.playEligible ?? false),
   );
-  const adultPlayers = myMembers.filter((m) => m.memberType === "adult" && m.status === "active");
+  const adultPlayers = myMembers.filter((m) => m.memberType === "adult" && m.status === "active" && m.membership);
   const playInvs = s.playInvites.filter((i) => {
     if (!myIds.includes(i.memberId)) return false;
+    const m = myMembers.find((x) => x.id === i.memberId);
+    if (!m || !m.membership) return false;
     const sch = s.schedules.find((x) => x.id === i.scheduleId);
     return sch && sch.status !== "open";
   });
@@ -164,6 +181,8 @@ function Events() {
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
   const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
   const [respondingAction, setRespondingAction] = useState<"accepted" | "declined" | null>(null);
+  const [declineConfirmId, setDeclineConfirmId] = useState<string | null>(null);
+  const declineInFlight = useRef(false);
   const [autoInviting, setAutoInviting] = useState(false);
   const autoInviteAttempted = useRef<Set<string>>(new Set());
   const navigate = useNavigate();
@@ -182,7 +201,7 @@ function Events() {
 
       const state = useStore.getState();
       const familyAdults = state.members.filter(
-        (m) => m.userId === user.id && m.memberType === "adult" && m.status === "active",
+        (m) => m.userId === user.id && m.memberType === "adult" && m.status === "active" && m.membership,
       );
       const released = state.schedules.filter((sch) => sch.status === "released");
       const pending: { scheduleId: string; memberIds: string[] }[] = [];
@@ -254,6 +273,12 @@ function Events() {
   };
 
   const openCourtsPopup = (sch: PlaySchedule) => {
+    const isEligible = myMembers.some((m) => isEligibleForPlaySchedule(m, sch, s.leagueGroups));
+    const hasAccepted = playInvs.some((i) => i.scheduleId === sch.id && i.status === "accepted");
+    if (!isEligible && !hasAccepted) {
+      toast.error("You are not eligible to view court details for this session.");
+      return;
+    }
     const rotation = s.rotations.find((r) => r.scheduleId === sch.id);
     if (!rotation) {
       toast.error("Court rotation is not available yet.");
@@ -263,6 +288,12 @@ function Events() {
   };
 
   const openPlayersPopup = (sch: PlaySchedule) => {
+    const isEligible = myMembers.some((m) => isEligibleForPlaySchedule(m, sch, s.leagueGroups));
+    const hasAccepted = playInvs.some((i) => i.scheduleId === sch.id && i.status === "accepted");
+    if (!isEligible && !hasAccepted) {
+      toast.error("You are not eligible to view player details for this session.");
+      return;
+    }
     setPlayersPopup(sch);
   };
 
@@ -300,7 +331,23 @@ function Events() {
         (sch): sch is PlaySchedule =>
           !!sch && sch.status !== "open" && !releasedSchedules.some((r) => r.id === sch.id),
       ),
-  ];
+  ].filter((sch) => {
+    const groupIds = sch.leagueGroupIds || [];
+    const hasSelectedGroups = groupIds.length > 0;
+
+    const hasEligibleMember = myMembers.some(
+      (m) => isEligibleForPlaySchedule(m, sch, s.leagueGroups),
+    );
+
+    if (hasSelectedGroups) {
+      return hasEligibleMember;
+    }
+
+    const hasAcceptedInvite = playInvs.some(
+      (i) => i.scheduleId === sch.id && i.status === "accepted",
+    );
+    return hasEligibleMember || hasAcceptedInvite;
+  });
 
   const uniquePlaySessions = playSessions.filter(
     (sch, idx, arr) => arr.findIndex((x) => x.id === sch.id) === idx,
@@ -396,6 +443,36 @@ function Events() {
   const invitesForSchedule = (scheduleId: string) =>
     playInvs.filter((i) => i.scheduleId === scheduleId);
 
+  const submitPlayDecline = async (inviteId: string) => {
+    if (declineInFlight.current) return;
+    const invite = useStore.getState().playInvites.find((inv) => inv.id === inviteId);
+    if (!invite || (invite.status !== "accepted" && invite.status !== "waiting")) {
+      toast.error("This invitation cannot be declined in its current state.");
+      setDeclineConfirmId(null);
+      return;
+    }
+    const previousStatus = invite.status;
+    declineInFlight.current = true;
+    setRespondingInviteId(inviteId);
+    setRespondingAction("declined");
+    try {
+      await s.respondPlay(inviteId, "declined");
+      toast.success(
+        previousStatus === "waiting"
+          ? "Left the waiting list"
+          : "Cancelled — session fee refunded to credits",
+      );
+      setDeclineConfirmId(null);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to cancel invitation.");
+      setDeclineConfirmId(null);
+    } finally {
+      declineInFlight.current = false;
+      setRespondingInviteId(null);
+      setRespondingAction(null);
+    }
+  };
+
   const renderPlayInviteActions = (i: (typeof playInvs)[number], sch: PlaySchedule) => {
     const member = s.members.find((x) => x.id === i.memberId);
     const walletMember = member ? resolveWalletMember(member, s.members) : null;
@@ -486,23 +563,23 @@ function Events() {
     }
 
     return (
-      <div key={i.id} className="pt-2.5 border-t border-white/[0.04] space-y-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+      <div key={i.id} className="pt-2.5 border-t border-white/[0.04] space-y-2 min-w-0 max-w-full">
+        <div className="flex flex-col gap-2.5 min-w-0 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
+            <div className="text-[13px] font-medium text-[#F1F0EE] break-words sm:truncate">
               <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">
                 {memberTypeLabel}:
               </span>
               {name(i.memberId)}
             </div>
-            <div className="text-[11px] text-[#8A8A98] mt-0.5">
+            <div className="text-[11px] text-[#8A8A98] mt-0.5 break-words">
               Session Fee:{" "}
               <span className="font-semibold font-mono text-[#3B82F6]">
                 {fmtMoney(estimatedFee)}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+          <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto sm:justify-end">
             <StatusBadge kind="invitation" status={i.status === "declined" ? "open" : i.status} />
             {sessionInProgress && (i.status === "open" || i.status === "declined") && (
               <StatusBadge status="in_progress" />
@@ -513,7 +590,7 @@ function Events() {
                 size="sm"
                 disabled={respondingInviteId !== null || enrollingId !== null}
                 loading={respondingInviteId === i.id && respondingAction === "accepted"}
-                className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
+                className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer max-w-full"
                 onClick={async () => {
                   if (respondingInviteId) return;
                   if (hasInsufficientCredits && member && walletMember) {
@@ -559,24 +636,14 @@ function Events() {
                 variant="outline"
                 disabled={respondingInviteId !== null || enrollingId !== null}
                 loading={respondingInviteId === i.id && respondingAction === "declined"}
-                className="btn-premium-danger h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
-                onClick={async () => {
-                  if (respondingInviteId) return;
-                  setRespondingInviteId(i.id);
-                  setRespondingAction("declined");
-                  try {
-                    await s.respondPlay(i.id, "declined");
-                    toast.success(
-                      i.status === "waiting"
-                        ? "Left the waiting list"
-                        : "Cancelled — session fee refunded to credits",
-                    );
-                  } catch (error: any) {
-                    toast.error(error.message || "Failed to cancel invitation.");
-                  } finally {
-                    setRespondingInviteId(null);
-                    setRespondingAction(null);
+                className="btn-premium-danger h-7.5 px-3 text-[11px] font-semibold cursor-pointer max-w-full"
+                onClick={() => {
+                  if (respondingInviteId || declineInFlight.current) return;
+                  if (i.status === "accepted") {
+                    setDeclineConfirmId(i.id);
+                    return;
                   }
+                  void submitPlayDecline(i.id);
                 }}
               >
                 Decline
@@ -585,18 +652,18 @@ function Events() {
           </div>
         </div>
         {canAccept && hasInsufficientCredits && (
-          <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+          <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light min-w-0">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-            <span>
+            <span className="min-w-0 break-words">
               <span className="font-semibold">Alert:</span> Insufficient credits (
               {fmtMoney(member!.credit)} / {fmtMoney(estimatedFee)})
             </span>
           </div>
         )}
         {isCancelled && (
-          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light min-w-0">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
-            <div className="space-y-0.5">
+            <div className="space-y-0.5 min-w-0 break-words">
               <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
               <div className="text-[#EF4444]/90 font-light">
                 {sch.cancelReason || "No reason specified."}
@@ -605,27 +672,29 @@ function Events() {
           </div>
         )}
         {responsesLocked && (
-          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5 flex items-start gap-1.5">
+          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5 flex items-start gap-1.5 min-w-0">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#8A8A98]" />
-            <span>Court rotation is locked — accept and decline are closed for all members.</span>
+            <span className="min-w-0 break-words">
+              Court rotation is locked — accept and decline are closed for all members.
+            </span>
           </div>
         )}
         {declineLockedByTime && (
-          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
+          <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 min-w-0">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-            <span>
+            <span className="min-w-0 break-words">
               <span className="font-semibold">Cancellation closed:</span> You cannot cancel within{" "}
               {hoursLabel} of the match start. This rule applies to all members.
             </span>
           </div>
         )}
         {sessionInProgress && (i.status === "open" || i.status === "declined") && (
-          <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md">
+          <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md break-words">
             This session is in progress. Accept and payment are no longer available.
           </div>
         )}
         {sessionFinished && (
-          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">
+          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5 break-words">
             This session has finished. No further actions are available.
           </div>
         )}
@@ -634,7 +703,7 @@ function Events() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       <Dialog open={!!courtsPopup} onOpenChange={(open) => !open && setCourtsPopup(null)}>
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -778,6 +847,43 @@ function Events() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog
+        open={!!declineConfirmId}
+        onOpenChange={(open) => {
+          if (open || declineInFlight.current) return;
+          setDeclineConfirmId(null);
+        }}
+      >
+        <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#F1F0EE]">Decline Play Session?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#8A8A98] text-left">
+              Are you sure you want to decline this Play Session? Your participation will be
+              cancelled if you confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end sm:gap-2 sm:space-x-0">
+            <AlertDialogCancel
+              className="btn-premium-outline cursor-pointer mt-0 w-full sm:w-auto"
+              disabled={respondingInviteId !== null}
+            >
+              Keep Session
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="btn-premium-danger cursor-pointer w-full sm:w-auto"
+              disabled={respondingInviteId !== null}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!declineConfirmId || declineInFlight.current) return;
+                void submitPlayDecline(declineConfirmId);
+              }}
+            >
+              {respondingInviteId ? "Please wait…" : "Confirm Decline"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <PageHeader
         title="Play Sessions"
         description={`Enroll in released play sessions. Cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before match start, when court rotation is generated and published.`}
@@ -867,19 +973,19 @@ function Events() {
         </>
       )}
 
-      <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top">
-        <CardHeader className="pb-3 border-b border-white/[0.03]">
+      <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top min-w-0 max-w-full">
+        <CardHeader className="px-3 sm:px-6 pb-3 border-b border-white/[0.03]">
           <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
             <CalendarDays className="size-4 text-[#3B82F6]" /> Play Sessions
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-4 space-y-3">
+        <CardContent className="px-3 sm:px-6 pt-4 space-y-3 min-w-0">
           <div
             role="alert"
-            className="flex items-start gap-2 rounded-lg border border-[#F59E0B]/30 bg-[#F59E0B]/10 px-3 py-2.5 text-[12px] text-[#FBBF24]"
+            className="flex items-start gap-2 rounded-lg border border-[#F59E0B]/30 bg-[#F59E0B]/10 px-3 py-2.5 text-[12px] text-[#FBBF24] min-w-0"
           >
             <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-            <div>
+            <div className="min-w-0 break-words">
               <p className="font-semibold text-[#FBBF24]">Cancellation policy (all members)</p>
               <p className="mt-0.5 text-[#F59E0B]/90 font-light leading-relaxed">
                 <>
@@ -935,12 +1041,14 @@ function Events() {
             return (
               <div
                 key={sch.id}
-                className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 rounded-lg p-4 space-y-3"
+                className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 rounded-lg p-3 sm:p-4 space-y-3 min-w-0 max-w-full"
               >
-                <div className="flex justify-between items-start gap-3">
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="font-semibold text-[#F1F0EE] text-[14px]">{sch.name}</div>
+                <div className="flex flex-col gap-2.5 min-w-0 sm:flex-row sm:justify-between sm:items-start sm:gap-3">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <div className="font-semibold text-[#F1F0EE] text-[14px] break-words min-w-0">
+                        {sch.name}
+                      </div>
                       {sch.isLeagueMatch && (
                         <span className="inline-flex items-center gap-1 rounded-md border border-[#818CF8]/30 bg-[#818CF8]/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#A5B4FC] uppercase">
                           <Trophy className="size-3" />
@@ -965,11 +1073,11 @@ function Events() {
                         </span>
                       ) : null}
                     </div>
-                    <div className="text-[11px] text-[#8A8A98] font-mono font-light">
+                    <div className="text-[11px] text-[#8A8A98] font-mono font-light break-words">
                       {fmtDateTime(sch.date)} · {sch.location}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
+                  <div className="flex flex-row flex-wrap items-center gap-2 w-full min-w-0 sm:w-auto sm:max-w-full sm:flex-col sm:items-end sm:shrink-0">
                     <StatusBadge status={sch.status} />
                     {!isHoliday &&
                       (sch.status === "released" ||
@@ -983,7 +1091,7 @@ function Events() {
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer"
+                          className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer max-w-full"
                           onClick={() => openPlayersPopup(sch)}
                         >
                           <Users className="size-3.5 mr-1" />
@@ -998,7 +1106,7 @@ function Events() {
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer"
+                          className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer max-w-full"
                           onClick={() => openCourtsPopup(sch)}
                         >
                           <LayoutGrid className="size-3.5 mr-1" />
@@ -1009,9 +1117,9 @@ function Events() {
                 </div>
 
                 {sch.status === "cancelled" && scheduleInvites.length === 0 && (
-                  <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light">
+                  <div className="text-[11px] text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 font-light min-w-0">
                     <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#EF4444]" />
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 min-w-0 break-words">
                       <div className="font-semibold text-[#EF4444]">Cancelled Reason:</div>
                       <div className="text-[#EF4444]/90 font-light">
                         {sch.cancelReason || "No reason specified."}
@@ -1021,7 +1129,7 @@ function Events() {
                 )}
 
                 {canEnroll && adultPlayers.length === 0 && playEligibleJuniors.length === 0 && (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.04]">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.04] min-w-0">
                     <p className="text-[12px] text-muted-foreground">
                       Add an eligible family member to join this session.
                     </p>
@@ -1038,15 +1146,6 @@ function Events() {
                   </div>
                 )}
 
-                {canEnroll &&
-                  adultPlayers.length > 0 &&
-                  available.length === 0 &&
-                  availableJuniors.length === 0 &&
-                  scheduleInvites.length === 0 && (
-                    <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.04]">
-                      No eligible members for this session.
-                    </p>
-                  )}
 
                 {waitingForInvite && scheduleInvites.length === 0 && (
                   <p className="text-[12px] text-muted-foreground pt-2 border-t border-white/[0.04]">
@@ -1075,16 +1174,16 @@ function Events() {
                           return (
                             <div
                               key={child.id}
-                              className="flex items-center justify-between gap-3 px-4 py-3 bg-[#F0F5FF] border border-[#D6E4FF] rounded-lg shadow-sm"
+                              className="flex flex-col gap-2.5 min-w-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3 px-3 py-3 sm:px-4 bg-[#F0F5FF] border border-[#D6E4FF] rounded-lg shadow-sm"
                             >
                               <div className="min-w-0 space-y-0.5">
-                                <div className="flex items-center gap-1.5 font-bold text-slate-900 text-[13.5px] truncate">
-                                  <User className="size-3.5 text-[#2563EB] shrink-0" />
-                                  <span className="truncate">
+                                <div className="flex items-start gap-1.5 font-bold text-slate-900 text-[13.5px] min-w-0">
+                                  <User className="size-3.5 text-[#2563EB] shrink-0 mt-0.5" />
+                                  <span className="break-words min-w-0 sm:truncate">
                                     {child.firstName} {child.lastName}
                                   </span>
                                 </div>
-                                <div className="text-[11.5px] text-slate-700 font-medium">
+                                <div className="text-[11.5px] text-slate-700 font-medium break-words">
                                   Grade {child.grade} · Session Fee:{" "}
                                   <span className="font-mono font-bold text-[#2563EB]">
                                     {fmtMoney(estimatedFee)}
@@ -1095,7 +1194,7 @@ function Events() {
                                 size="sm"
                                 disabled={enrollingId !== null || respondingInviteId !== null}
                                 loading={enrollingId === acceptingKey}
-                                className="btn-premium-solid h-7.5 px-3.5 text-[11px] font-semibold cursor-pointer shrink-0"
+                                className="btn-premium-solid h-7.5 px-3.5 text-[11px] font-semibold cursor-pointer w-full sm:w-auto sm:shrink-0"
                                 onClick={async () => {
                                   if (enrollingId) return;
                                   if (hasInsufficientCredits) {
@@ -1139,9 +1238,9 @@ function Events() {
 
                 {isHoliday && (
                   <div className="pt-2.5 border-t border-white/[0.04]">
-                    <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5">
+                    <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md flex items-start gap-1.5 min-w-0">
                       <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#FBBF24]" />
-                      <div className="space-y-0.5">
+                      <div className="space-y-0.5 min-w-0 break-words">
                         <div className="font-semibold text-[#FBBF24]">Holiday: {holidayName}</div>
                         <div className="text-[#FBBF24]/90 font-light">
                           This session is closed for this public holiday. No actions are available.

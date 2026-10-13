@@ -15,6 +15,8 @@ use App\Helpers\MailHelper;
 use App\Helpers\PermissionHelper;
 use App\Helpers\FeeHelper;
 use App\Helpers\SessionTimingHelper;
+use App\Helpers\WalletHelper;
+use App\Services\InvitationSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +40,7 @@ class TrainingController extends Controller
             ->all();
     }
 
-    public function index(Request $request = null)
+    public function index(?Request $request = null)
     {
         $request = $request ?? request();
         $user = $request ? $request->user() : null;
@@ -899,7 +901,7 @@ class TrainingController extends Controller
         ];
     }
 
-    public function listInvitations(Request $request = null)
+    public function listInvitations(?Request $request = null)
     {
         $request = $request ?? request();
         $user = $request ? $request->user() : null;
@@ -914,7 +916,7 @@ class TrainingController extends Controller
             return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
         }
 
-        \App\Services\InvitationSyncService::syncAllTrainingInvitations();
+        InvitationSyncService::syncAllTrainingInvitations();
         $invites = TrainingInvitation::all();
         return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
     }
@@ -955,7 +957,7 @@ class TrainingController extends Controller
 
     private function getWalletMember(Member $member, float $feeToDeduct = 0): Member
     {
-        return \App\Helpers\WalletHelper::resolveMember($member);
+        return WalletHelper::resolveMember($member);
     }
 
     private function processTrainingAcceptance(TrainingInvitation $invite): ?string
@@ -1305,7 +1307,7 @@ class TrainingController extends Controller
         }
     }
 
-    public function listUpdateRequests(Request $request = null)
+    public function listUpdateRequests(?Request $request = null)
     {
         $request = $request ?? request();
         $user = $request ? $request->user() : null;
@@ -1580,7 +1582,7 @@ class TrainingController extends Controller
         });
     }
 
-    public function listDates(Request $request = null)
+    public function listDates(?Request $request = null)
     {
         $request = $request ?? request();
         $user = $request ? $request->user() : null;
@@ -2038,6 +2040,7 @@ class TrainingController extends Controller
         if ($remainingSeries->count() > 0) {
             $newParentId = $remainingSeries->first()->id;
             $newTotalCount = $remainingSeries->count();
+            $repeatWeeks = max(1, (int)($remainingSeries->first()->repeat_weeks ?? $t->repeat_weeks ?? 1));
             $newRepeatMonths = max(1, (int) ceil($newTotalCount / $repeatWeeks));
 
             foreach ($remainingSeries as $remItem) {
@@ -2327,10 +2330,10 @@ class TrainingController extends Controller
 
     public static function processAutoClose()
     {
-        $now = \App\Helpers\SessionTimingHelper::now();
+        $now = SessionTimingHelper::now();
 
         // 1. Get all active sessions to identify which monthly groups need checking
-        $activeSessions = \App\Models\Training::whereNotIn('status', ['closed', 'cancelled'])->get();
+        $activeSessions = Training::whereNotIn('status', ['closed', 'cancelled'])->get();
         if ($activeSessions->isEmpty()) {
             return;
         }
@@ -2348,7 +2351,7 @@ class TrainingController extends Controller
         $parentIds = array_keys($parentIds);
 
         // 2. Fetch all sessions for these parent_ids so we know the true final schedule of each month
-        $allSeriesSessions = \App\Models\Training::whereIn('parent_id', $parentIds)
+        $allSeriesSessions = Training::whereIn('parent_id', $parentIds)
             ->orWhereIn('id', $parentIds)
             ->get();
 
@@ -2372,7 +2375,7 @@ class TrainingController extends Controller
         foreach ($groupedByMonth as $key => $monthSessions) {
             $lastEnd = null;
             foreach ($monthSessions as $s) {
-                $end = \App\Helpers\SessionTimingHelper::trainingSessionEnd($s);
+                $end = SessionTimingHelper::trainingSessionEnd($s);
                 if ($lastEnd === null || $end->gt($lastEnd)) {
                     $lastEnd = $end;
                 }
@@ -2389,7 +2392,7 @@ class TrainingController extends Controller
         }
 
         if (!empty($idsToClose)) {
-            \App\Models\Training::whereIn('id', $idsToClose)->update(['status' => 'closed']);
+            Training::whereIn('id', $idsToClose)->update(['status' => 'closed']);
         }
     }
 }

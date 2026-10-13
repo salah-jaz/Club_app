@@ -53,8 +53,11 @@ function SchedulesLayout() {
   const matches = useMatches();
   const isIndex = matches[matches.length - 1].routeId === Route.id;
   if (activeRole !== "admin") return <Navigate to="/dashboard" />;
-  if (!isIndex) return <Outlet />;
-  return <SchedulesList />;
+  return (
+    <div className="admin-module-fit min-w-0 w-full max-w-full">
+      {isIndex ? <SchedulesList /> : <Outlet />}
+    </div>
+  );
 }
 
 function startOfDay(d: Date) {
@@ -807,7 +810,7 @@ function SchedulesList() {
               variants={staggerContainer}
               initial="hidden"
               animate="show"
-              className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5"
+              className="admin-card-grid grid sm:grid-cols-2 lg:grid-cols-3 gap-5"
             >
               {processed.map((sch) => {
                 const accepted = inviteStats.get(sch.id) ?? 0;
