@@ -100,6 +100,7 @@ export interface LeagueGroupMember {
   lastName: string;
   grade?: string | null;
   position?: string | null;
+  walletBalance?: number;
 }
 
 export interface LeagueGroup {
@@ -111,6 +112,25 @@ export interface LeagueGroup {
   memberPositions?: Record<string, string | null>;
   /** Populated by API for display (view-only member screens). */
   members?: LeagueGroupMember[];
+}
+
+export type FixtureStatus = "Opened" | "In Progress" | "Closed";
+
+export interface Fixture {
+  id: string;
+  name: string;
+  date: string;
+  leagueGroupId: string;
+  leagueGroupName?: string;
+  leagueGroupType?: "Adult" | "Junior" | string;
+  matchType: string;
+  venueType: string;
+  oppositionClub: string;
+  teamName: string;
+  grade: string;
+  status: FixtureStatus;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface FamilyMemberStatus {

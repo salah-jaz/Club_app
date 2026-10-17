@@ -22,6 +22,7 @@ import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedMembersRouteImport } from './routes/_authenticated/members'
 import { Route as AuthenticatedLeagueGroupsRouteImport } from './routes/_authenticated/league-groups'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
+import { Route as AuthenticatedFixturesRouteImport } from './routes/_authenticated/fixtures'
 import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated/events'
 import { Route as AuthenticatedEmailTemplatesRouteImport } from './routes/_authenticated/email-templates'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -31,11 +32,14 @@ import { Route as AuthenticatedAdminManagementRouteImport } from './routes/_auth
 import { Route as AuthenticatedTrainingsNewRouteImport } from './routes/_authenticated/trainings.new'
 import { Route as AuthenticatedSchedulesNewRouteImport } from './routes/_authenticated/schedules.new'
 import { Route as AuthenticatedMembersAddRouteImport } from './routes/_authenticated/members.add'
+import { Route as AuthenticatedFixturesNewRouteImport } from './routes/_authenticated/fixtures.new'
 import { Route as AuthenticatedTrainingsIdIndexRouteImport } from './routes/_authenticated/trainings.$id.index'
 import { Route as AuthenticatedSchedulesIdIndexRouteImport } from './routes/_authenticated/schedules.$id.index'
+import { Route as AuthenticatedFixturesIdIndexRouteImport } from './routes/_authenticated/fixtures.$id.index'
 import { Route as AuthenticatedTrainingsIdEditRouteImport } from './routes/_authenticated/trainings.$id.edit'
 import { Route as AuthenticatedSchedulesIdEditRouteImport } from './routes/_authenticated/schedules.$id.edit'
 import { Route as AuthenticatedMembersIdEditRouteImport } from './routes/_authenticated/members.$id.edit'
+import { Route as AuthenticatedFixturesIdEditRouteImport } from './routes/_authenticated/fixtures.$id.edit'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -104,6 +108,11 @@ const AuthenticatedInvitationsRoute =
     path: '/invitations',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFixturesRoute = AuthenticatedFixturesRouteImport.update({
+  id: '/fixtures',
+  path: '/fixtures',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedEventsRoute = AuthenticatedEventsRouteImport.update({
   id: '/events',
   path: '/events',
@@ -153,6 +162,12 @@ const AuthenticatedMembersAddRoute = AuthenticatedMembersAddRouteImport.update({
   path: '/add',
   getParentRoute: () => AuthenticatedMembersRoute,
 } as any)
+const AuthenticatedFixturesNewRoute =
+  AuthenticatedFixturesNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => AuthenticatedFixturesRoute,
+  } as any)
 const AuthenticatedTrainingsIdIndexRoute =
   AuthenticatedTrainingsIdIndexRouteImport.update({
     id: '/$id/',
@@ -164,6 +179,12 @@ const AuthenticatedSchedulesIdIndexRoute =
     id: '/$id/',
     path: '/$id/',
     getParentRoute: () => AuthenticatedSchedulesRoute,
+  } as any)
+const AuthenticatedFixturesIdIndexRoute =
+  AuthenticatedFixturesIdIndexRouteImport.update({
+    id: '/$id/',
+    path: '/$id/',
+    getParentRoute: () => AuthenticatedFixturesRoute,
   } as any)
 const AuthenticatedTrainingsIdEditRoute =
   AuthenticatedTrainingsIdEditRouteImport.update({
@@ -183,6 +204,12 @@ const AuthenticatedMembersIdEditRoute =
     path: '/$id/edit',
     getParentRoute: () => AuthenticatedMembersRoute,
   } as any)
+const AuthenticatedFixturesIdEditRoute =
+  AuthenticatedFixturesIdEditRouteImport.update({
+    id: '/$id/edit',
+    path: '/$id/edit',
+    getParentRoute: () => AuthenticatedFixturesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -194,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/email-templates': typeof AuthenticatedEmailTemplatesRoute
   '/events': typeof AuthenticatedEventsRoute
+  '/fixtures': typeof AuthenticatedFixturesRouteWithChildren
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/league-groups': typeof AuthenticatedLeagueGroupsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
@@ -203,12 +231,15 @@ export interface FileRoutesByFullPath {
   '/training': typeof AuthenticatedTrainingRoute
   '/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/transactions': typeof AuthenticatedTransactionsRoute
+  '/fixtures/new': typeof AuthenticatedFixturesNewRoute
   '/members/add': typeof AuthenticatedMembersAddRoute
   '/schedules/new': typeof AuthenticatedSchedulesNewRoute
   '/trainings/new': typeof AuthenticatedTrainingsNewRoute
+  '/fixtures/$id/edit': typeof AuthenticatedFixturesIdEditRoute
   '/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
   '/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
   '/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
+  '/fixtures/$id/': typeof AuthenticatedFixturesIdIndexRoute
   '/schedules/$id/': typeof AuthenticatedSchedulesIdIndexRoute
   '/trainings/$id/': typeof AuthenticatedTrainingsIdIndexRoute
 }
@@ -222,6 +253,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/email-templates': typeof AuthenticatedEmailTemplatesRoute
   '/events': typeof AuthenticatedEventsRoute
+  '/fixtures': typeof AuthenticatedFixturesRouteWithChildren
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/league-groups': typeof AuthenticatedLeagueGroupsRoute
   '/members': typeof AuthenticatedMembersRouteWithChildren
@@ -231,12 +263,15 @@ export interface FileRoutesByTo {
   '/training': typeof AuthenticatedTrainingRoute
   '/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/transactions': typeof AuthenticatedTransactionsRoute
+  '/fixtures/new': typeof AuthenticatedFixturesNewRoute
   '/members/add': typeof AuthenticatedMembersAddRoute
   '/schedules/new': typeof AuthenticatedSchedulesNewRoute
   '/trainings/new': typeof AuthenticatedTrainingsNewRoute
+  '/fixtures/$id/edit': typeof AuthenticatedFixturesIdEditRoute
   '/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
   '/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
   '/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
+  '/fixtures/$id': typeof AuthenticatedFixturesIdIndexRoute
   '/schedules/$id': typeof AuthenticatedSchedulesIdIndexRoute
   '/trainings/$id': typeof AuthenticatedTrainingsIdIndexRoute
 }
@@ -252,6 +287,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/email-templates': typeof AuthenticatedEmailTemplatesRoute
   '/_authenticated/events': typeof AuthenticatedEventsRoute
+  '/_authenticated/fixtures': typeof AuthenticatedFixturesRouteWithChildren
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/league-groups': typeof AuthenticatedLeagueGroupsRoute
   '/_authenticated/members': typeof AuthenticatedMembersRouteWithChildren
@@ -261,12 +297,15 @@ export interface FileRoutesById {
   '/_authenticated/training': typeof AuthenticatedTrainingRoute
   '/_authenticated/trainings': typeof AuthenticatedTrainingsRouteWithChildren
   '/_authenticated/transactions': typeof AuthenticatedTransactionsRoute
+  '/_authenticated/fixtures/new': typeof AuthenticatedFixturesNewRoute
   '/_authenticated/members/add': typeof AuthenticatedMembersAddRoute
   '/_authenticated/schedules/new': typeof AuthenticatedSchedulesNewRoute
   '/_authenticated/trainings/new': typeof AuthenticatedTrainingsNewRoute
+  '/_authenticated/fixtures/$id/edit': typeof AuthenticatedFixturesIdEditRoute
   '/_authenticated/members/$id/edit': typeof AuthenticatedMembersIdEditRoute
   '/_authenticated/schedules/$id/edit': typeof AuthenticatedSchedulesIdEditRoute
   '/_authenticated/trainings/$id/edit': typeof AuthenticatedTrainingsIdEditRoute
+  '/_authenticated/fixtures/$id/': typeof AuthenticatedFixturesIdIndexRoute
   '/_authenticated/schedules/$id/': typeof AuthenticatedSchedulesIdIndexRoute
   '/_authenticated/trainings/$id/': typeof AuthenticatedTrainingsIdIndexRoute
 }
@@ -282,6 +321,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/email-templates'
     | '/events'
+    | '/fixtures'
     | '/invitations'
     | '/league-groups'
     | '/members'
@@ -291,12 +331,15 @@ export interface FileRouteTypes {
     | '/training'
     | '/trainings'
     | '/transactions'
+    | '/fixtures/new'
     | '/members/add'
     | '/schedules/new'
     | '/trainings/new'
+    | '/fixtures/$id/edit'
     | '/members/$id/edit'
     | '/schedules/$id/edit'
     | '/trainings/$id/edit'
+    | '/fixtures/$id/'
     | '/schedules/$id/'
     | '/trainings/$id/'
   fileRoutesByTo: FileRoutesByTo
@@ -310,6 +353,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/email-templates'
     | '/events'
+    | '/fixtures'
     | '/invitations'
     | '/league-groups'
     | '/members'
@@ -319,12 +363,15 @@ export interface FileRouteTypes {
     | '/training'
     | '/trainings'
     | '/transactions'
+    | '/fixtures/new'
     | '/members/add'
     | '/schedules/new'
     | '/trainings/new'
+    | '/fixtures/$id/edit'
     | '/members/$id/edit'
     | '/schedules/$id/edit'
     | '/trainings/$id/edit'
+    | '/fixtures/$id'
     | '/schedules/$id'
     | '/trainings/$id'
   id:
@@ -339,6 +386,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/email-templates'
     | '/_authenticated/events'
+    | '/_authenticated/fixtures'
     | '/_authenticated/invitations'
     | '/_authenticated/league-groups'
     | '/_authenticated/members'
@@ -348,12 +396,15 @@ export interface FileRouteTypes {
     | '/_authenticated/training'
     | '/_authenticated/trainings'
     | '/_authenticated/transactions'
+    | '/_authenticated/fixtures/new'
     | '/_authenticated/members/add'
     | '/_authenticated/schedules/new'
     | '/_authenticated/trainings/new'
+    | '/_authenticated/fixtures/$id/edit'
     | '/_authenticated/members/$id/edit'
     | '/_authenticated/schedules/$id/edit'
     | '/_authenticated/trainings/$id/edit'
+    | '/_authenticated/fixtures/$id/'
     | '/_authenticated/schedules/$id/'
     | '/_authenticated/trainings/$id/'
   fileRoutesById: FileRoutesById
@@ -458,6 +509,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInvitationsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/fixtures': {
+      id: '/_authenticated/fixtures'
+      path: '/fixtures'
+      fullPath: '/fixtures'
+      preLoaderRoute: typeof AuthenticatedFixturesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/events': {
       id: '/_authenticated/events'
       path: '/events'
@@ -521,6 +579,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMembersAddRouteImport
       parentRoute: typeof AuthenticatedMembersRoute
     }
+    '/_authenticated/fixtures/new': {
+      id: '/_authenticated/fixtures/new'
+      path: '/new'
+      fullPath: '/fixtures/new'
+      preLoaderRoute: typeof AuthenticatedFixturesNewRouteImport
+      parentRoute: typeof AuthenticatedFixturesRoute
+    }
     '/_authenticated/trainings/$id/': {
       id: '/_authenticated/trainings/$id/'
       path: '/$id'
@@ -534,6 +599,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/schedules/$id/'
       preLoaderRoute: typeof AuthenticatedSchedulesIdIndexRouteImport
       parentRoute: typeof AuthenticatedSchedulesRoute
+    }
+    '/_authenticated/fixtures/$id/': {
+      id: '/_authenticated/fixtures/$id/'
+      path: '/$id'
+      fullPath: '/fixtures/$id/'
+      preLoaderRoute: typeof AuthenticatedFixturesIdIndexRouteImport
+      parentRoute: typeof AuthenticatedFixturesRoute
     }
     '/_authenticated/trainings/$id/edit': {
       id: '/_authenticated/trainings/$id/edit'
@@ -556,8 +628,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMembersIdEditRouteImport
       parentRoute: typeof AuthenticatedMembersRoute
     }
+    '/_authenticated/fixtures/$id/edit': {
+      id: '/_authenticated/fixtures/$id/edit'
+      path: '/$id/edit'
+      fullPath: '/fixtures/$id/edit'
+      preLoaderRoute: typeof AuthenticatedFixturesIdEditRouteImport
+      parentRoute: typeof AuthenticatedFixturesRoute
+    }
   }
 }
+
+interface AuthenticatedFixturesRouteChildren {
+  AuthenticatedFixturesNewRoute: typeof AuthenticatedFixturesNewRoute
+  AuthenticatedFixturesIdEditRoute: typeof AuthenticatedFixturesIdEditRoute
+  AuthenticatedFixturesIdIndexRoute: typeof AuthenticatedFixturesIdIndexRoute
+}
+
+const AuthenticatedFixturesRouteChildren: AuthenticatedFixturesRouteChildren = {
+  AuthenticatedFixturesNewRoute: AuthenticatedFixturesNewRoute,
+  AuthenticatedFixturesIdEditRoute: AuthenticatedFixturesIdEditRoute,
+  AuthenticatedFixturesIdIndexRoute: AuthenticatedFixturesIdIndexRoute,
+}
+
+const AuthenticatedFixturesRouteWithChildren =
+  AuthenticatedFixturesRoute._addFileChildren(
+    AuthenticatedFixturesRouteChildren,
+  )
 
 interface AuthenticatedMembersRouteChildren {
   AuthenticatedMembersAddRoute: typeof AuthenticatedMembersAddRoute
@@ -615,6 +711,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEmailTemplatesRoute: typeof AuthenticatedEmailTemplatesRoute
   AuthenticatedEventsRoute: typeof AuthenticatedEventsRoute
+  AuthenticatedFixturesRoute: typeof AuthenticatedFixturesRouteWithChildren
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
   AuthenticatedLeagueGroupsRoute: typeof AuthenticatedLeagueGroupsRoute
   AuthenticatedMembersRoute: typeof AuthenticatedMembersRouteWithChildren
@@ -633,6 +730,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEmailTemplatesRoute: AuthenticatedEmailTemplatesRoute,
   AuthenticatedEventsRoute: AuthenticatedEventsRoute,
+  AuthenticatedFixturesRoute: AuthenticatedFixturesRouteWithChildren,
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
   AuthenticatedLeagueGroupsRoute: AuthenticatedLeagueGroupsRoute,
   AuthenticatedMembersRoute: AuthenticatedMembersRouteWithChildren,

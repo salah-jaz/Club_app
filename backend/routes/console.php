@@ -75,8 +75,14 @@ Artisan::command('debit:cancellations', function () {
 
 Artisan::command('schedules:auto-publish', function () {
     \App\Helpers\SessionTimingHelper::applyClubTimezone();
+    \App\Http\Controllers\Api\PlayScheduleController::processOverdueClosure();
     \App\Http\Controllers\Api\PlayScheduleController::processAutoPublishAndRotation();
 })->purpose('Automatically publish schedule and generate player court rotation when Cancellation Lock Window is reached')->everyMinute();
+
+Artisan::command('schedules:auto-close', function () {
+    \App\Helpers\SessionTimingHelper::applyClubTimezone();
+    \App\Http\Controllers\Api\PlayScheduleController::processOverdueClosure();
+})->purpose('Automatically close play schedules whose start time has passed')->everyMinute();
 
 Artisan::command('trainings:auto-close', function () {
     \App\Helpers\SessionTimingHelper::applyClubTimezone();

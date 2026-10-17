@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property string $id
@@ -28,7 +29,13 @@ class LeagueGroup extends Model
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(Member::class, 'league_group_member', 'league_group_id', 'member_id')
+            ->where('members.membership', true)
             ->withPivot('position')
             ->withTimestamps();
+    }
+
+    public function fixtures(): HasMany
+    {
+        return $this->hasMany(Fixture::class, 'league_group_id');
     }
 }

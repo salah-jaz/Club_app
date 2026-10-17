@@ -43,7 +43,7 @@ import {
   playSessionBaseFee,
   resolveWalletMember,
 } from "@/lib/fees";
-import { getPlaySessionPhase } from "@/lib/sessionTiming";
+import { getPlaySessionPhase, parseDateTimeMs } from "@/lib/sessionTiming";
 import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 
@@ -513,7 +513,11 @@ function Events() {
       (sch.status === "rotated" || sch.status === "published" || sch.status === "closed") &&
       !isCancelled;
     const lockHours = Math.max(0, s.cancellationLockHours ?? 24);
-    const matchStartMs = Date.parse(sch.date);
+    const matchStartMs = parseDateTimeMs(sch.date);
+    const startPassed =
+      sessionInProgress ||
+      sessionFinished ||
+      (Number.isFinite(matchStartMs) && Date.now() >= matchStartMs);
     const withinCancelWindow =
       Number.isFinite(matchStartMs) && Date.now() < matchStartMs - lockHours * 60 * 60 * 1000;
     const hoursLabel = lockHours === 1 ? "1 hour" : `${lockHours} hours`;
@@ -527,22 +531,21 @@ function Events() {
       !isCancelled &&
       !isHoliday &&
       !responsesLocked &&
-      !sessionInProgress &&
-      !sessionFinished &&
+      !startPassed &&
       (i.status === "open" || i.status === "declined");
     const canDeclineWaiting =
       !isLeagueMatch &&
       !isCancelled &&
       !isHoliday &&
       !responsesLocked &&
-      !sessionFinished &&
+      !startPassed &&
       i.status === "waiting";
     const canDeclineAccepted =
       !isLeagueMatch &&
       !isCancelled &&
       !isHoliday &&
       !responsesLocked &&
-      !sessionFinished &&
+      !startPassed &&
       i.status === "accepted" &&
       withinCancelWindow;
     const canDecline = canDeclineWaiting || canDeclineAccepted;
@@ -551,6 +554,7 @@ function Events() {
       !isCancelled &&
       !isHoliday &&
       !responsesLocked &&
+      !startPassed &&
       i.status === "accepted" &&
       !withinCancelWindow;
 
@@ -675,7 +679,17 @@ function Events() {
           <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5 flex items-start gap-1.5 min-w-0">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#8A8A98]" />
             <span className="min-w-0 break-words">
-              Court rotation is locked — accept and decline are closed for all members.
+              {sch.status === "closed"
+                ? "This session is closed — accept and decline are no longer available."
+                : "Court rotation is locked — accept and decline are closed for all members."}
+            </span>
+          </div>
+        )}
+        {!responsesLocked && startPassed && !sessionFinished && (
+          <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5 flex items-start gap-1.5 min-w-0">
+            <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#8A8A98]" />
+            <span className="min-w-0 break-words">
+              This session has already started — accept and decline are no longer available.
             </span>
           </div>
         )}

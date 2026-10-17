@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\PlayScheduleController;
 use App\Http\Controllers\Api\TrainingController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\LeagueGroupController;
+use App\Http\Controllers\Api\FixtureController;
 use App\Http\Controllers\Api\AdminRoleController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\SyncController;
@@ -116,6 +117,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/league-groups', [LeagueGroupController::class, 'store']);
     Route::patch('/league-groups/{id}', [LeagueGroupController::class, 'update']);
     Route::delete('/league-groups/{id}', [LeagueGroupController::class, 'destroy']);
+
+    // Fixtures
+    Route::get('/fixtures', [FixtureController::class, 'index']);
+    Route::get('/fixtures/{id}', [FixtureController::class, 'show']);
+    Route::post('/fixtures', [FixtureController::class, 'store']);
+    Route::match(['put', 'patch'], '/fixtures/{id}', [FixtureController::class, 'update']);
+    Route::delete('/fixtures/{id}', [FixtureController::class, 'destroy']);
 
     // Admin Roles CRUD
     Route::get('/admin-roles', [AdminRoleController::class, 'index']);

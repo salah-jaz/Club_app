@@ -207,6 +207,13 @@ function Layout() {
     }
   }
 
+  const leagueGroups = useStore.getState().leagueGroups;
+  if (user.role === "member" && pathname.startsWith("/fixtures")) {
+    if (!leagueGroups || leagueGroups.length === 0) {
+      return <Navigate to="/dashboard" />;
+    }
+  }
+
   // Breadcrumb screen name resolution
   const pathPart = pathname.split("/").filter(Boolean)[0] || "dashboard";
   const routeNames: Record<string, string> = {
@@ -214,6 +221,7 @@ function Layout() {
     invitations: "Play Sessions",
     training: "Training",
     "league-groups": "Groups",
+    fixtures: "Fixtures",
     "admin-management": "Club Admin",
     "email-templates": "Email Templates",
   };

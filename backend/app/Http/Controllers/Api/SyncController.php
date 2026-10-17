@@ -15,6 +15,7 @@ class SyncController extends Controller
         $settingCtrl  = app(SettingController::class);
         $creditCtrl    = app(CreditRequestController::class);
         $leagueCtrl   = app(LeagueGroupController::class);
+        $fixtureCtrl  = app(FixtureController::class);
         $userCtrl     = app(UserController::class);
 
         $users = [];
@@ -23,6 +24,16 @@ class SyncController extends Controller
             $users = $usersResponse->getData(true);
         } catch (\Throwable $e) {
             $users = [];
+        }
+
+        $fixtures = [];
+        try {
+            $fixturesResponse = $fixtureCtrl->index($request);
+            if ($fixturesResponse->getStatusCode() === 200) {
+                $fixtures = $fixturesResponse->getData(true);
+            }
+        } catch (\Throwable $e) {
+            $fixtures = [];
         }
 
         return response()->json([
@@ -38,6 +49,7 @@ class SyncController extends Controller
             'settings'          => $settingCtrl->index()->getData(true),
             'creditRequests'    => $creditCtrl->index()->getData(true),
             'leagueGroups'      => $leagueCtrl->index($request)->getData(true),
+            'fixtures'          => $fixtures,
             'users'             => $users,
         ]);
     }

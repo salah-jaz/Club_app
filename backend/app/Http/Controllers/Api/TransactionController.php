@@ -14,16 +14,29 @@ class TransactionController extends Controller
 {
     public function index()
     {
+        $tz = \App\Helpers\SessionTimingHelper::clubTimezone();
         $txs = Transaction::orderBy('date', 'desc')->get();
-        return response()->json($txs->map(fn($t) => [
-            'id' => $t->id,
-            'memberId' => $t->member_id,
-            'type' => $t->resolvedType(),
-            'amount' => (float)$t->amount,
-            'description' => $t->description,
-            'reason' => $t->reason ?? ($t->type === 'debit' ? $t->description : null),
-            'date' => $t->date,
-        ]));
+        return response()->json($txs->map(function ($t) use ($tz) {
+            $dateVal = $t->date;
+            if ($dateVal instanceof \DateTimeInterface) {
+                $dateVal = \Carbon\Carbon::instance($dateVal)->setTimezone($tz)->toIso8601String();
+            } elseif (is_string($dateVal) && trim($dateVal) !== '') {
+                try {
+                    $dateVal = \Carbon\Carbon::parse($dateVal, $tz)->setTimezone($tz)->toIso8601String();
+                } catch (\Throwable $e) {
+                    // keep original string
+                }
+            }
+            return [
+                'id' => $t->id,
+                'memberId' => $t->member_id,
+                'type' => $t->resolvedType(),
+                'amount' => (float)$t->amount,
+                'description' => $t->description,
+                'reason' => $t->reason ?? ($t->type === 'debit' ? $t->description : null),
+                'date' => $dateVal,
+            ];
+        }));
     }
 
     public function destroy(Request $request, $id)

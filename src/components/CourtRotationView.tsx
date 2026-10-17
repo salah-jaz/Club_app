@@ -7,7 +7,17 @@ import { Clock, GripVertical, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { toast } from "sonner";
-import type { PlaySchedule, Rotation, RotationRound } from "@/lib/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import type { Member, PlaySchedule, Rotation, RotationRound } from "@/lib/types";
 
 /** Parse values like "15 min", "20 minutes", "15m" into minutes. */
 export function parseSlotMinutes(
@@ -169,6 +179,214 @@ function applyMove(
   return next;
 }
 
+export type DragTarget = DragSource | { kind: "rest-zone"; roundIdx: number };
+
+export function formatRoundsList(rounds: number[]): string {
+  if (rounds.length === 0) return "";
+  if (rounds.length === 1) return `Round ${rounds[0]}`;
+  if (rounds.length === 2) return `Rounds ${rounds[0]} and ${rounds[1]}`;
+  const allButLast = rounds.slice(0, -1).join(", ");
+  return `Rounds ${allButLast}, and ${rounds[rounds.length - 1]}`;
+}
+
+export function formatRestingRoundsList(rounds: number[]): string {
+  if (rounds.length === 0) return "";
+  if (rounds.length === 1) return `Round ${rounds[0]}`;
+  if (rounds.length === 2) return `Round ${rounds[0]} and Round ${rounds[1]}`;
+  const allButLast = rounds.slice(0, -1).map((r) => `Round ${r}`).join(", ");
+  return `${allButLast}, and Round ${rounds[rounds.length - 1]}`;
+}
+
+export function getRoundsPlayed(rounds: RotationRound[], playerId: string): number[] {
+  if (!playerId) return [];
+  const list: number[] = [];
+  for (const r of rounds) {
+    const isPlaying = (r.courts || []).some((c) =>
+      (c.players || []).some((p) => p === playerId),
+    );
+    if (isPlaying) {
+      list.push(r.round);
+    }
+  }
+  return list.sort((a, b) => a - b);
+}
+
+export function getRoundsRested(rounds: RotationRound[], playerId: string): number[] {
+  if (!playerId) return [];
+  const list: number[] = [];
+  for (const r of rounds) {
+    const isResting = (r.resting || []).some((p) => p === playerId);
+    if (isResting) {
+      list.push(r.round);
+    }
+  }
+  return list.sort((a, b) => a - b);
+}
+
+export function getPronouns(sex?: "male" | "female" | string): {
+  subject: string;
+  object: string;
+  possessive: string;
+} {
+  if (sex === "female") return { subject: "she", object: "her", possessive: "her" };
+  if (sex === "male") return { subject: "he", object: "him", possessive: "his" };
+  return { subject: "they", object: "them", possessive: "their" };
+}
+
+export function buildRotationChangeConfirmation({
+  rounds,
+  source,
+  target,
+  members,
+  memberName,
+}: {
+  rounds: RotationRound[];
+  source: DragSource;
+  target: DragTarget;
+  members: Member[];
+  memberName: (id: string) => string;
+}): { title: string; message: string } | null {
+  if (source.roundIdx !== target.roundIdx) return null;
+
+  // Same slot no-ops
+  if (
+    source.kind === "court" &&
+    target.kind === "court" &&
+    source.courtNo === target.courtNo &&
+    source.slot === target.slot
+  ) {
+    return null;
+  }
+  if (
+    source.kind === "rest" &&
+    target.kind === "rest" &&
+    source.restIdx === target.restIdx
+  ) {
+    return null;
+  }
+  if (source.kind === "rest" && target.kind === "rest-zone") {
+    return null;
+  }
+
+  // Intra-court moves (between courts or slots in same round) - no warning needed
+  if (source.kind === "court" && target.kind === "court") {
+    return null;
+  }
+
+  // Intra-rest moves (reordering resting players) - no warning needed
+  if (source.kind === "rest" && (target.kind === "rest" || target.kind === "rest-zone")) {
+    return null;
+  }
+
+  const currentRound = rounds[source.roundIdx]?.round ?? (source.roundIdx + 1);
+
+  const getMemberSex = (playerId: string): "male" | "female" | undefined => {
+    if (typeof playerId === "string" && playerId.startsWith("guest_")) return undefined;
+    return members.find((m) => m.id === playerId)?.sex;
+  };
+
+  // Case A: Moving from Resting to Court (Adding player to this round)
+  // Preserves existing behavior showing all rounds the player currently plays
+  if (source.kind === "rest" && target.kind === "court") {
+    const playerName = memberName(source.playerId);
+    const pronouns = getPronouns(getMemberSex(source.playerId));
+    const playerOtherRounds = getRoundsPlayed(rounds, source.playerId).filter(
+      (r) => r !== currentRound,
+    );
+
+    const targetCourt = rounds[source.roundIdx]?.courts?.find((c) => c.courtNo === target.courtNo);
+    const displacedPlayerId = targetCourt?.players?.[target.slot] || "";
+
+    let message: string;
+    if (playerOtherRounds.length > 0) {
+      message = `${playerName} is already scheduled to play ${formatRoundsList(playerOtherRounds)}. You are adding ${pronouns.object} to Round ${currentRound} as well.`;
+    } else {
+      message = `You are adding ${playerName} to Round ${currentRound}.`;
+    }
+
+    if (displacedPlayerId) {
+      const displacedName = memberName(displacedPlayerId);
+      const displacedRestingRounds = getRoundsRested(rounds, displacedPlayerId).filter(
+        (r) => r !== currentRound,
+      );
+      if (displacedRestingRounds.length > 0) {
+        message += ` This will also move ${displacedName} (currently resting in ${formatRestingRoundsList(displacedRestingRounds)}) from Court ${target.courtNo} to Resting Players in Round ${currentRound}.`;
+      } else {
+        message += ` This will also move ${displacedName} from Court ${target.courtNo} to Resting Players in Round ${currentRound}.`;
+      }
+    }
+
+    message += ` Do you want to continue?`;
+
+    return {
+      title: "Confirm Rotation Change",
+      message,
+    };
+  }
+
+  // Case B: Moving from Court to Resting Zone
+  // Shows all rounds the player currently rests in
+  if (source.kind === "court" && target.kind === "rest-zone") {
+    const playerName = memberName(source.playerId);
+    const pronouns = getPronouns(getMemberSex(source.playerId));
+    const playerRestingRounds = getRoundsRested(rounds, source.playerId).filter(
+      (r) => r !== currentRound,
+    );
+
+    let message: string;
+    if (playerRestingRounds.length > 0) {
+      message = `${playerName} currently rests in ${formatRestingRoundsList(playerRestingRounds)}. You are moving ${pronouns.object} from Court ${source.courtNo} to Resting Players in Round ${currentRound}. Do you want to continue?`;
+    } else {
+      message = `You are moving ${playerName} from Court ${source.courtNo} to Resting Players in Round ${currentRound}. Do you want to continue?`;
+    }
+
+    return {
+      title: "Confirm Rotation Change",
+      message,
+    };
+  }
+
+  // Case C: Moving from Court onto an existing Resting player (Swap Court <-> Rest)
+  if (source.kind === "court" && target.kind === "rest") {
+    const playerName = memberName(source.playerId);
+    const pronouns = getPronouns(getMemberSex(source.playerId));
+    const playerRestingRounds = getRoundsRested(rounds, source.playerId).filter(
+      (r) => r !== currentRound,
+    );
+
+    const restingPlayerId =
+      target.playerId || rounds[source.roundIdx]?.resting?.[target.restIdx] || "";
+    const restingName = memberName(restingPlayerId);
+    const restingOtherRounds = restingPlayerId
+      ? getRoundsPlayed(rounds, restingPlayerId).filter((r) => r !== currentRound)
+      : [];
+
+    let message: string;
+    if (playerRestingRounds.length > 0) {
+      message = `${playerName} currently rests in ${formatRestingRoundsList(playerRestingRounds)}. You are moving ${pronouns.object} from Court ${source.courtNo} to Resting Players in Round ${currentRound}.`;
+    } else {
+      message = `You are moving ${playerName} from Court ${source.courtNo} to Resting Players in Round ${currentRound}.`;
+    }
+
+    if (restingPlayerId) {
+      if (restingOtherRounds.length > 0) {
+        message += ` This will also add ${restingName} (already scheduled to play ${formatRoundsList(restingOtherRounds)}) to Court ${source.courtNo} in Round ${currentRound}.`;
+      } else {
+        message += ` This will also add ${restingName} to Court ${source.courtNo} in Round ${currentRound}.`;
+      }
+    }
+
+    message += ` Do you want to continue?`;
+
+    return {
+      title: "Confirm Rotation Change",
+      message,
+    };
+  }
+
+  return null;
+}
+
 export function CourtRotationView({
   schedule,
   rotation,
@@ -241,8 +459,36 @@ export function CourtRotationView({
     ? activeRound
     : `r${visibleRoundList[0]?.round ?? rounds[0]?.round ?? 1}`;
 
+  const [pendingChange, setPendingChange] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
   const setRounds = (next: RotationRound[]) => {
     onDraftRoundsChange?.(next);
+  };
+
+  const requestMove = (source: DragSource, target: DragTarget) => {
+    const confirmation = buildRotationChangeConfirmation({
+      rounds,
+      source,
+      target,
+      members,
+      memberName,
+    });
+
+    if (confirmation) {
+      setPendingChange({
+        title: confirmation.title,
+        message: confirmation.message,
+        onConfirm: () => {
+          setRounds(applyMove(rounds, source, target));
+        },
+      });
+    } else {
+      setRounds(applyMove(rounds, source, target));
+    }
   };
 
   const onToggleShowGrade = async (checked: boolean) => {
@@ -334,7 +580,7 @@ export function CourtRotationView({
                 ) {
                   return;
                 }
-                setRounds(applyMove(rounds, source, opts.dropTarget!));
+                requestMove(source, opts.dropTarget!);
               }
             : undefined
         }
@@ -569,7 +815,7 @@ export function CourtRotationView({
                               const source = parseSource(e);
                               if (!source || source.roundIdx !== roundIdx) return;
                               if (source.kind === "rest") return; // already resting
-                              setRounds(applyMove(rounds, source, { kind: "rest-zone", roundIdx }));
+                              requestMove(source, { kind: "rest-zone", roundIdx });
                             }
                           : undefined
                       }
@@ -607,8 +853,53 @@ export function CourtRotationView({
           })
         )}
       </Tabs>
+
+      <AlertDialog
+        open={!!pendingChange}
+        onOpenChange={(open) => {
+          if (!open) setPendingChange(null);
+        }}
+      >
+        <AlertDialogContent
+          id="confirm-rotation-change-dialog"
+          className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle id="confirm-rotation-change-title" className="text-[#F1F0EE]">
+              {pendingChange?.title ?? "Confirm Rotation Change"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div
+                id="confirm-rotation-change-message"
+                className="text-[#C4D4CF] text-sm space-y-2 text-left leading-relaxed"
+              >
+                {pendingChange?.message}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel
+              id="confirm-rotation-change-cancel-btn"
+              className="btn-premium-outline cursor-pointer mt-0"
+              onClick={() => setPendingChange(null)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              id="confirm-rotation-change-confirm-btn"
+              className="btn-premium-solid cursor-pointer"
+              onClick={() => {
+                pendingChange?.onConfirm();
+                setPendingChange(null);
+              }}
+            >
+              Confirm Change
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
-export { stripEmptySlots, cloneRounds };
+export { stripEmptySlots, cloneRounds, applyMove };

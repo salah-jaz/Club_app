@@ -71,6 +71,7 @@ class PlayScheduleController extends Controller
 
     public function index(?Request $request = null)
     {
+        self::processOverdueClosure();
         self::processAutoPublishAndRotation();
         $user = $request ? $request->user() : auth()->user();
 
@@ -129,6 +130,7 @@ class PlayScheduleController extends Controller
 
     public function upcomingDashboardPlaySessions(?Request $request = null)
     {
+        self::processOverdueClosure();
         self::processAutoPublishAndRotation();
         $user = $request ? $request->user() : auth()->user();
         if (!$user) {
@@ -240,6 +242,7 @@ class PlayScheduleController extends Controller
 
     public function show(Request $request, $id)
     {
+        self::processOverdueClosure();
         $sch = PlaySchedule::findOrFail($id);
         $user = $request->user();
 
@@ -269,6 +272,7 @@ class PlayScheduleController extends Controller
 
     public function showPlayers(Request $request, $id)
     {
+        self::processOverdueClosure();
         $sch = PlaySchedule::findOrFail($id);
         $user = $request->user();
 
@@ -668,6 +672,7 @@ class PlayScheduleController extends Controller
 
     public function enroll(Request $request, $id)
     {
+        self::processOverdueClosure();
         $request->validate([
             'memberIds' => 'required|array|min:1',
             'memberIds.*' => 'required|string',
@@ -678,6 +683,15 @@ class PlayScheduleController extends Controller
         $autoAccept = $request->boolean('autoAccept');
 
         if ($sch->status !== 'released') {
+            return response()->json([
+                'message' => 'This play session is not open for enrollment.',
+            ], 422);
+        }
+
+        $matchStart = SessionTimingHelper::parseDateTime($sch->date);
+        if (SessionTimingHelper::now()->greaterThanOrEqualTo($matchStart)) {
+            $sch->status = 'closed';
+            $sch->save();
             return response()->json([
                 'message' => 'This play session is not open for enrollment.',
             ], 422);
@@ -1105,8 +1119,34 @@ class PlayScheduleController extends Controller
         });
     }
 
+    public static function processOverdueClosure(?Carbon $now = null): void
+    {
+        SessionTimingHelper::applyClubTimezone();
+        $now = $now ? SessionTimingHelper::now($now) : SessionTimingHelper::now();
+
+        $overdueSchedules = PlaySchedule::whereIn('status', ['open', 'released'])->get();
+
+        foreach ($overdueSchedules as $schedule) {
+            if (!$schedule->date) {
+                continue;
+            }
+
+            try {
+                $matchStart = SessionTimingHelper::parseDateTime($schedule->date);
+                if ($now->greaterThanOrEqualTo($matchStart)) {
+                    $schedule->status = 'closed';
+                    $schedule->save();
+                }
+            } catch (\Throwable $e) {
+                logger()->error('Overdue play schedule closure failed for schedule '.$schedule->id.': '.$e->getMessage());
+            }
+        }
+    }
+
     public static function processAutoPublishAndRotation(): void
     {
+        self::processOverdueClosure();
+
         $autoPublishSetting = Setting::where('key', 'auto_publish_rotation')->value('value');
         if ($autoPublishSetting === 'false') {
             return;
@@ -1131,6 +1171,16 @@ class PlayScheduleController extends Controller
 
             try {
                 $matchStart = SessionTimingHelper::parseDateTime($schedule->date);
+
+                // If scheduled start time has passed, close schedule if still released without generating rotation
+                if ($now->greaterThanOrEqualTo($matchStart)) {
+                    if ($schedule->status === 'released') {
+                        $schedule->status = 'closed';
+                        $schedule->save();
+                    }
+                    continue;
+                }
+
                 $lockDeadline = $matchStart->copy()->subHours($lockHours);
 
                 if ($now->lt($lockDeadline)) {
@@ -1253,6 +1303,16 @@ class PlayScheduleController extends Controller
         }
 
         $schedule = PlaySchedule::findOrFail($id);
+        if (in_array($schedule->status, ['closed', 'cancelled'], true)) {
+            return response()->json(['message' => 'Cannot generate rotation for a closed or cancelled schedule.'], 422);
+        }
+        $matchStart = SessionTimingHelper::parseDateTime($schedule->date);
+        if (SessionTimingHelper::now()->greaterThanOrEqualTo($matchStart)) {
+            $schedule->status = 'closed';
+            $schedule->save();
+            return response()->json(['message' => 'Cannot generate rotation for a past session.'], 422);
+        }
+
         $invites = PlayInvitation::where('schedule_id', $id)->where('status', 'accepted')->get()->unique('member_id');
         $playerIds = $invites->pluck('member_id')->values()->all();
 
@@ -1639,6 +1699,7 @@ class PlayScheduleController extends Controller
 
     public function listInvitations(?Request $request = null)
     {
+        self::processOverdueClosure();
         self::processAutoPublishAndRotation();
 
         $user = $request ? $request->user() : auth()->user();
@@ -1803,6 +1864,7 @@ class PlayScheduleController extends Controller
 
     public function respondInvitation(Request $request, $id)
     {
+        self::processOverdueClosure();
         self::processAutoPublishAndRotation();
         $request->validate([
             'status' => 'required|in:accepted,declined',
@@ -1818,7 +1880,20 @@ class PlayScheduleController extends Controller
             return response()->json([
                 'message' => $sch->status === 'cancelled'
                     ? 'This session has been cancelled. Accept and decline are no longer available.'
-                    : 'Court rotation is locked. Accept and decline are no longer available.',
+                    : ($sch->status === 'closed'
+                        ? 'This session is closed. Accept and decline are no longer available.'
+                        : 'Court rotation is locked. Accept and decline are no longer available.'),
+            ], 422);
+        }
+
+        $matchStart = SessionTimingHelper::parseDateTime($sch->date);
+        if (SessionTimingHelper::now()->greaterThanOrEqualTo($matchStart)) {
+            if (!in_array($sch->status, ['closed', 'cancelled'], true)) {
+                $sch->status = 'closed';
+                $sch->save();
+            }
+            return response()->json([
+                'message' => 'This session is closed. Accept and decline are no longer available.',
             ], 422);
         }
 

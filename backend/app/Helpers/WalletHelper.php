@@ -13,6 +13,9 @@ class WalletHelper
     public static function resolveMember(Member $member): Member
     {
         if ($member->parent_member_id) {
+            if ($member->relationLoaded('parentMember') && $member->parentMember) {
+                return $member->parentMember;
+            }
             $parent = Member::find($member->parent_member_id);
             if ($parent) {
                 return $parent;

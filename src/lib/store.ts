@@ -15,6 +15,7 @@ import type {
   Transaction,
   User,
   LeagueGroup,
+  Fixture,
   PlayerPositionItem,
   HolidayItem,
   EmailTemplateDefinition,
@@ -48,6 +49,9 @@ interface State {
   playerPositions: string[];
   playerPositionItems: PlayerPositionItem[];
   leagueGroups: LeagueGroup[];
+  fixtures: Fixture[];
+  matchTypes: string[];
+  venueTypes: string[];
   adminRoles: AdminRole[];
   allPermissions: Permission[];
   adminUsers: User[];
@@ -246,12 +250,17 @@ interface State {
     debitTimingHours?: number;
     autoPublishRotation?: boolean;
     showGradeInCourtRotation?: boolean;
+    portalEyebrow?: string;
+    portalTitle?: string;
+    portalDescription?: string;
     adultDiscountPercent?: number;
     adultDiscountAmount?: number;
     adultDiscountMode?: "percent" | "amount";
     juniorDiscountPercent?: number;
     juniorDiscountAmount?: number;
     juniorDiscountMode?: "percent" | "amount";
+    matchTypes?: string[];
+    venueTypes?: string[];
     emailTemplates?: Record<string, Partial<EmailTemplateDefinition>>;
   }) => Promise<void>;
   updateProfile: (profile: {
@@ -292,6 +301,9 @@ interface State {
     },
   ) => Promise<void>;
   deleteLeagueGroup: (id: string) => Promise<void>;
+  createFixture: (fixture: Omit<Fixture, "id" | "createdAt" | "updatedAt">) => Promise<Fixture>;
+  updateFixture: (id: string, fixture: Partial<Fixture>) => Promise<Fixture>;
+  deleteFixture: (id: string) => Promise<void>;
   setActiveRole: (role: Role) => void;
   bulkUploadMembers: (file: File, options?: { allowExamples?: boolean }) => Promise<number>;
 
@@ -357,6 +369,9 @@ export const useStore = create<State>((set, get) => ({
   upcomingPlaySessions: [],
   playInvites: [],
   leagueGroups: [],
+  fixtures: [],
+  matchTypes: ["Friendly", "League", "Tournament", "Practice"],
+  venueTypes: ["Home", "Away"],
   adminRoles: [],
   allPermissions: [],
   adminUsers: [],
@@ -415,6 +430,8 @@ export const useStore = create<State>((set, get) => ({
       set({
         locations: settings.locations || [],
         coaches: settings.coaches || ["Coach Lee", "Coach Alex", "Coach Sarah"],
+        matchTypes: settings.matchTypes || ["Friendly", "League", "Tournament", "Practice"],
+        venueTypes: settings.venueTypes || ["Home", "Away"],
         grades: settings.grades || [],
         adultGrades: settings.adultGrades || [],
         juniorGrades: settings.juniorGrades || [],
@@ -513,6 +530,8 @@ export const useStore = create<State>((set, get) => ({
         settings: {
           locations: string[];
           coaches?: string[];
+          matchTypes?: string[];
+          venueTypes?: string[];
           grades: string[];
           adultGrades?: string[];
           juniorGrades?: string[];
@@ -556,6 +575,7 @@ export const useStore = create<State>((set, get) => ({
         };
         creditRequests: CreditRequest[];
         leagueGroups: LeagueGroup[];
+        fixtures?: Fixture[];
         users: User[];
       }>("/sync-data");
 
@@ -572,6 +592,7 @@ export const useStore = create<State>((set, get) => ({
         settings,
         creditRequests,
         leagueGroups,
+        fixtures,
         users,
       } = syncRes;
 
@@ -587,6 +608,8 @@ export const useStore = create<State>((set, get) => ({
         trainingUpdateRequests: trainingUpdateRequests || [],
         locations: settings.locations,
         coaches: settings.coaches || ["Coach Lee", "Coach Alex", "Coach Sarah"],
+        matchTypes: settings.matchTypes || ["Friendly", "League", "Tournament", "Practice"],
+        venueTypes: settings.venueTypes || ["Home", "Away"],
         grades: settings.grades,
         adultGrades: settings.adultGrades || [],
         juniorGrades: settings.juniorGrades || [],
@@ -645,6 +668,7 @@ export const useStore = create<State>((set, get) => ({
         users,
         creditRequests,
         leagueGroups,
+        fixtures: fixtures || [],
       });
 
       // Fetch non-critical secondary data asynchronously in background
@@ -1219,6 +1243,23 @@ export const useStore = create<State>((set, get) => ({
 
   deleteLeagueGroup: async (id) => {
     await api.delete(`/league-groups/${id}`);
+    await get().syncData();
+  },
+
+  createFixture: async (f) => {
+    const res = await api.post<Fixture>("/fixtures", f);
+    await get().syncData();
+    return res;
+  },
+
+  updateFixture: async (id, patch) => {
+    const res = await api.patch<Fixture>(`/fixtures/${id}`, patch);
+    await get().syncData();
+    return res;
+  },
+
+  deleteFixture: async (id) => {
+    await api.delete(`/fixtures/${id}`);
     await get().syncData();
   },
 

@@ -204,49 +204,6 @@ function ScheduleListCard({
               const isHoliday = !!iso && holidays.includes(iso);
               const rowTarget = viewAllTo || "/schedules";
 
-              const familyStatuses = (() => {
-                if (!isMemberRole) return [];
-                if (sch.familyStatuses && sch.familyStatuses.length > 0) {
-                  return sch.familyStatuses;
-                }
-                if (!myMembers || myMembers.length === 0) return [];
-                const list: {
-                  memberId: string;
-                  memberName: string;
-                  memberFirstName: string;
-                  memberType: string;
-                  status: string;
-                }[] = [];
-                for (const m of myMembers) {
-                  const inv = playInvites?.find(
-                    (pi) => pi.scheduleId === sch.id && pi.memberId === m.id,
-                  );
-                  let status: string | null = inv ? inv.status : null;
-                  if (status === null && m.membership) {
-                    const isEligible =
-                      m.status === "active" &&
-                      (m.memberType === "adult"
-                        ? !sch.isLeagueMatch ||
-                          !sch.leagueGroupIds ||
-                          sch.leagueGroupIds.length === 0
-                        : !sch.isLeagueMatch && m.playEligible);
-                    if (isEligible) {
-                      status = "open";
-                    }
-                  }
-                  if (status !== null) {
-                    list.push({
-                      memberId: m.id,
-                      memberName: `${m.firstName} ${m.lastName}`.trim(),
-                      memberFirstName: m.firstName,
-                      memberType: m.memberType,
-                      status,
-                    });
-                  }
-                }
-                return list;
-              })();
-
               return (
                 <motion.div
                   key={sch.id}
@@ -273,24 +230,9 @@ function ScheduleListCard({
                         {fmtDateTime(sch.date)} · {sch.location}
                       </div>
                     </div>
-                    {isMemberRole && familyStatuses.length > 0 ? (
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        {familyStatuses.length === 1 ? (
-                          <StatusBadge kind="invitation" status={familyStatuses[0].status} />
-                        ) : (
-                          familyStatuses.map((fs) => (
-                            <div key={fs.memberId} className="flex items-center gap-1.5">
-                              <span className="text-[11px] text-[#8FA89F] font-medium truncate max-w-[100px]">
-                                {fs.memberFirstName}:
-                              </span>
-                              <StatusBadge kind="invitation" status={fs.status} />
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    ) : (
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <StatusBadge status={sch.status} />
-                    )}
+                    </div>
                   </Link>
                 </motion.div>
               );

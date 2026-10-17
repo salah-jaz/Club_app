@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 use App\Services\InvitationSyncService;
@@ -41,6 +42,21 @@ class Member extends Model
     protected static function booted(): void
     {
         static::saved(function (Member $member) {
+            if (!(bool) $member->membership) {
+                \Illuminate\Support\Facades\DB::table('league_group_member')
+                    ->where('member_id', $member->id)
+                    ->delete();
+            } else {
+                // If member type changed, remove groups of mismatched type
+                $targetGroupType = strtolower($member->member_type) === 'junior' ? 'Adult' : 'Junior';
+                $mismatchedGroupIds = LeagueGroup::whereRaw('LOWER(group_type) = ?', [strtolower($targetGroupType)])->pluck('id');
+                if ($mismatchedGroupIds->isNotEmpty()) {
+                    \Illuminate\Support\Facades\DB::table('league_group_member')
+                        ->where('member_id', $member->id)
+                        ->whereIn('league_group_id', $mismatchedGroupIds)
+                        ->delete();
+                }
+            }
             InvitationSyncService::syncMemberInvitations($member);
         });
 
@@ -53,6 +69,9 @@ class Member extends Model
         });
 
         static::deleted(function (Member $member) {
+            \Illuminate\Support\Facades\DB::table('league_group_member')
+                ->where('member_id', $member->id)
+                ->delete();
             TrainingInvitation::where('member_id', $member->id)->delete();
             TrainingDate::where('member_id', $member->id)->delete();
             TrainingUpdateRequest::where('member_id', $member->id)->delete();
@@ -140,6 +159,13 @@ class Member extends Model
     public function trainingDates(): HasMany
     {
         return $this->hasMany(TrainingDate::class);
+    }
+
+    public function leagueGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(LeagueGroup::class, 'league_group_member', 'member_id', 'league_group_id')
+            ->withPivot('position')
+            ->withTimestamps();
     }
 
     public function scopeEligibleForPlay($query)

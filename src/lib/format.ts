@@ -1,16 +1,84 @@
 import { useStore } from "./store";
 import type { Transaction } from "./types";
+import { resolveTimezone } from "./timezones";
 
-export const fmtDate = (s: string) =>
-  new Date(s).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-export const fmtDateTime = (s: string) =>
-  new Date(s).toLocaleString(undefined, {
+export const fmtDate = (s: string) => {
+  if (!s) return "";
+  const str = typeof s === "string" ? s.trim() : "";
+  if (!str) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  const normalized = str.includes(" ") ? str.replace(" ", "T") : str;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return "";
+  const tz = resolveTimezone(useStore.getState().timezone);
+  return d.toLocaleDateString(undefined, {
+    timeZone: tz,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+export const fmtTime = (s: string | null | undefined, timeZone?: string): string => {
+  if (!s) return "";
+  const str = typeof s === "string" ? s.trim() : "";
+  if (!str) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return "";
+  const normalized = str.includes(" ") ? str.replace(" ", "T") : str;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return "";
+  const tz = resolveTimezone(timeZone || useStore.getState().timezone);
+  const formatted = d.toLocaleTimeString("en-US", {
+    timeZone: tz,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return formatted.trim();
+};
+
+export const formatWalletTxnTime = (
+  r: { createdAt?: string | null; date?: string | null },
+  timeZone?: string,
+): string => {
+  if (r.createdAt) {
+    const t = fmtTime(r.createdAt, timeZone);
+    if (t) return t;
+  }
+  if (r.date && (r.date.includes("T") || r.date.includes(":"))) {
+    return fmtTime(r.date, timeZone);
+  }
+  return "";
+};
+
+export const fmtDateTime = (s: string, timeZone?: string) => {
+  if (!s) return "";
+  const str = typeof s === "string" ? s.trim() : "";
+  if (!str) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return fmtDate(str);
+  }
+  const normalized = str.includes(" ") ? str.replace(" ", "T") : str;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return "";
+  const tz = resolveTimezone(timeZone || useStore.getState().timezone);
+  return d.toLocaleString(undefined, {
+    timeZone: tz,
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
   });
+};
 export const fmtMoney = (n: number) => {
   const symbol = useStore.getState().currency || "$";
   return `${symbol}${n.toFixed(2)}`;
