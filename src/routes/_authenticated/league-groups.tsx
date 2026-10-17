@@ -49,11 +49,55 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ConfirmDeleteDialog, type ConfirmDeleteRequest } from "@/components/ConfirmDeleteDialog";
-import type { LeagueGroup } from "@/lib/types";
+import type { LeagueGroup, Member } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/league-groups")({
   component: LeagueGroupsPage,
 });
+
+function resolveMemberWalletBalance(
+  memberId: string,
+  group: LeagueGroup,
+  allMembers: Member[],
+): number | null {
+  const safeMembers = Array.isArray(allMembers) ? allMembers : [];
+  const member = safeMembers.find((m) => m && m.id === memberId);
+
+  if (member) {
+    // If junior member with a linked parent, resolve to the parent adult's shared wallet
+    if (member.memberType?.toLowerCase() === "junior" && member.parentMemberId) {
+      const parent = safeMembers.find((p) => p && p.id === member.parentMemberId);
+      if (parent && typeof parent.credit === "number" && !Number.isNaN(parent.credit)) {
+        return parent.credit;
+      }
+    }
+    // Adult member or unlinked junior
+    if (typeof member.credit === "number" && !Number.isNaN(member.credit)) {
+      return member.credit;
+    }
+  }
+
+  // Fallback to embedded group member from API if member not found in allMembers store
+  const apiMember = group.members?.find((m) => m && m.id === memberId);
+  if (
+    apiMember &&
+    typeof apiMember.walletBalance === "number" &&
+    !Number.isNaN(apiMember.walletBalance)
+  ) {
+    return apiMember.walletBalance;
+  }
+
+  return null;
+}
+
+function formatWalletBalance(amount: number | null, currency: string): string | null {
+  if (amount === null || amount === undefined || Number.isNaN(amount)) {
+    return null;
+  }
+  const symbol = currency || "$";
+  const absFormatted = Math.abs(amount).toFixed(2);
+  return amount < 0 ? `-${symbol}${absFormatted}` : `${symbol}${absFormatted}`;
+}
 
 function memberDisplayName(
   group: LeagueGroup,
@@ -451,12 +495,18 @@ function AdminLeagueGroupsView() {
   const canEditGroup = useCan("league_groups.edit");
   const canDeleteGroup = useCan("league_groups.delete");
   const allMembers = useStore((s) => s.members);
+  const currency = useStore((s) => s.currency) || "$";
   const [groupType, setGroupType] = useState<"Adult" | "Junior">("Adult");
-  const members = allMembers.filter(
-    (m) =>
-      m.status === "active" &&
-      m.membership === true &&
-      m.memberType.toLowerCase() === groupType.toLowerCase(),
+  const members = useMemo(
+    () =>
+      (allMembers || []).filter(
+        (m) =>
+          m &&
+          m.status === "active" &&
+          m.membership === true &&
+          (m.memberType || "").toLowerCase() === groupType.toLowerCase(),
+      ),
+    [allMembers, groupType],
   );
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const playerPositions = useStore((s) => s.playerPositions) || [];
@@ -555,12 +605,28 @@ function AdminLeagueGroupsView() {
     setEditingId(group.id);
     setName(group.name);
     setDescription(group.description);
-    setGroupType(group.groupType || "Adult");
-    setSelectedMembers(group.memberIds || []);
+    const normalizedType = (group.groupType?.toLowerCase() === "junior" ? "Junior" : "Adult") as
+      | "Adult"
+      | "Junior";
+    setGroupType(normalizedType);
+
+    const validGroupMemberIds = (group.memberIds || []).filter((id) => {
+      const m = (allMembers || []).find((x) => x && x.id === id);
+      return (
+        m &&
+        m.status === "active" &&
+        m.membership === true &&
+        (m.memberType || "").toLowerCase() === normalizedType.toLowerCase()
+      );
+    });
+
+    setSelectedMembers(validGroupMemberIds);
     const positions: Record<string, string> = {};
     if (group.memberPositions) {
       for (const [id, pos] of Object.entries(group.memberPositions)) {
-        if (pos) positions[id] = pos as string;
+        if (pos && validGroupMemberIds.includes(id)) {
+          positions[id] = pos as string;
+        }
       }
     }
     setMemberPositions(positions);
@@ -582,8 +648,18 @@ function AdminLeagueGroupsView() {
       return;
     }
 
+    const validMemberIds = selectedMembers.filter((id) => {
+      const m = (allMembers || []).find((x) => x && x.id === id);
+      return (
+        m &&
+        m.status === "active" &&
+        m.membership === true &&
+        (m.memberType || "").toLowerCase() === groupType.toLowerCase()
+      );
+    });
+
     const positionsForSelected: Record<string, string | null> = {};
-    selectedMembers.forEach((id) => {
+    validMemberIds.forEach((id) => {
       positionsForSelected[id] = memberPositions[id] || null;
     });
 
@@ -595,7 +671,7 @@ function AdminLeagueGroupsView() {
           name,
           description,
           groupType,
-          memberIds: selectedMembers,
+          memberIds: validMemberIds,
           memberPositions: positionsForSelected,
         });
         toast.success("Group created successfully");
@@ -604,7 +680,7 @@ function AdminLeagueGroupsView() {
           name,
           description,
           groupType,
-          memberIds: selectedMembers,
+          memberIds: validMemberIds,
           memberPositions: positionsForSelected,
         });
         toast.success("Group updated successfully");
@@ -984,11 +1060,27 @@ function AdminLeagueGroupsView() {
               {filteredGroups.map((g) => {
                 const groupMembers = (g.memberIds || [])
                   .map((id) => {
-                    const member = allMembers.find((m) => m.id === id);
-                    const position = g.memberPositions?.[id] || null;
-                    return { member, position };
+                    const member = (allMembers || []).find((m) => m && m.id === id);
+                    const apiMember = g.members?.find((m) => m && m.id === id);
+                    if (!member && !apiMember) return null;
+
+                    const position = g.memberPositions?.[id] ?? apiMember?.position ?? null;
+                    const balance = resolveMemberWalletBalance(id, g, allMembers);
+                    const formattedBalance = formatWalletBalance(balance, currency);
+
+                    const displayName = member
+                      ? `${member.firstName || ""} ${member.lastName || ""}`.trim() || id
+                      : `${apiMember!.firstName || ""} ${apiMember!.lastName || ""}`.trim() || id;
+
+                    return {
+                      id,
+                      displayName,
+                      position,
+                      balance,
+                      formattedBalance,
+                    };
                   })
-                  .filter((x) => x.member);
+                  .filter((x): x is NonNullable<typeof x> => Boolean(x));
 
                 return (
                   <Card
@@ -1025,27 +1117,52 @@ function AdminLeagueGroupsView() {
                         )}
 
                         {groupMembers.length > 0 && (
-                          <div className="mt-3 space-y-1">
-                            {groupMembers.map(({ member, position }) => (
-                              <div
-                                key={member!.id}
-                                className="flex items-center justify-between gap-2 text-[11px]"
-                              >
-                                <span className="text-[#C1C1C8] truncate">
-                                  {member!.firstName} {member!.lastName}
-                                </span>
-                                {position ? (
-                                  <span className="shrink-0 flex items-center gap-1 bg-[#10B981]/10 text-[#10B981] px-1.5 py-0.5 rounded text-[10px] font-medium">
-                                    <ShieldCheck className="size-2.5" />
-                                    {position}
-                                  </span>
-                                ) : (
-                                  <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">
-                                    no position
-                                  </span>
-                                )}
-                              </div>
-                            ))}
+                          <div className="mt-3 space-y-1.5">
+                            {groupMembers.map(
+                              ({ id, displayName, position, balance, formattedBalance }) => (
+                                <div
+                                  key={id}
+                                  className="flex items-center justify-between gap-2 text-[11px] py-0.5"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                                      <span className="text-[#C1C1C8] font-medium truncate">
+                                        {displayName}
+                                      </span>
+                                      {formattedBalance !== null ? (
+                                        <span className="text-[10.5px] text-[#8A8A98] font-mono shrink-0">
+                                          — Balance:{" "}
+                                          <span
+                                            className={cn(
+                                              "font-semibold",
+                                              balance !== null && balance < 0
+                                                ? "text-[#F87171]"
+                                                : "text-[#34D399]",
+                                            )}
+                                          >
+                                            {formattedBalance}
+                                          </span>
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-[#6B7F78] font-mono shrink-0 italic">
+                                          — Balance: —
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {position ? (
+                                    <span className="shrink-0 flex items-center gap-1 bg-[#10B981]/10 text-[#10B981] px-1.5 py-0.5 rounded text-[10px] font-medium">
+                                      <ShieldCheck className="size-2.5" />
+                                      {position}
+                                    </span>
+                                  ) : (
+                                    <span className="shrink-0 text-[10px] text-[#4A4A5A] italic">
+                                      no position
+                                    </span>
+                                  )}
+                                </div>
+                              ),
+                            )}
                           </div>
                         )}
                       </div>

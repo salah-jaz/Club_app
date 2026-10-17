@@ -7,12 +7,12 @@ use App\Models\Grade;
 use App\Models\Member;
 use App\Models\Transaction;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class WalletTransactionDeleteTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     protected User $admin;
     protected Member $member;

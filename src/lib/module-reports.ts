@@ -4,8 +4,11 @@ import type {
   PlayInvitation,
   PlaySchedule,
   Training,
+  TrainingDate,
   TrainingInvitation,
   User,
+  Fixture,
+  LeagueGroup,
 } from "@/lib/types";
 import type { ReportFilterValues } from "@/components/ReportDialog";
 import {
@@ -781,3 +784,85 @@ export function exportApprovalsReport(
     appName,
   );
 }
+
+// ─── Fixtures ──────────────────────────────────────────────────────────────
+
+export const FIXTURE_REPORT_STATUS = [
+  { value: "all", label: "All statuses" },
+  { value: "Opened", label: "Opened" },
+  { value: "In Progress", label: "In Progress" },
+  { value: "Closed", label: "Closed" },
+];
+
+export function filterFixturesForReport(
+  fixtures: Fixture[],
+  filters: ReportFilterValues,
+): Fixture[] {
+  return fixtures.filter((f) => {
+    if (!inDateRange(f.date, filters.fromDate, filters.toDate)) return false;
+    if (filters.status !== "all" && f.status !== filters.status) return false;
+    if (filters.type !== "all" && f.matchType !== filters.type) return false;
+    if (filters.category !== "all" && f.leagueGroupId !== filters.category) return false;
+    return true;
+  });
+}
+
+export function exportFixturesReport(
+  fixtures: Fixture[],
+  groups: LeagueGroup[],
+  filters: ReportFilterValues,
+  format: "csv" | "pdf",
+  appName?: string,
+  matchTypeOptions?: Array<{ value: string; label: string }>,
+  groupOptions?: Array<{ value: string; label: string }>,
+) {
+  const filtered = filterFixturesForReport(fixtures, filters);
+
+  const sorted = [...filtered].sort((a, b) => {
+    const diff = parseReportDateTimeMs(a.date) - parseReportDateTimeMs(b.date);
+    if (diff !== 0) return diff;
+    return (a.name || "").localeCompare(b.name || "") || (a.id || "").localeCompare(b.id || "");
+  });
+
+  const rows = sorted.map((fix) => {
+    const grp = groups.find((g) => g.id === fix.leagueGroupId);
+    return {
+      name: fix.name,
+      date: formatReportDateTime(fix.date),
+      group: fix.leagueGroupName || grp?.name || "—",
+      matchType: fix.matchType,
+      venueType: fix.venueType,
+      oppositionClub: fix.oppositionClub,
+      teamName: fix.teamName,
+      grade: fix.grade,
+      status: fix.status,
+    };
+  });
+
+  exportRows(
+    "Fixtures Report",
+    "fixtures_report",
+    [
+      { key: "name", header: "Fixture Name", width: 36 },
+      { key: "date", header: "Date & Time", width: 30 },
+      { key: "group", header: "Group", width: 24 },
+      { key: "matchType", header: "Match Type", width: 20 },
+      { key: "venueType", header: "Venue Type", width: 18 },
+      { key: "oppositionClub", header: "Opposition Club", width: 28 },
+      { key: "teamName", header: "Team Name", width: 22 },
+      { key: "grade", header: "Grade", width: 16 },
+      { key: "status", header: "Status", width: 18 },
+    ],
+    rows,
+    summarize(filters, [], {
+      statusOptions: FIXTURE_REPORT_STATUS,
+      typeOptions: matchTypeOptions,
+      typeLabel: "Match Type",
+      categoryOptions: groupOptions,
+      categoryLabel: "Group",
+    }),
+    format,
+    appName,
+  );
+}
+

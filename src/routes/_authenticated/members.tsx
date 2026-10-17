@@ -427,7 +427,7 @@ function MemberActions({
   const canEdit =
     (activeRole === "admin" && useCan("members.edit")) ||
     (activeRole === "member" && (isJunior || member.userId === user.id));
-  const canCredits = activeRole === "admin" || activeRole === "member";
+  const canCredits = (activeRole === "admin" || activeRole === "member") && !isJunior;
   const canDelete = activeRole === "admin" && useCan("members.delete");
   const canLoginAs = activeRole === "admin" && useCan("members.edit");
   const btnClass = compact
@@ -552,7 +552,7 @@ function MemberDetailDialog({
   const canEdit =
     (activeRole === "admin" && canEditMembers) ||
     (activeRole === "member" && (isJunior || member.userId === user.id));
-  const canCredits = activeRole === "admin" || activeRole === "member";
+  const canCredits = (activeRole === "admin" || activeRole === "member") && !isJunior;
   const canDelete = activeRole === "admin" && canDeleteMembersPerm;
   const canLoginAs = activeRole === "admin" && canEditMembers;
   const avatarBg = isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#10B981]";
@@ -2055,15 +2055,15 @@ function MembersList() {
                       <TableCell
                         className={cn(
                           "type-mono-value text-right",
-                          m.memberType !== "junior" && m.credit < 0 && "text-[#F87171]",
+                          !isJunior && m.credit < 0 && "text-[#F87171]",
                         )}
                         title={
-                          m.memberType === "junior"
+                          isJunior
                             ? "Junior members share the parent adult's wallet"
                             : undefined
                         }
                       >
-                        {m.memberType === "junior" ? (
+                        {isJunior ? (
                           <span className="text-[#6B7F78]">—</span>
                         ) : (
                           fmtMoney(m.credit)

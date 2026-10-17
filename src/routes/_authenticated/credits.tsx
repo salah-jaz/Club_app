@@ -28,7 +28,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { fmtDate, fmtMoney } from "@/lib/format";
+import { fmtDate, fmtMoney, formatWalletTxnTime } from "@/lib/format";
 import {
   Plus,
   Wallet,
@@ -345,10 +345,18 @@ function CreditsPage() {
       })
       .sort((a, b) => {
         if (sortBy === "newest") {
-          return new Date(b.date).getTime() - new Date(a.date).getTime();
+          const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          return timeB - timeA;
         }
         if (sortBy === "oldest") {
-          return new Date(a.date).getTime() - new Date(b.date).getTime();
+          const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeA - timeB;
         }
         if (sortBy === "amount_high") {
           return b.amount - a.amount;
@@ -842,6 +850,9 @@ function CreditsPage() {
                           </span>
                           <span className="text-[11px] text-[#8A8A98] block">
                             {fmtDate(r.date)}
+                            {formatWalletTxnTime(r, s.timezone)
+                              ? ` · ${formatWalletTxnTime(r, s.timezone)}`
+                              : ""}
                           </span>
                         </div>
                       </div>
@@ -1048,8 +1059,15 @@ function CreditsPage() {
                         <TableCell className="py-3 px-6 type-mono-value">
                           {fmtMoney(r.amount)}
                         </TableCell>
-                        <TableCell className="py-3 px-6 type-mono-value text-[#EEF2F0]">
-                          {fmtDate(r.date)}
+                        <TableCell className="py-3 px-6 type-mono-value">
+                          <span className="text-[#EEF2F0] block leading-tight">
+                            {fmtDate(r.date)}
+                          </span>
+                          {formatWalletTxnTime(r, s.timezone) && (
+                            <span className="text-[11px] text-[#8A8A98] font-mono block mt-0.5">
+                              {formatWalletTxnTime(r, s.timezone)}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="py-3 px-6">
                           <StatusBadge status={r.status} />
@@ -1183,10 +1201,17 @@ function CreditsPage() {
                       </span>
                     </div>
                     <div className="p-3 rounded-lg bg-[#0C0F0E] border border-[rgba(255,255,255,0.06)]">
-                      <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">Date</span>
-                      <span className="text-sm font-medium text-[#EEF2F0]">
+                      <span className="text-[11px] text-[#8A8A98] uppercase block mb-1">
+                        Date &amp; Time
+                      </span>
+                      <span className="text-sm font-medium text-[#EEF2F0] block">
                         {fmtDate(selectedDebitDetail.date)}
                       </span>
+                      {formatWalletTxnTime(selectedDebitDetail, s.timezone) && (
+                        <span className="text-xs text-[#8A8A98] font-mono block mt-0.5">
+                          {formatWalletTxnTime(selectedDebitDetail, s.timezone)}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="space-y-1.5">

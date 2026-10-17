@@ -14,6 +14,7 @@ import {
   Settings,
   UserCog,
   FileText,
+  Swords,
 } from "lucide-react";
 import {
   Sidebar,
@@ -57,12 +58,15 @@ export function AppSidebar() {
   const canCredits = useCanModule("credits");
   const canSchedules = useCanModule("schedules");
   const canLeagueGroups = useCanModule("league_groups");
+  const canFixtures = useCanModule("fixtures");
   const canTrainings = useCanModule("trainings");
   const canTransactions = useCanModule("transactions");
   const canApprovals = useCanModule("approvals");
   const canEmailTemplates = useCanModule("email_templates");
   const canSettings = useCanModule("settings");
   const canAdminManagement = useCanModule("admin_management");
+  const leagueGroups = useStore((s) => s.leagueGroups);
+  const hasGroupMembership = Array.isArray(leagueGroups) && leagueGroups.length > 0;
 
   const closeSidebarMobile = () => {
     if (isMobile) {
@@ -104,6 +108,12 @@ export function AppSidebar() {
       label: "Groups",
       icon: Users,
       show: isMember || (isAdmin && canLeagueGroups),
+    },
+    {
+      to: "/fixtures",
+      label: "Fixtures",
+      icon: Swords,
+      show: (isAdmin && canFixtures) || (isMember && hasGroupMembership),
     },
     {
       to: "/transactions",

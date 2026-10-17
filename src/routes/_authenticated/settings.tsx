@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
 
-type EditableListKey = "locations" | "coaches" | "adultGrades" | "juniorGrades" | "playerPositions";
+type EditableListKey = "locations" | "coaches" | "adultGrades" | "juniorGrades" | "playerPositions" | "matchTypes" | "venueTypes";
 
 function EditableConfigRow({
   value,
@@ -162,11 +162,23 @@ function SettingsPage() {
   const [skipCreditConsumption, setSkipCreditConsumption] = useState(store.skipCreditConsumption);
   const [locations, setLocations] = useState<string[]>(store.locations);
   const [coaches, setCoaches] = useState<string[]>(store.coaches);
+  const [matchTypes, setMatchTypes] = useState<string[]>(store.matchTypes);
+  const [venueTypes, setVenueTypes] = useState<string[]>(store.venueTypes);
+  const [newMatchType, setNewMatchType] = useState("");
+  const [newVenueType, setNewVenueType] = useState("");
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
 
   useEffect(() => {
     setCoaches(store.coaches);
   }, [store.coaches]);
+
+  useEffect(() => {
+    setMatchTypes(store.matchTypes);
+  }, [store.matchTypes]);
+
+  useEffect(() => {
+    setVenueTypes(store.venueTypes);
+  }, [store.venueTypes]);
 
   useEffect(() => {
     setSkipCreditConsumption(store.skipCreditConsumption);
@@ -680,6 +692,74 @@ function SettingsPage() {
     });
   };
 
+  const handleAddMatchType = () => {
+    const trimmed = newMatchType.trim();
+    if (!trimmed) return;
+    if (matchTypes.includes(trimmed)) {
+      toast.error("Match type already exists");
+      return;
+    }
+    const updated = [...matchTypes, trimmed];
+    setMatchTypes(updated);
+    setNewMatchType("");
+    saveUpdatedList({ matchTypes: updated }, "Match type added");
+  };
+
+  const handleDeleteMatchType = (m: string) => {
+    const fixtureCount = (store.fixtures || []).filter((f) => f.matchType === m).length;
+    setDeleteRequest({
+      title: "Delete match type",
+      entityName: m,
+      related: [
+        {
+          label: fixtureCount === 1 ? "fixture" : "fixtures",
+          count: fixtureCount,
+        },
+      ],
+      warning:
+        fixtureCount > 0 ? "This match type is used in existing fixtures." : undefined,
+      onConfirm: async () => {
+        const updated = matchTypes.filter((item) => item !== m);
+        setMatchTypes(updated);
+        saveUpdatedList({ matchTypes: updated }, "Match type removed");
+      },
+    });
+  };
+
+  const handleAddVenueType = () => {
+    const trimmed = newVenueType.trim();
+    if (!trimmed) return;
+    if (venueTypes.includes(trimmed)) {
+      toast.error("Venue type already exists");
+      return;
+    }
+    const updated = [...venueTypes, trimmed];
+    setVenueTypes(updated);
+    setNewVenueType("");
+    saveUpdatedList({ venueTypes: updated }, "Venue type added");
+  };
+
+  const handleDeleteVenueType = (v: string) => {
+    const fixtureCount = (store.fixtures || []).filter((f) => f.venueType === v).length;
+    setDeleteRequest({
+      title: "Delete venue type",
+      entityName: v,
+      related: [
+        {
+          label: fixtureCount === 1 ? "fixture" : "fixtures",
+          count: fixtureCount,
+        },
+      ],
+      warning:
+        fixtureCount > 0 ? "This venue type is used in existing fixtures." : undefined,
+      onConfirm: async () => {
+        const updated = venueTypes.filter((item) => item !== v);
+        setVenueTypes(updated);
+        saveUpdatedList({ venueTypes: updated }, "Venue type removed");
+      },
+    });
+  };
+
   const handleDeleteLocation = (loc: string) => {
     const scheduleCount = store.schedules.filter((sch) => sch.location === loc).length;
     const trainingCount = store.trainings.filter((t) => t.location === loc).length;
@@ -917,6 +997,8 @@ function SettingsPage() {
       holidayItems?: HolidayItem[];
       playerPositions?: string[];
       playerPositionItems?: PlayerPositionItem[];
+      matchTypes?: string[];
+      venueTypes?: string[];
     },
     successMsg: string,
   ) => {
@@ -928,6 +1010,8 @@ function SettingsPage() {
       // Revert states from store
       setLocations(store.locations);
       setCoaches(store.coaches);
+      setMatchTypes(store.matchTypes);
+      setVenueTypes(store.venueTypes);
       setAdultGrades(store.adultGrades);
       setJuniorGrades(store.juniorGrades);
       setHolidayItems(store.holidayItems);
@@ -1863,6 +1947,102 @@ function SettingsPage() {
                         onSave={() => renameListItem("coaches", coaches, setCoaches, "Coach")}
                         onCancel={cancelEditing}
                         onDelete={() => handleDeleteCoach(c)}
+                      />
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Match Types Manager */}
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
+              <CardHeader className="pb-3 border-b border-white/[0.03]">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                  Match Types
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 flex-1 flex flex-col">
+                <div className="flex gap-2 mb-4">
+                  <Input
+                    value={newMatchType}
+                    onChange={(e) => setNewMatchType(e.target.value)}
+                    placeholder="Add match type (e.g. League, Friendly)"
+                    onKeyDown={(e) => e.key === "Enter" && handleAddMatchType()}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddMatchType}
+                    className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                  {matchTypes.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">
+                      No match types configured.
+                    </div>
+                  ) : (
+                    matchTypes.map((m) => (
+                      <EditableConfigRow
+                        key={m}
+                        value={m}
+                        isEditing={editingList === "matchTypes" && editingOriginal === m}
+                        editValue={editingValue}
+                        onEditValueChange={setEditingValue}
+                        onStartEdit={() => startEditing("matchTypes", m)}
+                        onSave={() => renameListItem("matchTypes", matchTypes, setMatchTypes, "Match type")}
+                        onCancel={cancelEditing}
+                        onDelete={() => handleDeleteMatchType(m)}
+                      />
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Venue Types Manager */}
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
+              <CardHeader className="pb-3 border-b border-white/[0.03]">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                  Venue Types
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 flex-1 flex flex-col">
+                <div className="flex gap-2 mb-4">
+                  <Input
+                    value={newVenueType}
+                    onChange={(e) => setNewVenueType(e.target.value)}
+                    placeholder="Add venue type (e.g. Home, Away)"
+                    onKeyDown={(e) => e.key === "Enter" && handleAddVenueType()}
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddVenueType}
+                    className="h-9 px-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer shrink-0"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                  {venueTypes.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground/60">
+                      No venue types configured.
+                    </div>
+                  ) : (
+                    venueTypes.map((v) => (
+                      <EditableConfigRow
+                        key={v}
+                        value={v}
+                        isEditing={editingList === "venueTypes" && editingOriginal === v}
+                        editValue={editingValue}
+                        onEditValueChange={setEditingValue}
+                        onStartEdit={() => startEditing("venueTypes", v)}
+                        onSave={() => renameListItem("venueTypes", venueTypes, setVenueTypes, "Venue type")}
+                        onCancel={cancelEditing}
+                        onDelete={() => handleDeleteVenueType(v)}
                       />
                     ))
                   )}

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Helpers\PermissionHelper;
+use App\Helpers\WalletHelper;
 use App\Http\Controllers\Controller;
 use App\Models\LeagueGroup;
 use App\Models\Member;
@@ -14,7 +15,13 @@ class LeagueGroupController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $groups = LeagueGroup::with('members')->orderBy('name')->get();
+
+        // Enforce cleanup of any non-club members from group memberships
+        \Illuminate\Support\Facades\DB::table('league_group_member')
+            ->whereIn('member_id', Member::where('membership', false)->pluck('id'))
+            ->delete();
+
+        $groups = LeagueGroup::with(['members.parentMember'])->orderBy('name')->get();
 
         // Members only see groups they (or their family profiles) belong to
         if (!$user || $user->role !== 'admin') {
@@ -50,15 +57,16 @@ class LeagueGroupController extends Controller
             'memberPositions.*'     => 'nullable|string|max:255',
         ]);
 
+        $targetGroupType = strtolower($request->groupType);
+
         if ($request->has('memberIds') && !empty($request->memberIds)) {
-            $invalidMembers = Member::whereIn('id', $request->memberIds)
-                ->where(function ($query) use ($request) {
-                    $query->where('member_type', '!=', $request->groupType)
-                          ->orWhere('membership', false);
-                })
-                ->exists();
-            
-            if ($invalidMembers) {
+            $uniqueMemberIds = array_values(array_unique($request->memberIds));
+            $validCount = Member::whereIn('id', $uniqueMemberIds)
+                ->whereRaw('LOWER(member_type) = ?', [$targetGroupType])
+                ->where('membership', true)
+                ->count();
+
+            if ($validCount !== count($uniqueMemberIds)) {
                 return response()->json(['message' => 'All members must be club members and belong to the selected group type.'], 422);
             }
         }
@@ -75,7 +83,7 @@ class LeagueGroupController extends Controller
             $group->members()->sync($syncData);
         }
 
-        return response()->json($this->formatGroup($group->load('members')), 201);
+        return response()->json($this->formatGroup($group->load(['members.parentMember'])), 201);
     }
 
     public function update(Request $request, $id)
@@ -101,17 +109,31 @@ class LeagueGroupController extends Controller
         ]);
 
         $currentGroupType = $request->has('groupType') ? $request->groupType : $group->group_type;
+        $targetGroupType = strtolower($currentGroupType);
 
-        if ($request->has('memberIds') && !empty($request->memberIds)) {
-            $invalidMembers = Member::whereIn('id', $request->memberIds)
-                ->where(function ($query) use ($currentGroupType) {
-                    $query->where('member_type', '!=', $currentGroupType)
-                          ->orWhere('membership', false);
-                })
-                ->exists();
-            
-            if ($invalidMembers) {
-                return response()->json(['message' => 'All members must be club members and belong to the selected group type.'], 422);
+        if ($request->has('memberIds')) {
+            $uniqueMemberIds = array_values(array_unique($request->memberIds ?? []));
+            if (!empty($uniqueMemberIds)) {
+                $validCount = Member::whereIn('id', $uniqueMemberIds)
+                    ->whereRaw('LOWER(member_type) = ?', [$targetGroupType])
+                    ->where('membership', true)
+                    ->count();
+
+                if ($validCount !== count($uniqueMemberIds)) {
+                    return response()->json(['message' => 'All members must be club members and belong to the selected group type.'], 422);
+                }
+            }
+        } elseif ($request->has('groupType') && strtolower((string) $group->group_type) !== $targetGroupType) {
+            $existingIds = $group->members()->pluck('members.id')->all();
+            if (!empty($existingIds)) {
+                $validCount = Member::whereIn('id', $existingIds)
+                    ->whereRaw('LOWER(member_type) = ?', [$targetGroupType])
+                    ->where('membership', true)
+                    ->count();
+
+                if ($validCount !== count($existingIds)) {
+                    return response()->json(['message' => 'All members must be club members and belong to the selected group type.'], 422);
+                }
             }
         }
 
@@ -125,7 +147,7 @@ class LeagueGroupController extends Controller
             $group->members()->sync($syncData);
         }
 
-        return response()->json($this->formatGroup($group->load('members')));
+        return response()->json($this->formatGroup($group->load(['members.parentMember'])));
     }
 
     public function destroy(Request $request, $id)
@@ -169,12 +191,14 @@ class LeagueGroupController extends Controller
         foreach ($g->members as $member) {
             $memberIds[]                  = $member->id;
             $memberPositions[$member->id] = $member->pivot->position ?? null;
+            $walletMember                 = WalletHelper::resolveMember($member);
             $members[] = [
-                'id'        => $member->id,
-                'firstName' => $member->first_name,
-                'lastName'  => $member->last_name,
-                'grade'     => $member->grade,
-                'position'  => $member->pivot->position ?? null,
+                'id'            => $member->id,
+                'firstName'     => $member->first_name,
+                'lastName'      => $member->last_name,
+                'grade'         => $member->grade,
+                'position'      => $member->pivot->position ?? null,
+                'walletBalance' => (float) ($walletMember->credit ?? 0.0),
             ];
         }
 

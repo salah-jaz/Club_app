@@ -75,6 +75,8 @@ class SettingController extends Controller
                 'skipLeagueFee' => (bool) $p->skip_league_fee,
             ])->values()->all(),
             'coaches' => json_decode($dbSettings->get('coaches') ?? '', true) ?: ['Coach Lee', 'Coach Alex', 'Coach Sarah'],
+            'matchTypes' => json_decode($dbSettings->get('match_types') ?? '', true) ?: ['Friendly', 'League', 'Tournament', 'Practice'],
+            'venueTypes' => json_decode($dbSettings->get('venue_types') ?? '', true) ?: ['Home', 'Away'],
         ];
 
         foreach ($this->settingKeys as $camel => $snake) {
@@ -166,6 +168,16 @@ class SettingController extends Controller
         if ($request->has('coaches')) {
             $newCoaches = array_values(array_filter($request->coaches ?? [], fn($c) => is_string($c) && trim($c) !== ''));
             Setting::updateOrCreate(['key' => 'coaches'], ['value' => json_encode($newCoaches)]);
+        }
+
+        if ($request->has('matchTypes')) {
+            $newMatchTypes = array_values(array_filter($request->matchTypes ?? [], fn($m) => is_string($m) && trim($m) !== ''));
+            Setting::updateOrCreate(['key' => 'match_types'], ['value' => json_encode($newMatchTypes)]);
+        }
+
+        if ($request->has('venueTypes')) {
+            $newVenueTypes = array_values(array_filter($request->venueTypes ?? [], fn($v) => is_string($v) && trim($v) !== ''));
+            Setting::updateOrCreate(['key' => 'venue_types'], ['value' => json_encode($newVenueTypes)]);
         }
 
         if ($request->has('locations')) {

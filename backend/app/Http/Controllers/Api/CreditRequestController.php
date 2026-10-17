@@ -72,7 +72,7 @@ class CreditRequestController extends Controller
             'member_id' => $request->memberId,
             'type' => 'credit',
             'amount' => $request->amount,
-            'date' => $request->date,
+            'date' => substr(trim($request->date), 0, 10),
             'status' => $isAdmin ? 'approved' : 'created',
         ]);
 
@@ -82,6 +82,8 @@ class CreditRequestController extends Controller
             $walletMember->credit += $request->amount;
             $walletMember->save();
 
+            $txnDateTime = $this->buildTransactionTimestamp($request->date);
+
             // Ledger entry recorded against the wallet member.
             $transaction = Transaction::create([
                 'id' => 't_' . Str::random(8),
@@ -90,7 +92,7 @@ class CreditRequestController extends Controller
                 'type' => 'credit',
                 'amount' => $request->amount,
                 'description' => 'Credit top-up (Admin direct)',
-                'date' => $request->date,
+                'date' => $txnDateTime,
             ]);
 
             try {
@@ -114,7 +116,7 @@ class CreditRequestController extends Controller
             'member_id' => $request->memberId,
             'type' => 'refund',
             'amount' => $request->amount,
-            'date' => $request->date,
+            'date' => substr(trim($request->date), 0, 10),
             'status' => 'approved',
         ]);
 
@@ -123,6 +125,8 @@ class CreditRequestController extends Controller
         $walletMember->credit += $request->amount;
         $walletMember->save();
 
+        $txnDateTime = $this->buildTransactionTimestamp($request->date);
+
         $transaction = Transaction::create([
             'id' => 't_' . Str::random(8),
             'member_id' => $walletMember->id,
@@ -130,7 +134,7 @@ class CreditRequestController extends Controller
             'type' => 'refund',
             'amount' => $request->amount,
             'description' => 'Refund (Admin)',
-            'date' => $request->date,
+            'date' => $txnDateTime,
         ]);
 
         try {
@@ -186,13 +190,15 @@ class CreditRequestController extends Controller
             'member_id' => $request->memberId,
             'type' => 'debit',
             'amount' => $request->amount,
-            'date' => $request->date,
+            'date' => substr(trim($request->date), 0, 10),
             'status' => 'approved',
             'reason' => $reason,
         ]);
 
         $walletMember->credit -= $request->amount;
         $walletMember->save();
+
+        $txnDateTime = $this->buildTransactionTimestamp($request->date);
 
         $debitTxn = Transaction::create([
             'id' => 't_' . Str::random(8),
@@ -202,7 +208,7 @@ class CreditRequestController extends Controller
             'amount' => $request->amount,
             'description' => $reason,
             'reason' => $reason,
-            'date' => $request->date,
+            'date' => $txnDateTime,
         ]);
 
         try {
@@ -398,6 +404,23 @@ class CreditRequestController extends Controller
         });
     }
 
+    /**
+     * Build the transaction datetime combining the selected date with the actual creation time
+     * in the club's configured timezone.
+     */
+    private function buildTransactionTimestamp(string $dateString): \Carbon\Carbon
+    {
+        $tz = \App\Helpers\SessionTimingHelper::clubTimezone();
+        $now = \App\Helpers\SessionTimingHelper::now();
+        $dateOnly = substr(trim($dateString), 0, 10);
+
+        try {
+            return \Carbon\Carbon::createFromFormat('Y-m-d H:i:s', $dateOnly . ' ' . $now->format('H:i:s'), $tz);
+        } catch (\Throwable $e) {
+            return $now;
+        }
+    }
+
     private function formatRequest(CreditRequest|\stdClass $r)
     {
         $type = $r->type ?? 'credit';
@@ -405,6 +428,21 @@ class CreditRequestController extends Controller
         if (!in_array($type, ['credit', 'debit', 'refund', 'expense'])) {
             $type = 'credit';
         }
+
+        $tz = \App\Helpers\SessionTimingHelper::clubTimezone();
+        $createdAtIso = null;
+        if (isset($r->created_at)) {
+            if ($r->created_at instanceof \DateTimeInterface) {
+                $createdAtIso = \Carbon\Carbon::instance($r->created_at)->setTimezone($tz)->toIso8601String();
+            } elseif (is_string($r->created_at) && trim($r->created_at) !== '') {
+                try {
+                    $createdAtIso = \Carbon\Carbon::parse($r->created_at, $tz)->setTimezone($tz)->toIso8601String();
+                } catch (\Throwable $e) {
+                    $createdAtIso = null;
+                }
+            }
+        }
+
         return [
             'id' => $r->id,
             'memberId' => $r->member_id,
@@ -413,7 +451,7 @@ class CreditRequestController extends Controller
             'type' => $type,
             'status' => $r->status,
             'reason' => $r->reason,
-            'createdAt' => $r->created_at instanceof \DateTimeInterface ? $r->created_at->format('c') : (string) $r->created_at,
+            'createdAt' => $createdAtIso,
         ];
     }
 }
