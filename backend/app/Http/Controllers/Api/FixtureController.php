@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Helpers\PermissionHelper;
+use App\Helpers\SessionTimingHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Fixture;
 use App\Models\LeagueGroup;
@@ -151,10 +152,13 @@ class FixtureController extends Controller
         $oppositionClub = $request->input('oppositionClub') ?? $request->input('opposition_club');
         $teamName = $request->input('teamName') ?? $request->input('team_name');
 
+        SessionTimingHelper::applyClubTimezone();
+        $date = SessionTimingHelper::parseDateTime($request->date)->format('Y-m-d H:i:s');
+
         $fixture = Fixture::create([
             'id' => 'fix_' . Str::random(8),
             'name' => $request->name,
-            'date' => \Carbon\Carbon::parse($request->date),
+            'date' => $date,
             'league_group_id' => $targetGroupId,
             'match_type' => $matchType,
             'venue_type' => $venueType,
@@ -266,9 +270,13 @@ class FixtureController extends Controller
             'visiting_total_points' => 'nullable|integer|min:0',
         ]);
 
+        SessionTimingHelper::applyClubTimezone();
+
         $updates = [];
         if ($request->has('name')) $updates['name'] = $request->input('name');
-        if ($request->has('date')) $updates['date'] = \Carbon\Carbon::parse($request->input('date'));
+        if ($request->has('date')) {
+            $updates['date'] = SessionTimingHelper::parseDateTime($request->input('date'))->format('Y-m-d H:i:s');
+        }
         if ($targetGroupId !== null) $updates['league_group_id'] = $targetGroupId;
 
         $matchType = $request->input('matchType') ?? $request->input('match_type');
@@ -353,7 +361,8 @@ class FixtureController extends Controller
     {
         $dateStr = '';
         if ($f->date) {
-            $parsed = \Carbon\Carbon::parse($f->date);
+            SessionTimingHelper::applyClubTimezone();
+            $parsed = SessionTimingHelper::parseDateTime($f->date);
             $dateStr = $parsed->format('Y-m-d\TH:i:s');
         }
 

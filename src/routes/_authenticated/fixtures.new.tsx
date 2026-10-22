@@ -241,8 +241,14 @@ function NewFixturePage() {
                 required
                 value={f.name}
                 onChange={(e) => {
-                  setNameTouched(true);
-                  set("name", e.target.value);
+                  const val = e.target.value;
+                  if (!val.trim()) {
+                    setNameTouched(false);
+                    set("name", scheduleWhen?.label || "");
+                  } else {
+                    setNameTouched(true);
+                    set("name", val);
+                  }
                 }}
                 placeholder="Friday · 18 Jul 2026 · 7:00 PM"
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"

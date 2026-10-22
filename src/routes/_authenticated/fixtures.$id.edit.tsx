@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCurrentUser, useStore } from "@/lib/store";
-import { parseScheduleDateTime } from "@/lib/format";
+import { parseScheduleDateTime, formatToDateTimeLocal } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,23 +33,7 @@ export const Route = createFileRoute("/_authenticated/fixtures/$id/edit")({
   component: EditFixturePage,
 });
 
-/** Normalize any incoming date/datetime string into the HTML/picker "YYYY-MM-DDTHH:mm" format without timezone drift. */
-function formatToDateTimeLocal(dateStr: string | null | undefined): string {
-  if (!dateStr) return "";
-  const str = String(dateStr).trim();
-  const match = str.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2})/);
-  if (match) {
-    return `${match[1]}T${match[2]}`;
-  }
-  const d = new Date(str);
-  if (Number.isNaN(d.getTime())) return "";
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const hours = String(d.getHours()).padStart(2, "0");
-  const minutes = String(d.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
+
 
 const DEFAULT_MATCH_TYPES = ["Friendly", "League", "Tournament", "Practice"];
 const DEFAULT_VENUE_TYPES = ["Home", "Away"];
@@ -84,6 +68,7 @@ function EditFixturePage() {
   const [loading, setLoading] = useState(!fixture);
   const [notFound, setNotFound] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isNameCustomized, setIsNameCustomized] = useState(false);
 
   const [f, setF] = useState({
     name: "",
@@ -172,6 +157,18 @@ function EditFixturePage() {
     if (isNewFixture || isMissingData || isUpdatedFixture) {
       lastInitializedFixtureId.current = fixture.id;
       lastFixtureUpdatedAt.current = fixture.updatedAt;
+
+      const initialParsed = parseScheduleDateTime(fixtureDate);
+      const isAutoName =
+        !fixtureName ||
+        (initialParsed && fixtureName.trim() === initialParsed.label.trim()) ||
+        (initialParsed &&
+          new RegExp(
+            `^${initialParsed.day}\\s*·.*·\\s*${initialParsed.time}$`,
+            "i",
+          ).test(fixtureName.trim()));
+      setIsNameCustomized(!isAutoName);
+
       setF({
         name: fixtureName,
         date: fixtureDate,
@@ -304,9 +301,11 @@ function EditFixturePage() {
   const scheduleWhen = parseScheduleDateTime(f.date);
 
   const onDateChange = (value: string) => {
+    const parsed = parseScheduleDateTime(value);
     setF((p) => ({
       ...p,
       date: value,
+      name: !isNameCustomized && parsed ? parsed.label : p.name,
     }));
   };
 
@@ -457,9 +456,23 @@ function EditFixturePage() {
               <Input
                 required
                 value={f.name}
-                onChange={(e) => set("name", e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val.trim()) {
+                    setIsNameCustomized(false);
+                    set("name", scheduleWhen?.label || "");
+                  } else {
+                    setIsNameCustomized(true);
+                    set("name", val);
+                  }
+                }}
                 className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
               />
+              {!isNameCustomized && scheduleWhen && (
+                <p className="text-[11px] text-[#8A8A98]">
+                  Auto-filled from the selected date &amp; time. Edit anytime.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
