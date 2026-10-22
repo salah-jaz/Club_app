@@ -832,4 +832,48 @@ class FixtureModuleTest extends TestCase
         ]);
         $unauthRes->assertStatus(403);
     }
+
+    public function test_fixture_date_and_time_persists_in_club_timezone(): void
+    {
+        Setting::updateOrCreate(['key' => 'timezone'], ['value' => 'Europe/Dublin']);
+        \App\Helpers\SessionTimingHelper::applyClubTimezone();
+
+        // 1. Admin creates a fixture for December 1, 2026, at 1:00 PM
+        $createRes = $this->actingAs($this->admin)->postJson('/api/fixtures', [
+            'name' => 'Tuesday · Dec 1, 2026 · 1:00 PM',
+            'date' => '2026-12-01T13:00',
+            'leagueGroupId' => $this->group1->id,
+            'matchType' => 'League',
+            'venueType' => 'Home',
+            'oppositionClub' => 'Dublin City BC',
+            'teamName' => 'Home Tigers',
+            'grade' => 'Division 1',
+            'status' => 'Opened',
+        ]);
+        $createRes->assertCreated();
+        $fixtureId = $createRes->json('id');
+        $this->assertEquals('2026-12-01T13:00:00', $createRes->json('date'));
+
+        // Verify stored in DB
+        $fixture = Fixture::find($fixtureId);
+        $this->assertEquals('2026-12-01 13:00:00', $fixture->date);
+
+        // 2. Member who belongs to group1 can view exact same date
+        $showRes = $this->actingAs($this->memberUserWithGroup)->getJson('/api/fixtures/' . $fixtureId);
+        $showRes->assertOk();
+        $this->assertEquals('2026-12-01T13:00:00', $showRes->json('date'));
+
+        // 3. Edit fixture to December 2, 2026, at 2:00 PM
+        $editRes = $this->actingAs($this->memberUserWithGroup)->patchJson('/api/fixtures/' . $fixtureId, [
+            'name' => 'Wednesday · Dec 2, 2026 · 2:00 PM',
+            'date' => '2026-12-02T14:00',
+        ]);
+        $editRes->assertOk();
+        $this->assertEquals('2026-12-02T14:00:00', $editRes->json('date'));
+
+        // Verify in DB and fresh retrieval
+        $fixture->refresh();
+        $this->assertEquals('2026-12-02 14:00:00', $fixture->date);
+        $this->assertEquals('Wednesday · Dec 2, 2026 · 2:00 PM', $fixture->name);
+    }
 }

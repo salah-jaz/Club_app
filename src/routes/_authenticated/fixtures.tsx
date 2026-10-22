@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SearchFilterBar, useSearchFilters } from "@/components/SearchFilterBar";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDateTime, formatToDateTimeLocal } from "@/lib/format";
 import {
   Plus,
   Swords,
@@ -93,7 +93,9 @@ function endOfWeek(d: Date) {
 
 function matchesDateFilter(dateStr: string, filter: string) {
   if (filter === "all") return true;
-  const date = new Date(dateStr);
+  const localStr = formatToDateTimeLocal(dateStr);
+  if (!localStr) return true;
+  const date = new Date(localStr);
   const now = new Date();
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
@@ -269,7 +271,7 @@ function FixturesList() {
     list = [...list].sort((a, b) => {
       switch (sortBy) {
         case "date-desc":
-          return new Date(b.date).getTime() - new Date(a.date).getTime();
+          return formatToDateTimeLocal(b.date).localeCompare(formatToDateTimeLocal(a.date));
         case "name-asc":
           return a.name.localeCompare(b.name);
         case "name-desc":
@@ -278,7 +280,7 @@ function FixturesList() {
           return a.status.localeCompare(b.status);
         case "date-asc":
         default:
-          return new Date(a.date).getTime() - new Date(b.date).getTime();
+          return formatToDateTimeLocal(a.date).localeCompare(formatToDateTimeLocal(b.date));
       }
     });
 
