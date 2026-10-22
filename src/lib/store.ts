@@ -413,7 +413,7 @@ export const useStore = create<State>((set, get) => ({
   portalDescription:
     "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
   currency: "$",
-  timezone: "Asia/Kolkata",
+  timezone: "Europe/Dublin",
   mailHost: "",
   mailPort: "",
   mailUsername: "",
@@ -480,7 +480,7 @@ export const useStore = create<State>((set, get) => ({
           settings.portalDescription ||
           "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
         currency: settings.currency || "$",
-        timezone: settings.timezone || "Asia/Kolkata",
+        timezone: settings.timezone || "Europe/Dublin",
         mailHost: settings.mailHost || "",
         mailPort: settings.mailPort || "",
         mailUsername: settings.mailUsername || "",
@@ -728,7 +728,7 @@ export const useStore = create<State>((set, get) => ({
           settings.portalDescription ||
           "Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.",
         currency: settings.currency || "$",
-        timezone: settings.timezone || "Asia/Kolkata",
+        timezone: settings.timezone || "Europe/Dublin",
         mailHost: settings.mailHost || "",
         mailPort: settings.mailPort || "",
         mailUsername: settings.mailUsername || "",
@@ -1285,7 +1285,7 @@ export const useStore = create<State>((set, get) => ({
       appLogoText: updated.appLogoText,
       appLogoBase64: updated.appLogoBase64,
       currency: updated.currency,
-      timezone: updated.timezone || "Asia/Kolkata",
+      timezone: updated.timezone || "Europe/Dublin",
       mailHost: updated.mailHost,
       mailPort: updated.mailPort,
       mailUsername: updated.mailUsername,

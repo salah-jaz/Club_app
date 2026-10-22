@@ -876,4 +876,48 @@ class FixtureModuleTest extends TestCase
         $this->assertEquals('2026-12-02 14:00:00', $fixture->date);
         $this->assertEquals('Wednesday · Dec 2, 2026 · 2:00 PM', $fixture->name);
     }
+
+    public function test_january_1_2027_2pm_fixture_reproduction(): void
+    {
+        Setting::updateOrCreate(['key' => 'timezone'], ['value' => 'Europe/Dublin']);
+        \App\Helpers\SessionTimingHelper::applyClubTimezone();
+
+        // 1. Admin creates a fixture for January 1, 2027, at 2:00 PM (14:00)
+        $createRes = $this->actingAs($this->admin)->postJson('/api/fixtures', [
+            'name' => 'Friday · Jan 1, 2027 · 2:00 PM',
+            'date' => '2027-01-01T14:00',
+            'leagueGroupId' => $this->group1->id,
+            'matchType' => 'Friendly',
+            'venueType' => 'Home',
+            'oppositionClub' => 'Opposition Club',
+            'teamName' => 'Home Team',
+            'grade' => 'Beginner',
+            'status' => 'Opened',
+        ]);
+        $createRes->assertCreated();
+        $fixtureId = $createRes->json('id');
+        $this->assertEquals('2027-01-01T14:00:00', $createRes->json('date'));
+        $this->assertEquals('Friday · Jan 1, 2027 · 2:00 PM', $createRes->json('name'));
+
+        // Verify stored directly in DB as 2027-01-01 14:00:00 without shift
+        $fixture = Fixture::find($fixtureId);
+        $this->assertEquals('2027-01-01 14:00:00', $fixture->date);
+
+        // 2. Member view
+        $showRes = $this->actingAs($this->memberUserWithGroup)->getJson('/api/fixtures/' . $fixtureId);
+        $showRes->assertOk();
+        $this->assertEquals('2027-01-01T14:00:00', $showRes->json('date'));
+
+        // 3. Member edits it to January 2, 2027, at 3:30 PM (15:30)
+        $editRes = $this->actingAs($this->memberUserWithGroup)->patchJson('/api/fixtures/' . $fixtureId, [
+            'name' => 'Saturday · Jan 2, 2027 · 3:30 PM',
+            'date' => '2027-01-02T15:30',
+        ]);
+        $editRes->assertOk();
+        $this->assertEquals('2027-01-02T15:30:00', $editRes->json('date'));
+
+        $fixture->refresh();
+        $this->assertEquals('2027-01-02 15:30:00', $fixture->date);
+        $this->assertEquals('Saturday · Jan 2, 2027 · 3:30 PM', $fixture->name);
+    }
 }
