@@ -129,6 +129,15 @@ export interface Fixture {
   teamName: string;
   grade: string;
   status: FixtureStatus;
+  result?: "Win" | "Loss" | null;
+  homeTeamName?: string | null;
+  homeTotalMatches?: number | string | null;
+  homeTotalGames?: number | string | null;
+  homeTotalPoints?: number | string | null;
+  visitingTeamName?: string | null;
+  visitingTotalMatches?: number | string | null;
+  visitingTotalGames?: number | string | null;
+  visitingTotalPoints?: number | string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -259,3 +268,21 @@ export interface EmailTemplateDefinition {
   variables: string[];
   is_enabled?: boolean;
 }
+
+export type PolicyType = "member_policy" | "privacy_policy";
+
+export interface PolicyDocument {
+  id?: number | null;
+  type: PolicyType;
+  title: string;
+  fileName?: string | null;
+  fileSize?: number | null;
+  formattedSize?: string | null;
+  mimeType?: string | null;
+  uploadedBy?: string | null;
+  hasDocument: boolean;
+  updatedAt?: string | null;
+  previewUrl?: string | null;
+  downloadUrl?: string | null;
+}
+

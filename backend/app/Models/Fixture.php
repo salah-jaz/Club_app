@@ -16,6 +16,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $team_name
  * @property string $grade
  * @property string $status
+ * @property string|null $result
+ * @property string|null $home_team_name
+ * @property int|null $home_total_matches
+ * @property int|null $home_total_games
+ * @property int|null $home_total_points
+ * @property string|null $visiting_team_name
+ * @property int|null $visiting_total_matches
+ * @property int|null $visiting_total_games
+ * @property int|null $visiting_total_points
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  */
@@ -35,6 +44,15 @@ class Fixture extends Model
         'team_name',
         'grade',
         'status',
+        'result',
+        'home_team_name',
+        'home_total_matches',
+        'home_total_games',
+        'home_total_points',
+        'visiting_team_name',
+        'visiting_total_matches',
+        'visiting_total_games',
+        'visiting_total_points',
     ];
 
     public function leagueGroup(): BelongsTo

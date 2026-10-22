@@ -78,6 +78,19 @@ class AuthController extends Controller
             'password' => 'required|string|min:6',
         ]);
 
+        $privacyAccepted = $request->boolean('agreedToPrivacy')
+            || $request->boolean('privacy_policy_accepted')
+            || $request->boolean('agreed_to_privacy')
+            || $request->input('agreedToPrivacy') === true
+            || $request->input('agreedToPrivacy') === '1'
+            || $request->input('agreedToPrivacy') === 1;
+
+        if (!$privacyAccepted) {
+            throw ValidationException::withMessages([
+                'agreedToPrivacy' => ['You must agree to the Club Privacy Policy to continue.'],
+            ]);
+        }
+
         $user = User::create([
             'id' => 'u_' . Str::random(8),
             'first_name' => $request->firstName,

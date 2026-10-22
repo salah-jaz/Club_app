@@ -85,6 +85,7 @@ class TrainingInvitationSingleEmailTest extends TestCase
             'mobile' => '+1555444333',
             'address' => '123 Main St',
             'password' => 'secret123',
+            'agreedToPrivacy' => true,
         ]);
 
         $response->assertStatus(201);

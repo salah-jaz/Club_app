@@ -17,6 +17,7 @@ use App\Models\PlayerPosition;
 use App\Models\Setting;
 use App\Helpers\MailHelper;
 use App\Helpers\PermissionHelper;
+use App\Http\Controllers\Api\PolicyController;
 use Illuminate\Http\Request;
 
 class SettingController extends Controller
@@ -133,6 +134,7 @@ class SettingController extends Controller
             $mergedTemplates[$key] = array_merge($tpl, $custom);
         }
         $data['emailTemplates'] = $mergedTemplates;
+        $data['policies'] = PolicyController::getAllPoliciesData();
 
         return response()->json($data);
     }

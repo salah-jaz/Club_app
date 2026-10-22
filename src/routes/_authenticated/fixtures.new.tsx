@@ -32,6 +32,8 @@ function NewFixturePage() {
   const matchTypes = useStore((s) => s.matchTypes);
   const venueTypes = useStore((s) => s.venueTypes);
   const grades = useStore((s) => s.grades);
+  const adultGrades = useStore((s) => s.adultGrades);
+  const juniorGrades = useStore((s) => s.juniorGrades);
   const createFixture = useStore((s) => s.createFixture);
 
   // If member has no groups, redirect away
@@ -45,15 +47,31 @@ function NewFixturePage() {
     return leagueGroups.filter((g) => memberGroupIds.has(g.id));
   }, [isAdmin, leagueGroups, memberGroupIds]);
 
+  const availableMatchTypes = useMemo(() => {
+    return matchTypes && matchTypes.length > 0 ? matchTypes : ["Friendly", "League", "Tournament", "Practice"];
+  }, [matchTypes]);
+
+  const availableVenueTypes = useMemo(() => {
+    return venueTypes && venueTypes.length > 0 ? venueTypes : ["Home", "Away"];
+  }, [venueTypes]);
+
+  const availableGrades = useMemo(() => {
+    if (grades && grades.length > 0) return grades;
+    if ((adultGrades && adultGrades.length > 0) || (juniorGrades && juniorGrades.length > 0)) {
+      return [...(adultGrades || []), ...(juniorGrades || [])];
+    }
+    return ["A", "B", "C", "D", "Beginner", "Intermediate", "Advanced"];
+  }, [grades, adultGrades, juniorGrades]);
+
   const [f, setF] = useState({
     name: "",
     date: "",
     leagueGroupId: availableGroups[0]?.id || "",
-    matchType: matchTypes[0] || "",
-    venueType: venueTypes[0] || "Home",
+    matchType: availableMatchTypes[0] || "",
+    venueType: availableVenueTypes[0] || "Home",
     oppositionClub: "",
     teamName: "",
-    grade: grades[0] || "",
+    grade: availableGrades[0] || "",
     status: "Opened" as FixtureStatus,
   });
 
@@ -72,22 +90,22 @@ function NewFixturePage() {
   }, [availableGroups, f.leagueGroupId, set]);
 
   useEffect(() => {
-    if (!f.matchType && matchTypes.length > 0) {
-      set("matchType", matchTypes[0]);
+    if (!f.matchType && availableMatchTypes.length > 0) {
+      set("matchType", availableMatchTypes[0]);
     }
-  }, [matchTypes, f.matchType, set]);
+  }, [availableMatchTypes, f.matchType, set]);
 
   useEffect(() => {
-    if (!f.venueType && venueTypes.length > 0) {
-      set("venueType", venueTypes[0]);
+    if (!f.venueType && availableVenueTypes.length > 0) {
+      set("venueType", availableVenueTypes[0]);
     }
-  }, [venueTypes, f.venueType, set]);
+  }, [availableVenueTypes, f.venueType, set]);
 
   useEffect(() => {
-    if (!f.grade && grades.length > 0) {
-      set("grade", grades[0]);
+    if (!f.grade && availableGrades.length > 0) {
+      set("grade", availableGrades[0]);
     }
-  }, [grades, f.grade, set]);
+  }, [availableGrades, f.grade, set]);
 
   const minDateTime = datetimeLocalNow();
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
@@ -271,14 +289,14 @@ function NewFixturePage() {
                 Match Type
               </Label>
               <Select
-                value={f.matchType}
+                value={f.matchType || undefined}
                 onValueChange={(val) => set("matchType", val)}
               >
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue placeholder="Select Match Type" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  {matchTypes.map((mt) => (
+                  {availableMatchTypes.map((mt) => (
                     <SelectItem key={mt} value={mt}>
                       {mt}
                     </SelectItem>
@@ -292,14 +310,14 @@ function NewFixturePage() {
                 Venue Type
               </Label>
               <Select
-                value={f.venueType}
+                value={f.venueType || undefined}
                 onValueChange={(val) => set("venueType", val)}
               >
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue placeholder="Select Venue Type" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  {venueTypes.map((vt) => (
+                  {availableVenueTypes.map((vt) => (
                     <SelectItem key={vt} value={vt}>
                       {vt}
                     </SelectItem>
@@ -313,14 +331,14 @@ function NewFixturePage() {
                 Grade
               </Label>
               <Select
-                value={f.grade}
+                value={f.grade || undefined}
                 onValueChange={(val) => set("grade", val)}
               >
                 <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
                   <SelectValue placeholder="Select Grade" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  {grades.map((grade) => (
+                  {availableGrades.map((grade) => (
                     <SelectItem key={grade} value={grade}>
                       {grade}
                     </SelectItem>
@@ -331,7 +349,7 @@ function NewFixturePage() {
 
             <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                Team Name
+                Home / Team Name
               </Label>
               <Input
                 required
@@ -344,7 +362,7 @@ function NewFixturePage() {
 
             <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
-                Opposition Club Name
+                Opposition Club / Team Name
               </Label>
               <Input
                 required

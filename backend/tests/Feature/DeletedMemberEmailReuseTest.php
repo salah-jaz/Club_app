@@ -87,6 +87,7 @@ class DeletedMemberEmailReuseTest extends TestCase
             'mobile' => '2222222222',
             'address' => 'Somewhere',
             'password' => 'password123',
+            'agreedToPrivacy' => true,
         ])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['email']);
@@ -113,6 +114,7 @@ class DeletedMemberEmailReuseTest extends TestCase
             'mobile' => '2222222222',
             'address' => 'Somewhere',
             'password' => 'password123',
+            'agreedToPrivacy' => true,
         ])->assertCreated();
 
         $this->assertDatabaseHas('users', [
@@ -149,6 +151,7 @@ class DeletedMemberEmailReuseTest extends TestCase
             'mobile' => '4444444444',
             'address' => 'New Address',
             'password' => 'password123',
+            'agreedToPrivacy' => true,
         ])->assertCreated();
 
         $this->assertEquals(1, User::where('email', $email)->count());
@@ -199,6 +202,7 @@ class DeletedMemberEmailReuseTest extends TestCase
             'mobile' => '5555555555',
             'address' => 'Somewhere',
             'password' => 'password123',
+            'agreedToPrivacy' => true,
         ])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['email']);

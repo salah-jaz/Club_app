@@ -300,7 +300,7 @@ function downloadCsvFile(csvText: string, filename: string) {
 export const Route = createFileRoute("/_authenticated/members")({ component: MembersLayout });
 
 function MembersLayout() {
-  const user = useCurrentUser()!;
+  const user = useCurrentUser();
   const activeRole = useStore((s) => s.activeRole) || user?.role;
   const matches = useMatches();
   const isIndex = matches[matches.length - 1].routeId === Route.id;
@@ -421,15 +421,18 @@ function MemberActions({
   onRequestDelete: (member: Member) => void;
   compact?: boolean;
 }) {
-  const user = useCurrentUser()!;
+  const navigate = useNavigate();
+  const user = useCurrentUser();
   const loginAs = useStore((s) => s.loginAs);
   const isJunior = member.memberType.toLowerCase() === "junior";
+  const canEditMembers = useCan("members.edit");
+  const canDeleteMembers = useCan("members.delete");
   const canEdit =
-    (activeRole === "admin" && useCan("members.edit")) ||
-    (activeRole === "member" && (isJunior || member.userId === user.id));
+    (activeRole === "admin" && canEditMembers) ||
+    (activeRole === "member" && (isJunior || (user && member.userId === user.id)));
   const canCredits = (activeRole === "admin" || activeRole === "member") && !isJunior;
-  const canDelete = activeRole === "admin" && useCan("members.delete");
-  const canLoginAs = activeRole === "admin" && useCan("members.edit");
+  const canDelete = activeRole === "admin" && canDeleteMembers;
+  const canLoginAs = activeRole === "admin" && canEditMembers;
   const btnClass = compact
     ? "h-8 text-xs px-2"
     : "h-9 text-xs flex-1 basis-[calc(50%-0.375rem)] min-w-[100px]";
@@ -453,9 +456,10 @@ function MemberActions({
             e.stopPropagation();
             if (confirm(`Login as ${member.firstName} ${member.lastName}?`)) {
               try {
-                await loginAs(member.id);
+                await loginAs(member.id, async () => {
+                  await navigate({ to: "/dashboard", replace: true });
+                });
                 toast.success(`Logged in as ${member.firstName}`);
-                window.location.href = "/dashboard";
               } catch (error: any) {
                 toast.error(error.message || "Failed to login as member.");
               }
@@ -523,7 +527,8 @@ function MemberDetailDialog({
   activeRole: string;
   onRequestDelete: (member: Member) => void;
 }) {
-  const user = useCurrentUser()!;
+  const navigate = useNavigate();
+  const user = useCurrentUser();
   const members = useStore((s) => s.members);
   const loginAs = useStore((s) => s.loginAs);
   const canEditMembers = useCan("members.edit");
@@ -551,7 +556,7 @@ function MemberDetailDialog({
 
   const canEdit =
     (activeRole === "admin" && canEditMembers) ||
-    (activeRole === "member" && (isJunior || member.userId === user.id));
+    (activeRole === "member" && (isJunior || (user && member.userId === user.id)));
   const canCredits = (activeRole === "admin" || activeRole === "member") && !isJunior;
   const canDelete = activeRole === "admin" && canDeleteMembersPerm;
   const canLoginAs = activeRole === "admin" && canEditMembers;
@@ -775,9 +780,11 @@ function MemberDetailDialog({
                 onClick={async () => {
                   if (confirm(`Login as ${member.firstName} ${member.lastName}?`)) {
                     try {
-                      await loginAs(member.id);
+                      onOpenChange(false);
+                      await loginAs(member.id, async () => {
+                        await navigate({ to: "/dashboard", replace: true });
+                      });
                       toast.success(`Logged in as ${member.firstName}`);
-                      window.location.href = "/dashboard";
                     } catch (error: any) {
                       toast.error(error.message || "Failed to login as member.");
                     }
@@ -839,9 +846,11 @@ function MembersList() {
   const leagueGroups = useStore((s) => s.leagueGroups) || [];
   const deleteMember = useStore((s) => s.deleteMember);
   const activeRole = useStore((s) => s.activeRole) || user.role;
-  const canAddMembers = activeRole !== "admin" || useCan("members.create");
-  const canBulkUpload = activeRole === "admin" && useCan("members.create");
-  const canDeleteMembers = activeRole === "admin" && useCan("members.delete");
+  const canCreateMembers = useCan("members.create");
+  const canDeleteMembersPerm = useCan("members.delete");
+  const canAddMembers = activeRole !== "admin" || canCreateMembers;
+  const canBulkUpload = activeRole === "admin" && canCreateMembers;
+  const canDeleteMembers = activeRole === "admin" && canDeleteMembersPerm;
   const store = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { viewMode, setViewMode, isMobile } = useResponsiveViewMode(

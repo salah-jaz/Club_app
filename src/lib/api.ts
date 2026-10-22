@@ -104,4 +104,14 @@ export const api = {
     }),
   delete: <T>(endpoint: string, options?: RequestInit) =>
     request<T>(endpoint, { method: "DELETE", ...options }),
+  getBaseUrl,
+  getPolicyUrl: (type: string, action: "preview" | "download") => {
+    const base = getBaseUrl();
+    const token = typeof window !== "undefined" ? localStorage.getItem("clubapp_token") : null;
+    const url = `${base}/policies/${type}/${action}`;
+    return token ? `${url}?token=${encodeURIComponent(token)}` : url;
+  },
 };
+
+export { getBaseUrl };
+
