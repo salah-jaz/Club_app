@@ -106,8 +106,8 @@ class SettingController extends Controller
         if (empty($data['portalDescription'])) $data['portalDescription'] = 'Manage memberships, credits, court rotations, and training schedules in one premium, unified interface.';
         if (empty($data['currency'])) $data['currency'] = '$';
         if (empty($data['timezone'])) {
-            $data['timezone'] = 'Asia/Kolkata';
-            Setting::updateOrCreate(['key' => 'timezone'], ['value' => 'Asia/Kolkata']);
+            $data['timezone'] = 'Europe/Dublin';
+            Setting::updateOrCreate(['key' => 'timezone'], ['value' => 'Europe/Dublin']);
         }
         if ($data['cancellationLockHours'] === null) $data['cancellationLockHours'] = 24;
         if ($data['debitTimingHours'] === null) $data['debitTimingHours'] = 24;

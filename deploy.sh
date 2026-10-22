@@ -38,7 +38,14 @@ npm ci --no-audit --no-fund
 npm run build
 
 echo "==> Publish static assets"
-cp -r dist/client/* .
+if [ -d .output/public ]; then
+  cp -r .output/public/* .
+fi
+if [ -d dist/client ]; then
+  cp -r dist/client/* .
+fi
+mkdir -p tmp
+touch tmp/restart.txt
 chmod 644 .htaccess 2>/dev/null || true
 
 echo "==> Fix permissions"
