@@ -1131,7 +1131,7 @@ function AdminLeagueGroupsView() {
                                       </span>
                                       {formattedBalance !== null ? (
                                         <span className="text-[10.5px] text-[#8A8A98] font-mono shrink-0">
-                                          — Balance:{" "}
+                                          — Credits:{" "}
                                           <span
                                             className={cn(
                                               "font-semibold",
@@ -1145,7 +1145,7 @@ function AdminLeagueGroupsView() {
                                         </span>
                                       ) : (
                                         <span className="text-[10px] text-[#6B7F78] font-mono shrink-0 italic">
-                                          — Balance: —
+                                          — Credits: —
                                         </span>
                                       )}
                                     </div>

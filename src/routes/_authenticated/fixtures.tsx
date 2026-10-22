@@ -180,11 +180,16 @@ function FixturesList() {
     [s.leagueGroups],
   );
 
-  // Scoped fixtures for the current user
+  // All fixtures are accessible to users who have access to the Fixtures module
   const accessibleFixtures = useMemo(() => {
-    if (isAdmin) return s.fixtures;
-    return s.fixtures.filter((f) => memberGroupIds.has(f.leagueGroupId));
-  }, [isAdmin, s.fixtures, memberGroupIds]);
+    return s.fixtures;
+  }, [s.fixtures]);
+
+  const canEditFixture = (fixture: Fixture) => {
+    if (isAdmin) return true;
+    const gid = fixture.leagueGroupId || (fixture as any).league_group_id;
+    return Boolean(gid && memberGroupIds.has(gid));
+  };
 
   const { search, filters, sortBy, setSearch, setFilter, clearFilters, setSortBy } =
     useSearchFilters(
@@ -199,12 +204,24 @@ function FixturesList() {
     );
 
   const groupOptions = useMemo(() => {
-    const list = isAdmin ? s.leagueGroups : s.leagueGroups.filter((g) => memberGroupIds.has(g.id));
+    const map = new Map<string, string>();
+    s.leagueGroups.forEach((g) => {
+      if (g.id && g.name) map.set(g.id, g.name);
+    });
+    accessibleFixtures.forEach((f) => {
+      const gid = f.leagueGroupId || (f as any).league_group_id;
+      const gname = f.leagueGroupName || (f as any).leagueGroup?.name;
+      if (gid && gname && !map.has(gid)) {
+        map.set(gid, gname);
+      }
+    });
+    const list = Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+    list.sort((a, b) => a.label.localeCompare(b.label));
     return [
       { value: "all", label: "All groups" },
-      ...list.map((g) => ({ value: g.id, label: g.name })),
+      ...list,
     ];
-  }, [isAdmin, s.leagueGroups, memberGroupIds]);
+  }, [s.leagueGroups, accessibleFixtures]);
 
   const matchTypeOptions = useMemo(
     () => [
@@ -322,6 +339,7 @@ function FixturesList() {
           report.values,
           fmt,
           s.appName,
+          matchTypeOptions,
           groupOptions,
         ),
     });
@@ -562,16 +580,18 @@ function FixturesList() {
                           <Eye className="size-3.5 mr-1" /> View
                         </Link>
                       </Button>
-                      <Button
-                        asChild
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2.5 text-[#8FA89F] hover:text-white hover:bg-white/5"
-                      >
-                        <Link to="/fixtures/$id/edit" params={{ id: fixture.id }}>
-                          <Pencil className="size-3.5 mr-1" /> Edit
-                        </Link>
-                      </Button>
+                      {canEditFixture(fixture) && (
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2.5 text-[#8FA89F] hover:text-white hover:bg-white/5"
+                        >
+                          <Link to="/fixtures/$id/edit" params={{ id: fixture.id }}>
+                            <Pencil className="size-3.5 mr-1" /> Edit
+                          </Link>
+                        </Button>
+                      )}
                       {isAdmin && (
                         <Button
                           variant="ghost"
@@ -647,16 +667,18 @@ function FixturesList() {
                         <Eye className="size-3.5 mr-1" /> View
                       </Link>
                     </Button>
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2.5 text-[#8FA89F] hover:text-white hover:bg-white/5"
-                    >
-                      <Link to="/fixtures/$id/edit" params={{ id: fixture.id }}>
-                        <Pencil className="size-3.5 mr-1" /> Edit
-                      </Link>
-                    </Button>
+                    {canEditFixture(fixture) && (
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2.5 text-[#8FA89F] hover:text-white hover:bg-white/5"
+                      >
+                        <Link to="/fixtures/$id/edit" params={{ id: fixture.id }}>
+                          <Pencil className="size-3.5 mr-1" /> Edit
+                        </Link>
+                      </Button>
+                    )}
                     {isAdmin && (
                       <Button
                         variant="ghost"

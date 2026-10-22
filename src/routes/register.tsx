@@ -47,7 +47,11 @@ function RegisterPage() {
       return;
     }
     try {
-      await register(f);
+      await register({
+        ...f,
+        agreedToPrivacy: true,
+        privacy_policy_accepted: true,
+      });
       toast.success("Registration submitted. Awaiting admin approval.");
       navigate({ to: "/login" });
     } catch (error: any) {

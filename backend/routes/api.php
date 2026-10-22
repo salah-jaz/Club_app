@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\FixtureController;
 use App\Http\Controllers\Api\AdminRoleController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\PolicyController;
 use Illuminate\Support\Facades\Route;
 
 // Public auth routes
@@ -22,6 +23,12 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/verify-reset-otp', [AuthController::class, 'verifyResetOtp']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/settings', [SettingController::class, 'index']);
+
+// Public policy access routes (preview & download enforce appropriate member/public rules)
+Route::get('/policies', [PolicyController::class, 'index']);
+Route::get('/policies/{type}', [PolicyController::class, 'show']);
+Route::get('/policies/{type}/preview', [PolicyController::class, 'preview']);
+Route::get('/policies/{type}/download', [PolicyController::class, 'download']);
 
 // Authenticated API routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -35,6 +42,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Settings constants
     Route::post('/settings', [SettingController::class, 'update']);
     Route::post('/settings/test-smtp', [SettingController::class, 'testSmtp']);
+    Route::post('/policies/{type}', [PolicyController::class, 'upload']);
+    Route::delete('/policies/{type}', [PolicyController::class, 'destroy']);
 
     // User admin management
     Route::get('/users', [UserController::class, 'index']);

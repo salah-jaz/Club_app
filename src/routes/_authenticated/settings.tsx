@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { ConfirmDeleteDialog, type ConfirmDeleteRequest } from "@/components/ConfirmDeleteDialog";
 import { TIMEZONE_OPTIONS, resolveTimezone } from "@/lib/timezones";
 import type { PlayerPositionItem, HolidayItem } from "@/lib/types";
+import { PoliciesSection } from "@/components/PoliciesSection";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -1292,6 +1293,9 @@ function SettingsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Policies & Documents Section */}
+        {currentUser?.role === "admin" && <PoliciesSection />}
 
         {/* Member Discounts */}
         {currentUser?.role === "admin" && (

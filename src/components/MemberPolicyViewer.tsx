@@ -1,20 +1,10 @@
-import { FileText } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { GoogleDocsEmbed } from "@/components/GoogleDocsEmbed";
+import { PolicyDocumentModal } from "./PolicyDocumentModal";
 
 /**
- * Live Google Doc — always fetched from source, never stored locally.
- * Share/edit links are converted to an embeddable HTML view
- * (Google blocks /edit pages from being framed).
+ * Backward compatibility export. Policy documents are now uploaded and managed
+ * via Admin -> Settings -> Policies & Documents.
  */
-export const MEMBER_POLICY_URL =
-  "https://docs.google.com/document/d/14CVdnZgj97cX3JadjfeyU0U5Tbey_CKkTofJzPYChU8/edit";
+export const MEMBER_POLICY_URL = "";
 
 type Props = {
   open: boolean;
@@ -23,19 +13,12 @@ type Props = {
 
 export function MemberPolicyViewer({ open, onOpenChange }: Props) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] w-[calc(100%-1rem)] sm:max-w-5xl h-[90dvh] max-h-[90dvh] p-0 gap-0 overflow-hidden flex flex-col overscroll-contain">
-        <DialogHeader className="px-4 sm:px-6 py-4 border-b border-[rgba(255,255,255,0.08)] shrink-0 pr-12 text-left">
-          <DialogTitle className="flex items-center gap-2 text-[#F1F0EE] text-base sm:text-lg">
-            <FileText className="size-5 text-primary shrink-0" />
-            Member Policy
-          </DialogTitle>
-          <DialogDescription className="text-muted-foreground text-sm">
-            AeroShuttle Badminton Club – Policy for Club Members Charges
-          </DialogDescription>
-        </DialogHeader>
-        <GoogleDocsEmbed title="Member Policy" url={MEMBER_POLICY_URL} active={open} />
-      </DialogContent>
-    </Dialog>
+    <PolicyDocumentModal
+      open={open}
+      onOpenChange={onOpenChange}
+      type="member_policy"
+      title="Member Policy"
+      subtitle="AeroShuttle Badminton Club – Policy for Club Members Charges"
+    />
   );
 }

@@ -28,7 +28,12 @@ class LeagueGroupController extends Controller
             if (!$user) {
                 return response()->json([]);
             }
-            $myMemberIds = Member::where('user_id', $user->id)->pluck('id')->all();
+            $myMemberIds = Member::where('user_id', $user->id)
+                ->orWhereIn('parent_member_id', function ($query) use ($user) {
+                    $query->select('id')->from('members')->where('user_id', $user->id);
+                })
+                ->pluck('id')
+                ->all();
             $groups = $groups->filter(function ($g) use ($myMemberIds) {
                 return $g->members->contains(fn ($m) => in_array($m->id, $myMemberIds, true));
             })->values();

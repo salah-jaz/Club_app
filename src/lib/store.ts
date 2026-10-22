@@ -19,6 +19,8 @@ import type {
   PlayerPositionItem,
   HolidayItem,
   EmailTemplateDefinition,
+  PolicyDocument,
+  PolicyType,
 } from "./types";
 import { api } from "./api";
 
@@ -88,14 +90,23 @@ interface State {
   juniorDiscountAmount: number;
   juniorDiscountMode: "percent" | "amount";
   emailTemplates: Record<string, EmailTemplateDefinition>;
+  policies: Record<PolicyType, PolicyDocument>;
 
   // sync
   fetchSettings: () => Promise<void>;
+  fetchPolicies: () => Promise<Record<PolicyType, PolicyDocument>>;
+  uploadPolicy: (type: PolicyType, file: File, title?: string) => Promise<PolicyDocument>;
+  deletePolicy: (type: PolicyType) => Promise<void>;
   syncData: () => Promise<void>;
   syncCurrentUser: () => Promise<User | null>;
 
   // auth
-  register: (u: Omit<User, "id" | "role" | "status" | "createdAt">) => Promise<string>;
+  register: (
+    u: Omit<User, "id" | "role" | "status" | "createdAt"> & {
+      agreedToPrivacy?: boolean;
+      privacy_policy_accepted?: boolean;
+    },
+  ) => Promise<string>;
   verifyOtp: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<{ message: string; maskedEmail: string }>;
@@ -107,7 +118,10 @@ interface State {
     passwordConfirmation: string,
   ) => Promise<{ message: string }>;
   login: (email: string, password: string) => Promise<User | null>;
-  loginAs: (memberId: string) => Promise<void>;
+  loginAs: (
+    memberId: string,
+    onBeforeStateChange?: () => Promise<void> | void,
+  ) => Promise<User>;
   logout: () => Promise<void>;
 
   // user admin
@@ -303,6 +317,7 @@ interface State {
   deleteLeagueGroup: (id: string) => Promise<void>;
   createFixture: (fixture: Omit<Fixture, "id" | "createdAt" | "updatedAt">) => Promise<Fixture>;
   updateFixture: (id: string, fixture: Partial<Fixture>) => Promise<Fixture>;
+  fetchFixtureById: (id: string) => Promise<Fixture | null>;
   deleteFixture: (id: string) => Promise<void>;
   setActiveRole: (role: Role) => void;
   bulkUploadMembers: (file: File, options?: { allowExamples?: boolean }) => Promise<number>;
@@ -423,6 +438,18 @@ export const useStore = create<State>((set, get) => ({
   juniorDiscountAmount: 0,
   juniorDiscountMode: "percent",
   emailTemplates: {},
+  policies: {
+    member_policy: {
+      type: "member_policy",
+      title: "Member Policy",
+      hasDocument: false,
+    },
+    privacy_policy: {
+      type: "privacy_policy",
+      title: "Privacy Policy",
+      hasDocument: false,
+    },
+  },
 
   fetchSettings: async () => {
     try {
@@ -488,10 +515,81 @@ export const useStore = create<State>((set, get) => ({
               ? "amount"
               : "percent",
         emailTemplates: settings.emailTemplates || {},
+        policies: settings.policies || {
+          member_policy: {
+            type: "member_policy",
+            title: "Member Policy",
+            hasDocument: false,
+          },
+          privacy_policy: {
+            type: "privacy_policy",
+            title: "Privacy Policy",
+            hasDocument: false,
+          },
+        },
       });
     } catch {
       // Ignore if unauthenticated or network error
     }
+  },
+
+  fetchPolicies: async () => {
+    try {
+      const res = await api.get<Record<PolicyType, PolicyDocument>>("/policies");
+      if (res) {
+        set({ policies: res });
+        return res;
+      }
+    } catch (e) {
+      console.error("Failed to fetch policies:", e);
+    }
+    return get().policies;
+  },
+
+  uploadPolicy: async (type: PolicyType, file: File, title?: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (title) formData.append("title", title);
+
+    const res = await api.post<{ message: string; policy: PolicyDocument }>(
+      `/policies/${type}`,
+      formData,
+    );
+
+    if (res?.policy) {
+      set((state) => ({
+        policies: {
+          ...state.policies,
+          [type]: res.policy,
+        },
+      }));
+      return res.policy;
+    }
+    throw new Error("Failed to upload policy document");
+  },
+
+  deletePolicy: async (type: PolicyType) => {
+    const res = await api.delete<{ message: string; policy?: PolicyDocument }>(`/policies/${type}`);
+    set((state) => ({
+      policies: {
+        ...state.policies,
+        [type]: res?.policy || {
+          type,
+          title:
+            state.policies[type]?.title ||
+            (type === "member_policy" ? "Member Policy" : "Privacy Policy"),
+          hasDocument: false,
+          fileName: null,
+          fileSize: null,
+          formattedSize: null,
+          mimeType: null,
+          uploadedBy: null,
+          updatedAt: null,
+          previewUrl: null,
+          downloadUrl: null,
+        },
+      },
+    }));
   },
 
   syncCurrentUser: async () => {
@@ -731,14 +829,19 @@ export const useStore = create<State>((set, get) => ({
     return res.user;
   },
 
-  loginAs: async (memberId) => {
+  loginAs: async (memberId, onBeforeStateChange) => {
     const res = await api.post<{ token: string; user: User }>(`/members/${memberId}/login-as`);
     if (typeof window !== "undefined") {
       localStorage.setItem("clubapp_token", res.token);
       localStorage.setItem("clubapp_user_id", res.user.id);
       localStorage.setItem("clubapp_active_role", res.user.role);
     }
+    if (onBeforeStateChange) {
+      await onBeforeStateChange();
+    }
     set({ currentUserId: res.user.id, currentUser: res.user, activeRole: res.user.role });
+    await get().syncData();
+    return res.user;
   },
 
   logout: async () => {
@@ -1248,18 +1351,47 @@ export const useStore = create<State>((set, get) => ({
 
   createFixture: async (f) => {
     const res = await api.post<Fixture>("/fixtures", f);
+    set((state) => ({ fixtures: [...state.fixtures, res] }));
     await get().syncData();
     return res;
   },
 
   updateFixture: async (id, patch) => {
     const res = await api.patch<Fixture>(`/fixtures/${id}`, patch);
+    set((state) => {
+      const exists = state.fixtures.some((item) => item.id === id);
+      return {
+        fixtures: exists
+          ? state.fixtures.map((item) => (item.id === id ? res : item))
+          : [...state.fixtures, res],
+      };
+    });
     await get().syncData();
     return res;
   },
 
+  fetchFixtureById: async (id: string) => {
+    try {
+      const fixture = await api.get<Fixture>(`/fixtures/${id}`);
+      set((state) => {
+        const exists = state.fixtures.some((f) => f.id === id);
+        return {
+          fixtures: exists
+            ? state.fixtures.map((f) => (f.id === id ? fixture : f))
+            : [...state.fixtures, fixture],
+        };
+      });
+      return fixture;
+    } catch {
+      return null;
+    }
+  },
+
   deleteFixture: async (id) => {
     await api.delete(`/fixtures/${id}`);
+    set((state) => ({
+      fixtures: state.fixtures.filter((item) => item.id !== id),
+    }));
     await get().syncData();
   },
 
