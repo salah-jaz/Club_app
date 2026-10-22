@@ -5,6 +5,7 @@ import { Calendar as CalendarIcon, Clock, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
+import { parseScheduleDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -57,6 +58,15 @@ export function DateTimePicker({
   // Parse existing value or fallback to null
   const parsedDate = React.useMemo(() => {
     if (!value) return null;
+    const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const day = parseInt(match[3], 10);
+      const hour = parseInt(match[4], 10);
+      const minute = parseInt(match[5], 10);
+      return new Date(year, month, day, hour, minute);
+    }
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
   }, [value]);
@@ -145,13 +155,18 @@ export function DateTimePicker({
 
   // Format trigger label
   const triggerLabel = React.useMemo(() => {
+    if (!value) return placeholder;
+    const parsed = parseScheduleDateTime(value);
+    if (parsed) {
+      return `${parsed.day.slice(0, 3)}, ${parsed.date} · ${parsed.time}`;
+    }
     if (!parsedDate) return placeholder;
     try {
       return format(parsedDate, "EEE, d MMM yyyy · hh:mm a");
     } catch {
       return placeholder;
     }
-  }, [parsedDate, placeholder]);
+  }, [value, parsedDate, placeholder]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

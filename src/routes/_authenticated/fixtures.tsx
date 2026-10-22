@@ -96,7 +96,8 @@ function matchesDateFilter(dateStr: string, filter: string) {
   const localStr = formatToDateTimeLocal(dateStr);
   if (!localStr) return true;
   const date = new Date(localStr);
-  const now = new Date();
+  const nowLocalStr = formatToDateTimeLocal(new Date().toISOString());
+  const now = new Date(nowLocalStr);
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
 

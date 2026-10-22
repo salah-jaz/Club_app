@@ -8,7 +8,8 @@ export const fmtDate = (s: string, timeZone?: string) => {
   if (!str) return "";
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
     const [y, m, d] = str.split("-").map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    return new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toLocaleDateString("en-US", {
+      timeZone: "UTC",
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -19,7 +20,8 @@ export const fmtDate = (s: string, timeZone?: string) => {
   if (isNaive) {
     const m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (m) {
-      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString("en-US", {
+      return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0)).toLocaleDateString("en-US", {
+        timeZone: "UTC",
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -96,15 +98,18 @@ export const fmtDateTime = (s: string, timeZone?: string) => {
       const day = parseInt(m[3], 10);
       const hour = parseInt(m[4], 10);
       const minute = parseInt(m[5], 10);
-      const d = new Date(year, month, day, hour, minute);
-      return d.toLocaleString("en-US", {
+      const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
+      const datePart = d.toLocaleDateString("en-US", {
+        timeZone: "UTC",
         day: "numeric",
         month: "short",
         year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
       });
+      const period = hour >= 12 ? "PM" : "AM";
+      let h12 = hour % 12;
+      if (h12 === 0) h12 = 12;
+      const timePart = `${h12}:${String(minute).padStart(2, "0")} ${period}`;
+      return `${datePart}, ${timePart}`;
     }
   }
 
@@ -190,18 +195,18 @@ export function parseScheduleDateTime(
       const day = parseInt(m[3], 10);
       const hour = parseInt(m[4], 10);
       const minute = parseInt(m[5], 10);
-      const d = new Date(year, month, day, hour, minute);
-      const dayStr = d.toLocaleDateString("en-US", { weekday: "long" });
+      const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
+      const dayStr = d.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long" });
       const dateStr = d.toLocaleDateString("en-US", {
+        timeZone: "UTC",
         day: "numeric",
         month: "short",
         year: "numeric",
       });
-      const timeStr = d.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
+      const period = hour >= 12 ? "PM" : "AM";
+      let h12 = hour % 12;
+      if (h12 === 0) h12 = 12;
+      const timeStr = `${h12}:${String(minute).padStart(2, "0")} ${period}`;
 
       return {
         day: dayStr,

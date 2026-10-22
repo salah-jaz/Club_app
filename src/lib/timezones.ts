@@ -155,7 +155,7 @@ export const TIMEZONE_OPTIONS: TimezoneOption[] = [
   },
 ];
 
-export const DEFAULT_TIMEZONE = "Asia/Kolkata";
+export const DEFAULT_TIMEZONE = "Europe/Dublin";
 
 export function resolveTimezone(value?: string | null): string {
   if (value && TIMEZONE_OPTIONS.some((z) => z.value === value)) return value;
