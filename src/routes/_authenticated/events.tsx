@@ -276,7 +276,7 @@ function Events() {
     const isEligible = myMembers.some((m) => isEligibleForPlaySchedule(m, sch, s.leagueGroups));
     const hasAccepted = playInvs.some((i) => i.scheduleId === sch.id && i.status === "accepted");
     if (!isEligible && !hasAccepted) {
-      toast.error("You are not eligible to view court details for this session.");
+      toast.error("You are not eligible to view court details for this schedule.");
       return;
     }
     const rotation = s.rotations.find((r) => r.scheduleId === sch.id);
@@ -291,7 +291,7 @@ function Events() {
     const isEligible = myMembers.some((m) => isEligibleForPlaySchedule(m, sch, s.leagueGroups));
     const hasAccepted = playInvs.some((i) => i.scheduleId === sch.id && i.status === "accepted");
     if (!isEligible && !hasAccepted) {
-      toast.error("You are not eligible to view player details for this session.");
+      toast.error("You are not eligible to view player details for this schedule.");
       return;
     }
     setPlayersPopup(sch);
@@ -610,9 +610,9 @@ function Events() {
                   try {
                     const res = await s.respondPlay(i.id, "accepted");
                     if (res.status === "waiting") {
-                      toast.success("Session is full — you're on the waiting list");
+                      toast.success("Schedule is full — you're on the waiting list");
                     } else {
-                      toast.success("Accepted — session fee deducted from credits");
+                      toast.success("Accepted — schedule fee deducted from credits");
                     }
                   } catch (error: any) {
                     const msg = error.message || "Failed to respond to invitation.";
@@ -680,7 +680,7 @@ function Events() {
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#8A8A98]" />
             <span className="min-w-0 break-words">
               {sch.status === "closed"
-                ? "This session is closed — accept and decline are no longer available."
+                ? "This schedule is closed — accept and decline are no longer available."
                 : "Court rotation is locked — accept and decline are closed for all members."}
             </span>
           </div>
@@ -689,7 +689,7 @@ function Events() {
           <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5 flex items-start gap-1.5 min-w-0">
             <AlertTriangle className="size-3.5 shrink-0 mt-0.5 text-[#8A8A98]" />
             <span className="min-w-0 break-words">
-              This session has already started — accept and decline are no longer available.
+              This schedule has already started — accept and decline are no longer available.
             </span>
           </div>
         )}
@@ -704,12 +704,12 @@ function Events() {
         )}
         {sessionInProgress && (i.status === "open" || i.status === "declined") && (
           <div className="text-[11px] text-[#FBBF24] bg-[#F59E0B]/10 border border-[#F59E0B]/20 px-2.5 py-1.5 rounded-md break-words">
-            This session is in progress. Accept and payment are no longer available.
+            This schedule is in progress. Accept and payment are no longer available.
           </div>
         )}
         {sessionFinished && (
           <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5 break-words">
-            This session has finished. No further actions are available.
+            This schedule has finished. No further actions are available.
           </div>
         )}
       </div>
@@ -745,7 +745,7 @@ function Events() {
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">
-              {playersPopup?.name ?? "Session players"}
+              {playersPopup?.name ?? "Schedule players"}
             </DialogTitle>
             <DialogDescription className="text-[#8A8A98]">
               {playersPopup
@@ -828,7 +828,7 @@ function Events() {
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[#8A8A98] text-left space-y-2">
               <span className="block">
-                You need more credits before you can accept this play session.
+                You need more credits before you can accept this play schedule.
               </span>
               {creditGap && (
                 <span className="block font-mono text-[13px] text-[#F1F0EE]">
@@ -870,9 +870,9 @@ function Events() {
       >
         <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#F1F0EE]">Decline Play Session?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#F1F0EE]">Decline Play Schedule?</AlertDialogTitle>
             <AlertDialogDescription className="text-[#8A8A98] text-left">
-              Are you sure you want to decline this Play Session? Your participation will be
+              Are you sure you want to decline this Play Schedule? Your participation will be
               cancelled if you confirm.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -881,7 +881,7 @@ function Events() {
               className="btn-premium-outline cursor-pointer mt-0 w-full sm:w-auto"
               disabled={respondingInviteId !== null}
             >
-              Keep Session
+              Keep Schedule
             </AlertDialogCancel>
             <AlertDialogAction
               className="btn-premium-danger cursor-pointer w-full sm:w-auto"
@@ -899,8 +899,8 @@ function Events() {
       </AlertDialog>
 
       <PageHeader
-        title="Play Sessions"
-        description={`Enroll in released play sessions. Cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before match start, when court rotation is generated and published.`}
+        title="Play Schedules"
+        description={`Enroll in released play schedules. Cancellations close ${s.cancellationLockHours === 1 ? "1 hour" : `${s.cancellationLockHours ?? 24} hours`} before match start, when court rotation is generated and published.`}
       />
 
       {uniquePlaySessions.length > 0 && (
@@ -990,7 +990,7 @@ function Events() {
       <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top min-w-0 max-w-full">
         <CardHeader className="px-3 sm:px-6 pb-3 border-b border-white/[0.03]">
           <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#8A8A98] uppercase flex items-center gap-2">
-            <CalendarDays className="size-4 text-[#3B82F6]" /> Play Sessions
+            <CalendarDays className="size-4 text-[#3B82F6]" /> Play Schedules
           </CardTitle>
         </CardHeader>
         <CardContent className="px-3 sm:px-6 pt-4 space-y-3 min-w-0">
@@ -1003,7 +1003,7 @@ function Events() {
               <p className="font-semibold text-[#FBBF24]">Cancellation policy (all members)</p>
               <p className="mt-0.5 text-[#F59E0B]/90 font-light leading-relaxed">
                 <>
-                  You can cancel an accepted play session until{" "}
+                  You can cancel an accepted play schedule until{" "}
                   <span className="font-semibold text-[#FBBF24]">
                     {s.cancellationLockHours === 1
                       ? "1 hour"
@@ -1021,13 +1021,13 @@ function Events() {
             <div className="py-4 space-y-3">
               <p className="text-[13px] font-light text-[#8A8A98] text-center">
                 {uniquePlaySessions.length === 0
-                  ? "No play sessions are open yet."
-                  : "No play sessions match your filters."}
+                  ? "No play schedules are open yet."
+                  : "No play schedules match your filters."}
               </p>
               {uniquePlaySessions.length === 0 && adultPlayers.length === 0 && (
                 <div className="border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/50 rounded-lg p-4 flex flex-col items-center gap-3">
                   <p className="text-[13px] text-muted-foreground text-center">
-                    Add an adult family member with club membership to join when a session is
+                    Add an adult family member with club membership to join when a schedule is
                     released.
                   </p>
                   <Button asChild size="sm" className="btn-premium-solid h-8 text-[11px]">
@@ -1145,7 +1145,7 @@ function Events() {
                 {canEnroll && adultPlayers.length === 0 && playEligibleJuniors.length === 0 && (
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/[0.04] min-w-0">
                     <p className="text-[12px] text-muted-foreground">
-                      Add an eligible family member to join this session.
+                      Add an eligible family member to join this schedule.
                     </p>
                     <Button
                       asChild
@@ -1223,7 +1223,7 @@ function Events() {
                                   try {
                                     await enrollPlay(sch.id, [child.id], true);
                                     toast.success(
-                                      `Accepted ${child.firstName} — session fee deducted from credits`,
+                                      `Accepted ${child.firstName} — schedule fee deducted from credits`,
                                     );
                                   } catch (error: any) {
                                     const msg = error.message || "Failed to accept child.";
@@ -1257,7 +1257,7 @@ function Events() {
                       <div className="space-y-0.5 min-w-0 break-words">
                         <div className="font-semibold text-[#FBBF24]">Holiday: {holidayName}</div>
                         <div className="text-[#FBBF24]/90 font-light">
-                          This session is closed for this public holiday. No actions are available.
+                          This schedule is closed for this public holiday. No actions are available.
                         </div>
                       </div>
                     </div>

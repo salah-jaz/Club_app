@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ExternalLink } from "lucide-react";
 import { AuthShell } from "@/components/AuthShell";
-import { PrivacyPolicyViewer } from "@/components/PrivacyPolicyViewer";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useStore } from "@/lib/store";
+import { openPolicyExternal } from "@/lib/policies";
 
 export const Route = createFileRoute("/register")({ component: RegisterPage });
 
@@ -34,7 +35,6 @@ function RegisterPage() {
     password: "",
   });
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
-  const [privacyOpen, setPrivacyOpen] = useState(false);
   const update = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -205,14 +205,15 @@ function RegisterPage() {
             I agree to the Club{" "}
             <button
               type="button"
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setPrivacyOpen(true);
+                await openPolicyExternal("privacy_policy");
               }}
-              className="text-[var(--primary)] font-medium hover:underline underline-offset-2 cursor-pointer"
+              className="text-[var(--primary)] font-medium hover:underline underline-offset-2 cursor-pointer inline-flex items-center gap-1"
             >
-              Privacy Policy
+              <span>Privacy Policy</span>
+              <ExternalLink className="size-3 inline opacity-70" />
             </button>
             .
           </label>
@@ -226,8 +227,6 @@ function RegisterPage() {
           Submit registration
         </Button>
       </form>
-
-      <PrivacyPolicyViewer open={privacyOpen} onOpenChange={setPrivacyOpen} />
     </AuthShell>
   );
 }

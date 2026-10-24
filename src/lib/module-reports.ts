@@ -787,11 +787,19 @@ export function exportApprovalsReport(
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────
 
+function normalizeFixtureStatus(status?: string): string {
+  if (!status) return "Created";
+  if (status === "Opened" || status.toLowerCase() === "opened") return "Created";
+  if (status === "In Progress" || status.toLowerCase() === "in progress" || status.toLowerCase() === "in_progress") return "Scheduled";
+  if (status === "Closed" || status.toLowerCase() === "closed") return "Completed";
+  return status;
+}
+
 export const FIXTURE_REPORT_STATUS = [
   { value: "all", label: "All statuses" },
-  { value: "Opened", label: "Opened" },
-  { value: "In Progress", label: "In Progress" },
-  { value: "Closed", label: "Closed" },
+  { value: "Created", label: "Created" },
+  { value: "Scheduled", label: "Scheduled" },
+  { value: "Completed", label: "Completed" },
 ];
 
 export function filterFixturesForReport(
@@ -800,7 +808,7 @@ export function filterFixturesForReport(
 ): Fixture[] {
   return fixtures.filter((f) => {
     if (!inDateRange(f.date, filters.fromDate, filters.toDate)) return false;
-    if (filters.status !== "all" && f.status !== filters.status) return false;
+    if (filters.status !== "all" && normalizeFixtureStatus(f.status) !== filters.status) return false;
     if (filters.type !== "all" && f.matchType !== filters.type) return false;
     if (filters.category !== "all" && f.leagueGroupId !== filters.category) return false;
     return true;
@@ -832,10 +840,11 @@ export function exportFixturesReport(
       group: fix.leagueGroupName || grp?.name || "—",
       matchType: fix.matchType,
       venueType: fix.venueType,
+      clubLocation: fix.clubLocation || "—",
       oppositionClub: fix.oppositionClub,
       teamName: fix.teamName,
       grade: fix.grade,
-      status: fix.status,
+      status: normalizeFixtureStatus(fix.status),
     };
   });
 
@@ -848,6 +857,7 @@ export function exportFixturesReport(
       { key: "group", header: "Group", width: 24 },
       { key: "matchType", header: "Match Type", width: 20 },
       { key: "venueType", header: "Venue Type", width: 18 },
+      { key: "clubLocation", header: "Club Location", width: 22 },
       { key: "oppositionClub", header: "Opposition Club", width: 28 },
       { key: "teamName", header: "Team Name", width: 22 },
       { key: "grade", header: "Grade", width: 16 },

@@ -28,7 +28,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { MemberPolicyViewer } from "@/components/MemberPolicyViewer";
+import { openPolicyExternal } from "@/lib/policies";
 
 export function MobileBottomNav() {
   const user = useCurrentUser();
@@ -42,7 +42,6 @@ export function MobileBottomNav() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   const [moreOpen, setMoreOpen] = useState(false);
-  const [policyOpen, setPolicyOpen] = useState(false);
 
   if (!user) return null;
 
@@ -85,7 +84,7 @@ export function MobileBottomNav() {
       show: isVol || (isAdmin && canTrainings),
     },
     { to: "/credits", label: "Wallet", icon: Wallet, show: isMember || (isAdmin && canCredits) },
-    { to: "/events", label: "Play Sessions", icon: CalendarDays, show: isMember },
+    { to: "/events", label: "Play Schedules", icon: CalendarDays, show: isMember },
     {
       to: "/schedules",
       label: "Play Schedules",
@@ -384,9 +383,9 @@ export function MobileBottomNav() {
                 {isMember && (
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       setMoreOpen(false);
-                      setPolicyOpen(true);
+                      await openPolicyExternal("member_policy");
                     }}
                     className="flex items-center justify-between w-full p-3 rounded-xl text-left cursor-pointer transition-all hover:bg-accent/60 text-foreground"
                   >
@@ -423,7 +422,6 @@ export function MobileBottomNav() {
           </div>
         </SheetContent>
       </Sheet>
-      {isMember && <MemberPolicyViewer open={policyOpen} onOpenChange={setPolicyOpen} />}
     </>
   );
 }

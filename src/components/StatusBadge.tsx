@@ -18,11 +18,16 @@ const map: Record<string, string> = {
   disabled: "bg-white/5 text-[#8A8A9A] border-white/10",
   closed: "bg-white/5 text-[#8A8A9A] border-white/10",
   Closed: "bg-white/5 text-[#8A8A9A] border-white/10",
+  Completed: "bg-white/5 text-[#8A8A9A] border-white/10",
+  completed: "bg-white/5 text-[#8A8A9A] border-white/10",
   in_progress: "bg-[#F59E0B]/10 text-[#FBBF24] border-[#F59E0B]/20",
   "in progress": "bg-[#F59E0B]/10 text-[#FBBF24] border-[#F59E0B]/20",
   "In Progress": "bg-[#F59E0B]/10 text-[#FBBF24] border-[#F59E0B]/20",
+  Scheduled: "bg-[#F59E0B]/10 text-[#FBBF24] border-[#F59E0B]/20",
+  scheduled: "bg-[#F59E0B]/10 text-[#FBBF24] border-[#F59E0B]/20",
   opened: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
   Opened: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
+  Created: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
   finished: "bg-white/5 text-[#8A8A98] border-white/10",
 };
 
@@ -30,12 +35,15 @@ type StatusKind = "default" | "invitation";
 
 function labelFor(status: string, kind: StatusKind): string {
   if (status === "cancelled") return "Cancelled";
+  if (status === "Created") return "Created";
+  if (status === "Scheduled") return "Scheduled";
+  if (status === "Completed") return "Completed";
   if (status === "created") return "pending";
   if (status === "pending") return "Pending";
   if (status === "waiting") return "Waiting list";
-  if (status.toLowerCase() === "in_progress" || status.toLowerCase() === "in progress") return "In Progress";
-  if (status.toLowerCase() === "opened") return "Opened";
-  if (status.toLowerCase() === "closed") return "Closed";
+  if (status.toLowerCase() === "in_progress" || status.toLowerCase() === "in progress" || status.toLowerCase() === "scheduled") return "Scheduled";
+  if (status.toLowerCase() === "opened" || status.toLowerCase() === "created") return "Created";
+  if (status.toLowerCase() === "closed" || status.toLowerCase() === "completed") return "Completed";
   if (status === "finished") return "Finished";
   // Invitation "open" = member has not responded yet.
   // Schedule/training "open" = created but not released.

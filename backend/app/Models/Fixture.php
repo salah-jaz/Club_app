@@ -16,6 +16,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $team_name
  * @property string $grade
  * @property string $status
+ * @property string|null $club_location
+ * @property string|null $home_captain_email
+ * @property string|null $opposition_captain_email
+ * @property bool $email_sent
+ * @property \Illuminate\Support\Carbon|null $email_sent_at
  * @property string|null $result
  * @property string|null $home_team_name
  * @property int|null $home_total_matches
@@ -42,6 +47,11 @@ class Fixture extends Model
         'venue_type',
         'opposition_club',
         'team_name',
+        'club_location',
+        'home_captain_email',
+        'opposition_captain_email',
+        'email_sent',
+        'email_sent_at',
         'grade',
         'status',
         'result',
@@ -53,6 +63,11 @@ class Fixture extends Model
         'visiting_total_matches',
         'visiting_total_games',
         'visiting_total_points',
+    ];
+
+    protected $casts = [
+        'email_sent' => 'boolean',
+        'email_sent_at' => 'datetime',
     ];
 
     public function leagueGroup(): BelongsTo

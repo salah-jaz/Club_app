@@ -407,4 +407,155 @@ class PolicyDocumentsTest extends TestCase
             'file_name' => 'Replaced_After_Delete.pdf',
         ]);
     }
+
+    public function test_admin_can_save_google_docs_url_and_switch_sources_without_duplicates(): void
+    {
+        $googleDocUrl = 'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit';
+
+        // 1. Admin saves Google Docs URL for privacy_policy
+        $res = $this->actingAs($this->admin)
+            ->putJson('/api/policies/privacy_policy', [
+                'source_type' => 'google_doc',
+                'google_docs_url' => $googleDocUrl,
+            ]);
+
+        $res->assertStatus(200)
+            ->assertJsonPath('policy.sourceType', 'google_doc')
+            ->assertJsonPath('policy.googleDocsUrl', $googleDocUrl)
+            ->assertJsonPath('policy.hasDocument', true)
+            ->assertJsonPath('policy.externalUrl', $googleDocUrl);
+
+        // Ensure exactly 1 record in database
+        $this->assertEquals(1, Policy::where('type', 'privacy_policy')->count());
+
+        // 2. Upload a PDF for privacy_policy -> source_type automatically becomes upload
+        Storage::fake('local');
+        $pdfFile = UploadedFile::fake()->create('privacy.pdf', 150, 'application/pdf');
+
+        $uploadRes = $this->actingAs($this->admin)
+            ->postJson('/api/policies/privacy_policy', [
+                'file' => $pdfFile,
+            ]);
+
+        $uploadRes->assertStatus(200)
+            ->assertJsonPath('policy.sourceType', 'upload')
+            ->assertJsonPath('policy.fileName', 'privacy.pdf')
+            ->assertJsonPath('policy.hasDocument', true);
+
+        // Still exactly 1 record in database
+        $this->assertEquals(1, Policy::where('type', 'privacy_policy')->count());
+
+        // 3. Switch back to Google Docs URL without re-uploading
+        $switchRes = $this->actingAs($this->admin)
+            ->putJson('/api/policies/privacy_policy', [
+                'source_type' => 'google_doc',
+            ]);
+
+        $switchRes->assertStatus(200)
+            ->assertJsonPath('policy.sourceType', 'google_doc')
+            ->assertJsonPath('policy.googleDocsUrl', $googleDocUrl)
+            ->assertJsonPath('policy.hasDocument', true);
+
+        $this->assertEquals(1, Policy::where('type', 'privacy_policy')->count());
+
+        // 4. Switch back to Upload
+        $switchBack = $this->actingAs($this->admin)
+            ->putJson('/api/policies/privacy_policy', [
+                'source_type' => 'upload',
+            ]);
+
+        $switchBack->assertStatus(200)
+            ->assertJsonPath('policy.sourceType', 'upload')
+            ->assertJsonPath('policy.fileName', 'privacy.pdf')
+            ->assertJsonPath('policy.hasDocument', true);
+
+        $this->assertEquals(1, Policy::where('type', 'privacy_policy')->count());
+    }
+
+    public function test_google_docs_url_validation(): void
+    {
+        // Missing URL when switching to google_doc without prior URL
+        $this->actingAs($this->admin)
+            ->putJson('/api/policies/member_policy', [
+                'source_type' => 'google_doc',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['google_docs_url']);
+
+        // Invalid URL string
+        $this->actingAs($this->admin)
+            ->putJson('/api/policies/member_policy', [
+                'source_type' => 'google_doc',
+                'google_docs_url' => 'not-a-valid-url',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['google_docs_url']);
+
+        // Non Google Docs domain
+        $this->actingAs($this->admin)
+            ->putJson('/api/policies/member_policy', [
+                'source_type' => 'google_doc',
+                'google_docs_url' => 'https://example.com/document/123',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['google_docs_url']);
+
+        // Valid Google Docs URL succeeds
+        $this->actingAs($this->admin)
+            ->putJson('/api/policies/member_policy', [
+                'source_type' => 'google_doc',
+                'google_docs_url' => 'https://docs.google.com/document/d/1XYZ/edit',
+            ])
+            ->assertStatus(200)
+            ->assertJsonPath('policy.sourceType', 'google_doc');
+    }
+
+    public function test_external_link_for_google_doc_and_upload(): void
+    {
+        Storage::fake('local');
+        $googleDoc = 'https://docs.google.com/document/d/1TestDoc/preview';
+
+        // 1. Configure privacy policy with Google Doc
+        $this->actingAs($this->admin)
+            ->putJson('/api/policies/privacy_policy', [
+                'source_type' => 'google_doc',
+                'google_docs_url' => $googleDoc,
+            ])
+            ->assertStatus(200);
+
+        // Public external link for privacy policy redirects away
+        $this->get('/api/policies/privacy_policy/external')
+            ->assertStatus(302)
+            ->assertRedirect($googleDoc);
+
+        // 2. Configure member policy with uploaded PDF
+        $file = UploadedFile::fake()->create('MemberTerms.pdf', 300, 'application/pdf');
+        $this->actingAs($this->admin)
+            ->postJson('/api/policies/member_policy', ['file' => $file])
+            ->assertStatus(200);
+
+        // Authenticated member access to member policy external link succeeds
+        $this->actingAs($this->member)
+            ->get('/api/policies/member_policy/external')
+            ->assertStatus(200)
+            ->assertHeader('Content-Type', 'application/pdf');
+    }
+
+    public function test_unauthenticated_cannot_access_member_policy_external(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('policies/member_ext.pdf', 'pdf content');
+        Policy::create([
+            'type' => 'member_policy',
+            'title' => 'Member Policy',
+            'source_type' => 'upload',
+            'file_path' => 'policies/member_ext.pdf',
+            'file_name' => 'member_ext.pdf',
+            'file_size' => 1234,
+            'mime_type' => 'application/pdf',
+        ]);
+
+        $this->getJson('/api/policies/member_policy/external')
+            ->assertStatus(401);
+    }
 }

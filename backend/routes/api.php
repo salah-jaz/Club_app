@@ -29,6 +29,7 @@ Route::get('/policies', [PolicyController::class, 'index']);
 Route::get('/policies/{type}', [PolicyController::class, 'show']);
 Route::get('/policies/{type}/preview', [PolicyController::class, 'preview']);
 Route::get('/policies/{type}/download', [PolicyController::class, 'download']);
+Route::get('/policies/{type}/external', [PolicyController::class, 'external']);
 
 // Authenticated API routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -43,6 +44,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/settings', [SettingController::class, 'update']);
     Route::post('/settings/test-smtp', [SettingController::class, 'testSmtp']);
     Route::post('/policies/{type}', [PolicyController::class, 'upload']);
+    Route::put('/policies/{type}', [PolicyController::class, 'updateSource']);
+    Route::post('/policies/{type}/source', [PolicyController::class, 'updateSource']);
     Route::delete('/policies/{type}', [PolicyController::class, 'destroy']);
 
     // User admin management
@@ -129,10 +132,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Fixtures
     Route::get('/fixtures', [FixtureController::class, 'index']);
+    Route::post('/fixtures/send-mail', [FixtureController::class, 'sendMail']);
     Route::get('/fixtures/{id}', [FixtureController::class, 'show']);
     Route::post('/fixtures', [FixtureController::class, 'store']);
     Route::match(['put', 'patch'], '/fixtures/{id}', [FixtureController::class, 'update']);
     Route::delete('/fixtures/{id}', [FixtureController::class, 'destroy']);
+    Route::post('/fixtures/{id}/send-mail', [FixtureController::class, 'sendMail']);
 
     // Admin Roles CRUD
     Route::get('/admin-roles', [AdminRoleController::class, 'index']);

@@ -17,11 +17,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Mail, Loader2, CheckCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { FixtureStatus } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/fixtures/new")({
   component: NewFixturePage,
 });
+
+export function validateCaptainEmails(
+  emails: string,
+  fieldName: string,
+): { valid: boolean; error?: string; normalized: string } {
+  if (!emails || !emails.trim()) {
+    return { valid: true, normalized: "" };
+  }
+  if (emails.includes(";")) {
+    return {
+      valid: false,
+      error: `${fieldName} must use comma-separated email addresses only. Semicolons and other separators are not allowed.`,
+      normalized: "",
+    };
+  }
+  const parts = emails.split(",");
+  const validList: string[] = [];
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) {
+      return {
+        valid: false,
+        error: `${fieldName} contains empty email entries between commas.`,
+        normalized: "",
+      };
+    }
+    if (!emailRegex.test(trimmed)) {
+      return {
+        valid: false,
+        error: `${fieldName} contains an invalid email address: "${trimmed}".`,
+        normalized: "",
+      };
+    }
+    validList.push(trimmed);
+  }
+  return { valid: true, normalized: validList.join(", ") };
+}
 
 function NewFixturePage() {
   const navigate = useNavigate();
@@ -29,12 +69,15 @@ function NewFixturePage() {
   const activeRole = useStore((s) => s.activeRole) || user?.role;
   const isAdmin = activeRole === "admin";
   const leagueGroups = useStore((s) => s.leagueGroups);
+  const locations = useStore((s) => s.locations) || [];
   const matchTypes = useStore((s) => s.matchTypes);
   const venueTypes = useStore((s) => s.venueTypes);
   const grades = useStore((s) => s.grades);
   const adultGrades = useStore((s) => s.adultGrades);
   const juniorGrades = useStore((s) => s.juniorGrades);
   const createFixture = useStore((s) => s.createFixture);
+  const sendFixtureMail = useStore((s) => s.sendFixtureMail);
+  const emailTemplates = useStore((s) => s.emailTemplates);
 
   // If member has no groups, redirect away
   const memberGroupIds = useMemo(
@@ -48,7 +91,9 @@ function NewFixturePage() {
   }, [isAdmin, leagueGroups, memberGroupIds]);
 
   const availableMatchTypes = useMemo(() => {
-    return matchTypes && matchTypes.length > 0 ? matchTypes : ["Friendly", "League", "Tournament", "Practice"];
+    return matchTypes && matchTypes.length > 0
+      ? matchTypes
+      : ["Friendly", "League", "Tournament", "Practice"];
   }, [matchTypes]);
 
   const availableVenueTypes = useMemo(() => {
@@ -71,12 +116,17 @@ function NewFixturePage() {
     venueType: availableVenueTypes[0] || "Home",
     oppositionClub: "",
     teamName: "",
+    clubLocation: "",
+    homeCaptainEmail: "",
+    oppositionCaptainEmail: "",
     grade: availableGrades[0] || "",
-    status: "Opened" as FixtureStatus,
+    status: "Created" as FixtureStatus,
   });
 
   const [nameTouched, setNameTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [sendingMail, setSendingMail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const set = useCallback((k: keyof typeof f, v: any) => {
     setF((p) => (p[k] === v ? p : { ...p, [k]: v }));
@@ -119,6 +169,81 @@ function NewFixturePage() {
     }));
   };
 
+  const handleSendMail = async () => {
+    if (sendingMail || submitting) return;
+
+    const isFixtureNotificationEnabled =
+      emailTemplates?.fixture_scheduled?.is_enabled !== false;
+    if (!isFixtureNotificationEnabled) {
+      toast.error(
+        "Fixture Scheduled Notification is currently disabled. Enable it under Email Templates & Notifications to send emails.",
+      );
+      return;
+    }
+
+    if (!f.date) {
+      toast.error("Please select a Date & Time before sending mail.");
+      return;
+    }
+    if (!f.name.trim()) {
+      toast.error("Please enter a fixture name before sending mail.");
+      return;
+    }
+    if (!f.teamName.trim()) {
+      toast.error("Please enter your team name before sending mail.");
+      return;
+    }
+    if (!f.oppositionClub.trim()) {
+      toast.error("Please enter the opposition club name before sending mail.");
+      return;
+    }
+
+    const oppCheck = validateCaptainEmails(f.oppositionCaptainEmail, "Opposition Club / Team Captain Email");
+    if (!oppCheck.valid) {
+      toast.error(oppCheck.error);
+      return;
+    }
+    if (!oppCheck.normalized) {
+      toast.error("Please enter at least one valid email address in Opposition Club / Team Captain Email (To recipient) before sending.");
+      return;
+    }
+
+    const homeCheck = validateCaptainEmails(f.homeCaptainEmail, "Home Captain Email");
+    if (!homeCheck.valid) {
+      toast.error(homeCheck.error);
+      return;
+    }
+
+    setSendingMail(true);
+    try {
+      await sendFixtureMail(undefined, {
+        name: f.name.trim(),
+        date: f.date,
+        leagueGroupId: f.leagueGroupId,
+        matchType: f.matchType,
+        venueType: f.venueType,
+        oppositionClub: f.oppositionClub.trim(),
+        teamName: f.teamName.trim(),
+        clubLocation: f.clubLocation?.trim() || null,
+        homeCaptainEmail: homeCheck.normalized || null,
+        oppositionCaptainEmail: oppCheck.normalized || null,
+        grade: f.grade,
+        status: f.status,
+      });
+      setEmailSent(true);
+      toast.success("Fixture notification email sent successfully");
+    } catch (error: any) {
+      console.error("Fixture notification email sending failed:", error);
+      const errMsg =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to send fixture notification email.";
+      toast.error(errMsg);
+    } finally {
+      setSendingMail(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.date) {
@@ -154,6 +279,18 @@ function NewFixturePage() {
       return;
     }
 
+    const homeCheck = validateCaptainEmails(f.homeCaptainEmail, "Home Captain Email");
+    if (!homeCheck.valid) {
+      toast.error(homeCheck.error);
+      return;
+    }
+
+    const oppCheck = validateCaptainEmails(f.oppositionCaptainEmail, "Opposition Club / Team Captain Email");
+    if (!oppCheck.valid) {
+      toast.error(oppCheck.error);
+      return;
+    }
+
     setSubmitting(true);
     try {
       await createFixture({
@@ -164,8 +301,15 @@ function NewFixturePage() {
         venueType: f.venueType,
         oppositionClub: f.oppositionClub.trim(),
         teamName: f.teamName.trim(),
+        clubLocation: f.clubLocation ? f.clubLocation.trim() : null,
+        homeCaptainEmail: homeCheck.normalized || null,
+        oppositionCaptainEmail: oppCheck.normalized || null,
         grade: f.grade,
         status: f.status,
+        emailSent: emailSent,
+        email_sent: emailSent,
+        emailSentAt: emailSent ? new Date().toISOString() : null,
+        email_sent_at: emailSent ? new Date().toISOString() : null,
       });
 
       toast.success("Fixture created successfully");
@@ -379,7 +523,33 @@ function NewFixturePage() {
               />
             </div>
 
-            <div className="space-y-1.5 sm:col-span-2">
+            {/* Club Location and Status side by side */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Club Location
+              </Label>
+              <Select
+                value={f.clubLocation || "none"}
+                onValueChange={(val) => set("clubLocation", val === "none" ? "" : val)}
+              >
+                <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
+                  <SelectValue placeholder="Select Club Location (Optional)" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="none">No Location Selected</SelectItem>
+                  {locations.map((loc) => (
+                    <SelectItem key={loc} value={loc}>
+                      {loc}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-[#6B7F78]">
+                Dynamically loaded from Settings → Club Locations.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                 Status
               </Label>
@@ -391,11 +561,81 @@ function NewFixturePage() {
                   <SelectValue placeholder="Select Status" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="Opened">Opened</SelectItem>
-                  <SelectItem value="In Progress">In Progress</SelectItem>
-                  <SelectItem value="Closed">Closed</SelectItem>
+                  <SelectItem value="Created">Created</SelectItem>
+                  <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Captain Email Fields */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Home / Team Captain Email
+              </Label>
+              <Input
+                value={f.homeCaptainEmail}
+                onChange={(e) => set("homeCaptainEmail", e.target.value)}
+                placeholder="captain@example.com, manager@example.com"
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
+              <p className="text-[11px] text-[#6B7F78]">
+                Multiple addresses supported. Separate with commas only.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Opposition Club / Team Captain Email
+              </Label>
+              <Input
+                value={f.oppositionCaptainEmail}
+                onChange={(e) => set("oppositionCaptainEmail", e.target.value)}
+                placeholder="opp.captain@example.com, club@example.com"
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
+              <p className="text-[11px] text-[#6B7F78]">
+                Multiple addresses supported. Separate with commas only.
+              </p>
+            </div>
+
+            {/* Compact Send Mail Button */}
+            <div className="sm:col-span-2 flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={sendingMail || submitting || emailSent}
+                onClick={handleSendMail}
+                className={cn(
+                  "h-8 px-3 gap-1.5 text-xs font-semibold transition-colors",
+                  emailSent
+                    ? "border-white/10 bg-white/5 text-[#8FA89F] cursor-not-allowed opacity-80"
+                    : "border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10 cursor-pointer"
+                )}
+                title={
+                  emailSent
+                    ? "Fixture notification email has already been sent"
+                    : "Send fixture details to captains"
+                }
+              >
+                {sendingMail ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>Sending Mail...</span>
+                  </>
+                ) : emailSent ? (
+                  <>
+                    <CheckCircle className="size-3.5 text-[#10B981]" />
+                    <span>Email Sent</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="size-3.5" />
+                    <span>Send Mail</span>
+                  </>
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -242,4 +242,33 @@ class EmailTemplateToggleTest extends TestCase
         MailHelper::sendPasswordResetSuccessEmail($user);
         Mail::assertNothingSent();
     }
+
+    public function test_fixture_scheduled_email_toggles()
+    {
+        $fixtureData = [
+            'name' => 'RTR vs NSR',
+            'date' => '2026-12-01 19:30:00',
+            'team_name' => 'RTR',
+            'opposition_club' => 'NSR',
+            'venue_type' => 'Home',
+            'club_location' => 'Main Hall Court 1',
+            'status' => 'Scheduled',
+        ];
+
+        // ON
+        $this->setTemplateState('fixture_scheduled', true);
+        $result = MailHelper::sendFixtureScheduledNotification($fixtureData, ['opp@nsr.com'], ['capt@rtr.com']);
+        $this->assertTrue($result);
+        Mail::assertSent(GenericMailable::class, 1);
+        Mail::assertSent(GenericMailable::class, function ($mail) {
+            return $mail->hasTo('opp@nsr.com') && $mail->hasCc('capt@rtr.com') && $mail->customSubject === 'RTR vs NSR - December 1, 2026';
+        });
+
+        // OFF
+        Mail::fake();
+        $this->setTemplateState('fixture_scheduled', false);
+        $result = MailHelper::sendFixtureScheduledNotification($fixtureData, ['opp@nsr.com'], ['capt@rtr.com']);
+        $this->assertFalse($result);
+        Mail::assertNothingSent();
+    }
 }

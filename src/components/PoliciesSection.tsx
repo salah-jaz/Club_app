@@ -8,7 +8,7 @@ export function PoliciesSection() {
           Policies & Documents
         </h2>
         <span className="text-xs text-muted-foreground">
-          Manage club policies, member terms, and privacy agreements (PDF format)
+          Manage club policies, member terms, and privacy agreements (PDF or Google Docs)
         </span>
       </div>
 

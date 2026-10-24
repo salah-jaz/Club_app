@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
+import { validateCaptainEmails } from "./fixtures.new";
 import {
   Pencil,
   Trash2,
@@ -24,6 +25,8 @@ import {
   XCircle,
   Loader2,
   RefreshCw,
+  Mail,
+  CheckCircle,
 } from "lucide-react";
 import {
   Table,
@@ -59,11 +62,16 @@ function FixtureDetailPage() {
   const fixture = useStore((s) => s.fixtures.find((x) => x.id === id));
   const leagueGroups = useStore((s) => s.leagueGroups);
   const deleteFixture = useStore((s) => s.deleteFixture);
+  const sendFixtureMail = useStore((s) => s.sendFixtureMail);
   const fetchFixtureById = useStore((s) => s.fetchFixtureById);
+  const emailTemplates = useStore((s) => s.emailTemplates);
 
   const [deleteRequest, setDeleteRequest] = useState<ConfirmDeleteRequest | null>(null);
   const [loading, setLoading] = useState(!fixture);
   const [notFound, setNotFound] = useState(false);
+  const [sendingMail, setSendingMail] = useState(false);
+  const [emailSentSuccess, setEmailSentSuccess] = useState(false);
+  const isEmailSent = Boolean(fixture?.emailSent || (fixture as any)?.email_sent || emailSentSuccess);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [loadingGroupDetails, setLoadingGroupDetails] = useState(false);
   const [fetchedGroup, setFetchedGroup] = useState<LeagueGroup | null>(null);
@@ -213,6 +221,73 @@ function FixtureDetailPage() {
       console.error("Failed to load latest group membership data:", err);
     } finally {
       setLoadingGroupDetails(false);
+    }
+  };
+
+  const handleSendMail = async () => {
+    if (sendingMail) return;
+
+    const isFixtureNotificationEnabled =
+      emailTemplates?.fixture_scheduled?.is_enabled !== false;
+    if (!isFixtureNotificationEnabled) {
+      toast.error(
+        "Fixture Scheduled Notification is currently disabled. Enable it under Email Templates & Notifications to send emails.",
+      );
+      return;
+    }
+
+    const oppCheck = validateCaptainEmails(
+      fixture.oppositionCaptainEmail || "",
+      "Opposition Club / Team Captain Email",
+    );
+    if (!oppCheck.valid) {
+      toast.error(oppCheck.error);
+      return;
+    }
+    if (!oppCheck.normalized) {
+      toast.error(
+        "Please enter at least one valid email address in Opposition Club / Team Captain Email (To recipient) before sending.",
+      );
+      return;
+    }
+
+    const homeCheck = validateCaptainEmails(
+      fixture.homeCaptainEmail || "",
+      "Home Captain Email",
+    );
+    if (!homeCheck.valid) {
+      toast.error(homeCheck.error);
+      return;
+    }
+
+    setSendingMail(true);
+    try {
+      await sendFixtureMail(fixture.id, {
+        id: fixture.id,
+        name: fixture.name,
+        date: fixture.date,
+        matchType: fixture.matchType,
+        venueType: fixture.venueType,
+        oppositionClub: fixture.oppositionClub,
+        teamName: fixture.teamName,
+        clubLocation: fixture.clubLocation,
+        homeCaptainEmail: homeCheck.normalized || null,
+        oppositionCaptainEmail: oppCheck.normalized || null,
+        grade: fixture.grade,
+        status: fixture.status,
+        result: fixture.result,
+      });
+      setEmailSentSuccess(true);
+      toast.success("Fixture notification email sent successfully");
+    } catch (err: any) {
+      console.error("Fixture notification email sending failed:", err);
+      const errMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to send fixture notification email.";
+      toast.error(errMsg);
+    } finally {
+      setSendingMail(false);
     }
   };
 
@@ -382,7 +457,43 @@ function FixtureDetailPage() {
         description={`Fixture scheduled for ${fmtDateTime(fixture.date)}`}
         backTo="/fixtures"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {(fixture.homeCaptainEmail || fixture.oppositionCaptainEmail) && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={sendingMail || isEmailSent}
+                onClick={handleSendMail}
+                className={cn(
+                  "h-[38px] px-3.5 gap-1.5 text-xs font-semibold transition-colors",
+                  isEmailSent
+                    ? "border-white/10 bg-white/5 text-[#8FA89F] cursor-not-allowed opacity-80"
+                    : "border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10 cursor-pointer"
+                )}
+                title={
+                  isEmailSent
+                    ? "Fixture notification email has already been sent"
+                    : "Send fixture details to captains"
+                }
+              >
+                {sendingMail ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>Sending Mail...</span>
+                  </>
+                ) : isEmailSent ? (
+                  <>
+                    <CheckCircle className="size-3.5 text-[#10B981]" />
+                    <span>Email Sent</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="size-3.5" />
+                    <span>Send Mail</span>
+                  </>
+                )}
+              </Button>
+            )}
             {canEdit && (
               <Button asChild className="btn-premium-solid h-[38px] px-4 hover:cursor-pointer">
                 <Link to="/fixtures/$id/edit" params={{ id: fixture.id }}>
@@ -425,14 +536,24 @@ function FixtureDetailPage() {
               </div>
             </div>
 
-            {/* VS Badge */}
-            <div className="flex flex-col items-center">
+            {/* VS Badge & Outcome */}
+            <div className="flex flex-col items-center gap-1.5">
               <div className="size-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center font-bold text-sm text-[#F1F0EE]">
                 VS
               </div>
-              <span className="text-[10px] text-[#8A8A98] mt-1 uppercase tracking-widest font-mono">
+              <span className="text-[10px] text-[#8A8A98] uppercase tracking-widest font-mono">
                 {fixture.venueType}
               </span>
+              {fixture.result === "Win" && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
+                  <Trophy className="size-3" /> Win
+                </span>
+              )}
+              {fixture.result === "Loss" && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#EF4444]/15 text-[#EF4444] border border-[#EF4444]/30">
+                  <XCircle className="size-3" /> Loss
+                </span>
+              )}
             </div>
 
             {/* Opposition Team */}
@@ -504,7 +625,7 @@ function FixtureDetailPage() {
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold tracking-wider uppercase bg-emerald-500/10 text-[#10B981] border border-emerald-500/20">
                     <Shield className="size-3" /> Home Team
                   </span>
-                  <span className="text-xs text-[#8FA89F]">Badminton Club</span>
+                  <span className="text-xs text-[#8FA89F]">Club Name</span>
                 </div>
                 <h4
                   className="font-bold text-base sm:text-lg text-[#EEF2F0] truncate mt-1"
@@ -512,6 +633,12 @@ function FixtureDetailPage() {
                 >
                   {fixture.homeTeamName || fixture.teamName}
                 </h4>
+                {fixture.homeCaptainEmail && (
+                  <div className="flex items-center gap-1.5 text-xs text-[#34D399] mt-1 font-medium">
+                    <Mail className="size-3.5 shrink-0" />
+                    <span className="truncate">{fixture.homeCaptainEmail}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -555,7 +682,7 @@ function FixtureDetailPage() {
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold tracking-wider uppercase bg-amber-500/10 text-[#F59E0B] border border-amber-500/20">
                     <Swords className="size-3" /> Visiting Team
                   </span>
-                  <span className="text-xs text-[#8FA89F]">Badminton Club</span>
+                  <span className="text-xs text-[#8FA89F]">Club Name</span>
                 </div>
                 <h4
                   className="font-bold text-base sm:text-lg text-[#EEF2F0] truncate mt-1"
@@ -563,6 +690,12 @@ function FixtureDetailPage() {
                 >
                   {fixture.visitingTeamName || fixture.oppositionClub}
                 </h4>
+                {fixture.oppositionCaptainEmail && (
+                  <div className="flex items-center gap-1.5 text-xs text-[#F59E0B] mt-1 font-medium">
+                    <Mail className="size-3.5 shrink-0" />
+                    <span className="truncate">{fixture.oppositionCaptainEmail}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -614,7 +747,7 @@ function FixtureDetailPage() {
         </CardHeader>
         <CardContent className="pt-4 space-y-4">
           {/* Specifications Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {/* Match Type */}
             <div className="p-4 rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 hover:bg-[#1A2120]/60 transition-colors flex items-center gap-3.5">
               <div className="size-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[#34D399] shrink-0 shadow-sm">
@@ -656,6 +789,21 @@ function FixtureDetailPage() {
                 </span>
                 <p className="text-sm sm:text-base font-bold font-mono text-[#EEF2F0] truncate mt-0.5">
                   {fixture.grade || "—"}
+                </p>
+              </div>
+            </div>
+
+            {/* Club Location */}
+            <div className="p-4 rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 hover:bg-[#1A2120]/60 transition-colors flex items-center gap-3.5">
+              <div className="size-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-[#A78BFA] shrink-0 shadow-sm">
+                <Building className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[11px] font-semibold tracking-wider text-[#8FA89F] uppercase block">
+                  Club Location
+                </span>
+                <p className="text-sm sm:text-base font-bold text-[#EEF2F0] truncate mt-0.5">
+                  {fixture.clubLocation || "Not specified"}
                 </p>
               </div>
             </div>

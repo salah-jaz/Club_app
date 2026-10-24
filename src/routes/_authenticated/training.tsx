@@ -293,7 +293,7 @@ function TrainingModule() {
                         <span className="font-mono">{fmtMoney(totalFee)}</span>
                       </div>
                       <div className="flex justify-between text-xs text-[#8A8A98]">
-                        <span>Current Wallet Balance</span>
+                        <span>Current Credits</span>
                         <span className="font-mono">{fmtMoney(walletMember.credit)}</span>
                       </div>
                       <div className="flex justify-between text-xs font-semibold text-[#F1F0EE]">
@@ -301,7 +301,7 @@ function TrainingModule() {
                         <span className="font-mono">{fmtMoney(totalFee)}</span>
                       </div>
                       <div className="flex justify-between text-xs font-semibold pt-1 border-t border-white/5">
-                        <span>Balance After Deduction</span>
+                        <span>Credits After Deduction</span>
                         <span
                           className={cn(
                             "font-mono",
