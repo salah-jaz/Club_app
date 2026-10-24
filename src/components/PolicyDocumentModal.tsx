@@ -6,7 +6,7 @@ import {
   FileQuestion,
   Loader2,
   ShieldCheck,
-  AlertCircle,
+  Link2,
 } from "lucide-react";
 import {
   Dialog,
@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
 import { api } from "@/lib/api";
+import { openPolicyExternal } from "@/lib/policies";
 import type { PolicyType } from "@/lib/types";
 import { toast } from "sonner";
 
@@ -51,11 +52,14 @@ export function PolicyDocumentModal({
     }
   }, [open, fetchPolicies]);
 
+  const isGoogleDoc = policy?.sourceType === "google_doc";
   const hasDocument = Boolean(policy?.hasDocument);
+  const hasFile = Boolean(policy?.hasFile || (!isGoogleDoc && hasDocument));
+  const hasGoogleDoc = Boolean(policy?.hasGoogleDoc || (isGoogleDoc && policy?.googleDocsUrl));
 
   // Compute URLs with cache busting query param and auth token if applicable
   const { previewUrl, downloadUrl } = useMemo(() => {
-    if (!hasDocument) return { previewUrl: null, downloadUrl: null };
+    if (!hasFile) return { previewUrl: null, downloadUrl: null };
 
     const preview = api.getPolicyUrl(type, "preview");
     const download = api.getPolicyUrl(type, "download");
@@ -67,7 +71,7 @@ export function PolicyDocumentModal({
       previewUrl: `${preview}${delimP}v=${version}`,
       downloadUrl: `${download}${delimD}v=${version}`,
     };
-  }, [hasDocument, type, policy?.updatedAt]);
+  }, [hasFile, type, policy?.updatedAt]);
 
   const handleDownload = async () => {
     if (!downloadUrl) return;
@@ -112,12 +116,16 @@ export function PolicyDocumentModal({
               <span>{policy?.title || title}</span>
               {hasDocument && (
                 <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
-                  PDF
+                  {isGoogleDoc ? "Google Doc" : "PDF"}
                 </span>
               )}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground text-xs sm:text-sm truncate mt-0.5">
-              {hasDocument && policy?.fileName ? (
+              {isGoogleDoc && hasGoogleDoc ? (
+                <span className="truncate block font-mono text-[11px]">
+                  {policy?.googleDocsUrl}
+                </span>
+              ) : hasFile && policy?.fileName ? (
                 <span>
                   {policy.fileName}
                   {policy.formattedSize ? ` • ${policy.formattedSize}` : ""}
@@ -131,8 +139,8 @@ export function PolicyDocumentModal({
             </DialogDescription>
           </div>
 
-          {hasDocument && (
-            <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            {hasFile && downloadUrl && (
               <Button
                 type="button"
                 size="sm"
@@ -147,26 +155,52 @@ export function PolicyDocumentModal({
                 )}
                 <span className="hidden sm:inline">Download</span>
               </Button>
-              {previewUrl && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  asChild
-                  className="h-8 px-2 text-xs btn-premium-outline cursor-pointer"
-                  title="Open in new window"
-                >
-                  <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="size-3.5" />
-                  </a>
-                </Button>
-              )}
-            </div>
-          )}
+            )}
+
+            {hasDocument && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => openPolicyExternal(type)}
+                className="h-8 px-2.5 text-xs btn-premium-outline cursor-pointer flex items-center gap-1.5"
+                title="Open in new window"
+              >
+                <ExternalLink className="size-3.5 text-primary" />
+                <span className="hidden sm:inline">External Link</span>
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="flex-1 min-h-0 bg-background relative overflow-hidden flex flex-col">
-          {hasDocument && previewUrl ? (
+          {/* View Mode 1: Google Docs external presentation */}
+          {isGoogleDoc && hasGoogleDoc ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto my-auto">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-5 text-primary">
+                <Link2 className="size-8" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Google Docs Document
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+                This document is managed in Google Docs. Click below to view the latest live version directly in a new tab.
+              </p>
+              <div className="w-full max-w-md p-3 rounded-lg bg-muted/40 border border-border text-left mb-6 font-mono text-xs text-muted-foreground truncate">
+                {policy?.googleDocsUrl}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => openPolicyExternal(type)}
+                className="btn-premium-solid text-xs h-10 px-5 cursor-pointer flex items-center gap-2"
+              >
+                <ExternalLink className="size-4" />
+                Open Google Document
+              </Button>
+            </div>
+          ) : !isGoogleDoc && hasFile && previewUrl ? (
+            /* View Mode 2: Uploaded PDF embedded iframe */
             <>
               {iframeLoading && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/90 text-muted-foreground gap-2">
@@ -182,15 +216,16 @@ export function PolicyDocumentModal({
               />
             </>
           ) : (
+            /* Empty state */
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto my-auto">
               <div className="w-14 h-14 rounded-full bg-muted/60 border border-border flex items-center justify-center mb-4 text-muted-foreground">
                 <FileQuestion className="size-7" />
               </div>
               <h3 className="text-base font-medium text-foreground mb-1.5">
-                No Document Uploaded Yet
+                No Document Configured Yet
               </h3>
               <p className="text-xs text-muted-foreground leading-relaxed mb-6">
-                The club administrator has not yet uploaded a PDF version of the {title.toLowerCase()}.
+                The club administrator has not yet configured the {title.toLowerCase()}.
                 Please check back soon or contact the club administrator.
               </p>
               {currentUser?.role === "admin" && (
@@ -206,7 +241,7 @@ export function PolicyDocumentModal({
                   }}
                   className="text-xs btn-premium-outline cursor-pointer"
                 >
-                  Go to Settings to Upload
+                  Go to Settings to Configure
                 </Button>
               )}
             </div>

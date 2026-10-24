@@ -33,7 +33,7 @@ import { useCurrentUser, useStore } from "@/lib/store";
 import { useCanModule } from "@/lib/permissions";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { MemberPolicyViewer } from "@/components/MemberPolicyViewer";
+import { openPolicyExternal } from "@/lib/policies";
 
 export function AppSidebar() {
   const user = useCurrentUser();
@@ -47,7 +47,6 @@ export function AppSidebar() {
   const syncData = useStore((s) => s.syncData);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { setOpenMobile, isMobile } = useSidebar();
-  const [policyOpen, setPolicyOpen] = useState(false);
 
   if (!user) return null;
   const isAdmin = activeRole === "admin";
@@ -96,7 +95,7 @@ export function AppSidebar() {
     },
     { to: "/members", label: "Members", icon: Users, show: isMember || (isAdmin && canMembers) },
     { to: "/credits", label: "Wallet", icon: Wallet, show: isMember || (isAdmin && canCredits) },
-    { to: "/events", label: "Play Sessions", icon: CalendarDays, show: isMember },
+    { to: "/events", label: "Play Schedules", icon: CalendarDays, show: isMember },
     {
       to: "/schedules",
       label: "Play Schedules",
@@ -276,10 +275,11 @@ export function AppSidebar() {
             {isMember && (
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => {
-                    setPolicyOpen(true);
+                  onClick={async () => {
                     closeSidebarMobile();
+                    await openPolicyExternal("member_policy");
                   }}
+                  title="View Club Member Policy"
                 >
                   <motion.span
                     whileHover={{ scale: 1.15 }}
@@ -313,7 +313,6 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-      {isMember && <MemberPolicyViewer open={policyOpen} onOpenChange={setPolicyOpen} />}
     </>
   );
 }

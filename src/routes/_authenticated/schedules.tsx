@@ -530,7 +530,7 @@ function SchedulesList() {
         <EmptyIllustration
           icon="calendar"
           title="No schedules yet"
-          description="Create your first play session to invite members and track participation."
+          description="Create your first play schedule to invite members and track participation."
           ctaLabel="Create a schedule"
           ctaTo="/schedules/new"
         />
@@ -538,7 +538,7 @@ function SchedulesList() {
         <EmptyIllustration
           icon="calendar"
           title="No schedules match your filters"
-          description="Try adjusting your search, date range, or filter criteria to find sessions."
+          description="Try adjusting your search, date range, or filter criteria to find schedules."
           ctaLabel="Clear all filters"
           onCta={clearFilters}
         />

@@ -217,8 +217,9 @@ function Layout() {
   // Breadcrumb screen name resolution
   const pathPart = pathname.split("/").filter(Boolean)[0] || "dashboard";
   const routeNames: Record<string, string> = {
-    events: "Play Sessions",
-    invitations: "Play Sessions",
+    events: "Play Schedules",
+    invitations: "Play Schedules",
+    schedules: "Play Schedules",
     training: "Training",
     "league-groups": "Groups",
     fixtures: "Fixtures",

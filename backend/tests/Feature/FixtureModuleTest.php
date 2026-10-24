@@ -173,7 +173,7 @@ class FixtureModuleTest extends TestCase
             'oppositionClub' => 'Hawks FC',
             'teamName' => 'Lions Alpha',
             'grade' => 'Division 1',
-            'status' => 'Opened',
+            'status' => 'Created',
         ]);
         $createRes->assertStatus(201);
         $fixtureId = $createRes->json('id');
@@ -202,12 +202,12 @@ class FixtureModuleTest extends TestCase
             'oppositionClub' => 'Hawks FC',
             'teamName' => 'Lions Alpha',
             'grade' => 'Division 1',
-            'status' => 'In Progress',
+            'status' => 'Scheduled',
         ]);
         $updateRes->assertOk();
         $this->assertEquals('Championship Match 1 Updated', $updateRes->json('name'));
         $this->assertEquals('Away', $updateRes->json('venueType'));
-        $this->assertEquals('In Progress', $updateRes->json('status'));
+        $this->assertEquals('Scheduled', $updateRes->json('status'));
 
         // 5. Delete
         $deleteRes = $this->actingAs($this->admin)->deleteJson('/api/fixtures/' . $fixtureId);
@@ -227,7 +227,7 @@ class FixtureModuleTest extends TestCase
             'oppositionClub' => 'Original Opp Club',
             'teamName' => 'Original Team',
             'grade' => 'Division 1',
-            'status' => 'Opened',
+            'status' => 'Created',
         ]);
         $createRes->assertStatus(201);
         $fixtureId = $createRes->json('id');
@@ -242,7 +242,7 @@ class FixtureModuleTest extends TestCase
             'oppositionClub' => 'Admin Updated Opp Club',
             'teamName' => 'Admin Updated Team',
             'grade' => 'Division 2',
-            'status' => 'In Progress',
+            'status' => 'Scheduled',
         ]);
         $patchRes->assertOk();
 
@@ -256,7 +256,7 @@ class FixtureModuleTest extends TestCase
         $this->assertEquals('Admin Updated Opp Club', $fixture->opposition_club);
         $this->assertEquals('Admin Updated Team', $fixture->team_name);
         $this->assertEquals('Division 2', $fixture->grade);
-        $this->assertEquals('In Progress', $fixture->status);
+        $this->assertEquals('Scheduled', $fixture->status);
 
         // 3. Now test member editing a fixture in their group
         // Add member to group2 as well
@@ -273,7 +273,7 @@ class FixtureModuleTest extends TestCase
             'oppositionClub' => 'Member Final Opp Club',
             'teamName' => 'Member Final Team',
             'grade' => 'Division 1',
-            'status' => 'Closed',
+            'status' => 'Completed',
         ]);
         $memberPatchRes->assertOk();
 
@@ -286,7 +286,7 @@ class FixtureModuleTest extends TestCase
         $this->assertEquals('Member Final Opp Club', $fixture->opposition_club);
         $this->assertEquals('Member Final Team', $fixture->team_name);
         $this->assertEquals('Division 1', $fixture->grade);
-        $this->assertEquals('Closed', $fixture->status);
+        $this->assertEquals('Completed', $fixture->status);
 
         // 4. Reopen fixture via GET /api/fixtures/{id} (both Admin and Member)
         $adminShow = $this->actingAs($this->admin)->getJson('/api/fixtures/' . $fixtureId);
@@ -299,7 +299,7 @@ class FixtureModuleTest extends TestCase
         $this->assertEquals('Member Final Opp Club', $adminShow->json('oppositionClub'));
         $this->assertEquals('Member Final Team', $adminShow->json('teamName'));
         $this->assertEquals('Division 1', $adminShow->json('grade'));
-        $this->assertEquals('Closed', $adminShow->json('status'));
+        $this->assertEquals('Completed', $adminShow->json('status'));
 
         $memberShow = $this->actingAs($this->memberUserWithGroup)->getJson('/api/fixtures/' . $fixtureId);
         $memberShow->assertOk();
@@ -312,7 +312,7 @@ class FixtureModuleTest extends TestCase
         $matching = $syncedFixtures->firstWhere('id', $fixtureId);
         $this->assertNotNull($matching);
         $this->assertEquals('Member Final Name', $matching['name']);
-        $this->assertEquals('Closed', $matching['status']);
+        $this->assertEquals('Completed', $matching['status']);
         $this->assertEquals('Championship', $matching['matchType']);
     }
 
@@ -357,7 +357,7 @@ class FixtureModuleTest extends TestCase
             'oppositionClub' => 'Junior Tigers',
             'teamName' => 'Cubs Alpha',
             'grade' => 'Division 2',
-            'status' => 'Opened',
+            'status' => 'Created',
         ]);
         $createRes->assertStatus(201);
         $fixtureId = $createRes->json('id');
@@ -372,15 +372,15 @@ class FixtureModuleTest extends TestCase
             'oppositionClub' => 'Junior Tigers Updated',
             'teamName' => 'Cubs Alpha Updated',
             'grade' => 'Division 2',
-            'status' => 'In Progress',
+            'status' => 'Scheduled',
         ]);
         $editRes->assertOk();
         $this->assertEquals('Junior Tournament 1 Updated by Parent', $editRes->json('name'));
-        $this->assertEquals('In Progress', $editRes->json('status'));
+        $this->assertEquals('Scheduled', $editRes->json('status'));
 
         $fixture = Fixture::find($fixtureId);
         $this->assertEquals('Junior Tournament 1 Updated by Parent', $fixture->name);
-        $this->assertEquals('In Progress', $fixture->status);
+        $this->assertEquals('Scheduled', $fixture->status);
     }
 
     public function test_member_without_groups_cannot_access_fixtures_api(): void
@@ -920,4 +920,387 @@ class FixtureModuleTest extends TestCase
         $this->assertEquals('2027-01-02 15:30:00', $fixture->date);
         $this->assertEquals('Saturday · Jan 2, 2027 · 3:30 PM', $fixture->name);
     }
+
+    public function test_fixture_club_location_persists_and_reloads_correctly(): void
+    {
+        // 1. Create fixture with clubLocation
+        $createRes = $this->actingAs($this->admin)->postJson('/api/fixtures', [
+            'name' => 'Location Test Match',
+            'date' => '2026-11-10 18:00:00',
+            'leagueGroupId' => $this->group1->id,
+            'matchType' => 'League',
+            'venueType' => 'Home',
+            'oppositionClub' => 'Court Masters',
+            'teamName' => 'Lions Alpha',
+            'grade' => 'Division 1',
+            'status' => 'Created',
+            'clubLocation' => 'Center Court Hall A',
+        ]);
+        $createRes->assertStatus(201);
+        $fixtureId = $createRes->json('id');
+        $this->assertEquals('Center Court Hall A', $createRes->json('clubLocation'));
+
+        // DB check
+        $fixture = Fixture::find($fixtureId);
+        $this->assertEquals('Center Court Hall A', $fixture->club_location);
+
+        // 2. Member reloads via GET /api/fixtures/{id}
+        $showRes = $this->actingAs($this->memberUserWithGroup)->getJson('/api/fixtures/' . $fixtureId);
+        $showRes->assertOk();
+        $this->assertEquals('Center Court Hall A', $showRes->json('clubLocation'));
+
+        // 3. Update club location
+        $updateRes = $this->actingAs($this->memberUserWithGroup)->patchJson('/api/fixtures/' . $fixtureId, [
+            'clubLocation' => 'Olympic Arena',
+        ]);
+        $updateRes->assertOk();
+        $this->assertEquals('Olympic Arena', $updateRes->json('clubLocation'));
+        $this->assertEquals('Olympic Arena', $fixture->fresh()->club_location);
+    }
+
+    public function test_fixture_captain_emails_support_comma_separated_and_reject_semicolons_and_invalid_formats(): void
+    {
+        // 1. Valid multiple comma-separated emails with surrounding whitespace
+        $createRes = $this->actingAs($this->admin)->postJson('/api/fixtures', [
+            'name' => 'Email Test Match',
+            'date' => '2026-11-12 19:00:00',
+            'leagueGroupId' => $this->group1->id,
+            'matchType' => 'Friendly',
+            'venueType' => 'Home',
+            'oppositionClub' => 'Smash Club',
+            'teamName' => 'Lions Alpha',
+            'grade' => 'Division 1',
+            'status' => 'Created',
+            'homeCaptainEmail' => ' captain1@example.com , captain2@example.com ',
+            'oppositionCaptainEmail' => 'opp1@example.com, opp2@example.com',
+        ]);
+        $createRes->assertStatus(201);
+        $fixtureId = $createRes->json('id');
+        $this->assertEquals('captain1@example.com, captain2@example.com', $createRes->json('homeCaptainEmail'));
+        $this->assertEquals('opp1@example.com, opp2@example.com', $createRes->json('oppositionCaptainEmail'));
+
+        // 2. Reject semicolon separated emails
+        $semicolonRes = $this->actingAs($this->admin)->patchJson('/api/fixtures/' . $fixtureId, [
+            'homeCaptainEmail' => 'captain1@example.com; captain2@example.com',
+        ]);
+        $semicolonRes->assertStatus(422);
+
+        $semicolonOppRes = $this->actingAs($this->admin)->patchJson('/api/fixtures/' . $fixtureId, [
+            'oppositionCaptainEmail' => 'opp1@example.com; opp2@example.com',
+        ]);
+        $semicolonOppRes->assertStatus(422);
+
+        // 3. Reject invalid email address format
+        $invalidEmailRes = $this->actingAs($this->admin)->patchJson('/api/fixtures/' . $fixtureId, [
+            'homeCaptainEmail' => 'valid@example.com, not-an-email',
+        ]);
+        $invalidEmailRes->assertStatus(422);
+
+        // 4. Update with single valid address
+        $validSingle = $this->actingAs($this->memberUserWithGroup)->patchJson('/api/fixtures/' . $fixtureId, [
+            'homeCaptainEmail' => 'single@example.com',
+            'oppositionCaptainEmail' => 'single-opp@example.com',
+        ]);
+        $validSingle->assertOk();
+        $this->assertEquals('single@example.com', $validSingle->json('homeCaptainEmail'));
+        $this->assertEquals('single-opp@example.com', $validSingle->json('oppositionCaptainEmail'));
+    }
+
+    public function test_send_fixture_mail_validates_and_delivers_using_mail_system(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        // Ensure template is enabled
+        $templates = \App\Helpers\MailHelper::getDefaultTemplates();
+        $templates['fixture_scheduled']['is_enabled'] = true;
+        \App\Models\Setting::updateOrCreate(
+            ['key' => 'email_templates'],
+            ['value' => json_encode($templates)]
+        );
+
+        // Create fixture with captain emails
+        $fixture = Fixture::create([
+            'id' => 'fix_mail_' . Str::random(6),
+            'name' => 'Cup Semi-Final',
+            'date' => '2026-11-20 15:00:00',
+            'league_group_id' => $this->group1->id,
+            'match_type' => 'Tournament',
+            'venue_type' => 'Home',
+            'opposition_club' => 'Titans BC',
+            'team_name' => 'Lions Team',
+            'grade' => 'Division 1',
+            'status' => 'Scheduled',
+            'club_location' => 'Main Sports Complex',
+            'home_captain_email' => 'home.captain@test.com, manager@test.com',
+            'opposition_captain_email' => 'opp.captain@titans.com',
+        ]);
+
+        // 1. Send mail without opposition recipient (To) should fail with 422
+        $failRes = $this->actingAs($this->admin)->postJson('/api/fixtures/send-mail', [
+            'name' => 'Test',
+            'date' => '2026-11-20',
+            'teamName' => 'Team',
+            'oppositionClub' => 'Opp',
+            'homeCaptainEmail' => 'onlyhome@test.com',
+        ]);
+        $failRes->assertStatus(422);
+        $this->assertStringContainsString('Opposition Club / Team Captain Email', $failRes->json('message'));
+
+        // 2. When template toggle is OFF, sending fails with 422 and clear disabled message
+        $templates['fixture_scheduled']['is_enabled'] = false;
+        \App\Models\Setting::updateOrCreate(
+            ['key' => 'email_templates'],
+            ['value' => json_encode($templates)]
+        );
+
+        $disabledRes = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $disabledRes->assertStatus(422);
+        $this->assertStringContainsString('disabled', $disabledRes->json('message'));
+        \Illuminate\Support\Facades\Mail::assertNothingSent();
+
+        // Re-enable template for subsequent tests
+        $templates['fixture_scheduled']['is_enabled'] = true;
+        \App\Models\Setting::updateOrCreate(
+            ['key' => 'email_templates'],
+            ['value' => json_encode($templates)]
+        );
+
+        // 3. Send mail via POST /api/fixtures/{id}/send-mail with To, CC, and subject
+        \Illuminate\Support\Facades\Mail::fake();
+        $sendRes = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $sendRes->assertOk();
+        $this->assertEquals(['opp.captain@titans.com'], $sendRes->json('to'));
+        $this->assertEquals(['home.captain@test.com', 'manager@test.com'], $sendRes->json('cc'));
+        $this->assertCount(3, $sendRes->json('recipients'));
+
+        // Verify exactly 1 email sent with To and CC
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, 1);
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, function ($mail) {
+            return $mail->hasTo('opp.captain@titans.com') &&
+                $mail->hasCc('home.captain@test.com') &&
+                $mail->hasCc('manager@test.com') &&
+                $mail->customSubject === 'Lions Team vs Titans BC - November 20, 2026';
+        });
+
+        // 3a. Verify database persistence of email_sent status
+        $fixture->refresh();
+        $this->assertTrue((bool)$fixture->email_sent);
+        $this->assertNotNull($fixture->email_sent_at);
+
+        // 3b. Verify GET /api/fixtures/{id} returns emailSent = true after page refresh/reload
+        $getRes = $this->actingAs($this->memberUserWithGroup)->getJson('/api/fixtures/' . $fixture->id);
+        $getRes->assertOk();
+        $this->assertTrue($getRes->json('emailSent'));
+        $this->assertTrue($getRes->json('email_sent'));
+        $this->assertNotNull($getRes->json('emailSentAt'));
+
+        // 3c. Attempting to send again via API is blocked with 422 and sends NO duplicate email
+        \Illuminate\Support\Facades\Mail::fake();
+        $dupAttempt = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $dupAttempt->assertStatus(422);
+        $this->assertStringContainsString('already been sent', $dupAttempt->json('message'));
+        \Illuminate\Support\Facades\Mail::assertNothingSent();
+
+        // 3d. Verify concurrent in-flight request prevention via lock
+        $lockFixture = Fixture::create([
+            'id' => 'fix_lock_' . Str::random(6),
+            'name' => 'Concurrency Match',
+            'date' => '2026-11-29 15:00:00',
+            'league_group_id' => $this->group1->id,
+            'match_type' => 'Friendly',
+            'venue_type' => 'Home',
+            'opposition_club' => 'Eagles FC',
+            'team_name' => 'Lions Team',
+            'grade' => 'Division 1',
+            'status' => 'Scheduled',
+            'opposition_captain_email' => 'opp@eagles.com',
+        ]);
+
+        $lock = \Illuminate\Support\Facades\Cache::lock("fixture_mail_send_{$lockFixture->id}", 20);
+        $lock->get();
+
+        $concurrentRes = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $lockFixture->id . '/send-mail');
+        $concurrentRes->assertStatus(422);
+        $this->assertStringContainsString('already in progress', $concurrentRes->json('message'));
+
+        $lock->release();
+
+        // 4. Test duplicate prevention across To and CC
+        \Illuminate\Support\Facades\Mail::fake();
+        $dupSend = $this->actingAs($this->admin)->postJson('/api/fixtures/send-mail', [
+            'name' => 'Custom Cup Final',
+            'date' => '2026-12-01 19:30:00',
+            'teamName' => 'RTR',
+            'oppositionClub' => 'NSR',
+            'matchType' => 'Final',
+            'venueType' => 'Home',
+            'grade' => 'Division 1',
+            'status' => 'Scheduled',
+            'clubLocation' => 'National Arena',
+            'oppositionCaptainEmail' => 'nsr@test.com, shared@test.com',
+            'homeCaptainEmail' => 'rtr@test.com, shared@test.com, rtr@test.com',
+        ]);
+        $dupSend->assertOk();
+        $this->assertEquals(['nsr@test.com', 'shared@test.com'], $dupSend->json('to'));
+        // 'shared@test.com' was in both To and CC, so it is removed from CC
+        $this->assertEquals(['rtr@test.com'], $dupSend->json('cc'));
+
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, 1);
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, function ($mail) {
+            $html = $mail->htmlContent ?? $mail->build()->html;
+            return $mail->hasTo('nsr@test.com') &&
+                $mail->hasTo('shared@test.com') &&
+                $mail->hasCc('rtr@test.com') &&
+                !$mail->hasCc('shared@test.com') &&
+                $mail->customSubject === 'RTR vs NSR - December 1, 2026' &&
+                str_contains($html, 'RTR') &&
+                str_contains($html, 'NSR') &&
+                str_contains($html, 'Final') &&
+                str_contains($html, 'Home') &&
+                str_contains($html, 'National Arena') &&
+                str_contains($html, 'Scheduled');
+        });
+
+        // 5. Invalid email addresses fail with 422
+        $invalidEmailRes = $this->actingAs($this->admin)->postJson('/api/fixtures/send-mail', [
+            'name' => 'Invalid Test',
+            'date' => '2026-12-01 19:30:00',
+            'teamName' => 'RTR',
+            'oppositionClub' => 'NSR',
+            'oppositionCaptainEmail' => 'invalid-email-address',
+        ]);
+        $invalidEmailRes->assertStatus(422);
+        $this->assertStringContainsString('invalid email', $invalidEmailRes->json('message'));
+
+        // 6. Semicolon email separator fails with 422
+        $semicolonRes = $this->actingAs($this->admin)->postJson('/api/fixtures/send-mail', [
+            'name' => 'Semicolon Test',
+            'date' => '2026-12-01 19:30:00',
+            'teamName' => 'RTR',
+            'oppositionClub' => 'NSR',
+            'oppositionCaptainEmail' => 'opp1@test.com; opp2@test.com',
+        ]);
+        $semicolonRes->assertStatus(422);
+        $this->assertStringContainsString('comma-separated', $semicolonRes->json('message'));
+
+        // 7. Verify success response message format
+        $this->assertEquals('Fixture notification email sent successfully.', $dupSend->json('message'));
+    }
+
+    public function test_legacy_fixture_statuses_safely_map_to_new_statuses(): void
+    {
+        // 1. Storing with legacy status 'Opened' gets saved/formatted as 'Created'
+        $resOpened = $this->actingAs($this->admin)->postJson('/api/fixtures', [
+            'name' => 'Legacy Opened Match',
+            'date' => '2026-11-15 14:00:00',
+            'leagueGroupId' => $this->group1->id,
+            'matchType' => 'Friendly',
+            'venueType' => 'Home',
+            'oppositionClub' => 'Club A',
+            'teamName' => 'Team A',
+            'grade' => 'Division 1',
+            'status' => 'Opened',
+        ]);
+        $resOpened->assertStatus(201);
+        $this->assertEquals('Created', $resOpened->json('status'));
+        $fixtureId = $resOpened->json('id');
+        $this->assertEquals('Created', Fixture::find($fixtureId)->status);
+
+        // 2. Updating with legacy status 'In Progress' gets saved/formatted as 'Scheduled'
+        $resProg = $this->actingAs($this->admin)->patchJson('/api/fixtures/' . $fixtureId, [
+            'status' => 'In Progress',
+        ]);
+        $resProg->assertOk();
+        $this->assertEquals('Scheduled', $resProg->json('status'));
+        $this->assertEquals('Scheduled', Fixture::find($fixtureId)->status);
+
+        // 3. Updating with legacy status 'Closed' gets saved/formatted as 'Completed'
+        $resClosed = $this->actingAs($this->admin)->patchJson('/api/fixtures/' . $fixtureId, [
+            'status' => 'Closed',
+        ]);
+        $resClosed->assertOk();
+        $this->assertEquals('Completed', $resClosed->json('status'));
+        $this->assertEquals('Completed', Fixture::find($fixtureId)->status);
+
+        // 4. Storing with new statuses directly
+        $resNew = $this->actingAs($this->admin)->patchJson('/api/fixtures/' . $fixtureId, [
+            'status' => 'Created',
+        ]);
+        $resNew->assertOk();
+        $this->assertEquals('Created', $resNew->json('status'));
+    }
+
+    public function test_send_fixture_mail_failure_leaves_button_enabled_and_does_not_mark_sent(): void
+    {
+        $templates = \App\Helpers\MailHelper::getDefaultTemplates();
+        $templates['fixture_scheduled']['is_enabled'] = true;
+        \App\Models\Setting::updateOrCreate(
+            ['key' => 'email_templates'],
+            ['value' => json_encode($templates)]
+        );
+
+        $fixture = Fixture::create([
+            'id' => 'fix_fail_' . Str::random(6),
+            'name' => 'Retry Test Match',
+            'date' => '2026-11-25 15:00:00',
+            'league_group_id' => $this->group1->id,
+            'match_type' => 'Friendly',
+            'venue_type' => 'Home',
+            'opposition_club' => 'Hawks FC',
+            'team_name' => 'Lions Team',
+            'grade' => 'Division 1',
+            'status' => 'Scheduled',
+            'opposition_captain_email' => 'opp@hawks.com',
+        ]);
+
+        \Illuminate\Support\Facades\Mail::shouldReceive('to')->once()->andThrow(new \Exception('SMTP connection timeout'));
+
+        $errorRes = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $errorRes->assertStatus(500);
+
+        // Verify fixture is NOT marked as sent after delivery failure
+        $fixture->refresh();
+        $this->assertFalse((bool)$fixture->email_sent);
+        $this->assertNull($fixture->email_sent_at);
+    }
+
+    public function test_send_fixture_mail_retry_succeeds_and_marks_as_sent(): void
+    {
+        $templates = \App\Helpers\MailHelper::getDefaultTemplates();
+        $templates['fixture_scheduled']['is_enabled'] = true;
+        \App\Models\Setting::updateOrCreate(
+            ['key' => 'email_templates'],
+            ['value' => json_encode($templates)]
+        );
+
+        $fixture = Fixture::create([
+            'id' => 'fix_retry_ok_' . Str::random(6),
+            'name' => 'Retry OK Match',
+            'date' => '2026-11-25 15:00:00',
+            'league_group_id' => $this->group1->id,
+            'match_type' => 'Friendly',
+            'venue_type' => 'Home',
+            'opposition_club' => 'Hawks FC',
+            'team_name' => 'Lions Team',
+            'grade' => 'Division 1',
+            'status' => 'Scheduled',
+            'opposition_captain_email' => 'opp@hawks.com',
+            'email_sent' => false,
+        ]);
+
+        \Illuminate\Support\Facades\Mail::fake();
+        $retryRes = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $retryRes->assertOk();
+
+        $fixture->refresh();
+        $this->assertTrue((bool)$fixture->email_sent);
+        $this->assertNotNull($fixture->email_sent_at);
+
+        // Subsequent send is blocked as duplicate
+        $dupRes = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $dupRes->assertStatus(422);
+        $this->assertStringContainsString('already been sent', $dupRes->json('message'));
+    }
 }
+
+

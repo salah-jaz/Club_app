@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\MailHelper;
 use App\Helpers\PermissionHelper;
 use App\Helpers\SessionTimingHelper;
 use App\Http\Controllers\Controller;
@@ -40,6 +41,59 @@ class FixtureController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * Normalize fixture status names between legacy and new requirements.
+     */
+    private function normalizeStatus(?string $status): string
+    {
+        return match ($status) {
+            'Opened' => 'Created',
+            'In Progress' => 'Scheduled',
+            'Closed' => 'Completed',
+            'Created', 'Scheduled', 'Completed' => $status,
+            default => $status ?? 'Created',
+        };
+    }
+
+    /**
+     * Validate and normalize multiple comma-separated captain email addresses.
+     * Rejects semicolons and invalid email formats.
+     */
+    private function parseAndValidateCaptainEmails(?string $emails, string $fieldName): ?string
+    {
+        if ($emails === null || trim($emails) === '') {
+            return null;
+        }
+
+        if (str_contains($emails, ';')) {
+            abort(response()->json([
+                'message' => "The {$fieldName} must use comma-separated email addresses only. Semicolons and other separators are not allowed."
+            ], 422));
+        }
+
+        $parts = explode(',', $emails);
+        $validList = [];
+
+        foreach ($parts as $part) {
+            $trimmed = trim($part);
+            if ($trimmed === '') {
+                abort(response()->json([
+                    'message' => "The {$fieldName} contains empty entries between commas."
+                ], 422));
+            }
+
+            if (!filter_var($trimmed, FILTER_VALIDATE_EMAIL)) {
+                abort(response()->json([
+                    'message' => "The {$fieldName} contains an invalid email address: '{$trimmed}'."
+                ], 422));
+            }
+
+            $validList[] = $trimmed;
+        }
+
+        return implode(', ', $validList);
     }
 
     public function index(Request $request)
@@ -144,16 +198,42 @@ class FixtureController extends Controller
             'teamName' => 'sometimes|required_without:team_name|string|max:255',
             'team_name' => 'sometimes|required_without:teamName|string|max:255',
             'grade' => 'required|string|max:255',
-            'status' => 'required|string|in:Opened,In Progress,Closed',
+            'status' => 'required|string|in:Created,Scheduled,Completed,Opened,In Progress,Closed',
+            'clubLocation' => 'nullable|string|max:255',
+            'club_location' => 'nullable|string|max:255',
+            'location' => 'nullable|string|max:255',
+            'homeCaptainEmail' => 'nullable|string',
+            'home_captain_email' => 'nullable|string',
+            'oppositionCaptainEmail' => 'nullable|string',
+            'opposition_captain_email' => 'nullable|string',
+            'oppositionClubEmail' => 'nullable|string',
+            'opposition_club_email' => 'nullable|string',
         ]);
 
         $matchType = $request->input('matchType') ?? $request->input('match_type');
         $venueType = $request->input('venueType') ?? $request->input('venue_type');
         $oppositionClub = $request->input('oppositionClub') ?? $request->input('opposition_club');
         $teamName = $request->input('teamName') ?? $request->input('team_name');
+        $clubLocation = $request->input('clubLocation') ?? $request->input('club_location') ?? $request->input('location');
+
+        $rawHomeCaptainEmail = $request->input('homeCaptainEmail') ?? $request->input('home_captain_email');
+        $homeCaptainEmail = $this->parseAndValidateCaptainEmails($rawHomeCaptainEmail, 'Home Captain Email');
+
+        $rawOppCaptainEmail = $request->input('oppositionCaptainEmail') ?? $request->input('opposition_captain_email')
+            ?? $request->input('oppositionClubEmail') ?? $request->input('opposition_club_email');
+        $oppositionCaptainEmail = $this->parseAndValidateCaptainEmails($rawOppCaptainEmail, 'Opposition Club / Team Captain Email');
 
         SessionTimingHelper::applyClubTimezone();
         $date = SessionTimingHelper::parseDateTime($request->date)->format('Y-m-d H:i:s');
+        $status = $this->normalizeStatus($request->status);
+
+        $rawEmailSent = $request->input('emailSent') ?? $request->input('email_sent');
+        $emailSent = $rawEmailSent !== null ? filter_var($rawEmailSent, FILTER_VALIDATE_BOOLEAN) : false;
+        $emailSentAt = null;
+        if ($emailSent) {
+            $rawEmailSentAt = $request->input('emailSentAt') ?? $request->input('email_sent_at');
+            $emailSentAt = $rawEmailSentAt ? SessionTimingHelper::parseDateTime($rawEmailSentAt)->format('Y-m-d H:i:s') : now();
+        }
 
         $fixture = Fixture::create([
             'id' => 'fix_' . Str::random(8),
@@ -164,8 +244,13 @@ class FixtureController extends Controller
             'venue_type' => $venueType,
             'opposition_club' => $oppositionClub,
             'team_name' => $teamName,
+            'club_location' => $clubLocation,
+            'home_captain_email' => $homeCaptainEmail,
+            'opposition_captain_email' => $oppositionCaptainEmail,
+            'email_sent' => $emailSent,
+            'email_sent_at' => $emailSentAt,
             'grade' => $request->grade,
-            'status' => $request->status,
+            'status' => $status,
             'result' => $request->input('result'),
             'home_team_name' => $request->input('homeTeamName') ?? $request->input('home_team_name'),
             'home_total_matches' => $request->input('homeTotalMatches') ?? $request->input('home_total_matches'),
@@ -242,7 +327,7 @@ class FixtureController extends Controller
             'leagueGroupId' => 'sometimes|required|string|exists:league_groups,id',
             'league_group_id' => 'sometimes|required|string|exists:league_groups,id',
             'matchType' => 'sometimes|required|string|max:255',
-            'match_type' => 'sometimes|required|string|max:255',
+            'match_type' => 'sometimes|required_without:matchType|string|max:255',
             'venueType' => 'sometimes|required|string|max:255',
             'venue_type' => 'sometimes|required|string|max:255',
             'oppositionClub' => 'sometimes|required|string|max:255',
@@ -250,8 +335,17 @@ class FixtureController extends Controller
             'teamName' => 'sometimes|required|string|max:255',
             'team_name' => 'sometimes|required|string|max:255',
             'grade' => 'sometimes|required|string|max:255',
-            'status' => 'sometimes|required|string|in:Opened,In Progress,Closed',
+            'status' => 'sometimes|required|string|in:Created,Scheduled,Completed,Opened,In Progress,Closed',
             'result' => 'nullable|string|in:Win,Loss',
+            'clubLocation' => 'nullable|string|max:255',
+            'club_location' => 'nullable|string|max:255',
+            'location' => 'nullable|string|max:255',
+            'homeCaptainEmail' => 'nullable|string',
+            'home_captain_email' => 'nullable|string',
+            'oppositionCaptainEmail' => 'nullable|string',
+            'opposition_captain_email' => 'nullable|string',
+            'oppositionClubEmail' => 'nullable|string',
+            'opposition_club_email' => 'nullable|string',
             'homeTeamName' => 'nullable|string|max:255',
             'home_team_name' => 'nullable|string|max:255',
             'homeTotalMatches' => 'nullable|integer|min:0',
@@ -291,8 +385,28 @@ class FixtureController extends Controller
         $teamName = $request->input('teamName') ?? $request->input('team_name');
         if ($teamName !== null) $updates['team_name'] = $teamName;
 
+        if ($request->has('clubLocation') || $request->has('club_location') || $request->has('location')) {
+            $updates['club_location'] = $request->input('clubLocation') ?? $request->input('club_location') ?? $request->input('location');
+        }
+
+        if ($request->has('homeCaptainEmail') || $request->has('home_captain_email')) {
+            $rawHome = $request->input('homeCaptainEmail') ?? $request->input('home_captain_email');
+            $updates['home_captain_email'] = $this->parseAndValidateCaptainEmails($rawHome, 'Home Captain Email');
+        }
+
+        if (
+            $request->has('oppositionCaptainEmail') || $request->has('opposition_captain_email') ||
+            $request->has('oppositionClubEmail') || $request->has('opposition_club_email')
+        ) {
+            $rawOpp = $request->input('oppositionCaptainEmail') ?? $request->input('opposition_captain_email')
+                ?? $request->input('oppositionClubEmail') ?? $request->input('opposition_club_email');
+            $updates['opposition_captain_email'] = $this->parseAndValidateCaptainEmails($rawOpp, 'Opposition Club / Team Captain Email');
+        }
+
         if ($request->has('grade')) $updates['grade'] = $request->input('grade');
-        if ($request->has('status')) $updates['status'] = $request->input('status');
+        if ($request->has('status')) {
+            $updates['status'] = $this->normalizeStatus($request->input('status'));
+        }
 
         if ($request->has('result')) {
             $r = $request->input('result');
@@ -331,6 +445,16 @@ class FixtureController extends Controller
             $updates['visiting_total_points'] = ($val !== null && $val !== '') ? (int)$val : null;
         }
 
+        if ($request->has('emailSent') || $request->has('email_sent')) {
+            $val = filter_var($request->input('emailSent') ?? $request->input('email_sent'), FILTER_VALIDATE_BOOLEAN);
+            if ($val) {
+                $updates['email_sent'] = true;
+                if (!$fixture->email_sent_at) {
+                    $updates['email_sent_at'] = now();
+                }
+            }
+        }
+
         $fixture->update($updates);
 
         return response()->json($this->formatFixture($fixture->fresh()->load('leagueGroup')));
@@ -357,6 +481,234 @@ class FixtureController extends Controller
         return response()->json(['message' => 'Fixture deleted successfully.']);
     }
 
+    /**
+     * Validate and return multiple comma-separated email addresses as a unique array.
+     * Rejects semicolons and invalid email formats.
+     */
+    private function parseAndValidateEmailList(?string $emails, string $fieldName): array
+    {
+        $normalized = $this->parseAndValidateCaptainEmails($emails, $fieldName);
+        if ($normalized === null || trim($normalized) === '') {
+            return [];
+        }
+
+        $list = array_map('trim', explode(',', $normalized));
+        $validList = [];
+        foreach ($list as $item) {
+            if ($item !== '') {
+                $validList[] = strtolower($item);
+            }
+        }
+
+        return array_values(array_unique($validList));
+    }
+
+    /**
+     * Send fixture details email to entered captain email addresses.
+     */
+    public function sendMail(Request $request, $id = null)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        // 1. Backend enforcement of notification toggle rule
+        if (!MailHelper::isTemplateEnabled('fixture_scheduled')) {
+            return response()->json([
+                'message' => 'Fixture Scheduled Notification is currently disabled. Enable it under Email Templates & Notifications to send emails.',
+                'notification_disabled' => true,
+            ], 422);
+        }
+
+        $fixtureId = $id ?? $request->input('fixtureId') ?? $request->input('fixture_id') ?? $request->input('id');
+        $fixture = null;
+        if ($fixtureId) {
+            $fixture = Fixture::with('leagueGroup')->findOrFail($fixtureId);
+            if ($user->role !== 'admin') {
+                $groupIds = $this->getMemberGroupIds($user);
+                if (!in_array($fixture->league_group_id, $groupIds, true)) {
+                    return response()->json(['message' => 'Unauthorized. You can only send emails for fixtures associated with your groups.'], 403);
+                }
+            }
+
+            // Reject immediately if email already sent
+            if ($fixture->email_sent) {
+                return response()->json([
+                    'message' => 'Fixture notification email has already been sent for this fixture.',
+                    'email_sent' => true,
+                    'emailSent' => true,
+                    'email_sent_at' => optional($fixture->email_sent_at)?->toISOString(),
+                    'emailSentAt' => optional($fixture->email_sent_at)?->toISOString(),
+                ], 422);
+            }
+        } else {
+            if ($user->role !== 'admin') {
+                $groupIds = $this->getMemberGroupIds($user);
+                if (empty($groupIds)) {
+                    return response()->json(['message' => 'Unauthorized. You do not belong to any groups.'], 403);
+                }
+                $groupId = $request->input('leagueGroupId') ?? $request->input('league_group_id');
+                if (!empty($groupId) && !in_array($groupId, $groupIds, true)) {
+                    return response()->json(['message' => 'Unauthorized. You can only send fixture emails for your assigned groups.'], 403);
+                }
+            }
+        }
+
+        // 2. Resolve captain emails for To and CC
+        $rawHomeEmail = $request->input('homeCaptainEmail') ?? $request->input('home_captain_email')
+            ?? ($fixture ? $fixture->home_captain_email : null);
+        $rawOppEmail = $request->input('oppositionCaptainEmail') ?? $request->input('opposition_captain_email')
+            ?? $request->input('oppositionClubEmail') ?? $request->input('opposition_club_email')
+            ?? ($fixture ? $fixture->opposition_captain_email : null);
+
+        $toEmails = $this->parseAndValidateEmailList($rawOppEmail, 'Opposition Club / Team Captain Email');
+        $ccEmails = $this->parseAndValidateEmailList($rawHomeEmail, 'Home Captain Email');
+
+        if (empty($toEmails)) {
+            return response()->json([
+                'message' => 'Please enter at least one valid email address in Opposition Club / Team Captain Email (To recipient) before sending.'
+            ], 422);
+        }
+
+        // Prevent duplicate recipients across To and CC
+        $ccEmails = array_values(array_diff($ccEmails, $toEmails));
+
+        // 3. Fixture details
+        $fixtureName = $request->input('name') ?? $fixture?->name;
+        $fixtureDate = $request->input('date') ?? $fixture?->date;
+        $teamName = $request->input('teamName') ?? $request->input('team_name') ?? $fixture?->team_name;
+        $oppositionClub = $request->input('oppositionClub') ?? $request->input('opposition_club') ?? $fixture?->opposition_club;
+        $matchType = $request->input('matchType') ?? $request->input('match_type') ?? $fixture?->match_type;
+        $venueType = $request->input('venueType') ?? $request->input('venue_type') ?? $fixture?->venue_type;
+        $grade = $request->input('grade') ?? $fixture?->grade;
+        $clubLocation = $request->input('clubLocation') ?? $request->input('club_location')
+            ?? $request->input('location') ?? $fixture?->club_location;
+        $status = $this->normalizeStatus($request->input('status') ?? $fixture?->status);
+        $result = $request->input('result') ?? $fixture?->result;
+
+        if (empty($fixtureDate) || empty($teamName) || empty($oppositionClub)) {
+            return response()->json([
+                'message' => 'Please provide all essential fixture details (Date, Home Team, and Opposition Club) before sending mail.'
+            ], 422);
+        }
+
+        // If fixture wasn't loaded by ID, check if a matching fixture exists in DB
+        if (!$fixture) {
+            SessionTimingHelper::applyClubTimezone();
+            $parsedDate = SessionTimingHelper::parseDateTime($fixtureDate)->format('Y-m-d H:i:s');
+            $existing = Fixture::where('date', $parsedDate)
+                ->where('team_name', $teamName)
+                ->where('opposition_club', $oppositionClub)
+                ->first();
+            if ($existing) {
+                $fixture = $existing;
+                if ($fixture->email_sent) {
+                    return response()->json([
+                        'message' => 'Fixture notification email has already been sent for this fixture.',
+                        'email_sent' => true,
+                        'emailSent' => true,
+                        'email_sent_at' => optional($fixture->email_sent_at)?->toISOString(),
+                        'emailSentAt' => optional($fixture->email_sent_at)?->toISOString(),
+                    ], 422);
+                }
+            }
+        }
+
+        $fixtureData = [
+            'name' => $fixtureName,
+            'date' => $fixtureDate,
+            'team_name' => $teamName,
+            'teamName' => $teamName,
+            'opposition_club' => $oppositionClub,
+            'oppositionClub' => $oppositionClub,
+            'match_type' => $matchType,
+            'matchType' => $matchType,
+            'venue_type' => $venueType,
+            'venueType' => $venueType,
+            'grade' => $grade,
+            'club_location' => $clubLocation,
+            'clubLocation' => $clubLocation,
+            'location' => $clubLocation,
+            'status' => $status,
+            'result' => $result,
+        ];
+
+        // 4. Concurrency lock to prevent simultaneous send attempts
+        $lockKey = $fixture
+            ? "fixture_mail_send_{$fixture->id}"
+            : 'fixture_mail_send_' . md5(json_encode([$fixtureDate, $teamName, $oppositionClub, $toEmails]));
+
+        $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 20);
+
+        if (!$lock->get()) {
+            return response()->json([
+                'message' => 'An email send request is already in progress for this fixture. Please wait.',
+            ], 422);
+        }
+
+        try {
+            // Re-verify after acquiring the lock that another request didn't just mark it sent
+            if ($fixture) {
+                $fixture->refresh();
+                if ($fixture->email_sent) {
+                    return response()->json([
+                        'message' => 'Fixture notification email has already been sent for this fixture.',
+                        'email_sent' => true,
+                        'emailSent' => true,
+                        'email_sent_at' => optional($fixture->email_sent_at)?->toISOString(),
+                        'emailSentAt' => optional($fixture->email_sent_at)?->toISOString(),
+                    ], 422);
+                }
+            }
+
+            try {
+                $sent = MailHelper::sendFixtureScheduledNotification($fixtureData, $toEmails, $ccEmails);
+                if (!$sent) {
+                    return response()->json([
+                        'message' => 'Fixture Scheduled Notification is currently disabled. Enable it under Email Templates & Notifications to send emails.',
+                        'notification_disabled' => true,
+                    ], 422);
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Fixture notification email sending failed: ' . $e->getMessage(), [
+                    'exception' => $e,
+                    'fixture' => $fixtureData,
+                    'to' => $toEmails,
+                    'cc' => $ccEmails,
+                ]);
+
+                return response()->json([
+                    'message' => 'Failed to deliver fixture notification email: ' . $e->getMessage(),
+                    'error' => $e->getMessage(),
+                ], 500);
+            }
+
+            // Mark email as sent in DB ONLY upon confirmed successful send
+            if ($fixture) {
+                $fixture->update([
+                    'email_sent' => true,
+                    'email_sent_at' => now(),
+                ]);
+            }
+
+            $allRecipients = array_values(array_unique(array_merge($toEmails, $ccEmails)));
+
+            return response()->json([
+                'message' => 'Fixture notification email sent successfully.',
+                'email_sent' => true,
+                'emailSent' => true,
+                'email_sent_at' => optional($fixture?->fresh()?->email_sent_at)?->toISOString(),
+                'emailSentAt' => optional($fixture?->fresh()?->email_sent_at)?->toISOString(),
+                'to' => $toEmails,
+                'cc' => $ccEmails,
+                'recipients' => $allRecipients,
+            ]);
+        } finally {
+            $lock->release();
+        }
+    }
+
     private function formatFixture(Fixture $f): array
     {
         $dateStr = '';
@@ -365,6 +717,8 @@ class FixtureController extends Controller
             $parsed = SessionTimingHelper::parseDateTime($f->date);
             $dateStr = $parsed->format('Y-m-d\TH:i:s');
         }
+
+        $status = $this->normalizeStatus($f->status);
 
         return [
             'id' => $f->id,
@@ -382,8 +736,18 @@ class FixtureController extends Controller
             'opposition_club' => $f->opposition_club,
             'teamName' => $f->team_name,
             'team_name' => $f->team_name,
+            'clubLocation' => $f->club_location,
+            'club_location' => $f->club_location,
+            'homeCaptainEmail' => $f->home_captain_email,
+            'home_captain_email' => $f->home_captain_email,
+            'oppositionCaptainEmail' => $f->opposition_captain_email,
+            'opposition_captain_email' => $f->opposition_captain_email,
+            'emailSent' => (bool)$f->email_sent,
+            'email_sent' => (bool)$f->email_sent,
+            'emailSentAt' => optional($f->email_sent_at)?->toISOString(),
+            'email_sent_at' => optional($f->email_sent_at)?->toISOString(),
             'grade' => $f->grade,
-            'status' => $f->status,
+            'status' => $status,
             'result' => $f->result,
             'homeTeamName' => $f->home_team_name ?? $f->team_name,
             'home_team_name' => $f->home_team_name ?? $f->team_name,

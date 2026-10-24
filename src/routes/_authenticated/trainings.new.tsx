@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { parseScheduleDateTime } from "@/lib/format";
 import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
@@ -48,6 +48,7 @@ function NewTraining() {
   });
 
   const [nameTouched, setNameTouched] = useState(false);
+  const nameTouchedRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -128,12 +129,19 @@ function NewTraining() {
 
   const onDateChange = (value: string) => {
     const parsed = parseScheduleDateTime(value);
-    setF((p) => ({
-      ...p,
-      startDate: value,
-      name: parsed ? parsed.label : p.name,
-    }));
-    setNameTouched(false);
+    setF((p) => {
+      const isBlank = !p.name.trim();
+      const shouldAutoFill = !nameTouchedRef.current || isBlank;
+      if (isBlank && nameTouchedRef.current) {
+        nameTouchedRef.current = false;
+        setNameTouched(false);
+      }
+      return {
+        ...p,
+        startDate: value,
+        name: shouldAutoFill && parsed ? parsed.label : p.name,
+      };
+    });
   };
 
   return (
@@ -254,6 +262,7 @@ function NewTraining() {
                 required
                 value={f.name}
                 onChange={(e) => {
+                  nameTouchedRef.current = true;
                   setNameTouched(true);
                   set("name", e.target.value);
                 }}

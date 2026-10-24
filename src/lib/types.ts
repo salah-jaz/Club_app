@@ -114,10 +114,17 @@ export interface LeagueGroup {
   members?: LeagueGroupMember[];
 }
 
-export type FixtureStatus = "Opened" | "In Progress" | "Closed";
+export type FixtureStatus =
+  | "Created"
+  | "Scheduled"
+  | "Completed"
+  | "Opened"
+  | "In Progress"
+  | "Closed";
 
 export interface Fixture {
   id: string;
+  fixtureId?: string;
   name: string;
   date: string;
   leagueGroupId: string;
@@ -127,6 +134,13 @@ export interface Fixture {
   venueType: string;
   oppositionClub: string;
   teamName: string;
+  clubLocation?: string | null;
+  homeCaptainEmail?: string | null;
+  oppositionCaptainEmail?: string | null;
+  emailSent?: boolean;
+  email_sent?: boolean;
+  emailSentAt?: string | null;
+  email_sent_at?: string | null;
   grade: string;
   status: FixtureStatus;
   result?: "Win" | "Loss" | null;
@@ -270,17 +284,23 @@ export interface EmailTemplateDefinition {
 }
 
 export type PolicyType = "member_policy" | "privacy_policy";
+export type PolicySourceType = "upload" | "google_doc";
 
 export interface PolicyDocument {
   id?: number | null;
   type: PolicyType;
   title: string;
+  sourceType?: PolicySourceType;
+  googleDocsUrl?: string | null;
+  externalUrl?: string | null;
   fileName?: string | null;
   fileSize?: number | null;
   formattedSize?: string | null;
   mimeType?: string | null;
   uploadedBy?: string | null;
   hasDocument: boolean;
+  hasFile?: boolean;
+  hasGoogleDoc?: boolean;
   updatedAt?: string | null;
   previewUrl?: string | null;
   downloadUrl?: string | null;

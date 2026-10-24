@@ -25,15 +25,13 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { Trophy, XCircle, Shield, Swords } from "lucide-react";
+import { Trophy, XCircle, Shield, Swords, Mail, Loader2, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FixtureStatus } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/fixtures/$id/edit")({
   component: EditFixturePage,
 });
-
-
 
 const DEFAULT_MATCH_TYPES = ["Friendly", "League", "Tournament", "Practice"];
 const DEFAULT_VENUE_TYPES = ["Home", "Away"];
@@ -46,6 +44,36 @@ const DEFAULT_GRADES = [
   "Intermediate",
   "Advanced",
 ];
+
+function normalizeStatus(status?: string): FixtureStatus {
+  if (status === "Opened" || status === "Created") return "Created";
+  if (status === "In Progress" || status === "Scheduled") return "Scheduled";
+  if (status === "Closed" || status === "Completed") return "Completed";
+  return "Created";
+}
+
+function validateCaptainEmails(emails: string, fieldLabel: string): { valid: boolean; normalized?: string; error?: string } {
+  if (!emails || !emails.trim()) {
+    return { valid: true, normalized: "" };
+  }
+  if (emails.includes(";")) {
+    return {
+      valid: false,
+      error: `Please separate email addresses in "${fieldLabel}" using commas only (semicolons are not allowed).`,
+    };
+  }
+  const parts = emails.split(",").map((s) => s.trim()).filter(Boolean);
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  for (const email of parts) {
+    if (!emailRegex.test(email)) {
+      return {
+        valid: false,
+        error: `"${email}" in "${fieldLabel}" is not a valid email address.`,
+      };
+    }
+  }
+  return { valid: true, normalized: parts.join(", ") };
+}
 
 function EditFixturePage() {
   const { id } = Route.useParams();
@@ -60,14 +88,20 @@ function EditFixturePage() {
   const grades = useStore((s) => s.grades);
   const adultGrades = useStore((s) => s.adultGrades);
   const juniorGrades = useStore((s) => s.juniorGrades);
+  const locations = useStore((s) => s.locations);
   const updateFixture = useStore((s) => s.updateFixture);
+  const sendFixtureMail = useStore((s) => s.sendFixtureMail);
   const fetchFixtureById = useStore((s) => s.fetchFixtureById);
+  const emailTemplates = useStore((s) => s.emailTemplates);
 
   const lastInitializedFixtureId = useRef<string | null>(null);
   const lastFixtureUpdatedAt = useRef<string | undefined>(undefined);
   const [loading, setLoading] = useState(!fixture);
   const [notFound, setNotFound] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [sendingMail, setSendingMail] = useState(false);
+  const [emailSentSuccess, setEmailSentSuccess] = useState(false);
+  const isEmailSent = Boolean(fixture?.emailSent || (fixture as any)?.email_sent || emailSentSuccess);
   const [isNameCustomized, setIsNameCustomized] = useState(false);
 
   const [f, setF] = useState({
@@ -79,7 +113,7 @@ function EditFixturePage() {
     oppositionClub: "",
     teamName: "",
     grade: "",
-    status: "Opened" as FixtureStatus,
+    status: "Created" as FixtureStatus,
     result: "" as "Win" | "Loss" | "",
     homeTeamName: "",
     homeTotalMatches: "" as string | number,
@@ -89,6 +123,9 @@ function EditFixturePage() {
     visitingTotalMatches: "" as string | number,
     visitingTotalGames: "" as string | number,
     visitingTotalPoints: "" as string | number,
+    clubLocation: "",
+    homeCaptainEmail: "",
+    oppositionCaptainEmail: "",
   });
 
   // Fetch fixture by ID directly to guarantee fresh persisted state (especially on direct navigation or refresh)
@@ -132,7 +169,7 @@ function EditFixturePage() {
     const fixtureTeamName =
       fixture.teamName || (fixture as any).team_name || "";
     const fixtureGrade = fixture.grade || "";
-    const fixtureStatus = (fixture.status as FixtureStatus) || "Opened";
+    const fixtureStatus = normalizeStatus(fixture.status);
     const fixtureName = fixture.name || "";
     const fixtureDate = formatToDateTimeLocal(fixture.date);
 
@@ -146,6 +183,10 @@ function EditFixturePage() {
     const fixtureVisitingMatches = fixture.visitingTotalMatches ?? "";
     const fixtureVisitingGames = fixture.visitingTotalGames ?? "";
     const fixtureVisitingPoints = fixture.visitingTotalPoints ?? "";
+
+    const fixtureClubLocation = fixture.clubLocation || (fixture as any).club_location || "";
+    const fixtureHomeCaptainEmail = fixture.homeCaptainEmail || (fixture as any).home_captain_email || "";
+    const fixtureOppCaptainEmail = fixture.oppositionCaptainEmail || (fixture as any).opposition_captain_email || "";
 
     // Initialize if switching fixtures, or if form was not initialized, or if essential fields were previously empty, or if fixture updated
     const isNewFixture = lastInitializedFixtureId.current !== fixture.id;
@@ -188,6 +229,9 @@ function EditFixturePage() {
         visitingTotalMatches: fixtureVisitingMatches,
         visitingTotalGames: fixtureVisitingGames,
         visitingTotalPoints: fixtureVisitingPoints,
+        clubLocation: fixtureClubLocation,
+        homeCaptainEmail: fixtureHomeCaptainEmail,
+        oppositionCaptainEmail: fixtureOppCaptainEmail,
       });
     }
   }, [fixture, f.leagueGroupId]);
@@ -309,6 +353,83 @@ function EditFixturePage() {
     }));
   };
 
+  const handleSendMail = async () => {
+    if (sendingMail || submitting) return;
+
+    const isFixtureNotificationEnabled =
+      emailTemplates?.fixture_scheduled?.is_enabled !== false;
+    if (!isFixtureNotificationEnabled) {
+      toast.error(
+        "Fixture Scheduled Notification is currently disabled. Enable it under Email Templates & Notifications to send emails.",
+      );
+      return;
+    }
+
+    if (!f.date) {
+      toast.error("Please select a Date & Time before sending mail.");
+      return;
+    }
+    if (!f.name.trim()) {
+      toast.error("Please enter a fixture name before sending mail.");
+      return;
+    }
+    if (!f.teamName.trim()) {
+      toast.error("Please enter your team name before sending mail.");
+      return;
+    }
+    if (!f.oppositionClub.trim()) {
+      toast.error("Please enter the opposition club name before sending mail.");
+      return;
+    }
+
+    const oppCheck = validateCaptainEmails(f.oppositionCaptainEmail, "Opposition Club / Team Captain Email");
+    if (!oppCheck.valid) {
+      toast.error(oppCheck.error);
+      return;
+    }
+    if (!oppCheck.normalized) {
+      toast.error("Please enter at least one valid email address in Opposition Club / Team Captain Email (To recipient) before sending.");
+      return;
+    }
+
+    const homeCheck = validateCaptainEmails(f.homeCaptainEmail, "Home Captain Email");
+    if (!homeCheck.valid) {
+      toast.error(homeCheck.error);
+      return;
+    }
+
+    setSendingMail(true);
+    try {
+      await sendFixtureMail(id, {
+        id: id,
+        name: f.name.trim(),
+        date: f.date,
+        leagueGroupId: f.leagueGroupId,
+        matchType: f.matchType,
+        venueType: f.venueType,
+        oppositionClub: f.oppositionClub.trim(),
+        teamName: f.teamName.trim(),
+        clubLocation: f.clubLocation ? f.clubLocation.trim() : null,
+        homeCaptainEmail: homeCheck.normalized || null,
+        oppositionCaptainEmail: oppCheck.normalized || null,
+        grade: f.grade,
+        status: f.status,
+        result: f.result || null,
+      });
+      setEmailSentSuccess(true);
+      toast.success("Fixture notification email sent successfully");
+    } catch (error: any) {
+      console.error("Fixture notification email sending failed:", error);
+      const errMsg =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to send fixture notification email.";
+      toast.error(errMsg);
+    } finally {
+      setSendingMail(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.date) {
@@ -344,6 +465,18 @@ function EditFixturePage() {
       return;
     }
 
+    const homeCheck = validateCaptainEmails(f.homeCaptainEmail, "Home Captain Email");
+    if (!homeCheck.valid) {
+      toast.error(homeCheck.error);
+      return;
+    }
+
+    const oppCheck = validateCaptainEmails(f.oppositionCaptainEmail, "Opposition Club / Team Captain Email");
+    if (!oppCheck.valid) {
+      toast.error(oppCheck.error);
+      return;
+    }
+
     setSubmitting(true);
     try {
       await updateFixture(id, {
@@ -354,6 +487,9 @@ function EditFixturePage() {
         venueType: f.venueType,
         oppositionClub: f.oppositionClub.trim(),
         teamName: f.teamName.trim(),
+        clubLocation: f.clubLocation ? f.clubLocation.trim() : null,
+        homeCaptainEmail: homeCheck.normalized || null,
+        oppositionCaptainEmail: oppCheck.normalized || null,
         grade: f.grade,
         status: f.status,
         result: f.result ? f.result : null,
@@ -592,7 +728,33 @@ function EditFixturePage() {
               />
             </div>
 
-            <div className="space-y-1.5 sm:col-span-2">
+            {/* Club Location and Status side by side */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Club Location
+              </Label>
+              <Select
+                value={f.clubLocation || "none"}
+                onValueChange={(val) => set("clubLocation", val === "none" ? "" : val)}
+              >
+                <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
+                  <SelectValue placeholder="Select Club Location (Optional)" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
+                  <SelectItem value="none">No Location Selected</SelectItem>
+                  {locations.map((loc) => (
+                    <SelectItem key={loc} value={loc}>
+                      {loc}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-[#6B7F78]">
+                Dynamically loaded from Settings → Club Locations.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                 Status
               </Label>
@@ -604,11 +766,81 @@ function EditFixturePage() {
                   <SelectValue placeholder="Select Status" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  <SelectItem value="Opened">Opened</SelectItem>
-                  <SelectItem value="In Progress">In Progress</SelectItem>
-                  <SelectItem value="Closed">Closed</SelectItem>
+                  <SelectItem value="Created">Created</SelectItem>
+                  <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Captain Email Fields */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Home / Team Captain Email
+              </Label>
+              <Input
+                value={f.homeCaptainEmail}
+                onChange={(e) => set("homeCaptainEmail", e.target.value)}
+                placeholder="captain@example.com, manager@example.com"
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
+              <p className="text-[11px] text-[#6B7F78]">
+                Multiple addresses supported. Separate with commas only.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
+                Opposition Club / Team Captain Email
+              </Label>
+              <Input
+                value={f.oppositionCaptainEmail}
+                onChange={(e) => set("oppositionCaptainEmail", e.target.value)}
+                placeholder="opp.captain@example.com, club@example.com"
+                className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+              />
+              <p className="text-[11px] text-[#6B7F78]">
+                Multiple addresses supported. Separate with commas only.
+              </p>
+            </div>
+
+            {/* Compact Send Mail Button */}
+            <div className="sm:col-span-2 flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={sendingMail || submitting || isEmailSent}
+                onClick={handleSendMail}
+                className={cn(
+                  "h-8 px-3 gap-1.5 text-xs font-semibold transition-colors",
+                  isEmailSent
+                    ? "border-white/10 bg-white/5 text-[#8FA89F] cursor-not-allowed opacity-80"
+                    : "border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10 cursor-pointer"
+                )}
+                title={
+                  isEmailSent
+                    ? "Fixture notification email has already been sent"
+                    : "Send fixture details to captains"
+                }
+              >
+                {sendingMail ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>Sending Mail...</span>
+                  </>
+                ) : isEmailSent ? (
+                  <>
+                    <CheckCircle className="size-3.5 text-[#10B981]" />
+                    <span>Email Sent</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="size-3.5" />
+                    <span>Send Mail</span>
+                  </>
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -708,7 +940,7 @@ function EditFixturePage() {
                         Team
                       </TableHead>
                       <TableHead className="h-11 px-4 text-[11px] font-bold tracking-wider text-[#8FA89F] uppercase min-w-[200px]">
-                        Badminton Club
+                        Club Name
                       </TableHead>
                       <TableHead className="h-11 px-3 text-center text-[11px] font-bold tracking-wider text-[#8FA89F] uppercase w-[130px]">
                         Total Matches
@@ -842,7 +1074,7 @@ function EditFixturePage() {
                         Home Team
                       </span>
                     </div>
-                    <span className="text-[11px] text-[#8FA89F]">Badminton Club</span>
+                    <span className="text-[11px] text-[#8FA89F]">Club Name</span>
                   </div>
 
                   <div>
@@ -916,7 +1148,7 @@ function EditFixturePage() {
                         Visiting Team
                       </span>
                     </div>
-                    <span className="text-[11px] text-[#8FA89F]">Badminton Club</span>
+                    <span className="text-[11px] text-[#8FA89F]">Club Name</span>
                   </div>
 
                   <div>
@@ -989,14 +1221,14 @@ function EditFixturePage() {
             variant="outline"
             className="border-white/10 hover:bg-white/5"
             onClick={() => navigate({ to: "/fixtures" })}
-            disabled={submitting}
+            disabled={submitting || sendingMail}
           >
             Cancel
           </Button>
           <Button
             type="submit"
             className="btn-premium-solid px-6"
-            disabled={submitting}
+            disabled={submitting || sendingMail}
           >
             {submitting ? "Saving..." : "Save Changes"}
           </Button>

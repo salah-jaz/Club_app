@@ -83,7 +83,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Connect App — Badminton Club Management" },
       {
         name: "description",
-        content: "Manage members, credits, play sessions, court rotations, and training.",
+        content: "Manage members, credits, play schedules, court rotations, and training.",
       },
       { property: "og:title", content: "Connect App" },
       { property: "og:description", content: "Badminton club management made simple." },

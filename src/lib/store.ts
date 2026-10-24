@@ -21,6 +21,7 @@ import type {
   EmailTemplateDefinition,
   PolicyDocument,
   PolicyType,
+  PolicySourceType,
 } from "./types";
 import { api } from "./api";
 
@@ -96,6 +97,10 @@ interface State {
   fetchSettings: () => Promise<void>;
   fetchPolicies: () => Promise<Record<PolicyType, PolicyDocument>>;
   uploadPolicy: (type: PolicyType, file: File, title?: string) => Promise<PolicyDocument>;
+  updatePolicySource: (
+    type: PolicyType,
+    data: { sourceType: PolicySourceType; googleDocsUrl?: string; title?: string },
+  ) => Promise<PolicyDocument>;
   deletePolicy: (type: PolicyType) => Promise<void>;
   syncData: () => Promise<void>;
   syncCurrentUser: () => Promise<User | null>;
@@ -319,6 +324,17 @@ interface State {
   updateFixture: (id: string, fixture: Partial<Fixture>) => Promise<Fixture>;
   fetchFixtureById: (id: string) => Promise<Fixture | null>;
   deleteFixture: (id: string) => Promise<void>;
+  sendFixtureMail: (
+    fixtureId?: string,
+    payload?: Partial<Fixture>,
+  ) => Promise<{
+    message: string;
+    email_sent?: boolean;
+    emailSent?: boolean;
+    recipients?: string[];
+    to?: string[];
+    cc?: string[];
+  }>;
   setActiveRole: (role: Role) => void;
   bulkUploadMembers: (file: File, options?: { allowExamples?: boolean }) => Promise<number>;
 
@@ -568,6 +584,34 @@ export const useStore = create<State>((set, get) => ({
     throw new Error("Failed to upload policy document");
   },
 
+  updatePolicySource: async (type: PolicyType, data: { sourceType: PolicySourceType; googleDocsUrl?: string; title?: string }) => {
+    const payload: Record<string, any> = {
+      source_type: data.sourceType,
+    };
+    if (data.googleDocsUrl !== undefined) {
+      payload.google_docs_url = data.googleDocsUrl;
+    }
+    if (data.title) {
+      payload.title = data.title;
+    }
+
+    const res = await api.put<{ message: string; policy: PolicyDocument }>(
+      `/policies/${type}`,
+      payload,
+    );
+
+    if (res?.policy) {
+      set((state) => ({
+        policies: {
+          ...state.policies,
+          [type]: res.policy,
+        },
+      }));
+      return res.policy;
+    }
+    throw new Error("Failed to update policy source");
+  },
+
   deletePolicy: async (type: PolicyType) => {
     const res = await api.delete<{ message: string; policy?: PolicyDocument }>(`/policies/${type}`);
     set((state) => ({
@@ -578,7 +622,12 @@ export const useStore = create<State>((set, get) => ({
           title:
             state.policies[type]?.title ||
             (type === "member_policy" ? "Member Policy" : "Privacy Policy"),
+          sourceType: "upload",
+          googleDocsUrl: null,
+          externalUrl: null,
           hasDocument: false,
+          hasFile: false,
+          hasGoogleDoc: false,
           fileName: null,
           fileSize: null,
           formattedSize: null,
@@ -1393,6 +1442,34 @@ export const useStore = create<State>((set, get) => ({
       fixtures: state.fixtures.filter((item) => item.id !== id),
     }));
     await get().syncData();
+  },
+
+  sendFixtureMail: async (fixtureId?: string, payload?: Partial<Fixture>) => {
+    const url = fixtureId ? `/fixtures/${fixtureId}/send-mail` : `/fixtures/send-mail`;
+    const res = await api.post<{
+      message: string;
+      email_sent?: boolean;
+      emailSent?: boolean;
+      recipients?: string[];
+      to?: string[];
+      cc?: string[];
+    }>(url, payload || {});
+    if (fixtureId) {
+      set((state) => ({
+        fixtures: state.fixtures.map((f) =>
+          f.id === fixtureId
+            ? {
+                ...f,
+                emailSent: true,
+                email_sent: true,
+                emailSentAt: new Date().toISOString(),
+                email_sent_at: new Date().toISOString(),
+              }
+            : f
+        ),
+      }));
+    }
+    return res;
   },
 
   setActiveRole: (role: Role) => {

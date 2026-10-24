@@ -23,7 +23,11 @@ import {
   CheckCircle2,
   Timer,
   Building,
+  Trophy,
+  XCircle,
+  MapPin,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import { useResponsiveViewMode } from "@/hooks/use-responsive-view-mode";
@@ -33,6 +37,14 @@ import { motion } from "framer-motion";
 import { EmptyIllustration } from "@/components/EmptyIllustration";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+
+function normalizeStatus(s?: string): string {
+  if (!s) return "Created";
+  if (s === "Opened" || s.toLowerCase() === "opened") return "Created";
+  if (s === "In Progress" || s.toLowerCase() === "in progress" || s.toLowerCase() === "in_progress") return "Scheduled";
+  if (s === "Closed" || s.toLowerCase() === "closed") return "Completed";
+  return s;
+}
 import {
   ReportDialog,
   ReportTriggerButton,
@@ -260,7 +272,7 @@ function FixturesList() {
         if (!haystack.includes(q)) return false;
       }
 
-      if (filters.status !== "all" && f.status !== filters.status) return false;
+      if (filters.status !== "all" && normalizeStatus(f.status) !== filters.status) return false;
       if (filters.group !== "all" && f.leagueGroupId !== filters.group) return false;
       if (filters.matchType !== "all" && f.matchType !== filters.matchType) return false;
       if (filters.venueType !== "all" && f.venueType !== filters.venueType) return false;
@@ -278,7 +290,7 @@ function FixturesList() {
         case "name-desc":
           return b.name.localeCompare(a.name);
         case "status-asc":
-          return a.status.localeCompare(b.status);
+          return normalizeStatus(a.status).localeCompare(normalizeStatus(b.status));
         case "date-asc":
         default:
           return formatToDateTimeLocal(a.date).localeCompare(formatToDateTimeLocal(b.date));
@@ -290,9 +302,9 @@ function FixturesList() {
 
   // Statistics calculation
   const totalFixtures = accessibleFixtures.length;
-  const openedCount = accessibleFixtures.filter((f) => f.status === "Opened").length;
-  const inProgressCount = accessibleFixtures.filter((f) => f.status === "In Progress").length;
-  const closedCount = accessibleFixtures.filter((f) => f.status === "Closed").length;
+  const createdCount = accessibleFixtures.filter((f) => normalizeStatus(f.status) === "Created").length;
+  const scheduledCount = accessibleFixtures.filter((f) => normalizeStatus(f.status) === "Scheduled").length;
+  const completedCount = accessibleFixtures.filter((f) => normalizeStatus(f.status) === "Completed").length;
 
   const requestDeleteFixture = (fixture: Fixture) => {
     if (!isAdmin) {
@@ -384,22 +396,22 @@ function FixturesList() {
           index={0}
         />
         <FixtureStatCard
-          label="Opened"
-          value={openedCount}
+          label="Created"
+          value={createdCount}
           hint="Open for participation"
           icon={CheckCircle2}
           index={1}
         />
         <FixtureStatCard
-          label="In Progress"
-          value={inProgressCount}
+          label="Scheduled"
+          value={scheduledCount}
           hint="Live or ongoing"
           icon={Timer}
           index={2}
         />
         <FixtureStatCard
-          label="Closed"
-          value={closedCount}
+          label="Completed"
+          value={completedCount}
           hint="Completed or concluded"
           icon={Clock}
           index={3}
@@ -417,9 +429,9 @@ function FixturesList() {
             label: "Status",
             options: [
               { value: "all", label: "All statuses" },
-              { value: "Opened", label: "Opened" },
-              { value: "In Progress", label: "In Progress" },
-              { value: "Closed", label: "Closed" },
+              { value: "Created", label: "Created" },
+              { value: "Scheduled", label: "Scheduled" },
+              { value: "Completed", label: "Completed" },
             ],
           },
           {
@@ -530,7 +542,25 @@ function FixturesList() {
                         {fmtDateTime(fixture.date)}
                       </p>
                     </div>
-                    <StatusBadge status={fixture.status} />
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
+                      {fixture.result === "Win" && (
+                        <Badge
+                          variant="outline"
+                          className="bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30 font-semibold text-xs px-2.5 py-0.5 gap-1 capitalize shadow-sm"
+                        >
+                          <Trophy className="size-3" /> Win
+                        </Badge>
+                      )}
+                      {fixture.result === "Loss" && (
+                        <Badge
+                          variant="outline"
+                          className="bg-[#EF4444]/15 text-[#EF4444] border-[#EF4444]/30 font-semibold text-xs px-2.5 py-0.5 gap-1 capitalize shadow-sm"
+                        >
+                          <XCircle className="size-3" /> Loss
+                        </Badge>
+                      )}
+                      <StatusBadge status={fixture.status} />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-white/[0.04]">
@@ -548,6 +578,7 @@ function FixturesList() {
                       </span>
                       <span className="text-[#F1F0EE] truncate block font-medium">
                         {fixture.matchType} · {fixture.venueType}
+                        {fixture.clubLocation && ` (${fixture.clubLocation})`}
                       </span>
                     </div>
                     <div>
@@ -634,6 +665,22 @@ function FixturesList() {
                         {fixture.name}
                       </Link>
                       <StatusBadge status={fixture.status} />
+                      {fixture.result === "Win" && (
+                        <Badge
+                          variant="outline"
+                          className="bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30 font-semibold text-xs px-2.5 py-0.5 gap-1 capitalize shadow-sm"
+                        >
+                          <Trophy className="size-3" /> Win
+                        </Badge>
+                      )}
+                      {fixture.result === "Loss" && (
+                        <Badge
+                          variant="outline"
+                          className="bg-[#EF4444]/15 text-[#EF4444] border-[#EF4444]/30 font-semibold text-xs px-2.5 py-0.5 gap-1 capitalize shadow-sm"
+                        >
+                          <XCircle className="size-3" /> Loss
+                        </Badge>
+                      )}
                       <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-[#8FA89F] font-mono">
                         {fixture.grade}
                       </span>
@@ -656,6 +703,12 @@ function FixturesList() {
                         <Building className="size-3.5 text-[#A78BFA]" />
                         {fixture.matchType} ({fixture.venueType})
                       </span>
+                      {fixture.clubLocation && (
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="size-3.5 text-[#34D399]" />
+                          {fixture.clubLocation}
+                        </span>
+                      )}
                     </div>
                   </div>
 

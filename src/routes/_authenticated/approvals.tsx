@@ -858,7 +858,7 @@ function Approvals() {
                     Play schedule eligible
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Family head can enroll this junior in play sessions.
+                    Family head can enroll this junior in play schedules.
                   </p>
                 </div>
                 <Switch
@@ -976,7 +976,7 @@ function Approvals() {
                   Play schedule eligible
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Family head can enroll this junior in play sessions.
+                  Family head can enroll this junior in play schedules.
                 </p>
               </div>
               <Switch

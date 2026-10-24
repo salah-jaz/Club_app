@@ -105,7 +105,7 @@ export const api = {
   delete: <T>(endpoint: string, options?: RequestInit) =>
     request<T>(endpoint, { method: "DELETE", ...options }),
   getBaseUrl,
-  getPolicyUrl: (type: string, action: "preview" | "download") => {
+  getPolicyUrl: (type: string, action: "preview" | "download" | "external") => {
     const base = getBaseUrl();
     const token = typeof window !== "undefined" ? localStorage.getItem("clubapp_token") : null;
     const url = `${base}/policies/${type}/${action}`;

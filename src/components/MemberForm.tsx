@@ -436,7 +436,7 @@ export function MemberForm({
                           Play schedule eligible
                         </Label>
                         <p className="type-helper mt-1">
-                          Family head can enroll this junior in play sessions.
+                          Family head can enroll this junior in play schedules.
                         </p>
                       </div>
                       <Switch

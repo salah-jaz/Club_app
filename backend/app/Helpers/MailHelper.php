@@ -79,15 +79,20 @@ class MailHelper
                 'mail.from.address' => $fromAddress ?? 'noreply@clubconnect.com',
                 'mail.from.name' => $fromName ?? 'ClubConnect',
             ]);
+            Mail::purge('smtp');
         }
     }
 
-    public static function sendEmail($to, $subject, $content)
+    public static function sendEmail($to, $subject, $content, $cc = [])
     {
         self::applySmtpSettings();
         $html = self::renderWithTemplate($subject, $content);
         
-        Mail::to($to)->send(new GenericMailable($subject, $html));
+        $pendingMail = Mail::to($to);
+        if (!empty($cc)) {
+            $pendingMail->cc($cc);
+        }
+        $pendingMail->send(new GenericMailable($subject, $html));
     }
 
     public static function compileTemplateHtml(string $type, array $tpl): string
@@ -147,6 +152,17 @@ class MailHelper
         } else if ($type === 'reset_password_success') {
             $btn = $buttonText ?: 'Sign In to Account';
             $extraHtml = "\n" . '<div style="margin-top: 25px; text-align: center;"><a href="{portal_url}" style="display: inline-block; background-color: ' . $primaryColor . '; color: #0C0F0E; font-weight: bold; text-decoration: none; padding: 10px 20px; border-radius: 4px;">' . htmlspecialchars($btn, ENT_NOQUOTES, 'UTF-8') . '</a></div><p style="font-size: 12px; color: #8A9E98; margin-top: 20px;">If you did not perform this action, please contact the club administrator immediately.</p>';
+        } else if ($type === 'fixture_scheduled') {
+            $extraHtml = "\n" . '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; width: 40%;">Home / Team Name:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{home_team}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Opposition Club / Team Name:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{opposition_club}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Match Type:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{match_type}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Venue Type:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{venue_type}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Date:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{date}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Time:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{time}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Club Location:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{club_location}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98;">Fixture Status:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold; color: #10B981;">{status}</td></tr>
+</table>';
         }
 
         return $headingHtml . $paragraphsHtml . $extraHtml;
@@ -244,6 +260,15 @@ class MailHelper
                 'message' => "Hello {name},\n\nYour password for your account has been successfully reset.\n\nYou can now sign in to your account using your new password.",
                 'button_text' => 'Sign In to Account',
                 'variables' => ['name', 'first_name', 'app_name', 'portal_url'],
+                'is_enabled' => true,
+            ],
+            'fixture_scheduled' => [
+                'name' => 'Fixture Scheduled Notification',
+                'description' => 'Sent to team captains and opposition club when a match fixture is scheduled.',
+                'subject' => '{home_team} vs {opposition_club} - {date}',
+                'heading' => 'Match Scheduled',
+                'message' => "Your match has been confirmed. Please find the fixture details below.",
+                'variables' => ['home_team', 'opposition_club', 'match_type', 'venue_type', 'date', 'time', 'club_location', 'location', 'status', 'app_name', 'portal_url'],
                 'is_enabled' => true,
             ],
         ];
@@ -563,6 +588,61 @@ class MailHelper
         $subject = self::interpolate($tpl['subject'], $vars);
         $content = self::interpolate($tpl['body'], $vars);
         self::sendEmail($user->email, $subject, $content);
+    }
+
+    public static function sendFixtureScheduledNotification(array $fixtureData, array $toEmails, array $ccEmails = []): bool
+    {
+        if (!self::isTemplateEnabled('fixture_scheduled')) {
+            return false;
+        }
+
+        if (empty($toEmails)) {
+            return false;
+        }
+
+        // Prevent duplicate recipients across To and CC
+        $ccEmails = array_values(array_diff($ccEmails, $toEmails));
+
+        $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
+        $tpl = self::getTemplate('fixture_scheduled');
+
+        $homeTeam = $fixtureData['team_name'] ?? ($fixtureData['teamName'] ?? ($fixtureData['home_team_name'] ?? 'Home Team'));
+        $oppClub = $fixtureData['opposition_club'] ?? ($fixtureData['oppositionClub'] ?? 'Opposition Club');
+        $matchType = $fixtureData['match_type'] ?? ($fixtureData['matchType'] ?? 'Match');
+        $venueType = $fixtureData['venue_type'] ?? ($fixtureData['venueType'] ?? 'Home');
+        $clubLocation = $fixtureData['club_location'] ?? ($fixtureData['clubLocation'] ?? ($fixtureData['location'] ?? ''));
+        $rawStatus = $fixtureData['status'] ?? 'Scheduled';
+        $status = in_array($rawStatus, ['Scheduled', 'In Progress', 'Created'], true) || empty($rawStatus) ? 'Scheduled' : $rawStatus;
+
+        SessionTimingHelper::applyClubTimezone();
+        $dateObj = !empty($fixtureData['date']) ? SessionTimingHelper::parseDateTime($fixtureData['date']) : \Carbon\Carbon::now(SessionTimingHelper::clubTimezone());
+        $dateFormatted = $dateObj->format('F j, Y');
+        $timeFormatted = $dateObj->format('g:i A');
+
+        $vars = [
+            'home_team' => $homeTeam,
+            'team_name' => $homeTeam,
+            'home_team_name' => $homeTeam,
+            'opposition_club' => $oppClub,
+            'opposition_team' => $oppClub,
+            'match_type' => $matchType,
+            'venue_type' => $venueType,
+            'date' => $dateFormatted,
+            'time' => $timeFormatted,
+            'club_location' => !empty($clubLocation) ? $clubLocation : 'N/A',
+            'location' => !empty($clubLocation) ? $clubLocation : 'N/A',
+            'status' => $status,
+            'fixture_status' => $status,
+            'app_name' => $appName,
+            'portal_url' => url('/'),
+        ];
+
+        $subject = self::interpolate($tpl['subject'], $vars);
+        $content = self::interpolate($tpl['body'], $vars);
+
+        self::sendEmail($toEmails, $subject, $content, $ccEmails);
+
+        return true;
     }
 }
 

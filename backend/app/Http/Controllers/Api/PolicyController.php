@@ -10,7 +10,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PolicyController extends Controller
 {
@@ -25,19 +24,24 @@ class PolicyController extends Controller
         $result = [];
         foreach ($supported as $type => $defaultTitle) {
             $policy = $policies->get($type);
-            if ($policy && !empty($policy->file_path) && Storage::disk('local')->exists($policy->file_path)) {
+            if ($policy) {
                 $result[$type] = $policy->toResponseArray();
             } else {
                 $result[$type] = [
-                    'id' => $policy?->id,
+                    'id' => null,
                     'type' => $type,
-                    'title' => $policy?->title ?: $defaultTitle,
+                    'title' => $defaultTitle,
+                    'sourceType' => Policy::SOURCE_UPLOAD,
+                    'googleDocsUrl' => null,
+                    'externalUrl' => null,
                     'fileName' => null,
                     'fileSize' => null,
                     'formattedSize' => null,
                     'mimeType' => null,
                     'uploadedBy' => null,
                     'hasDocument' => false,
+                    'hasFile' => false,
+                    'hasGoogleDoc' => false,
                     'updatedAt' => null,
                     'previewUrl' => null,
                     'downloadUrl' => null,
@@ -83,6 +87,11 @@ class PolicyController extends Controller
         $supported = Policy::supportedTypes();
         if (!array_key_exists($type, $supported)) {
             return response()->json(['message' => 'Invalid policy type.'], 422);
+        }
+
+        // Support switching source or updating doc URL through the POST endpoint as well
+        if (!$request->hasFile('file') && ($request->has('google_docs_url') || $request->has('source_type'))) {
+            return $this->updateSource($request, $type);
         }
 
         $request->validate([
@@ -132,6 +141,7 @@ class PolicyController extends Controller
             ['type' => $type],
             [
                 'title' => $request->input('title') ?: ($existing?->title ?: $supported[$type]),
+                'source_type' => Policy::SOURCE_UPLOAD,
                 'file_path' => $storedPath,
                 'file_name' => $originalName,
                 'file_size' => $file->getSize(),
@@ -149,6 +159,117 @@ class PolicyController extends Controller
             'message' => "{$policy->title} uploaded successfully.",
             'policy' => $policy->toResponseArray(),
         ], 200);
+    }
+
+    /**
+     * Update policy source configuration (e.g. Google Docs URL or source type switcher).
+     * Admin-only (settings.edit permission).
+     */
+    public function updateSource(Request $request, string $type): JsonResponse
+    {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'settings.edit')) {
+            return $response;
+        }
+
+        $supported = Policy::supportedTypes();
+        if (!array_key_exists($type, $supported)) {
+            return response()->json(['message' => 'Invalid policy type.'], 422);
+        }
+
+        $existing = Policy::where('type', $type)->first();
+        $sourceType = $request->input('source_type', $existing?->source_type ?: Policy::SOURCE_UPLOAD);
+
+        if (!in_array($sourceType, Policy::supportedSources(), true)) {
+            return response()->json(['message' => 'Invalid source type specified.'], 422);
+        }
+
+        $rules = [
+            'source_type' => 'required|in:upload,google_doc',
+            'title' => 'nullable|string|max:255',
+        ];
+
+        if ($sourceType === Policy::SOURCE_GOOGLE_DOC) {
+            $hasExistingDocUrl = !empty($existing?->google_docs_url);
+            $rules['google_docs_url'] = [
+                $hasExistingDocUrl && !$request->has('google_docs_url') ? 'nullable' : 'required',
+                'string',
+                'url',
+                'max:1000',
+                function ($attribute, $value, $fail) {
+                    if (!empty($value)) {
+                        $host = strtolower((string) parse_url($value, PHP_URL_HOST));
+                        if (!$host || (!str_contains($host, 'docs.google.com') && !str_contains($host, 'drive.google.com'))) {
+                            $fail('The document URL must be a valid Google Docs or Google Drive link (docs.google.com).');
+                        }
+                    }
+                },
+            ];
+        }
+
+        $request->validate($rules, [
+            'google_docs_url.required' => 'Please enter a Google Docs URL.',
+            'google_docs_url.url' => 'Please enter a valid Google Docs URL.',
+        ]);
+
+        $policy = Policy::firstOrNew(['type' => $type]);
+        $policy->title = $request->input('title') ?: ($policy->title ?: $supported[$type]);
+        $policy->source_type = $sourceType;
+        if ($request->has('google_docs_url')) {
+            $policy->google_docs_url = trim((string) $request->input('google_docs_url'));
+        }
+        $policy->uploaded_by = $request->user()?->id ?: $policy->uploaded_by;
+        $policy->save();
+
+        return response()->json([
+            'message' => "{$policy->title} updated successfully.",
+            'policy' => $policy->toResponseArray(),
+        ], 200);
+    }
+
+    /**
+     * Directly open or redirect to the policy document in external tab.
+     */
+    public function external(Request $request, string $type)
+    {
+        $supported = Policy::supportedTypes();
+        if (!array_key_exists($type, $supported)) {
+            return response()->json(['message' => 'Invalid policy type.'], 404);
+        }
+
+        if ($type === Policy::TYPE_MEMBER_POLICY) {
+            $authCheck = $this->authorizeMemberAccess($request);
+            if ($authCheck instanceof JsonResponse) {
+                return $authCheck;
+            }
+        }
+
+        $policy = Policy::where('type', $type)->first();
+        if (!$policy) {
+            return response()->json(['message' => 'Document not found.'], 404);
+        }
+
+        $sourceType = $policy->source_type ?: Policy::SOURCE_UPLOAD;
+        if ($sourceType === Policy::SOURCE_GOOGLE_DOC) {
+            if (empty($policy->google_docs_url)) {
+                return response()->json(['message' => 'Google Docs URL not configured.'], 404);
+            }
+            return redirect()->away($policy->google_docs_url);
+        }
+
+        // Uploaded PDF
+        if (!$policy->hasUploadedFile()) {
+            return response()->json(['message' => 'Document not found.'], 404);
+        }
+
+        $disk = Storage::disk('local');
+        $fullPath = $disk->path($policy->file_path);
+
+        return response()->file($fullPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . addslashes($policy->file_name) . '"',
+            'Cache-Control' => 'no-cache, private',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     /**
@@ -183,12 +304,17 @@ class PolicyController extends Controller
                 'id' => null,
                 'type' => $type,
                 'title' => $supported[$type],
+                'sourceType' => Policy::SOURCE_UPLOAD,
+                'googleDocsUrl' => null,
+                'externalUrl' => null,
                 'fileName' => null,
                 'fileSize' => null,
                 'formattedSize' => null,
                 'mimeType' => null,
                 'uploadedBy' => null,
                 'hasDocument' => false,
+                'hasFile' => false,
+                'hasGoogleDoc' => false,
                 'updatedAt' => null,
                 'previewUrl' => null,
                 'downloadUrl' => null,

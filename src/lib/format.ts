@@ -138,6 +138,7 @@ export function formatTxnDescription(t: Transaction): string {
 
   const isAutoDebit =
     descLower.startsWith("play session") ||
+    descLower.startsWith("play schedule") ||
     descLower.startsWith("auto debit") ||
     descLower.startsWith("training");
 
@@ -168,7 +169,7 @@ export function txnSource(t: Transaction): "play" | "training" | "expense" | "ot
   if (t.type === "expense" || /expense/i.test(t.description || "")) return "expense";
   const desc = (t.description || "").toLowerCase();
   if (desc.includes("training")) return "training";
-  if (desc.includes("play session")) return "play";
+  if (desc.includes("play session") || desc.includes("play schedule")) return "play";
   return "other";
 }
 

@@ -28,6 +28,7 @@ import {
   resolveTrainingDisplayStatus,
   isSessionInFuture,
   parseDateTimeMs,
+  aggregateOpenInvitePhase,
 } from "@/lib/sessionTiming";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
@@ -37,6 +38,129 @@ function scheduleDateIso(dateStr: string): string | null {
   if (Number.isNaN(d.getTime())) return null;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export interface UpcomingTrainingCardItem extends Training {
+  weeklySessions: Training[];
+  weeklyDatesFormatted: string[];
+}
+
+export function sessionMonthKey(dateStr: string): string {
+  if (!dateStr) return "";
+  const str = String(dateStr).trim();
+  const m = str.match(/^(\d{4})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}`;
+  const ms = parseDateTimeMs(str);
+  const d = Number.isFinite(ms) ? new Date(ms) : new Date(str);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function formatSessionMonthDay(dateStr: string): string {
+  if (!dateStr) return "";
+  const str = String(dateStr).trim();
+  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const year = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10) - 1;
+    const day = parseInt(m[3], 10);
+    const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
+    return d.toLocaleDateString("en-US", {
+      timeZone: "UTC",
+      month: "short",
+      day: "numeric",
+    });
+  }
+  const ms = parseDateTimeMs(str);
+  const d = Number.isFinite(ms) ? new Date(ms) : new Date(str);
+  return Number.isNaN(d.getTime())
+    ? str
+    : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+export function groupUpcomingTrainings(params: {
+  trainings: Training[];
+  role: string;
+  acceptedTrainingIds: Set<string>;
+  now: number;
+}): UpcomingTrainingCardItem[] {
+  const { trainings, role, acceptedTrainingIds, now } = params;
+
+  // 1. Filter candidate sessions according to role access and active status
+  const candidateSessions = [...trainings].filter((x) => {
+    if (x.status === "closed") return false;
+    if (role === "admin" || role === "volunteer") return true;
+    return acceptedTrainingIds.has(x.id);
+  });
+
+  // 2. Group candidate sessions by program series (parentId || id)
+  const seriesGroups: Record<string, Training[]> = {};
+  for (const t of candidateSessions) {
+    const pid = t.parentId || t.id;
+    if (!seriesGroups[pid]) seriesGroups[pid] = [];
+    seriesGroups[pid].push(t);
+  }
+
+  const cards: UpcomingTrainingCardItem[] = [];
+
+  for (const pid of Object.keys(seriesGroups)) {
+    const seriesCandidateSessions = seriesGroups[pid];
+
+    // Reference all sessions in the series from original trainings array to resolve canonical primary session
+    const allSeriesSessions = trainings.filter((t) => (t.parentId || t.id) === pid);
+
+    // Group candidate sessions by month
+    const monthGroups: Record<string, Training[]> = {};
+    for (const session of seriesCandidateSessions) {
+      const monthKey = sessionMonthKey(session.startDate);
+      if (!monthKey) continue;
+      if (!monthGroups[monthKey]) monthGroups[monthKey] = [];
+      monthGroups[monthKey].push(session);
+    }
+
+    const monthKeys = Object.keys(monthGroups).sort();
+
+    for (const monthKey of monthKeys) {
+      const monthSessions = monthGroups[monthKey].sort(
+        (a, b) => (parseDateTimeMs(a.startDate) || 0) - (parseDateTimeMs(b.startDate) || 0),
+      );
+      if (monthSessions.length === 0) continue;
+
+      // The card must remain visible until the final session date and time has passed
+      const finalSession = monthSessions[monthSessions.length - 1];
+      if (!isSessionInFuture(finalSession.startDate, now)) {
+        continue;
+      }
+
+      // Canonical primary session for this month from the series
+      const allMonthSessions = allSeriesSessions
+        .filter((s) => sessionMonthKey(s.startDate) === monthKey)
+        .sort(
+          (a, b) => (parseDateTimeMs(a.startDate) || 0) - (parseDateTimeMs(b.startDate) || 0),
+        );
+      const canonicalPrimary = allMonthSessions[0] || monthSessions[0];
+
+      const weeklyDatesFormatted = monthSessions.map((ms) =>
+        formatSessionMonthDay(ms.startDate),
+      );
+
+      cards.push({
+        ...canonicalPrimary,
+        id: `${pid}_${monthKey}`,
+        name: canonicalPrimary.name,
+        startDate: canonicalPrimary.startDate,
+        location: canonicalPrimary.location,
+        status: canonicalPrimary.status,
+        weeklySessions: monthSessions,
+        weeklyDatesFormatted,
+      });
+    }
+  }
+
+  // Sort cards chronologically by start date
+  return cards.sort(
+    (a, b) => (parseDateTimeMs(a.startDate) || 0) - (parseDateTimeMs(b.startDate) || 0),
+  );
 }
 
 const CARD_ACCENTS = [
@@ -255,7 +379,7 @@ function TrainingListCard({
   footer,
 }: {
   title: string;
-  trainings: Training[];
+  trainings: UpcomingTrainingCardItem[];
   emptyTitle: string;
   emptyDescription?: string;
   viewAllTo?: string;
@@ -292,12 +416,11 @@ function TrainingListCard({
         ) : (
           <div className="space-y-3">
             {trainings.slice(0, 4).map((tr, i) => {
-              const dateTimeStr = tr.startDate.includes("T")
-                ? fmtDateTime(tr.startDate)
-                : fmtDate(tr.startDate);
               const rowTarget = viewAllTo || "/trainings";
               const sessionPhase =
-                tr.status !== "cancelled" ? getTrainingSessionPhase(tr, now) : null;
+                tr.status !== "cancelled"
+                  ? aggregateOpenInvitePhase(tr.weeklySessions, now)
+                  : null;
               return (
                 <motion.div
                   key={tr.id}
@@ -316,7 +439,7 @@ function TrainingListCard({
                         </div>
                       </div>
                       <div className="type-helper mt-1">
-                        {dateTimeStr} · {tr.location}
+                        Sessions: {tr.weeklyDatesFormatted.join(" · ")}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -396,16 +519,12 @@ function Dashboard() {
 
   const upcomingTrainings = useMemo(
     () =>
-      [...s.trainings]
-        .filter(
-          (x) =>
-            x.status !== "closed" &&
-            isSessionInFuture(x.startDate, now) &&
-            (user.role === "admin" || user.role === "volunteer"
-              ? true
-              : myAcceptedTrainingInviteIds.has(x.id)),
-        )
-        .sort((a, b) => (parseDateTimeMs(a.startDate) || 0) - (parseDateTimeMs(b.startDate) || 0)),
+      groupUpcomingTrainings({
+        trainings: s.trainings,
+        role: user.role,
+        acceptedTrainingIds: myAcceptedTrainingInviteIds,
+        now,
+      }),
     [s.trainings, user.role, myAcceptedTrainingInviteIds, now],
   );
 
@@ -432,7 +551,7 @@ function Dashboard() {
         <>
           <HeaderQuickAction to="/members" icon={Users} label="Add family member" />
           <HeaderQuickAction to="/credits" icon={Wallet} label="Request credit" />
-          <HeaderQuickAction to="/events" icon={CalendarDays} label="Play Sessions" />
+          <HeaderQuickAction to="/events" icon={CalendarDays} label="Play Schedules" />
           <HeaderQuickAction to="/transactions" icon={Wallet} label="Transactions" />
         </>
       )}
@@ -476,7 +595,7 @@ function Dashboard() {
               to="/credits"
             />
             <Stat
-              label="Active Play Sessions"
+              label="Active Play Schedules"
               value={upcomingPlaySessions.length}
               icon={CalendarDays}
               index={3}
@@ -509,7 +628,7 @@ function Dashboard() {
               to="/credits"
             />
             <Stat
-              label="Total play sessions"
+              label="Total play schedules"
               value={myInvites.length}
               icon={CalendarDays}
               index={2}
@@ -560,11 +679,11 @@ function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         <ScheduleListCard
-          title="Upcoming Play Sessions"
+          title="Upcoming Play Schedules"
           schedules={upcomingPlaySessions}
           holidays={s.holidays ?? []}
-          emptyTitle="No sessions scheduled"
-          emptyDescription="Released and later sessions will appear here."
+          emptyTitle="No play schedules scheduled"
+          emptyDescription="Released and later schedules will appear here."
           emptyCtaLabel={user.role === "admin" ? "Create a schedule" : undefined}
           emptyCtaTo={user.role === "admin" ? "/schedules" : undefined}
           viewAllTo={user.role === "admin" ? "/schedules" : "/events"}

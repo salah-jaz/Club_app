@@ -617,8 +617,8 @@ function CreditsPage() {
             <DialogDescription className="text-[#8A8A98]">
               {entryType === "debit"
                 ? focusMember
-                  ? `Amount will be deducted from ${focusMember.firstName} ${focusMember.lastName}'s balance (same as play session debits).`
-                  : "Amount is deducted from the member's balance and recorded as a debit (same as play session debits)."
+                  ? `Amount will be deducted from ${focusMember.firstName} ${focusMember.lastName}'s balance (same as play schedule debits).`
+                  : "Amount is deducted from the member's balance and recorded as a debit (same as play schedule debits)."
                 : entryType === "refund"
                   ? focusMember
                     ? `Refund will be credited to ${focusMember.firstName} ${focusMember.lastName}'s wallet immediately.`
