@@ -61,7 +61,7 @@ function EditableConfigRow({
 }) {
   if (isEditing) {
     return (
-      <div className="flex items-center gap-2 px-2 py-1.5 bg-[#1A2120]/40 border border-[#10B981]/30 rounded-lg text-xs">
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 bg-[#1A2120]/40 border border-[#10B981]/30 rounded-lg text-xs min-w-0 w-full">
         <Input
           value={editValue}
           onChange={(e) => onEditValueChange(e.target.value)}
@@ -70,12 +70,12 @@ function EditableConfigRow({
             if (e.key === "Escape") onCancel();
           }}
           autoFocus
-          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-8 text-xs flex-1"
+          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-8 text-xs flex-1 min-w-0"
         />
         <button
           type="button"
           onClick={onSave}
-          className="text-[#10B981] hover:text-[#34D399] transition-colors p-1"
+          className="text-[#10B981] hover:text-[#34D399] transition-colors p-1 shrink-0 cursor-pointer"
           title="Save"
         >
           <Check className="size-3.5" />
@@ -83,7 +83,7 @@ function EditableConfigRow({
         <button
           type="button"
           onClick={onCancel}
-          className="text-[#8A8A98] hover:text-[#F1F0EE] transition-colors p-1"
+          className="text-[#8A8A98] hover:text-[#F1F0EE] transition-colors p-1 shrink-0 cursor-pointer"
           title="Cancel"
         >
           <X className="size-3.5" />
@@ -93,14 +93,14 @@ function EditableConfigRow({
   }
 
   return (
-    <div className="flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs gap-2">
-      <div className="flex items-center gap-2 min-w-0">
+    <div className="flex justify-between items-center px-2.5 sm:px-3 py-2 bg-[#1A2120]/40 border border-white/[0.02] rounded-lg text-xs gap-1.5 sm:gap-2 min-w-0 w-full">
+      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
         {rankLabel && (
-          <span className="shrink-0 font-mono text-[10px] text-[#8FA89F] w-5 text-center">
+          <span className="shrink-0 font-mono text-[10px] text-[#8FA89F] w-4 sm:w-5 text-center">
             {rankLabel}
           </span>
         )}
-        <span className="text-[#F1F0EE] font-medium truncate">{value}</span>
+        <span className="text-[#F1F0EE] font-medium truncate min-w-0 flex-1">{value}</span>
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
         {(onMoveUp || onMoveDown) && (
@@ -109,7 +109,7 @@ function EditableConfigRow({
               type="button"
               onClick={onMoveUp}
               disabled={!canMoveUp}
-              className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 disabled:opacity-30 disabled:pointer-events-none"
+              className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 disabled:opacity-30 disabled:pointer-events-none shrink-0 cursor-pointer"
               title="Stronger (move up)"
             >
               <ChevronUp className="size-3.5" />
@@ -118,7 +118,7 @@ function EditableConfigRow({
               type="button"
               onClick={onMoveDown}
               disabled={!canMoveDown}
-              className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 disabled:opacity-30 disabled:pointer-events-none"
+              className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 disabled:opacity-30 disabled:pointer-events-none shrink-0 cursor-pointer"
               title="Weaker (move down)"
             >
               <ChevronDown className="size-3.5" />
@@ -128,7 +128,7 @@ function EditableConfigRow({
         <button
           type="button"
           onClick={onStartEdit}
-          className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1"
+          className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 shrink-0 cursor-pointer"
           title="Edit"
         >
           <Pencil className="size-3.5" />
@@ -136,7 +136,7 @@ function EditableConfigRow({
         <button
           type="button"
           onClick={onDelete}
-          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+          className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1 shrink-0 cursor-pointer"
           title="Delete"
         >
           <Trash2 className="size-3.5" />
@@ -1022,7 +1022,7 @@ function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="admin-module-fit min-w-0 w-full max-w-full space-y-6 pb-10">
       <ConfirmDeleteDialog
         request={deleteRequest}
         onOpenChange={(open) => !open && setDeleteRequest(null)}
@@ -1036,19 +1036,19 @@ function SettingsPage() {
         }
       />
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 min-w-0 w-full max-w-full">
         {/* Branding Configurations */}
         {currentUser?.role === "admin" && (
-          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
-            <CardHeader className="pb-3 border-b border-white/[0.03]">
+          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2 min-w-0 w-full max-w-full overflow-hidden">
+            <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
               <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
                 Branding & App Configuration
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-6">
-              <form onSubmit={handleSaveBranding} className="space-y-4">
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
+            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-6 min-w-0 w-full">
+              <form onSubmit={handleSaveBranding} className="space-y-4 min-w-0 w-full">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 min-w-0 w-full">
+                  <div className="space-y-1.5 min-w-0 w-full">
                     <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                       Software / Club Name
                     </Label>
@@ -1057,10 +1057,10 @@ function SettingsPage() {
                       value={appName}
                       onChange={(e) => setAppName(e.target.value)}
                       placeholder="Connect App"
-                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9"
                     />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-w-0 w-full">
                     <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                       Logo Text / Initial
                     </Label>
@@ -1070,15 +1070,15 @@ function SettingsPage() {
                       value={appLogoText}
                       onChange={(e) => setAppLogoText(e.target.value)}
                       placeholder="C"
-                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9"
                     />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-w-0 w-full">
                     <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                       Currency Symbol
                     </Label>
                     <Select value={currency} onValueChange={setCurrency}>
-                      <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer">
+                      <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer w-full">
                         <SelectValue placeholder="Select Currency" />
                       </SelectTrigger>
                       <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -1117,12 +1117,12 @@ function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     Clock Timezone
                   </Label>
                   <Select value={timezone} onValueChange={setTimezone}>
-                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer">
+                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer w-full">
                       <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] max-h-72">
@@ -1142,8 +1142,8 @@ function SettingsPage() {
                   </p>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4 items-center border-t border-white/[0.03] pt-4 mt-4">
-                  <div className="space-y-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start sm:items-center border-t border-white/[0.03] pt-4 mt-4 min-w-0 w-full">
+                  <div className="space-y-1.5 min-w-0 w-full">
                     <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                       Logo Image
                     </Label>
@@ -1159,10 +1159,10 @@ function SettingsPage() {
                         };
                         reader.readAsDataURL(file);
                       }}
-                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg cursor-pointer file:bg-primary file:text-primary-foreground file:border-none file:rounded-md file:px-2 file:py-1 file:mr-2 file:text-xs"
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg cursor-pointer file:bg-primary file:text-primary-foreground file:border-none file:rounded-md file:px-2 file:py-1 file:mr-2 file:text-xs w-full"
                     />
                   </div>
-                  <div className="flex items-center gap-4 pt-1.5">
+                  <div className="flex items-center gap-3 sm:gap-4 pt-1.5 min-w-0">
                     {appLogoBase64 ? (
                       <div className="relative size-12 bg-white/5 rounded border border-white/[0.06] flex items-center justify-center overflow-hidden shrink-0">
                         <img
@@ -1183,16 +1183,16 @@ function SettingsPage() {
                         No Image Logo
                       </div>
                     )}
-                    <span className="text-[11px] text-muted-foreground/60 leading-relaxed font-light">
+                    <span className="text-[11px] text-muted-foreground/60 leading-relaxed font-light break-words flex-1 min-w-0">
                       Upload a square PNG or JPEG logo (recommended size 64x64px). If not uploaded,
                       the text logo above will be used.
                     </span>
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4 border-t border-white/[0.03] pt-4 mt-4">
-                  <div className="flex items-center justify-between gap-4 p-3.5 rounded-lg bg-[#1A2120] border border-white/[0.06] h-full">
-                    <div className="space-y-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 border-t border-white/[0.03] pt-4 mt-4 min-w-0 w-full">
+                  <div className="flex items-center justify-between gap-3 sm:gap-4 p-3.5 rounded-lg bg-[#1A2120] border border-white/[0.06] h-full min-w-0 w-full">
+                    <div className="space-y-1 min-w-0 flex-1">
                       <Label className="text-xs font-semibold text-[#F1F0EE] flex items-center gap-2">
                         Automatic Publish & Rotation
                       </Label>
@@ -1209,8 +1209,8 @@ function SettingsPage() {
                     />
                   </div>
 
-                  <div className="p-3.5 rounded-lg bg-[#1A2120] border border-white/[0.06] space-y-2 flex flex-col justify-between h-full">
-                    <div className="space-y-1.5">
+                  <div className="p-3.5 rounded-lg bg-[#1A2120] border border-white/[0.06] space-y-2 flex flex-col justify-between h-full min-w-0 w-full">
+                    <div className="space-y-1.5 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         Cancellation Lock Window (Hours)
                       </Label>
@@ -1219,7 +1219,7 @@ function SettingsPage() {
                         min={0}
                         value={cancellationLockHours}
                         onChange={(e) => setCancellationLockHours(Number(e.target.value))}
-                        className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9"
+                        className="bg-[#131916] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 w-full"
                       />
                     </div>
                     <p className="text-[10px] text-muted-foreground/60 font-light leading-relaxed">
@@ -1231,7 +1231,7 @@ function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="border-t border-white/[0.03] pt-4 mt-4 space-y-4">
+                <div className="border-t border-white/[0.03] pt-4 mt-4 space-y-4 min-w-0 w-full">
                   <div>
                     <h4 className="text-[11px] font-medium tracking-[0.1em] text-[#34D399] uppercase">
                       Member Portal / Login Page Content
@@ -1241,8 +1241,8 @@ function SettingsPage() {
                       and registration portal.
                     </p>
                   </div>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0 w-full">
+                    <div className="space-y-1.5 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         Portal Tagline / Eyebrow
                       </Label>
@@ -1253,7 +1253,7 @@ function SettingsPage() {
                         className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         Portal Hero Title
                       </Label>
@@ -1265,7 +1265,7 @@ function SettingsPage() {
                       />
                     </div>
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-w-0 w-full">
                     <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                       Portal Hero Description
                     </Label>
@@ -1274,17 +1274,17 @@ function SettingsPage() {
                       value={portalDescription}
                       onChange={(e) => setPortalDescription(e.target.value)}
                       placeholder="Manage memberships, credits, court rotations, and training schedules in one premium, unified interface."
-                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg resize-none text-xs"
+                      className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg resize-none text-xs w-full"
                     />
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-2">
+                <div className="flex justify-end pt-2 min-w-0 w-full">
                   <Button
                     type="submit"
                     disabled={savingBranding}
                     loading={savingBranding}
-                    className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                    className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer w-full sm:w-auto"
                   >
                     Save Branding
                   </Button>
@@ -1299,26 +1299,26 @@ function SettingsPage() {
 
         {/* Member Discounts */}
         {currentUser?.role === "admin" && (
-          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
-            <CardHeader className="pb-3 border-b border-white/[0.03]">
+          <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2 min-w-0 w-full max-w-full overflow-hidden">
+            <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
               <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
                 Member Discounts
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-6">
-              <form onSubmit={handleSaveDiscounts} className="space-y-6">
-                <p className="text-xs text-muted-foreground font-light">
+            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-6 min-w-0 w-full">
+              <form onSubmit={handleSaveDiscounts} className="space-y-6 min-w-0 w-full">
+                <p className="text-xs text-muted-foreground font-light leading-relaxed">
                   Choose percentage or fixed amount for each member type — only one applies. Only
                   members with &quot;Apply Discount&quot; enabled receive these rates on play and
                   training fees.
                 </p>
-                <div className="grid sm:grid-cols-2 gap-6">
-                  <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 min-w-0 w-full">
+                  <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-3.5 sm:p-4 min-w-0 w-full">
+                    <div className="flex items-center justify-between gap-3 min-w-0">
+                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#34D399] uppercase shrink-0">
                         Adult
                       </h3>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">
                           %
                         </span>
@@ -1335,7 +1335,7 @@ function SettingsPage() {
                       </div>
                     </div>
                     {adultDiscountMode === "percent" ? (
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 min-w-0 w-full">
                         <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                           Discount %
                         </Label>
@@ -1346,11 +1346,11 @@ function SettingsPage() {
                           step={0.01}
                           value={adultDiscountPercent}
                           onChange={(e) => setAdultDiscountPercent(Number(e.target.value))}
-                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono w-full"
                         />
                       </div>
                     ) : (
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 min-w-0 w-full">
                         <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                           Discount Amount
                         </Label>
@@ -1360,17 +1360,17 @@ function SettingsPage() {
                           step={0.01}
                           value={adultDiscountAmount}
                           onChange={(e) => setAdultDiscountAmount(Number(e.target.value))}
-                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono"
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg font-mono w-full"
                         />
                       </div>
                     )}
                   </div>
-                  <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#818CF8] uppercase">
+                  <div className="space-y-4 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120]/40 p-3.5 sm:p-4 min-w-0 w-full">
+                    <div className="flex items-center justify-between gap-3 min-w-0">
+                      <h3 className="text-[11px] font-medium tracking-[0.12em] text-[#818CF8] uppercase shrink-0">
                         Junior
                       </h3>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[10px] uppercase tracking-wider text-[#8A8A98]">
                           %
                         </span>
@@ -1387,7 +1387,7 @@ function SettingsPage() {
                       </div>
                     </div>
                     {juniorDiscountMode === "percent" ? (
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 min-w-0 w-full">
                         <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                           Discount %
                         </Label>
@@ -1398,11 +1398,11 @@ function SettingsPage() {
                           step={0.01}
                           value={juniorDiscountPercent}
                           onChange={(e) => setJuniorDiscountPercent(Number(e.target.value))}
-                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono"
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono w-full"
                         />
                       </div>
                     ) : (
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 min-w-0 w-full">
                         <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                           Discount Amount
                         </Label>
@@ -1412,18 +1412,18 @@ function SettingsPage() {
                           step={0.01}
                           value={juniorDiscountAmount}
                           onChange={(e) => setJuniorDiscountAmount(Number(e.target.value))}
-                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono"
+                          className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg font-mono w-full"
                         />
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="flex justify-end pt-2">
+                <div className="flex justify-end pt-2 min-w-0 w-full">
                   <Button
                     type="submit"
                     disabled={savingDiscounts}
                     loading={savingDiscounts}
-                    className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                    className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer w-full sm:w-auto"
                   >
                     Save Discounts
                   </Button>
@@ -1434,18 +1434,18 @@ function SettingsPage() {
         )}
 
         {/* Credentials & Profile */}
-        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
-          <CardHeader className="pb-3 border-b border-white/[0.03]">
+        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2 min-w-0 w-full max-w-full overflow-hidden">
+          <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
               {currentUser?.role === "admin"
                 ? "Admin Credentials & Profile"
                 : "Profile Details & Credentials"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
-            <form onSubmit={handleSaveCredentials} className="space-y-4">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+          <CardContent className="p-4 sm:p-6 pt-4 sm:pt-6 min-w-0 w-full">
+            <form onSubmit={handleSaveCredentials} className="space-y-4 min-w-0 w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0 w-full">
+                <div className="space-y-1.5 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     First Name
                   </Label>
@@ -1454,10 +1454,10 @@ function SettingsPage() {
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     placeholder="First Name"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     Last Name
                   </Label>
@@ -1466,10 +1466,10 @@ function SettingsPage() {
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     placeholder="Last Name"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     Email Address
                   </Label>
@@ -1479,10 +1479,10 @@ function SettingsPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="admin@example.com"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     Mobile Contact
                   </Label>
@@ -1491,15 +1491,15 @@ function SettingsPage() {
                     value={mobile}
                     onChange={(e) => setMobile(e.target.value)}
                     placeholder="+1 555 0100"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     Sex / Gender
                   </Label>
                   <Select value={sex} onValueChange={(val: "male" | "female") => setSex(val)}>
-                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer text-xs">
+                    <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer text-xs w-full">
                       <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -1512,7 +1512,7 @@ function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     Date of Birth
                   </Label>
@@ -1521,10 +1521,10 @@ function SettingsPage() {
                     type="date"
                     value={dob}
                     onChange={(e) => setDob(e.target.value)}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                   />
                 </div>
-                <div className="space-y-1.5 sm:col-span-2">
+                <div className="space-y-1.5 sm:col-span-2 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     Registered Address
                   </Label>
@@ -1533,10 +1533,10 @@ function SettingsPage() {
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="Address"
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     New Password (Optional)
                   </Label>
@@ -1545,10 +1545,10 @@ function SettingsPage() {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0 w-full">
                   <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                     Confirm New Password
                   </Label>
@@ -1557,17 +1557,17 @@ function SettingsPage() {
                     placeholder="••••••••"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 min-w-0 w-full">
                 <Button
                   type="submit"
                   disabled={savingCredentials}
                   loading={savingCredentials}
-                  className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                  className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer w-full sm:w-auto"
                 >
                   Save Credentials
                 </Button>
@@ -1577,17 +1577,17 @@ function SettingsPage() {
         </Card>
 
         {/* Theme Preference */}
-        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
-          <CardHeader className="pb-3 border-b border-white/[0.03]">
+        <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2 min-w-0 w-full max-w-full overflow-hidden">
+          <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
             <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
               Theme Preference
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-6">
+          <CardContent className="p-4 sm:p-6 pt-4 sm:pt-6 min-w-0 w-full">
+            <div className="space-y-6 min-w-0 w-full">
               {/* Theme Mode */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.03]">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-white/[0.03] min-w-0 w-full">
+                <div className="min-w-0 flex-1">
                   <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">
                     App Theme Mode
                   </Label>
@@ -1599,7 +1599,7 @@ function SettingsPage() {
                   value={localTheme}
                   onValueChange={(v) => handleThemeChange(v as "dark" | "light")}
                 >
-                  <SelectTrigger className="w-full sm:w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
+                  <SelectTrigger className="w-full sm:w-[180px] shrink-0 bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -1614,8 +1614,8 @@ function SettingsPage() {
               </div>
 
               {/* Color Scheme Preset */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 min-w-0 w-full">
+                <div className="min-w-0 flex-1">
                   <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">
                     Brand Color Theme
                   </Label>
@@ -1627,7 +1627,7 @@ function SettingsPage() {
                   value={localColorTheme}
                   onValueChange={(v) => handleColorThemeChange(v as any)}
                 >
-                  <SelectTrigger className="w-full sm:w-[180px] bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
+                  <SelectTrigger className="w-full sm:w-[180px] shrink-0 bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-10 rounded-lg cursor-pointer text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -1661,9 +1661,9 @@ function SettingsPage() {
 
               {/* Custom Color Pickers (conditional) */}
               {localColorTheme === "custom" && (
-                <div className="space-y-4 pt-4 border-t border-white/[0.03] animate-in fade-in-50 duration-200">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
+                <div className="space-y-4 pt-4 border-t border-white/[0.03] animate-in fade-in-50 duration-200 min-w-0 w-full">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 min-w-0 w-full">
+                    <div className="min-w-0 flex-1">
                       <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">
                         Select Primary Accent Color
                       </Label>
@@ -1671,7 +1671,7 @@ function SettingsPage() {
                         Pick a custom primary brand color for your portal interface.
                       </p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 shrink-0">
                       <span className="text-xs font-mono text-muted-foreground uppercase">
                         {customHex}
                       </span>
@@ -1684,8 +1684,8 @@ function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-white/[0.03]">
-                    <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pt-4 border-t border-white/[0.03] min-w-0 w-full">
+                    <div className="min-w-0 flex-1">
                       <Label className="text-sm font-semibold text-[#EEF2F0] capitalize">
                         Select Secondary Accent Color
                       </Label>
@@ -1693,7 +1693,7 @@ function SettingsPage() {
                         Pick a custom secondary color (for credits, positive amounts, and badges).
                       </p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 shrink-0">
                       <span className="text-xs font-mono text-muted-foreground uppercase">
                         {customSecHex}
                       </span>
@@ -1714,19 +1714,19 @@ function SettingsPage() {
         {/* Email SMTP Configuration */}
         {currentUser?.role === "admin" && (
           <>
-            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2">
-              <CardHeader className="pb-3 border-b border-white/[0.03]">
-                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-1.5">
-                  Email SMTP Configuration
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top md:col-span-2 min-w-0 w-full max-w-full overflow-hidden">
+              <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center gap-1.5 flex-wrap">
+                  <span>Email SMTP Configuration</span>
                   <span title="Configures outgoing email settings. Recommended host for Google SMTP is smtp.gmail.com with port 587 and TLS.">
                     <HelpCircle className="size-3.5 text-muted-foreground/60 cursor-pointer" />
                   </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-6">
-                <form onSubmit={handleSaveMailSettings} className="space-y-4">
-                  <div className="grid sm:grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
+              <CardContent className="p-4 sm:p-6 pt-4 sm:pt-6 min-w-0 w-full">
+                <form onSubmit={handleSaveMailSettings} className="space-y-4 min-w-0 w-full">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 min-w-0 w-full">
+                    <div className="space-y-1.5 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         SMTP Host
                       </Label>
@@ -1734,10 +1734,10 @@ function SettingsPage() {
                         value={mailHost}
                         onChange={(e) => setMailHost(e.target.value)}
                         placeholder="smtp.gmail.com"
-                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         SMTP Port
                       </Label>
@@ -1745,15 +1745,15 @@ function SettingsPage() {
                         value={mailPort}
                         onChange={(e) => setMailPort(e.target.value)}
                         placeholder="587"
-                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         Encryption
                       </Label>
                       <Select value={mailEncryption} onValueChange={setMailEncryption}>
-                        <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer text-xs">
+                        <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] h-9 rounded-lg cursor-pointer text-xs w-full">
                           <SelectValue placeholder="Select Encryption" />
                         </SelectTrigger>
                         <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
@@ -1769,7 +1769,7 @@ function SettingsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         SMTP Username / Email
                       </Label>
@@ -1777,10 +1777,10 @@ function SettingsPage() {
                         value={mailUsername}
                         onChange={(e) => setMailUsername(e.target.value)}
                         placeholder="your_email@gmail.com"
-                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         SMTP Password
                       </Label>
@@ -1789,10 +1789,10 @@ function SettingsPage() {
                         value={mailPassword}
                         onChange={(e) => setMailPassword(e.target.value)}
                         placeholder="••••••••••••••••"
-                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         From Name
                       </Label>
@@ -1800,10 +1800,10 @@ function SettingsPage() {
                         value={mailFromName}
                         onChange={(e) => setMailFromName(e.target.value)}
                         placeholder="ClubConnect"
-                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                       />
                     </div>
-                    <div className="space-y-1.5 sm:col-span-3">
+                    <div className="space-y-1.5 sm:col-span-2 lg:col-span-3 min-w-0 w-full">
                       <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                         From Address
                       </Label>
@@ -1812,12 +1812,12 @@ function SettingsPage() {
                         value={mailFromAddress}
                         onChange={(e) => setMailFromAddress(e.target.value)}
                         placeholder="no-reply@clubconnect.com"
-                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                       />
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-muted-foreground/60 leading-relaxed font-light mt-2 bg-[#1A2120]/40 p-3 rounded-lg border border-white/[0.02]">
+                  <div className="text-[11px] text-muted-foreground/60 leading-relaxed font-light mt-2 bg-[#1A2120]/40 p-3 rounded-lg border border-white/[0.02] min-w-0 w-full break-words">
                     <strong className="text-[#34D399] font-medium">Google SMTP Setup Tip:</strong>{" "}
                     Use{" "}
                     <code className="bg-white/5 px-1 py-0.5 rounded font-mono text-[10px]">
@@ -1837,13 +1837,13 @@ function SettingsPage() {
                     capture.
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-2">
+                  <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 pt-2 min-w-0 w-full">
                     <Button
                       type="button"
                       onClick={handleTestSmtp}
                       disabled={testingSmtp || savingMailSettings}
                       loading={testingSmtp}
-                      className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer disabled:opacity-50"
+                      className="btn-premium-outline h-9 px-4 font-semibold text-xs cursor-pointer disabled:opacity-50 w-full sm:w-auto"
                     >
                       {testingSmtp ? "Testing..." : "Test Connection"}
                     </Button>
@@ -1851,7 +1851,7 @@ function SettingsPage() {
                       type="submit"
                       disabled={savingMailSettings || testingSmtp}
                       loading={savingMailSettings}
-                      className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer"
+                      className="btn-premium-solid h-9 px-4 font-semibold text-xs cursor-pointer w-full sm:w-auto"
                     >
                       Save SMTP Settings
                     </Button>
@@ -1861,20 +1861,20 @@ function SettingsPage() {
             </Card>
 
             {/* Locations Manager */}
-            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-              <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col min-w-0 w-full max-w-full overflow-hidden">
+              <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
                 <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
                   Club Locations
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4 flex-1 flex flex-col">
-                <div className="flex gap-2 mb-4">
+              <CardContent className="p-4 sm:p-6 pt-4 sm:pt-4 flex-1 flex flex-col min-w-0 w-full">
+                <div className="flex gap-2 mb-4 min-w-0 w-full">
                   <Input
                     value={newLocation}
                     onChange={(e) => setNewLocation(e.target.value)}
                     placeholder="Add new location (e.g. Hall A)"
                     onKeyDown={(e) => e.key === "Enter" && handleAddLocation()}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs flex-1 min-w-0"
                   />
                   <Button
                     type="button"
@@ -1884,7 +1884,7 @@ function SettingsPage() {
                     <Plus className="size-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1 min-w-0 w-full">
                   {locations.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">
                       No locations configured.
@@ -1911,20 +1911,20 @@ function SettingsPage() {
             </Card>
 
             {/* Coach Management */}
-            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-              <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col min-w-0 w-full max-w-full overflow-hidden">
+              <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
                 <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
                   Coach Management
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4 flex-1 flex flex-col">
-                <div className="flex gap-2 mb-4">
+              <CardContent className="p-4 sm:p-6 pt-4 sm:pt-4 flex-1 flex flex-col min-w-0 w-full">
+                <div className="flex gap-2 mb-4 min-w-0 w-full">
                   <Input
                     value={newCoach}
                     onChange={(e) => setNewCoach(e.target.value)}
                     placeholder="Add coach name (e.g. Coach Lee)"
                     onKeyDown={(e) => e.key === "Enter" && handleAddCoach()}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs flex-1 min-w-0"
                   />
                   <Button
                     type="button"
@@ -1934,7 +1934,7 @@ function SettingsPage() {
                     <Plus className="size-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1 min-w-0 w-full">
                   {coaches.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">
                       No coaches configured.
@@ -1959,20 +1959,20 @@ function SettingsPage() {
             </Card>
 
             {/* Match Types Manager */}
-            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-              <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col min-w-0 w-full max-w-full overflow-hidden">
+              <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
                 <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
                   Match Types
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4 flex-1 flex flex-col">
-                <div className="flex gap-2 mb-4">
+              <CardContent className="p-4 sm:p-6 pt-4 sm:pt-4 flex-1 flex flex-col min-w-0 w-full">
+                <div className="flex gap-2 mb-4 min-w-0 w-full">
                   <Input
                     value={newMatchType}
                     onChange={(e) => setNewMatchType(e.target.value)}
                     placeholder="Add match type (e.g. League, Friendly)"
                     onKeyDown={(e) => e.key === "Enter" && handleAddMatchType()}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs flex-1 min-w-0"
                   />
                   <Button
                     type="button"
@@ -1982,7 +1982,7 @@ function SettingsPage() {
                     <Plus className="size-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1 min-w-0 w-full">
                   {matchTypes.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">
                       No match types configured.
@@ -2007,20 +2007,20 @@ function SettingsPage() {
             </Card>
 
             {/* Venue Types Manager */}
-            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-              <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col min-w-0 w-full max-w-full overflow-hidden">
+              <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
                 <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
                   Venue Types
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4 flex-1 flex flex-col">
-                <div className="flex gap-2 mb-4">
+              <CardContent className="p-4 sm:p-6 pt-4 sm:pt-4 flex-1 flex flex-col min-w-0 w-full">
+                <div className="flex gap-2 mb-4 min-w-0 w-full">
                   <Input
                     value={newVenueType}
                     onChange={(e) => setNewVenueType(e.target.value)}
                     placeholder="Add venue type (e.g. Home, Away)"
                     onKeyDown={(e) => e.key === "Enter" && handleAddVenueType()}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs flex-1 min-w-0"
                   />
                   <Button
                     type="button"
@@ -2030,7 +2030,7 @@ function SettingsPage() {
                     <Plus className="size-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1 min-w-0 w-full">
                   {venueTypes.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">
                       No venue types configured.
@@ -2055,27 +2055,27 @@ function SettingsPage() {
             </Card>
 
             {/* Adult Grades Manager */}
-            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-              <CardHeader className="pb-3 border-b border-white/[0.03]">
-                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center justify-between">
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col min-w-0 w-full max-w-full overflow-hidden">
+              <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase flex items-center justify-between gap-2 flex-wrap">
                   <span>Adult Grades</span>
                   <span className="text-[10px] text-muted-foreground font-normal">
                     For Adult Members
                   </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4 flex-1 flex flex-col">
+              <CardContent className="p-4 sm:p-6 pt-4 sm:pt-4 flex-1 flex flex-col min-w-0 w-full">
                 <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
                   Order from strongest (top, rank 1) to weakest. Court rotation groups similar
                   grades together.
                 </p>
-                <div className="flex gap-2 mb-4">
+                <div className="flex gap-2 mb-4 min-w-0 w-full">
                   <Input
                     value={newAdultGrade}
                     onChange={(e) => setNewAdultGrade(e.target.value)}
                     placeholder="Add adult grade (e.g. A)"
                     onKeyDown={(e) => e.key === "Enter" && handleAddAdultGrade()}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs flex-1 min-w-0"
                   />
                   <Button
                     type="button"
@@ -2085,7 +2085,7 @@ function SettingsPage() {
                     <Plus className="size-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1 min-w-0 w-full">
                   {adultGrades.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">
                       No adult grades configured.
@@ -2121,27 +2121,27 @@ function SettingsPage() {
             </Card>
 
             {/* Junior Grades Manager */}
-            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-              <CardHeader className="pb-3 border-b border-white/[0.03]">
-                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#818CF8] uppercase flex items-center justify-between">
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col min-w-0 w-full max-w-full overflow-hidden">
+              <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
+                <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#818CF8] uppercase flex items-center justify-between gap-2 flex-wrap">
                   <span>Junior Grades</span>
                   <span className="text-[10px] text-muted-foreground font-normal">
                     For Junior Members
                   </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4 flex-1 flex flex-col">
+              <CardContent className="p-4 sm:p-6 pt-4 sm:pt-4 flex-1 flex flex-col min-w-0 w-full">
                 <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
                   Order from strongest (top, rank 1) to weakest. Used when you need grade strength
                   for juniors.
                 </p>
-                <div className="flex gap-2 mb-4">
+                <div className="flex gap-2 mb-4 min-w-0 w-full">
                   <Input
                     value={newJuniorGrade}
                     onChange={(e) => setNewJuniorGrade(e.target.value)}
                     placeholder="Add junior grade (e.g. Beginner)"
                     onKeyDown={(e) => e.key === "Enter" && handleAddJuniorGrade()}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#818CF8] text-[#F1F0EE] rounded-lg h-9 text-xs flex-1 min-w-0"
                   />
                   <Button
                     type="button"
@@ -2151,7 +2151,7 @@ function SettingsPage() {
                     <Plus className="size-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1">
+                <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-1 min-w-0 w-full">
                   {juniorGrades.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">
                       No junior grades configured.
@@ -2192,16 +2192,16 @@ function SettingsPage() {
             </Card>
 
             {/* Holidays Manager */}
-            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col md:col-span-2">
-              <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col md:col-span-2 min-w-0 w-full max-w-full overflow-hidden">
+              <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
                 <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
                   Official Club / Public Holidays
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4 flex-1">
+              <CardContent className="p-4 sm:p-6 pt-4 sm:pt-4 flex-1 min-w-0 w-full">
                 {editingHolidayDate ? (
-                  <div className="grid sm:grid-cols-1 md:grid-cols-5 gap-3 mb-4 items-end">
-                    <div className="space-y-1 md:col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mb-4 items-end min-w-0 w-full">
+                    <div className="space-y-1 sm:col-span-1 md:col-span-2 min-w-0 w-full">
                       <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">
                         Holiday Name
                       </Label>
@@ -2210,21 +2210,21 @@ function SettingsPage() {
                         placeholder="e.g. Christmas Day"
                         value={newHolidayName}
                         onChange={(e) => setNewHolidayName(e.target.value)}
-                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                         autoFocus
                       />
                     </div>
-                    <div className="space-y-1 md:col-span-2">
+                    <div className="space-y-1 sm:col-span-1 md:col-span-2 min-w-0 w-full">
                       <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">
                         Holiday Date
                       </Label>
-                      <div className="bg-[#1A2120]/60 border border-[rgba(255,255,255,0.06)] rounded-lg h-9 flex items-center px-3">
-                        <span className="text-[#8A8A98] font-mono text-xs">
+                      <div className="bg-[#1A2120]/60 border border-[rgba(255,255,255,0.06)] rounded-lg h-9 flex items-center px-3 min-w-0 w-full">
+                        <span className="text-[#8A8A98] font-mono text-xs truncate">
                           {editingHolidayDate}
                         </span>
                       </div>
                     </div>
-                    <div className="flex gap-2 md:col-span-1">
+                    <div className="flex gap-2 sm:col-span-2 md:col-span-1 min-w-0 w-full">
                       <Button
                         type="button"
                         onClick={handleUpdateHoliday}
@@ -2242,8 +2242,8 @@ function SettingsPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid sm:grid-cols-1 md:grid-cols-5 gap-3 mb-4 items-end">
-                    <div className="space-y-1 md:col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mb-4 items-end min-w-0 w-full">
+                    <div className="space-y-1 sm:col-span-1 md:col-span-2 min-w-0 w-full">
                       <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">
                         Holiday Name
                       </Label>
@@ -2252,10 +2252,10 @@ function SettingsPage() {
                         placeholder="e.g. Christmas Day"
                         value={newHolidayName}
                         onChange={(e) => setNewHolidayName(e.target.value)}
-                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                       />
                     </div>
-                    <div className="space-y-1 md:col-span-2">
+                    <div className="space-y-1 sm:col-span-1 md:col-span-2 min-w-0 w-full">
                       <Label className="text-[9px] font-medium text-[#8A8A98] uppercase">
                         Holiday Date
                       </Label>
@@ -2263,21 +2263,21 @@ function SettingsPage() {
                         type="date"
                         value={newHolidayDate}
                         onChange={(e) => setNewHolidayDate(e.target.value)}
-                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                        className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs w-full"
                       />
                     </div>
                     <Button
                       type="button"
                       onClick={handleAddHoliday}
-                      className="h-9 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer w-full md:col-span-1 font-semibold text-xs shrink-0"
+                      className="h-9 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg cursor-pointer sm:col-span-2 md:col-span-1 font-semibold text-xs shrink-0 w-full"
                     >
                       <Plus className="size-4 mr-1.5 inline" /> Add Holiday
                     </Button>
                   </div>
                 )}
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 overflow-y-auto max-h-[300px] pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 overflow-y-auto max-h-[300px] pr-1 min-w-0 w-full">
                   {holidayItems.length === 0 ? (
-                    <div className="text-center py-8 text-xs text-muted-foreground/60 sm:col-span-2 lg:col-span-3">
+                    <div className="text-center py-8 text-xs text-muted-foreground/60 col-span-full">
                       No holidays registered. Weekly training sessions will generate on all
                       consecutive dates.
                     </div>
@@ -2285,29 +2285,29 @@ function SettingsPage() {
                     holidayItems.map((h) => (
                       <div
                         key={h.date}
-                        className={`flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border rounded-lg text-xs transition-colors ${
+                        className={`flex justify-between items-center px-3 py-2 bg-[#1A2120]/40 border rounded-lg text-xs transition-colors min-w-0 ${
                           editingHolidayDate === h.date
                             ? "border-[#10B981]/40 bg-[#10B981]/5"
                             : "border-white/[0.02]"
                         }`}
                       >
-                        <div className="flex flex-col min-w-0 pr-2">
+                        <div className="flex flex-col min-w-0 pr-2 flex-1">
                           <span className="text-[#F1F0EE] font-medium truncate">
                             {h.name || "Club Holiday"}
                           </span>
-                          <span className="text-[#8A8A98] font-mono text-[11px]">{h.date}</span>
+                          <span className="text-[#8A8A98] font-mono text-[11px] truncate">{h.date}</span>
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
                           <button
                             onClick={() => handleEditHoliday(h)}
-                            className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1"
+                            className="text-[#8A8A98] hover:text-[#10B981] transition-colors p-1 cursor-pointer"
                             title="Edit holiday"
                           >
                             <Pencil className="size-3.5" />
                           </button>
                           <button
                             onClick={() => handleDeleteHoliday(h.date)}
-                            className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1"
+                            className="text-[#EF4444] hover:text-[#DC2626] transition-colors p-1 cursor-pointer"
                             title="Delete holiday"
                           >
                             <Trash2 className="size-3.5" />
@@ -2321,24 +2321,24 @@ function SettingsPage() {
             </Card>
 
             {/* Player Positions Manager */}
-            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col">
-              <CardHeader className="pb-3 border-b border-white/[0.03]">
+            <Card className="bg-[#131916] border-[rgba(255,255,255,0.06)] signature-card-top flex flex-col min-w-0 w-full max-w-full overflow-hidden">
+              <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-white/[0.03] min-w-0">
                 <CardTitle className="text-[12px] font-medium tracking-[0.12em] text-[#34D399] uppercase">
                   Player Positions / Roles
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4 flex-1 flex flex-col">
+              <CardContent className="p-4 sm:p-6 pt-4 sm:pt-4 flex-1 flex flex-col min-w-0 w-full">
                 <p className="text-[11px] text-[#8FA89F] mb-3 leading-relaxed">
                   Enable <span className="text-[#EEF2F0]">Skip group fee</span> so members with that
                   position are not charged for group match schedules.
                 </p>
-                <div className="flex gap-2 mb-4">
+                <div className="flex gap-2 mb-4 min-w-0 w-full">
                   <Input
                     value={newPlayerPosition}
                     onChange={(e) => setNewPlayerPosition(e.target.value)}
                     placeholder="Add new position (e.g. Singles, Doubles)"
                     onKeyDown={(e) => e.key === "Enter" && handleAddPlayerPosition()}
-                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs"
+                    className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] focus:border-[#10B981] text-[#F1F0EE] rounded-lg h-9 text-xs flex-1 min-w-0"
                   />
                   <Button
                     type="button"
@@ -2348,14 +2348,14 @@ function SettingsPage() {
                     <Plus className="size-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto max-h-[280px] pr-1 space-y-1">
+                <div className="flex-1 overflow-y-auto max-h-[280px] pr-1 space-y-1 min-w-0 w-full">
                   {playerPositionItems.length === 0 ? (
                     <div className="text-center py-6 text-xs text-muted-foreground/60">
                       No player positions configured.
                     </div>
                   ) : (
                     playerPositionItems.map((pos) => (
-                      <div key={pos.name} className="space-y-0">
+                      <div key={pos.name} className="space-y-0 min-w-0 w-full">
                         <EditableConfigRow
                           value={pos.name}
                           isEditing={
@@ -2376,10 +2376,10 @@ function SettingsPage() {
                           onDelete={() => handleDeletePlayerPosition(pos.name)}
                         />
                         {!editingList || editingOriginal !== pos.name ? (
-                          <div className="flex items-center justify-between gap-2 px-3 pb-2 -mt-0.5">
+                          <div className="flex items-center justify-between gap-2 px-3 pb-2 -mt-0.5 min-w-0 w-full">
                             <Label
                               htmlFor={`skip-league-${pos.name}`}
-                              className="text-[10px] text-[#8A8A98] font-normal cursor-pointer"
+                              className="text-[10px] text-[#8A8A98] font-normal cursor-pointer truncate flex-1 min-w-0"
                             >
                               Skip group fee
                             </Label>
@@ -2389,7 +2389,7 @@ function SettingsPage() {
                               onCheckedChange={(checked) =>
                                 handleTogglePositionSkipLeagueFee(pos.name, checked)
                               }
-                              className="scale-90 origin-right"
+                              className="scale-90 origin-right shrink-0"
                             />
                           </div>
                         ) : null}

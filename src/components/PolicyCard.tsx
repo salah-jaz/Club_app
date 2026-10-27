@@ -266,27 +266,27 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
 
   return (
     <>
-      <Card className="bg-card text-card-foreground border-border signature-card-top flex flex-col justify-between shadow-sm">
-        <CardHeader className="pb-3 border-b border-border/60">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <CardTitle className="text-xs font-semibold tracking-[0.12em] text-primary uppercase flex items-center gap-2">
+      <Card className="bg-card text-card-foreground border-border signature-card-top flex flex-col justify-between shadow-sm min-w-0 w-full max-w-full overflow-hidden">
+        <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 border-b border-border/60 min-w-0">
+          <div className="flex flex-col xs:flex-row sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+            <CardTitle className="text-xs font-semibold tracking-[0.12em] text-primary uppercase flex items-center gap-2 min-w-0">
               <Icon className="size-4 text-primary shrink-0" />
-              <span>{title}</span>
+              <span className="truncate">{title}</span>
             </CardTitle>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
               {hasDocument ? (
                 <>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 shrink-0">
                     <CheckCircle2 className="size-3" />
                     Active
                   </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border shrink-0">
                     {policy?.sourceType === "google_doc" ? "Google Doc" : "PDF"}
                   </span>
                 </>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border shrink-0">
                   Not Configured
                 </span>
               )}
@@ -295,40 +295,40 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
 
           {/* Source Selector Control */}
-          <div className="pt-3">
-            <div className="flex items-center p-1 rounded-lg bg-muted/60 border border-border/70 text-xs">
+          <div className="pt-3 min-w-0 w-full">
+            <div className="flex items-center p-1 rounded-lg bg-muted/60 border border-border/70 text-xs min-w-0 w-full">
               <button
                 type="button"
                 onClick={() => handleSourceSelect("upload")}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all cursor-pointer ${
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 py-1.5 px-2 sm:px-3 rounded-md font-medium transition-all cursor-pointer ${
                   selectedSource === "upload"
                     ? "bg-background text-foreground shadow-sm border border-border/80"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Upload className="size-3.5" />
-                <span>Upload Document</span>
+                <Upload className="size-3.5 shrink-0" />
+                <span className="truncate">Upload Document</span>
                 {hasFile && <span className="size-1.5 rounded-full bg-primary shrink-0 ml-0.5" />}
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSourceSelect("google_doc")}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all cursor-pointer ${
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 py-1.5 px-2 sm:px-3 rounded-md font-medium transition-all cursor-pointer ${
                   selectedSource === "google_doc"
                     ? "bg-background text-foreground shadow-sm border border-border/80"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Link2 className="size-3.5" />
-                <span>Google Docs URL</span>
+                <Link2 className="size-3.5 shrink-0" />
+                <span className="truncate">Google Docs URL</span>
                 {hasGoogleDoc && <span className="size-1.5 rounded-full bg-primary shrink-0 ml-0.5" />}
               </button>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="pt-4 flex-1 flex flex-col justify-between space-y-4">
+        <CardContent className="p-4 sm:p-6 pt-4 sm:pt-4 flex-1 flex flex-col justify-between space-y-4 min-w-0 w-full">
           {/* Validation error display */}
           {errorMessage && (
             <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-2.5 text-xs text-destructive">
@@ -405,20 +405,20 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
               )}
 
               {/* Action Buttons for Upload Document */}
-              <div className="pt-2">
+              <div className="pt-2 min-w-0 w-full">
                 {hasFile ? (
-                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 min-w-0 w-full">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={handleExternalLink}
                       disabled={isUploading || isDeleting}
-                      className="btn-premium-outline text-xs h-9 cursor-pointer flex-1 min-w-[110px]"
+                      className="btn-premium-outline text-xs h-9 cursor-pointer w-full sm:w-auto sm:flex-1 min-w-0 truncate justify-center"
                       title="Open PDF directly in a new browser tab"
                     >
-                      <ExternalLink className="size-3.5 mr-1.5 text-primary" />
-                      External Link
+                      <ExternalLink className="size-3.5 mr-1.5 text-primary shrink-0" />
+                      <span className="truncate">External Link</span>
                     </Button>
 
                     <Button
@@ -427,10 +427,10 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
                       size="sm"
                       onClick={() => setPreviewOpen(true)}
                       disabled={isUploading || isDeleting}
-                      className="btn-premium-outline text-xs h-9 cursor-pointer flex-1 min-w-[110px]"
+                      className="btn-premium-outline text-xs h-9 cursor-pointer w-full sm:w-auto sm:flex-1 min-w-0 truncate justify-center"
                     >
-                      <Eye className="size-3.5 mr-1.5 text-primary" />
-                      Preview
+                      <Eye className="size-3.5 mr-1.5 text-primary shrink-0" />
+                      <span className="truncate">Preview</span>
                     </Button>
 
                     <Button
@@ -439,14 +439,14 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
                       size="sm"
                       onClick={handleDownload}
                       disabled={isUploading || isDownloading || isDeleting}
-                      className="btn-premium-outline text-xs h-9 cursor-pointer flex-1 min-w-[110px]"
+                      className="btn-premium-outline text-xs h-9 cursor-pointer w-full sm:w-auto sm:flex-1 min-w-0 truncate justify-center"
                     >
                       {isDownloading ? (
-                        <Loader2 className="size-3.5 animate-spin mr-1.5 text-primary" />
+                        <Loader2 className="size-3.5 animate-spin mr-1.5 text-primary shrink-0" />
                       ) : (
-                        <Download className="size-3.5 mr-1.5 text-primary" />
+                        <Download className="size-3.5 mr-1.5 text-primary shrink-0" />
                       )}
-                      Download
+                      <span className="truncate">Download</span>
                     </Button>
 
                     <Button
@@ -455,10 +455,10 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
                       size="sm"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploading || isDeleting}
-                      className="btn-premium-violet-outline text-xs h-9 cursor-pointer flex-1 min-w-[110px]"
+                      className="btn-premium-violet-outline text-xs h-9 cursor-pointer w-full sm:w-auto sm:flex-1 min-w-0 truncate justify-center"
                     >
-                      <RefreshCw className="size-3.5 mr-1.5" />
-                      Replace
+                      <RefreshCw className="size-3.5 mr-1.5 shrink-0" />
+                      <span className="truncate">Replace</span>
                     </Button>
 
                     <Button
@@ -466,10 +466,10 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
                       size="sm"
                       onClick={() => setDeleteDialogOpen(true)}
                       disabled={isUploading || isDeleting}
-                      className="btn-premium-danger text-xs h-9 cursor-pointer flex-1 min-w-[110px]"
+                      className="btn-premium-danger text-xs h-9 cursor-pointer col-span-2 sm:col-span-1 w-full sm:w-auto sm:flex-1 min-w-0 truncate justify-center"
                     >
-                      <Trash2 className="size-3.5 mr-1.5" />
-                      Delete
+                      <Trash2 className="size-3.5 mr-1.5 shrink-0" />
+                      <span className="truncate">Delete</span>
                     </Button>
                   </div>
                 ) : (
@@ -478,10 +478,10 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
-                    className="w-full btn-premium-solid text-xs h-9 cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full btn-premium-solid text-xs h-9 cursor-pointer flex items-center justify-center gap-1.5 min-w-0"
                   >
-                    <Upload className="size-3.5" />
-                    Upload Document
+                    <Upload className="size-3.5 shrink-0" />
+                    <span className="truncate">Upload Document</span>
                   </Button>
                 )}
               </div>
@@ -490,18 +490,18 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
 
           {/* ================= OPTION 2: GOOGLE DOCS URL ================= */}
           {selectedSource === "google_doc" && (
-            <div className="space-y-4">
-              <form onSubmit={handleSaveGoogleDocsUrl} className="space-y-3">
-                <div className="space-y-1.5">
-                  <label htmlFor={`gdoc-url-${type}`} className="text-xs font-medium text-foreground flex items-center justify-between">
-                    <span>Google Docs URL</span>
+            <div className="space-y-4 min-w-0 w-full">
+              <form onSubmit={handleSaveGoogleDocsUrl} className="space-y-3 min-w-0 w-full">
+                <div className="space-y-1.5 min-w-0 w-full">
+                  <label htmlFor={`gdoc-url-${type}`} className="text-xs font-medium text-foreground flex items-center justify-between gap-2 min-w-0">
+                    <span className="truncate">Google Docs URL</span>
                     {hasGoogleDoc && (
-                      <span className="text-[11px] text-primary flex items-center gap-1">
-                        <Check className="size-3" /> Saved & Active
+                      <span className="text-[11px] text-primary flex items-center gap-1 shrink-0">
+                        <Check className="size-3 shrink-0" /> Saved & Active
                       </span>
                     )}
                   </label>
-                  <div className="relative">
+                  <div className="relative min-w-0 w-full">
                     <Input
                       id={`gdoc-url-${type}`}
                       type="url"
@@ -511,33 +511,33 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
                         setErrorMessage(null);
                       }}
                       placeholder="https://docs.google.com/document/d/..."
-                      className="text-xs h-9 pr-8 bg-muted/30 border-border focus:border-primary font-mono text-[11px]"
+                      className="text-xs h-9 pr-8 bg-muted/30 border-border focus:border-primary font-mono text-[11px] w-full min-w-0"
                       disabled={isSavingUrl || isDeleting}
                     />
-                    <Link2 className="size-4 text-muted-foreground absolute right-2.5 top-2.5 pointer-events-none opacity-60" />
+                    <Link2 className="size-4 text-muted-foreground absolute right-2.5 top-2.5 pointer-events-none opacity-60 shrink-0" />
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-normal">
-                    Paste a viewable Google Docs or Drive link (ensure permissions are set to "Anyone with the link can view").
+                    Paste a viewable Google Docs or Drive link (ensure permissions are set to &quot;Anyone with the link can view&quot;).
                   </p>
                 </div>
 
                 {/* Action buttons for Google Docs URL */}
-                <div className="pt-1 flex flex-wrap items-center gap-2">
+                <div className="pt-1 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 min-w-0 w-full">
                   <Button
                     type="submit"
                     size="sm"
                     disabled={isSavingUrl || !googleDocsUrlInput.trim()}
-                    className="btn-premium-solid text-xs h-9 cursor-pointer flex-1 min-w-[110px]"
+                    className="btn-premium-solid text-xs h-9 cursor-pointer w-full sm:w-auto sm:flex-1 min-w-0 truncate justify-center"
                   >
                     {isSavingUrl ? (
                       <>
-                        <Loader2 className="size-3.5 animate-spin mr-1.5" />
-                        Saving...
+                        <Loader2 className="size-3.5 animate-spin mr-1.5 shrink-0" />
+                        <span className="truncate">Saving...</span>
                       </>
                     ) : (
                       <>
-                        <Check className="size-3.5 mr-1.5" />
-                        {hasGoogleDoc ? "Update URL" : "Save URL"}
+                        <Check className="size-3.5 mr-1.5 shrink-0" />
+                        <span className="truncate">{hasGoogleDoc ? "Update URL" : "Save URL"}</span>
                       </>
                     )}
                   </Button>
@@ -548,11 +548,11 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
                     size="sm"
                     onClick={handleExternalLink}
                     disabled={!policy?.googleDocsUrl && !isValidGoogleDocUrl(googleDocsUrlInput)}
-                    className="btn-premium-outline text-xs h-9 cursor-pointer flex-1 min-w-[110px]"
+                    className="btn-premium-outline text-xs h-9 cursor-pointer w-full sm:w-auto sm:flex-1 min-w-0 truncate justify-center"
                     title="Open Google Doc directly in a new browser tab"
                   >
-                    <ExternalLink className="size-3.5 mr-1.5 text-primary" />
-                    External Link
+                    <ExternalLink className="size-3.5 mr-1.5 text-primary shrink-0" />
+                    <span className="truncate">External Link</span>
                   </Button>
 
                   {hasGoogleDoc && (
@@ -561,10 +561,10 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
                       size="sm"
                       onClick={() => setDeleteDialogOpen(true)}
                       disabled={isSavingUrl || isDeleting}
-                      className="btn-premium-danger text-xs h-9 cursor-pointer flex-1 min-w-[100px]"
+                      className="btn-premium-danger text-xs h-9 cursor-pointer col-span-2 sm:col-span-1 w-full sm:w-auto sm:flex-1 min-w-0 truncate justify-center"
                     >
-                      <Trash2 className="size-3.5 mr-1.5" />
-                      Clear
+                      <Trash2 className="size-3.5 mr-1.5 shrink-0" />
+                      <span className="truncate">Clear</span>
                     </Button>
                   )}
                 </div>
