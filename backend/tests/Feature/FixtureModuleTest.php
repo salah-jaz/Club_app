@@ -1094,12 +1094,12 @@ class FixtureModuleTest extends TestCase
         $this->assertTrue($getRes->json('email_sent'));
         $this->assertNotNull($getRes->json('emailSentAt'));
 
-        // 3c. Attempting to send again via API is blocked with 422 and sends NO duplicate email
+        // 3c. Subsequent deliberate resend succeeds and sends another email
         \Illuminate\Support\Facades\Mail::fake();
-        $dupAttempt = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
-        $dupAttempt->assertStatus(422);
-        $this->assertStringContainsString('already been sent', $dupAttempt->json('message'));
-        \Illuminate\Support\Facades\Mail::assertNothingSent();
+        $resendAttempt = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $resendAttempt->assertOk();
+        $this->assertEquals('Fixture notification email sent successfully.', $resendAttempt->json('message'));
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, 1);
 
         // 3d. Verify concurrent in-flight request prevention via lock
         $lockFixture = Fixture::create([
@@ -1296,10 +1296,101 @@ class FixtureModuleTest extends TestCase
         $this->assertTrue((bool)$fixture->email_sent);
         $this->assertNotNull($fixture->email_sent_at);
 
-        // Subsequent send is blocked as duplicate
-        $dupRes = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
-        $dupRes->assertStatus(422);
-        $this->assertStringContainsString('already been sent', $dupRes->json('message'));
+        // Subsequent send succeeds and allows deliberate resending
+        \Illuminate\Support\Facades\Mail::fake();
+        $resendRes = $this->actingAs($this->memberUserWithGroup)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $resendRes->assertOk();
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, 1);
+    }
+
+    public function test_create_fixture_allows_past_date_and_persists_correctly(): void
+    {
+        $pastDate = '2024-03-15 14:00:00';
+        $createRes = $this->actingAs($this->admin)->postJson('/api/fixtures', [
+            'name' => 'Past Date Match',
+            'date' => $pastDate,
+            'leagueGroupId' => $this->group1->id,
+            'matchType' => 'League',
+            'venueType' => 'Home',
+            'oppositionClub' => 'Old Rivals',
+            'teamName' => 'Senior Team',
+            'grade' => 'Division 1',
+            'status' => 'Completed',
+            'result' => 'Won',
+        ]);
+
+        $createRes->assertCreated();
+        $fixtureId = $createRes->json('id');
+        $this->assertEquals('Past Date Match', $createRes->json('name'));
+        $this->assertEquals('2024-03-15T14:00:00', $createRes->json('date'));
+
+        // Verify retrieval via show endpoint
+        $showRes = $this->actingAs($this->admin)->getJson('/api/fixtures/' . $fixtureId);
+        $showRes->assertOk();
+        $this->assertEquals('2024-03-15T14:00:00', $showRes->json('date'));
+
+        // Verify listing includes the past fixture
+        $listRes = $this->actingAs($this->admin)->getJson('/api/fixtures');
+        $listRes->assertOk();
+        $fixtureIds = collect($listRes->json())->pluck('id')->all();
+        $this->assertContains($fixtureId, $fixtureIds);
+    }
+
+    public function test_resending_fixture_emails_multiple_times_succeeds_and_updates_email_sent_at(): void
+    {
+        $templates = \App\Helpers\MailHelper::getDefaultTemplates();
+        $templates['fixture_scheduled']['is_enabled'] = true;
+        \App\Models\Setting::updateOrCreate(
+            ['key' => 'email_templates'],
+            ['value' => json_encode($templates)]
+        );
+
+        $fixture = Fixture::create([
+            'id' => 'fix_resend_' . Str::random(6),
+            'name' => 'Resend Verification Match',
+            'date' => '2026-11-28 10:00:00',
+            'league_group_id' => $this->group1->id,
+            'match_type' => 'Friendly',
+            'venue_type' => 'Home',
+            'opposition_club' => 'Panthers FC',
+            'teamName' => 'Lions Team',
+            'team_name' => 'Lions Team',
+            'grade' => 'Division 1',
+            'status' => 'Scheduled',
+            'opposition_captain_email' => 'opp@panthers.com',
+            'home_captain_email' => 'home@lions.com',
+            'email_sent' => false,
+        ]);
+
+        // First send
+        \Illuminate\Support\Facades\Mail::fake();
+        $send1 = $this->actingAs($this->admin)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $send1->assertOk();
+        $this->assertEquals('Fixture notification email sent successfully.', $send1->json('message'));
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, 1);
+
+        $fixture->refresh();
+        $this->assertTrue((bool)$fixture->email_sent);
+        $firstSentAt = $fixture->email_sent_at;
+        $this->assertNotNull($firstSentAt);
+
+        // Second send (resend)
+        \Illuminate\Support\Facades\Mail::fake();
+        $send2 = $this->actingAs($this->admin)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $send2->assertOk();
+        $this->assertEquals('Fixture notification email sent successfully.', $send2->json('message'));
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, 1);
+
+        $fixture->refresh();
+        $this->assertTrue((bool)$fixture->email_sent);
+        $this->assertNotNull($fixture->email_sent_at);
+
+        // Third send (resend again)
+        \Illuminate\Support\Facades\Mail::fake();
+        $send3 = $this->actingAs($this->admin)->postJson('/api/fixtures/' . $fixture->id . '/send-mail');
+        $send3->assertOk();
+        $this->assertEquals('Fixture notification email sent successfully.', $send3->json('message'));
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, 1);
     }
 }
 
