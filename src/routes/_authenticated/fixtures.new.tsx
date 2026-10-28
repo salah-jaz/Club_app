@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { parseScheduleDateTime } from "@/lib/format";
-import { datetimeLocalNow } from "@/lib/sessionTiming";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mail, Loader2, CheckCircle } from "lucide-react";
+import { Mail, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FixtureStatus } from "@/lib/types";
 
@@ -157,7 +156,6 @@ function NewFixturePage() {
     }
   }, [availableGrades, f.grade, set]);
 
-  const minDateTime = datetimeLocalNow();
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.date), [f.date]);
 
   const onDateChange = (value: string) => {
@@ -216,7 +214,7 @@ function NewFixturePage() {
 
     setSendingMail(true);
     try {
-      await sendFixtureMail(undefined, {
+      const res = await sendFixtureMail(undefined, {
         name: f.name.trim(),
         date: f.date,
         leagueGroupId: f.leagueGroupId,
@@ -231,12 +229,12 @@ function NewFixturePage() {
         status: f.status,
       });
       setEmailSent(true);
-      toast.success("Fixture notification email sent successfully");
+      toast.success(res?.message || "Fixture notification email sent successfully");
     } catch (error: any) {
       console.error("Fixture notification email sending failed:", error);
       const errMsg =
-        error.response?.data?.message ||
         error.message ||
+        error.response?.data?.message ||
         "Failed to send fixture notification email.";
       toast.error(errMsg);
     } finally {
@@ -344,7 +342,6 @@ function NewFixturePage() {
               <DateTimePicker
                 value={f.date}
                 onChange={onDateChange}
-                minDateTime={minDateTime}
                 placeholder="Select Date & Time..."
               />
               {scheduleWhen && (
@@ -605,29 +602,20 @@ function NewFixturePage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={sendingMail || submitting || emailSent}
+                disabled={sendingMail || submitting}
                 onClick={handleSendMail}
                 className={cn(
                   "h-8 px-3 gap-1.5 text-xs font-semibold transition-colors",
-                  emailSent
+                  sendingMail
                     ? "border-white/10 bg-white/5 text-[#8FA89F] cursor-not-allowed opacity-80"
                     : "border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10 cursor-pointer"
                 )}
-                title={
-                  emailSent
-                    ? "Fixture notification email has already been sent"
-                    : "Send fixture details to captains"
-                }
+                title="Send fixture details to captains"
               >
                 {sendingMail ? (
                   <>
                     <Loader2 className="size-3.5 animate-spin" />
                     <span>Sending Mail...</span>
-                  </>
-                ) : emailSent ? (
-                  <>
-                    <CheckCircle className="size-3.5 text-[#10B981]" />
-                    <span>Email Sent</span>
                   </>
                 ) : (
                   <>

@@ -26,7 +26,6 @@ import {
   Loader2,
   RefreshCw,
   Mail,
-  CheckCircle,
 } from "lucide-react";
 import {
   Table,
@@ -70,8 +69,6 @@ function FixtureDetailPage() {
   const [loading, setLoading] = useState(!fixture);
   const [notFound, setNotFound] = useState(false);
   const [sendingMail, setSendingMail] = useState(false);
-  const [emailSentSuccess, setEmailSentSuccess] = useState(false);
-  const isEmailSent = Boolean(fixture?.emailSent || (fixture as any)?.email_sent || emailSentSuccess);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [loadingGroupDetails, setLoadingGroupDetails] = useState(false);
   const [fetchedGroup, setFetchedGroup] = useState<LeagueGroup | null>(null);
@@ -262,7 +259,7 @@ function FixtureDetailPage() {
 
     setSendingMail(true);
     try {
-      await sendFixtureMail(fixture.id, {
+      const res = await sendFixtureMail(fixture.id, {
         id: fixture.id,
         name: fixture.name,
         date: fixture.date,
@@ -277,13 +274,12 @@ function FixtureDetailPage() {
         status: fixture.status,
         result: fixture.result,
       });
-      setEmailSentSuccess(true);
-      toast.success("Fixture notification email sent successfully");
+      toast.success(res?.message || "Fixture notification email sent successfully");
     } catch (err: any) {
       console.error("Fixture notification email sending failed:", err);
       const errMsg =
-        err.response?.data?.message ||
         err.message ||
+        err.response?.data?.message ||
         "Failed to send fixture notification email.";
       toast.error(errMsg);
     } finally {
@@ -462,29 +458,20 @@ function FixtureDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={sendingMail || isEmailSent}
+                disabled={sendingMail}
                 onClick={handleSendMail}
                 className={cn(
                   "h-[38px] px-3.5 gap-1.5 text-xs font-semibold transition-colors",
-                  isEmailSent
+                  sendingMail
                     ? "border-white/10 bg-white/5 text-[#8FA89F] cursor-not-allowed opacity-80"
                     : "border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10 cursor-pointer"
                 )}
-                title={
-                  isEmailSent
-                    ? "Fixture notification email has already been sent"
-                    : "Send fixture details to captains"
-                }
+                title="Send fixture details to captains"
               >
                 {sendingMail ? (
                   <>
                     <Loader2 className="size-3.5 animate-spin" />
                     <span>Sending Mail...</span>
-                  </>
-                ) : isEmailSent ? (
-                  <>
-                    <CheckCircle className="size-3.5 text-[#10B981]" />
-                    <span>Email Sent</span>
                   </>
                 ) : (
                   <>

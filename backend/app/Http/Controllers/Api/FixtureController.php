@@ -531,17 +531,6 @@ class FixtureController extends Controller
                     return response()->json(['message' => 'Unauthorized. You can only send emails for fixtures associated with your groups.'], 403);
                 }
             }
-
-            // Reject immediately if email already sent
-            if ($fixture->email_sent) {
-                return response()->json([
-                    'message' => 'Fixture notification email has already been sent for this fixture.',
-                    'email_sent' => true,
-                    'emailSent' => true,
-                    'email_sent_at' => optional($fixture->email_sent_at)?->toISOString(),
-                    'emailSentAt' => optional($fixture->email_sent_at)?->toISOString(),
-                ], 422);
-            }
         } else {
             if ($user->role !== 'admin') {
                 $groupIds = $this->getMemberGroupIds($user);
@@ -603,15 +592,6 @@ class FixtureController extends Controller
                 ->first();
             if ($existing) {
                 $fixture = $existing;
-                if ($fixture->email_sent) {
-                    return response()->json([
-                        'message' => 'Fixture notification email has already been sent for this fixture.',
-                        'email_sent' => true,
-                        'emailSent' => true,
-                        'email_sent_at' => optional($fixture->email_sent_at)?->toISOString(),
-                        'emailSentAt' => optional($fixture->email_sent_at)?->toISOString(),
-                    ], 422);
-                }
             }
         }
 
@@ -648,20 +628,6 @@ class FixtureController extends Controller
         }
 
         try {
-            // Re-verify after acquiring the lock that another request didn't just mark it sent
-            if ($fixture) {
-                $fixture->refresh();
-                if ($fixture->email_sent) {
-                    return response()->json([
-                        'message' => 'Fixture notification email has already been sent for this fixture.',
-                        'email_sent' => true,
-                        'emailSent' => true,
-                        'email_sent_at' => optional($fixture->email_sent_at)?->toISOString(),
-                        'emailSentAt' => optional($fixture->email_sent_at)?->toISOString(),
-                    ], 422);
-                }
-            }
-
             try {
                 $sent = MailHelper::sendFixtureScheduledNotification($fixtureData, $toEmails, $ccEmails);
                 if (!$sent) {

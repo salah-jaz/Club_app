@@ -25,7 +25,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { Trophy, XCircle, Shield, Swords, Mail, Loader2, CheckCircle } from "lucide-react";
+import { Trophy, XCircle, Shield, Swords, Mail, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FixtureStatus } from "@/lib/types";
 
@@ -100,8 +100,6 @@ function EditFixturePage() {
   const [notFound, setNotFound] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [sendingMail, setSendingMail] = useState(false);
-  const [emailSentSuccess, setEmailSentSuccess] = useState(false);
-  const isEmailSent = Boolean(fixture?.emailSent || (fixture as any)?.email_sent || emailSentSuccess);
   const [isNameCustomized, setIsNameCustomized] = useState(false);
 
   const [f, setF] = useState({
@@ -400,7 +398,7 @@ function EditFixturePage() {
 
     setSendingMail(true);
     try {
-      await sendFixtureMail(id, {
+      const res = await sendFixtureMail(id, {
         id: id,
         name: f.name.trim(),
         date: f.date,
@@ -416,13 +414,12 @@ function EditFixturePage() {
         status: f.status,
         result: f.result || null,
       });
-      setEmailSentSuccess(true);
-      toast.success("Fixture notification email sent successfully");
+      toast.success(res?.message || "Fixture notification email sent successfully");
     } catch (error: any) {
       console.error("Fixture notification email sending failed:", error);
       const errMsg =
-        error.response?.data?.message ||
         error.message ||
+        error.response?.data?.message ||
         "Failed to send fixture notification email.";
       toast.error(errMsg);
     } finally {
@@ -810,29 +807,20 @@ function EditFixturePage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={sendingMail || submitting || isEmailSent}
+                disabled={sendingMail || submitting}
                 onClick={handleSendMail}
                 className={cn(
                   "h-8 px-3 gap-1.5 text-xs font-semibold transition-colors",
-                  isEmailSent
+                  sendingMail
                     ? "border-white/10 bg-white/5 text-[#8FA89F] cursor-not-allowed opacity-80"
                     : "border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10 cursor-pointer"
                 )}
-                title={
-                  isEmailSent
-                    ? "Fixture notification email has already been sent"
-                    : "Send fixture details to captains"
-                }
+                title="Send fixture details to captains"
               >
                 {sendingMail ? (
                   <>
                     <Loader2 className="size-3.5 animate-spin" />
                     <span>Sending Mail...</span>
-                  </>
-                ) : isEmailSent ? (
-                  <>
-                    <CheckCircle className="size-3.5 text-[#10B981]" />
-                    <span>Email Sent</span>
                   </>
                 ) : (
                   <>
