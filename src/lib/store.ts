@@ -195,6 +195,16 @@ interface State {
   updateRotation: (scheduleId: string, rounds: Rotation["rounds"]) => Promise<void>;
   updateRotationShowGrades: (scheduleId: string, showMemberGrades: boolean) => Promise<void>;
   revertRotation: (scheduleId: string) => Promise<void>;
+  replacePlayPlayer: (
+    scheduleId: string,
+    outgoingMemberId: string,
+    replacementMemberId: string,
+  ) => Promise<{
+    message?: string;
+    schedule: PlaySchedule;
+    rotation?: Rotation | null;
+    invitations: PlayInvitation[];
+  }>;
 
   // trainings
   createTraining: (t: Omit<Training, "id" | "status">) => Promise<void>;
@@ -1130,6 +1140,20 @@ export const useStore = create<State>((set, get) => ({
       { showMemberGrades },
     );
     await get().syncData();
+  },
+
+  replacePlayPlayer: async (scheduleId, outgoingMemberId, replacementMemberId) => {
+    const res = await api.post<{
+      message?: string;
+      schedule: PlaySchedule;
+      rotation?: Rotation | null;
+      invitations: PlayInvitation[];
+    }>(`/schedules/${scheduleId}/replace-player`, {
+      outgoingMemberId,
+      replacementMemberId,
+    });
+    await get().syncData();
+    return res;
   },
 
   revertRotation: async (scheduleId) => {

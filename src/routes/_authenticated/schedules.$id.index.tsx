@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useCurrentUser, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,11 +24,19 @@ import {
   X,
   RotateCcw,
   AlertTriangle,
+  ArrowLeftRight,
+  Search,
+  Check,
+  AlertCircle,
+  ArrowRight,
+  UserMinus,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PlayInvitation, PlaySchedule, Rotation, RotationRound } from "@/lib/types";
 import { jsPDF } from "jspdf";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -365,6 +373,21 @@ function SchedulePage() {
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
   const [reverting, setReverting] = useState(false);
   const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
+  const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
+  const [outgoingMid, setOutgoingMid] = useState<string | null>(null);
+  const [selectedReplacementId, setSelectedReplacementId] = useState<string | null>(null);
+  const [replaceSearch, setReplaceSearch] = useState("");
+  const [replaceFilter, setReplaceFilter] = useState<"all" | "waiting" | "yetToAccept">("all");
+  const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false);
+  const [replacing, setReplacing] = useState(false);
+
+  const handleOpenReplace = (mid: string) => {
+    setOutgoingMid(mid);
+    setSelectedReplacementId(null);
+    setReplaceSearch("");
+    setReplaceFilter("all");
+    setReplaceDialogOpen(true);
+  };
 
   if (!sch) return <Navigate to="/schedules" />;
 
@@ -484,6 +507,120 @@ function SchedulePage() {
     }
     const base = playSessionBaseFee(sch.sessionRate);
     return applyMemberFee(base, m, discounts);
+  };
+
+  const replacementCandidates = useMemo(() => {
+    if (!outgoingMid) return [];
+
+    const acceptedMemberIds = new Set(grouped.accepted.map((inv) => inv.memberId));
+
+    const items: Array<{
+      invitation: PlayInvitation;
+      memberId: string;
+      member: (typeof s.members)[number] | undefined;
+      source: "waiting" | "yetToAccept";
+      fee: number;
+      walletMember: (typeof s.members)[number] | undefined;
+      availableCredit: number;
+      bypassesCredit: boolean;
+      hasSufficientCredit: boolean;
+    }> = [];
+
+    const seenMemberIds = new Set<string>();
+
+    for (const inv of grouped.waiting) {
+      const mid = inv.memberId;
+      if (typeof mid === "string" && mid.startsWith("guest_")) continue;
+      if (mid === outgoingMid || acceptedMemberIds.has(mid) || seenMemberIds.has(mid)) continue;
+      const mem = s.members.find((m) => m.id === mid);
+      if (!mem || mem.status !== "active" || !mem.membership) continue;
+      seenMemberIds.add(mid);
+
+      const fee = getMemberFee(mid);
+      const wallet = mem.parentMemberId ? s.members.find((m) => m.id === mem.parentMemberId) || mem : mem;
+      const skipsLeague = memberSkipsLeagueFee(mid);
+      const bypassesCredit = !!wallet.skipCreditConsumption || skipsLeague;
+      const hasSufficientCredit = bypassesCredit || fee <= 0 || wallet.credit >= fee;
+
+      items.push({
+        invitation: inv,
+        memberId: mid,
+        member: mem,
+        source: "waiting",
+        fee,
+        walletMember: wallet,
+        availableCredit: wallet.credit,
+        bypassesCredit,
+        hasSufficientCredit,
+      });
+    }
+
+    for (const inv of grouped.yetToAccept) {
+      const mid = inv.memberId;
+      if (typeof mid === "string" && mid.startsWith("guest_")) continue;
+      if (mid === outgoingMid || acceptedMemberIds.has(mid) || seenMemberIds.has(mid)) continue;
+      const mem = s.members.find((m) => m.id === mid);
+      if (!mem || mem.status !== "active" || !mem.membership) continue;
+      seenMemberIds.add(mid);
+
+      const fee = getMemberFee(mid);
+      const wallet = mem.parentMemberId ? s.members.find((m) => m.id === mem.parentMemberId) || mem : mem;
+      const skipsLeague = memberSkipsLeagueFee(mid);
+      const bypassesCredit = !!wallet.skipCreditConsumption || skipsLeague;
+      const hasSufficientCredit = bypassesCredit || fee <= 0 || wallet.credit >= fee;
+
+      items.push({
+        invitation: inv,
+        memberId: mid,
+        member: mem,
+        source: "yetToAccept",
+        fee,
+        walletMember: wallet,
+        availableCredit: wallet.credit,
+        bypassesCredit,
+        hasSufficientCredit,
+      });
+    }
+
+    return items;
+  }, [outgoingMid, grouped.accepted, grouped.waiting, grouped.yetToAccept, s.members]);
+
+  const filteredCandidates = useMemo(() => {
+    return replacementCandidates.filter((cand) => {
+      if (replaceFilter === "waiting" && cand.source !== "waiting") return false;
+      if (replaceFilter === "yetToAccept" && cand.source !== "yetToAccept") return false;
+      if (replaceSearch.trim()) {
+        const q = replaceSearch.toLowerCase().trim();
+        const name = cand.member ? `${cand.member.firstName} ${cand.member.lastName}`.toLowerCase() : "";
+        const email = cand.member?.email?.toLowerCase() || "";
+        const grade = cand.member?.grade?.toLowerCase() || "";
+        if (!name.includes(q) && !email.includes(q) && !grade.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [replacementCandidates, replaceFilter, replaceSearch]);
+
+  const selectedCandidate = useMemo(() => {
+    return replacementCandidates.find((c) => c.memberId === selectedReplacementId) || null;
+  }, [replacementCandidates, selectedReplacementId]);
+
+  const outgoingFee = outgoingMid ? getMemberFee(outgoingMid) : 0;
+
+  const executeReplacement = async () => {
+    if (!outgoingMid || !selectedReplacementId) return;
+    setReplacing(true);
+    try {
+      const res = await s.replacePlayPlayer(sch.id, outgoingMid, selectedReplacementId);
+      toast.success(res.message || "Player replaced successfully");
+      setConfirmReplaceOpen(false);
+      setReplaceDialogOpen(false);
+      setOutgoingMid(null);
+      setSelectedReplacementId(null);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to replace player");
+    } finally {
+      setReplacing(false);
+    }
   };
 
   const runGenerateRotation = async () => {
@@ -622,6 +759,497 @@ function SchedulePage() {
 
   return (
     <div className="space-y-6">
+      {/* Replace Player Selection Dialog */}
+      <Dialog
+        open={replaceDialogOpen && !confirmReplaceOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReplaceDialogOpen(false);
+            setOutgoingMid(null);
+            setSelectedReplacementId(null);
+          }
+        }}
+      >
+        <DialogContent className="bg-white dark:bg-[#131916] text-gray-900 dark:text-[#EEF2F0] border border-gray-200 dark:border-white/10 sm:max-w-xl max-h-[90dvh] flex flex-col p-4 sm:p-5 gap-0 overflow-hidden shadow-2xl rounded-2xl">
+          {/* Header */}
+          <DialogHeader className="shrink-0 pb-3 text-left">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 rounded-lg bg-blue-50 dark:bg-[#2DD4BF]/10 border border-blue-200 dark:border-[#2DD4BF]/20 flex items-center justify-center shrink-0 text-blue-600 dark:text-[#2DD4BF]">
+                <ArrowLeftRight className="size-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-bold text-gray-900 dark:text-[#EEF2F0] tracking-tight">
+                  Replace Player
+                </DialogTitle>
+                <DialogDescription className="text-xs text-gray-500 dark:text-[#8FA89F]">
+                  Select an eligible member from the Waiting List or Yet to Accept.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {/* Outgoing player summary */}
+          <div className="shrink-0 mb-3 rounded-xl border border-rose-200 dark:border-rose-500/20 bg-rose-50/60 dark:bg-rose-500/10 p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="size-8 rounded-full bg-rose-100 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0 text-rose-600 dark:text-rose-400">
+                <UserMinus className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-rose-700 dark:text-rose-400 font-bold">
+                    Outgoing (Accepted)
+                  </span>
+                  {outgoingMid && memberGrade(outgoingMid) && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-[#C4D4CF]">
+                      {memberGrade(outgoingMid)}
+                    </span>
+                  )}
+                </div>
+                <div className="font-bold text-sm text-gray-900 dark:text-[#EEF2F0] truncate mt-0.5">
+                  {outgoingMid ? memberName(outgoingMid) : ""}
+                </div>
+              </div>
+            </div>
+            <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 border-rose-200/60 dark:border-white/5 pt-2 sm:pt-0 shrink-0">
+              <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                Full Refund: +{fmtMoney(outgoingFee)}
+              </span>
+              <span className="text-gray-500 dark:text-[#8FA89F] text-[10px]">Moves to Yet to Accept</span>
+            </div>
+          </div>
+
+          {/* Search & List Filter */}
+          <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-2.5">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-gray-400 dark:text-[#8FA89F]" />
+              <Input
+                placeholder="Search by name, grade, or email..."
+                value={replaceSearch}
+                onChange={(e) => setReplaceSearch(e.target.value)}
+                className="pl-8 pr-7 bg-gray-50 dark:bg-[#0A0D0C] border-gray-200 dark:border-white/15 focus-visible:border-blue-500 dark:focus-visible:border-[#2DD4BF]/60 focus-visible:ring-1 focus-visible:ring-blue-500/20 dark:focus-visible:ring-[#2DD4BF]/30 text-xs h-9 text-gray-900 dark:text-[#EEF2F0] placeholder:text-gray-400 dark:placeholder:text-[#6B8580] rounded-lg"
+              />
+              {replaceSearch && (
+                <button
+                  type="button"
+                  onClick={() => setReplaceSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-gray-700 dark:text-[#8FA89F] dark:hover:text-[#EEF2F0] hover:bg-gray-200 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#0A0D0C] p-1 rounded-lg border border-gray-200 dark:border-white/10 shrink-0">
+              <button
+                type="button"
+                onClick={() => setReplaceFilter("all")}
+                className={cn(
+                  "px-2.5 py-1 text-[11px] rounded-md transition-all font-medium cursor-pointer flex items-center gap-1.5",
+                  replaceFilter === "all"
+                    ? "bg-white dark:bg-white/10 text-gray-900 dark:text-[#EEF2F0] shadow-sm font-semibold border border-gray-200/80 dark:border-white/10"
+                    : "text-gray-600 dark:text-[#8FA89F] hover:text-gray-900 dark:hover:text-[#EEF2F0] hover:bg-gray-200/50 dark:hover:bg-white/[0.04]"
+                )}
+              >
+                <span>All</span>
+                <span
+                  className={cn(
+                    "px-1.5 py-0.2 text-[10px] rounded-full font-mono",
+                    replaceFilter === "all"
+                      ? "bg-gray-100 dark:bg-white/15 text-gray-800 dark:text-[#EEF2F0]"
+                      : "bg-gray-200/70 dark:bg-white/5 text-gray-600 dark:text-[#8FA89F]"
+                  )}
+                >
+                  {replacementCandidates.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setReplaceFilter("waiting")}
+                className={cn(
+                  "px-2.5 py-1 text-[11px] rounded-md transition-all font-medium cursor-pointer flex items-center gap-1.5",
+                  replaceFilter === "waiting"
+                    ? "bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-300 shadow-sm font-semibold border border-amber-300 dark:border-amber-500/30"
+                    : "text-gray-600 dark:text-[#8FA89F] hover:text-amber-800 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-white/[0.04]"
+                )}
+              >
+                <span>Waiting</span>
+                <span
+                  className={cn(
+                    "px-1.5 py-0.2 text-[10px] rounded-full font-mono",
+                    replaceFilter === "waiting"
+                      ? "bg-amber-200 dark:bg-amber-500/30 text-amber-900 dark:text-amber-200"
+                      : "bg-amber-100/80 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400"
+                  )}
+                >
+                  {replacementCandidates.filter((c) => c.source === "waiting").length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setReplaceFilter("yetToAccept")}
+                className={cn(
+                  "px-2.5 py-1 text-[11px] rounded-md transition-all font-medium cursor-pointer flex items-center gap-1.5",
+                  replaceFilter === "yetToAccept"
+                    ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-900 dark:text-emerald-300 shadow-sm font-semibold border border-emerald-300 dark:border-emerald-500/30"
+                    : "text-gray-600 dark:text-[#8FA89F] hover:text-emerald-800 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-white/[0.04]"
+                )}
+              >
+                <span>Yet to Accept</span>
+                <span
+                  className={cn(
+                    "px-1.5 py-0.2 text-[10px] rounded-full font-mono",
+                    replaceFilter === "yetToAccept"
+                      ? "bg-emerald-200 dark:bg-emerald-500/30 text-emerald-900 dark:text-emerald-200"
+                      : "bg-emerald-100/80 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-400"
+                  )}
+                >
+                  {replacementCandidates.filter((c) => c.source === "yetToAccept").length}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Candidates list */}
+          <div className="flex-1 min-h-[140px] max-h-[220px] sm:max-h-[250px] overflow-y-auto space-y-1.5 pr-1 border border-gray-200 dark:border-white/10 rounded-xl p-2 bg-gray-50/70 dark:bg-[#0A0D0C]/80">
+            {filteredCandidates.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                <AlertCircle className="size-6 text-gray-400 dark:text-[#8FA89F] mb-2 opacity-60" />
+                <p className="text-xs font-semibold text-gray-600 dark:text-[#C4D4CF]">
+                  {replacementCandidates.length === 0
+                    ? "No eligible replacement members found."
+                    : "No members match your search or filter."}
+                </p>
+                {replacementCandidates.length > 0 && (replaceSearch || replaceFilter !== "all") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplaceSearch("");
+                      setReplaceFilter("all");
+                    }}
+                    className="mt-2 text-xs text-blue-600 dark:text-[#2DD4BF] font-medium hover:underline cursor-pointer"
+                  >
+                    Reset filters and search
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredCandidates.map((cand) => {
+                const isSelected = selectedReplacementId === cand.memberId;
+                return (
+                  <div
+                    key={cand.memberId}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedReplacementId(cand.memberId)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedReplacementId(cand.memberId);
+                      }
+                    }}
+                    className={cn(
+                      "p-2.5 rounded-lg border cursor-pointer transition-all duration-150 flex items-center justify-between text-xs gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-[#2DD4BF]",
+                      isSelected
+                        ? "bg-blue-50/90 dark:bg-blue-950/30 border-blue-400 dark:border-blue-500/50 ring-1 ring-blue-300 dark:ring-blue-500/30 text-gray-900 dark:text-[#EEF2F0] shadow-sm"
+                        : "bg-white dark:bg-[#131916]/60 border-gray-200 dark:border-white/8 text-gray-800 dark:text-[#C4D4CF] hover:bg-blue-50/30 hover:border-blue-200 dark:hover:bg-white/[0.04] dark:hover:border-white/15"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={cn(
+                          "size-4 rounded-full border flex items-center justify-center shrink-0 transition-colors",
+                          isSelected
+                            ? "border-blue-600 bg-blue-600 text-white dark:border-[#2DD4BF] dark:bg-[#2DD4BF] dark:text-[#0C0F0E]"
+                            : "border-gray-300 bg-white group-hover:border-gray-400 dark:border-white/20 dark:bg-[#0A0D0C] dark:group-hover:border-white/40"
+                        )}
+                      >
+                        {isSelected && <Check className="size-2.5 stroke-[3]" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={cn(
+                              "font-bold truncate text-xs sm:text-sm",
+                              isSelected ? "text-blue-950 dark:text-[#EEF2F0]" : "text-gray-900 dark:text-[#EEF2F0]/90"
+                            )}
+                          >
+                            {cand.member ? `${cand.member.firstName} ${cand.member.lastName}` : cand.memberId}
+                          </span>
+                          {cand.member?.grade && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-[#C4D4CF] border border-gray-200 dark:border-white/10">
+                              {cand.member.grade}
+                            </span>
+                          )}
+                          <span
+                            className={cn(
+                              "text-[10px] font-semibold px-2 py-0.5 rounded-full border inline-flex items-center gap-1",
+                              cand.source === "waiting"
+                                ? "bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/25"
+                                : "bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/25"
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "size-1.5 rounded-full shrink-0",
+                                cand.source === "waiting" ? "bg-amber-500 dark:bg-amber-400" : "bg-emerald-500 dark:bg-emerald-400"
+                              )}
+                            />
+                            {cand.source === "waiting" ? "Waiting List" : "Yet to Accept"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-mono text-xs font-bold text-emerald-700 dark:text-[#34D399] block">
+                        {fmtMoney(cand.fee)}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[10px] font-mono block",
+                          cand.bypassesCredit
+                            ? "text-gray-500 dark:text-[#8FA89F]"
+                            : cand.hasSufficientCredit
+                            ? "text-gray-500 dark:text-[#8FA89F]"
+                            : "text-rose-600 dark:text-rose-400 font-bold"
+                        )}
+                      >
+                        {cand.bypassesCredit ? (
+                          "Bypassed"
+                        ) : (
+                          <>
+                            Bal:{" "}
+                            <span className={cand.hasSufficientCredit ? "text-gray-900 dark:text-[#C4D4CF] font-semibold" : "text-rose-600 dark:text-rose-400"}>
+                              {fmtMoney(cand.availableCredit)}
+                            </span>
+                            {!cand.hasSufficientCredit && " (Low)"}
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Selected Candidate Details Panel */}
+          {selectedCandidate && (
+            <div className="shrink-0 mt-3 rounded-xl border border-blue-200 dark:border-white/10 bg-blue-50/40 dark:bg-[#0C100E] p-2.5 sm:p-3 space-y-2 border-l-4 border-l-blue-600 dark:border-l-[#2DD4BF] text-xs shadow-sm">
+              <div className="flex justify-between items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-blue-700 dark:text-[#8FA89F] font-bold">
+                    Selected Replacement:
+                  </span>
+                  <h4 className="font-bold text-xs sm:text-sm text-gray-900 dark:text-[#EEF2F0] truncate">
+                    {selectedCandidate.member
+                      ? `${selectedCandidate.member.firstName} ${selectedCandidate.member.lastName}`
+                      : ""}
+                  </h4>
+                  {selectedCandidate.member?.grade && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white dark:bg-white/5 text-gray-700 dark:text-[#C4D4CF] border border-gray-200 dark:border-white/10">
+                      {selectedCandidate.member.grade}
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 inline-flex items-center gap-1",
+                    selectedCandidate.source === "waiting"
+                      ? "bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/25"
+                      : "bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/25"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full shrink-0",
+                      selectedCandidate.source === "waiting" ? "bg-amber-500 dark:bg-amber-400" : "bg-emerald-500 dark:bg-emerald-400"
+                    )}
+                  />
+                  {selectedCandidate.source === "waiting" ? "Waiting List" : "Yet to Accept"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 py-2 px-2.5 rounded-lg bg-white dark:bg-[#0A0D0C] border border-blue-100 dark:border-white/5 text-xs shadow-xs">
+                <div>
+                  <span className="text-gray-500 dark:text-[#8FA89F] block text-[10px] uppercase font-semibold font-mono">Session Fee</span>
+                  <span className="font-mono text-xs sm:text-sm font-bold text-emerald-700 dark:text-[#34D399]">
+                    {fmtMoney(selectedCandidate.fee)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-[#8FA89F] block text-[10px] uppercase font-semibold font-mono">Available Credit</span>
+                  <span
+                    className={cn(
+                      "font-mono text-xs sm:text-sm font-bold",
+                      selectedCandidate.hasSufficientCredit ? "text-gray-900 dark:text-[#EEF2F0]" : "text-rose-600 dark:text-rose-400"
+                    )}
+                  >
+                    {selectedCandidate.bypassesCredit ? "Bypassed" : fmtMoney(selectedCandidate.availableCredit)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-[#8FA89F] block text-[10px] uppercase font-semibold font-mono">After Replacement</span>
+                  <span
+                    className={cn(
+                      "font-mono text-xs sm:text-sm font-bold",
+                      selectedCandidate.bypassesCredit
+                        ? "text-gray-700 dark:text-[#8FA89F]"
+                        : selectedCandidate.hasSufficientCredit
+                        ? "text-gray-800 dark:text-[#C4D4CF]"
+                        : "text-rose-600 dark:text-rose-400"
+                    )}
+                  >
+                    {selectedCandidate.bypassesCredit
+                      ? "Unlimited"
+                      : selectedCandidate.hasSufficientCredit
+                      ? fmtMoney(selectedCandidate.availableCredit - selectedCandidate.fee)
+                      : `-${fmtMoney(selectedCandidate.fee - selectedCandidate.availableCredit)}`}
+                  </span>
+                </div>
+              </div>
+
+              {selectedCandidate.walletMember && selectedCandidate.walletMember.id !== selectedCandidate.member?.id && (
+                <p className="text-[11px] text-gray-600 dark:text-[#8FA89F] truncate">
+                  Using parent wallet: <strong className="text-gray-900 dark:text-[#C4D4CF]">{selectedCandidate.walletMember.firstName} {selectedCandidate.walletMember.lastName}</strong>
+                </p>
+              )}
+
+              {!selectedCandidate.hasSufficientCredit && (
+                <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/25 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2 font-medium">
+                  <AlertTriangle className="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                  <span className="leading-tight">
+                    Insufficient credits: Needs <strong className="font-mono text-rose-900 dark:text-rose-200">{fmtMoney(selectedCandidate.fee)}</strong>, but only <strong className="font-mono text-rose-900 dark:text-rose-200">{fmtMoney(selectedCandidate.availableCredit)}</strong> is available. Replacement cannot proceed.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Footer */}
+          <DialogFooter className="shrink-0 gap-2 sm:gap-2 pt-3 border-t border-gray-200 dark:border-white/10 mt-3 flex flex-row justify-end items-center">
+            <Button
+              type="button"
+              variant="outline"
+              className="border border-gray-300 dark:border-white/15 bg-white dark:bg-transparent text-gray-700 dark:text-[#8FA89F] hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer text-xs h-9 px-4 font-semibold rounded-lg"
+              onClick={() => {
+                setReplaceDialogOpen(false);
+                setOutgoingMid(null);
+                setSelectedReplacementId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="btn-premium-solid cursor-pointer text-xs font-semibold h-9 px-4 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!selectedCandidate || !selectedCandidate.hasSufficientCredit}
+              onClick={() => setConfirmReplaceOpen(true)}
+            >
+              <span>Continue to Confirm</span>
+              <ArrowRight className="size-3.5" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmReplaceOpen} onOpenChange={setConfirmReplaceOpen}>
+        <AlertDialogContent className="bg-white dark:bg-[#131916] text-gray-900 dark:text-[#EEF2F0] border border-gray-200 dark:border-white/10 sm:max-w-lg p-5 z-[60] shadow-2xl rounded-2xl">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2.5 text-blue-600 dark:text-[#2DD4BF]">
+              <div className="size-9 rounded-xl bg-blue-50 dark:bg-[#2DD4BF]/10 border border-blue-200 dark:border-[#2DD4BF]/20 flex items-center justify-center shrink-0">
+                <ArrowLeftRight className="size-4.5" />
+              </div>
+              <div>
+                <AlertDialogTitle className="text-base sm:text-lg font-bold text-gray-900 dark:text-[#EEF2F0]">
+                  Confirm Player Replacement
+                </AlertDialogTitle>
+                <p className="text-xs text-gray-500 dark:text-[#8FA89F]">Review financial adjustments and roster changes</p>
+              </div>
+            </div>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2 text-xs text-gray-700 dark:text-[#C4D4CF]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Outgoing player box */}
+                  <div className="rounded-xl border border-rose-200 dark:border-white/10 bg-rose-50/50 dark:bg-[#0C100E] p-3.5 space-y-1.5 text-left shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1">
+                        <UserMinus className="size-3" /> Outgoing
+                      </span>
+                      <span className="text-[10px] font-semibold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-500/20 px-2 py-0.5 rounded-full">Yet to Accept</span>
+                    </div>
+                    <div className="font-bold text-sm text-gray-900 dark:text-[#EEF2F0] truncate">
+                      {outgoingMid ? memberName(outgoingMid) : ""}
+                    </div>
+                    <div className="pt-2 border-t border-rose-200/80 dark:border-white/5 flex justify-between items-center text-xs">
+                      <span className="text-gray-600 dark:text-[#8FA89F]">Full Refund:</span>
+                      <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                        +{fmtMoney(outgoingFee)}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 dark:text-[#8FA89F]">Credited to wallet balance</p>
+                  </div>
+
+                  {/* Incoming player box */}
+                  <div className="rounded-xl border border-blue-200 dark:border-white/10 bg-blue-50/50 dark:bg-[#0C100E] p-3.5 space-y-1.5 text-left shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-blue-700 dark:text-[#2DD4BF] font-bold flex items-center gap-1">
+                        <UserPlus className="size-3" /> Incoming
+                      </span>
+                      <span className="text-[10px] font-semibold text-blue-700 dark:text-emerald-400 bg-blue-100 dark:bg-emerald-500/20 px-2 py-0.5 rounded-full">Accepted</span>
+                    </div>
+                    <div className="font-bold text-sm text-gray-900 dark:text-[#EEF2F0] truncate">
+                      {selectedCandidate?.member
+                        ? `${selectedCandidate.member.firstName} ${selectedCandidate.member.lastName}`
+                        : ""}
+                    </div>
+                    <div className="pt-2 border-t border-blue-200/80 dark:border-white/5 flex justify-between items-center text-xs">
+                      <span className="text-gray-600 dark:text-[#8FA89F]">Session Debit:</span>
+                      <span className="font-mono font-bold text-blue-700 dark:text-[#34D399]">
+                        {selectedCandidate ? fmtMoney(selectedCandidate.fee) : "$0.00"}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 dark:text-[#8FA89F]">
+                      Debited from wallet ({selectedCandidate?.bypassesCredit ? "Bypassed" : `Bal: ${fmtMoney(selectedCandidate?.availableCredit ?? 0)}`})
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 p-3 space-y-1.5 text-xs text-gray-600 dark:text-[#8FA89F] text-left">
+                  <p className="flex items-start gap-1.5">
+                    <Check className="size-3.5 text-blue-600 dark:text-[#2DD4BF] shrink-0 mt-0.5" />
+                    <span>Court rotation matchups and slots will be updated in-place with the replacement player.</span>
+                  </p>
+                  <p className="flex items-start gap-1.5">
+                    <Check className="size-3.5 text-blue-600 dark:text-[#2DD4BF] shrink-0 mt-0.5" />
+                    <span>Original schedule capacity is maintained ({sch.players} players).</span>
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2 pt-3 border-t border-gray-200 dark:border-white/10 mt-3 flex flex-row justify-end items-center">
+            <AlertDialogCancel
+              className="border border-gray-300 dark:border-white/15 bg-white dark:bg-transparent text-gray-700 dark:text-[#8FA89F] hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer text-xs h-9 px-4 font-semibold rounded-lg mt-0"
+              disabled={replacing}
+              onClick={() => setConfirmReplaceOpen(false)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="btn-premium-solid cursor-pointer text-xs font-semibold h-9 px-5 disabled:opacity-50"
+              disabled={replacing}
+              onClick={(e) => {
+                e.preventDefault();
+                void executeReplacement();
+              }}
+            >
+              {replacing ? "Processing replacement…" : "Confirm Replacement"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={rotateConfirmOpen} onOpenChange={setRotateConfirmOpen}>
         <AlertDialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
           <AlertDialogHeader>
@@ -879,18 +1507,33 @@ function SchedulePage() {
                         {memberName(i.memberId)}
                       </span>
                     </span>
-                    <span
-                      className={cn(
-                        "font-mono text-xs shrink-0",
-                        typeof i.memberId === "string" && i.memberId.startsWith("guest_")
-                          ? "text-[#8A8A98]"
-                          : "text-[#34D399]",
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={cn(
+                          "font-mono text-xs",
+                          typeof i.memberId === "string" && i.memberId.startsWith("guest_")
+                            ? "text-[#8A8A98]"
+                            : "text-[#34D399]",
+                        )}
+                      >
+                        {typeof i.memberId === "string" && i.memberId.startsWith("guest_")
+                          ? "Guest"
+                          : fmtMoney(getMemberFee(i.memberId))}
+                      </span>
+                      {col.key === "accepted" && isAdmin && !["closed", "cancelled"].includes(sch.status) && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-1.5 text-[11px] font-medium text-[#2DD4BF] hover:text-[#2DD4BF] hover:bg-[#2DD4BF]/10 cursor-pointer border border-[#2DD4BF]/20 rounded"
+                          onClick={() => handleOpenReplace(i.memberId)}
+                          title={`Replace ${memberName(i.memberId)}`}
+                        >
+                          <ArrowLeftRight className="size-3 mr-1" />
+                          Replace
+                        </Button>
                       )}
-                    >
-                      {typeof i.memberId === "string" && i.memberId.startsWith("guest_")
-                        ? "Guest"
-                        : fmtMoney(getMemberFee(i.memberId))}
-                    </span>
+                    </div>
                   </div>
                 ))
               )}

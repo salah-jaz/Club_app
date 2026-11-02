@@ -960,6 +960,310 @@ class PlayScheduleController extends Controller
         return $promoted;
     }
 
+    public function replacePlayer(Request $request, $id)
+    {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'schedules.edit')) {
+            return $response;
+        }
+
+        $user = $request->user();
+        if (!$user || $user->role !== 'admin') {
+            return response()->json(['message' => 'Only admins can replace players.'], 403);
+        }
+
+        $request->validate([
+            'outgoingMemberId' => 'required|string',
+            'replacementMemberId' => 'required|string',
+        ]);
+
+        $schedule = PlaySchedule::findOrFail($id);
+        if (in_array($schedule->status, ['closed', 'cancelled'], true)) {
+            return response()->json([
+                'message' => 'Cannot replace player for a closed or cancelled schedule.',
+            ], 422);
+        }
+
+        $outgoingMemberId = (string) $request->outgoingMemberId;
+        $replacementMemberId = (string) $request->replacementMemberId;
+
+        if ($outgoingMemberId === $replacementMemberId) {
+            return response()->json([
+                'message' => 'Cannot replace a member with themselves.',
+            ], 422);
+        }
+
+        $isGuestOutgoing = $this->isGuestMemberId($outgoingMemberId);
+        $outgoingMember = null;
+        if (!$isGuestOutgoing) {
+            $outgoingMember = Member::find($outgoingMemberId);
+            if (!$outgoingMember) {
+                return response()->json(['message' => 'Outgoing member not found.'], 404);
+            }
+
+            $outgoingInvite = PlayInvitation::where('schedule_id', $schedule->id)
+                ->where('member_id', $outgoingMemberId)
+                ->first();
+            if (!$outgoingInvite || $outgoingInvite->status !== 'accepted') {
+                return response()->json([
+                    'message' => 'Outgoing member is not currently accepted in this schedule.',
+                ], 422);
+            }
+        }
+
+        if ($this->isGuestMemberId($replacementMemberId)) {
+            return response()->json([
+                'message' => 'Replacement player must be a registered member.',
+            ], 422);
+        }
+
+        $replacementMember = Member::find($replacementMemberId);
+        if (!$replacementMember) {
+            return response()->json(['message' => 'Replacement member not found.'], 404);
+        }
+
+        if (!self::isMemberEligibleForSchedule($replacementMember, $schedule)) {
+            return response()->json([
+                'message' => 'Selected member is not eligible for this play session.',
+            ], 422);
+        }
+
+        $alreadyAccepted = PlayInvitation::where('schedule_id', $schedule->id)
+            ->where('member_id', $replacementMemberId)
+            ->where('status', 'accepted')
+            ->exists();
+        if ($alreadyAccepted) {
+            return response()->json([
+                'message' => 'Selected replacement member is already accepted in this schedule.',
+            ], 422);
+        }
+
+        $currency = Setting::where('key', 'currency')->value('value') ?? '$';
+
+        try {
+            $result = DB::transaction(function () use (
+                $schedule,
+                $outgoingMemberId,
+                $replacementMemberId,
+                $outgoingMember,
+                $replacementMember,
+                $isGuestOutgoing,
+                $currency
+            ) {
+                // 1. Lock and verify outgoing member invitation
+                $outgoingInvite = null;
+                if (!$isGuestOutgoing) {
+                    $outgoingInvite = PlayInvitation::where('schedule_id', $schedule->id)
+                        ->where('member_id', $outgoingMemberId)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$outgoingInvite || $outgoingInvite->status !== 'accepted') {
+                        throw new \DomainException('Outgoing member is not currently accepted in this schedule.');
+                    }
+                }
+
+                // 2. Lock and verify replacement member is not already accepted
+                $replacementAlreadyAccepted = PlayInvitation::where('schedule_id', $schedule->id)
+                    ->where('member_id', $replacementMemberId)
+                    ->where('status', 'accepted')
+                    ->lockForUpdate()
+                    ->exists();
+                if ($replacementAlreadyAccepted) {
+                    throw new \DomainException('Selected replacement member is already accepted in this schedule.');
+                }
+
+                // 3. Process refund for outgoing member (actual amount previously debited, no duplicate refunds)
+                if (!$isGuestOutgoing && $outgoingMember && $outgoingInvite && $outgoingInvite->debited) {
+                    $outgoingWallet = $this->resolveWalletMember($outgoingMember);
+                    if (!$outgoingWallet->skip_credit_consumption && !$this->memberSkipsLeagueFee($schedule, $outgoingMember->id)) {
+                        $totalDebited = (float) Transaction::where('member_id', $outgoingWallet->id)
+                            ->where('type', 'debit')
+                            ->where(function ($q) use ($schedule, $outgoingMember) {
+                                $q->where('description', 'Play session: ' . $schedule->name . ' - ' . $outgoingMember->name)
+                                  ->orWhere('description', 'like', 'Play session: ' . $schedule->name . ' - ' . $outgoingMember->name . '%');
+                            })
+                            ->sum('amount');
+
+                        $totalRefunded = (float) Transaction::where('member_id', $outgoingWallet->id)
+                            ->where('type', 'refund')
+                            ->where(function ($q) use ($schedule, $outgoingMember) {
+                                $q->where('description', 'like', 'Refund%' . $schedule->name . '%' . $outgoingMember->name . '%')
+                                  ->orWhere('description', 'Refund — cancelled play session: ' . $schedule->name . ' - ' . $outgoingMember->name)
+                                  ->orWhere('description', 'Refund - cancelled play session: ' . $schedule->name . ' - ' . $outgoingMember->name);
+                            })
+                            ->sum('amount');
+
+                        $actualPaid = max(0, round($totalDebited - $totalRefunded, 2));
+
+                        if ($actualPaid == 0 && $totalDebited == 0) {
+                            $actualPaid = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $outgoingMember);
+                        }
+
+                        if ($actualPaid > 0) {
+                            $freshOutgoingWallet = Member::where('id', $outgoingWallet->id)->lockForUpdate()->first();
+                            $freshOutgoingWallet->credit = round($freshOutgoingWallet->credit + $actualPaid, 2);
+                            $freshOutgoingWallet->save();
+
+                            $refundTxn = Transaction::create([
+                                'id' => 't_' . Str::random(8),
+                                'member_id' => $freshOutgoingWallet->id,
+                                'type' => 'refund',
+                                'amount' => $actualPaid,
+                                'description' => 'Refund — cancelled play session: ' . $schedule->name . ' - ' . $outgoingMember->name,
+                                'date' => now(),
+                            ]);
+
+                            try {
+                                MailHelper::sendTransactionEmail($freshOutgoingWallet, $refundTxn);
+                            } catch (\Exception $e) {
+                                logger()->error("Transaction refund email failed for member {$freshOutgoingWallet->id}: " . $e->getMessage());
+                            }
+                        }
+                    }
+
+                    $outgoingInvite->debited = false;
+                }
+
+                // 4. Update outgoing member invitation -> open (Yet to Accept)
+                if ($outgoingInvite) {
+                    $outgoingInvite->status = 'open';
+                    $outgoingInvite->accepted_at = null;
+                    $outgoingInvite->debited = false;
+                    $outgoingInvite->save();
+                }
+
+                // 5. Debit replacement member using applicable fee and shared wallet rules
+                $replacementWallet = $this->resolveWalletMember($replacementMember);
+                $replacementSkipsLeague = $this->memberSkipsLeagueFee($schedule, $replacementMember->id);
+                $replacementFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $replacementMember);
+                if ($replacementSkipsLeague) {
+                    $replacementFee = 0.0;
+                }
+
+                $bypassesCredit = (bool) $replacementWallet->skip_credit_consumption || $replacementSkipsLeague;
+                $isReplacementDebited = false;
+
+                if (!$bypassesCredit && $replacementFee > 0) {
+                    $freshReplacementWallet = Member::where('id', $replacementWallet->id)->lockForUpdate()->first();
+                    if ($freshReplacementWallet->credit < $replacementFee) {
+                        throw new \DomainException("Insufficient credits. {$replacementMember->name} needs at least {$currency}{$replacementFee} to accept this schedule.");
+                    }
+
+                    $freshReplacementWallet->credit = round($freshReplacementWallet->credit - $replacementFee, 2);
+                    $freshReplacementWallet->save();
+
+                    $debitTxn = Transaction::create([
+                        'id' => 't_' . Str::random(8),
+                        'member_id' => $freshReplacementWallet->id,
+                        'type' => 'debit',
+                        'amount' => $replacementFee,
+                        'description' => 'Play session: ' . $schedule->name . ' - ' . $replacementMember->name,
+                        'date' => now(),
+                    ]);
+
+                    try {
+                        MailHelper::sendTransactionEmail($freshReplacementWallet, $debitTxn);
+                    } catch (\Exception $e) {
+                        logger()->error("Transaction debit email failed for member {$freshReplacementWallet->id}: " . $e->getMessage());
+                    }
+
+                    $isReplacementDebited = true;
+                } else {
+                    $isReplacementDebited = true;
+                }
+
+                // 6. Update or create replacement member invitation -> accepted
+                $replacementInvite = PlayInvitation::where('schedule_id', $schedule->id)
+                    ->where('member_id', $replacementMember->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($replacementInvite) {
+                    $replacementInvite->status = 'accepted';
+                    $replacementInvite->accepted_at = now();
+                    $replacementInvite->debited = $isReplacementDebited;
+                    $replacementInvite->save();
+                } else {
+                    $replacementInvite = PlayInvitation::create([
+                        'id' => 'pi_' . Str::random(8),
+                        'schedule_id' => $schedule->id,
+                        'member_id' => $replacementMember->id,
+                        'status' => 'accepted',
+                        'accepted_at' => now(),
+                        'debited' => $isReplacementDebited,
+                    ]);
+                }
+
+                // 7. Update rotation if it exists
+                $rotation = Rotation::where('schedule_id', $schedule->id)->lockForUpdate()->first();
+                if ($rotation && !empty($rotation->rounds)) {
+                    $rounds = $rotation->rounds;
+                    $updatedRounds = [];
+
+                    foreach ($rounds as $roundData) {
+                        $courts = [];
+                        foreach ($roundData['courts'] ?? [] as $court) {
+                            $players = [];
+                            foreach ($court['players'] ?? [] as $playerId) {
+                                if ((string)$playerId === (string)$outgoingMemberId) {
+                                    $players[] = $replacementMemberId;
+                                } else {
+                                    $players[] = $playerId;
+                                }
+                            }
+                            $courts[] = [
+                                'courtNo' => (int) ($court['courtNo'] ?? 1),
+                                'players' => $players,
+                            ];
+                        }
+
+                        $resting = [];
+                        foreach ($roundData['resting'] ?? [] as $playerId) {
+                            if ((string)$playerId === (string)$outgoingMemberId) {
+                                $resting[] = $replacementMemberId;
+                            } else {
+                                $resting[] = $playerId;
+                            }
+                        }
+
+                        $updatedRounds[] = [
+                            'round' => (int) ($roundData['round'] ?? 1),
+                            'courts' => $courts,
+                            'resting' => $resting,
+                        ];
+                    }
+
+                    $rotation->rounds = $updatedRounds;
+                    $rotation->save();
+                }
+
+                return [
+                    'rotation' => $rotation,
+                    'outgoingName' => $outgoingMember ? $outgoingMember->name : "Guest",
+                ];
+            });
+
+            $outgoingName = $result['outgoingName'];
+            $rotation = $result['rotation'];
+
+            return response()->json([
+                'message' => "Successfully replaced {$outgoingName} with {$replacementMember->name}.",
+                'schedule' => $this->formatSchedule($schedule->fresh()),
+                'rotation' => $rotation ? $this->formatRotation($rotation->fresh()) : null,
+                'invitations' => PlayInvitation::where('schedule_id', $schedule->id)->get()->map(fn($i) => $this->formatInvitation($i)),
+            ]);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            logger()->error("Replace player failed for schedule {$schedule->id}: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to replace player: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function close($id)
     {
         if ($response = PermissionHelper::requireAdminPermission(request(), 'schedules.edit')) {
