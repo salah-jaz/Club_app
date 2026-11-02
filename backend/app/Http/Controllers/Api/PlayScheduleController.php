@@ -885,79 +885,91 @@ class PlayScheduleController extends Controller
 
     public function promoteWaitingMembers(PlaySchedule $sch): array
     {
-        $promoted = [];
-        $capacity = max((int) $sch->players, 1);
+        $run = function () use ($sch) {
+            // Lock parent schedule first so invitation-row lock order stays consistent.
+            PlaySchedule::where('id', $sch->id)->lockForUpdate()->firstOrFail();
 
-        $acceptedMemberIds = PlayInvitation::where('schedule_id', $sch->id)
-            ->where('status', 'accepted')
-            ->pluck('member_id')
-            ->unique()
-            ->all();
+            $promoted = [];
+            $capacity = max((int) $sch->players, 1);
 
-        $availableSlots = $capacity - count($acceptedMemberIds);
-        if ($availableSlots <= 0) {
-            return $promoted;
-        }
+            $acceptedMemberIds = PlayInvitation::where('schedule_id', $sch->id)
+                ->where('status', 'accepted')
+                ->pluck('member_id')
+                ->unique()
+                ->all();
 
-        $waitingInvites = PlayInvitation::where('schedule_id', $sch->id)
-            ->where('status', 'waiting')
-            ->lockForUpdate()
-            ->orderBy('updated_at', 'asc')
-            ->orderBy('id', 'asc')
-            ->get();
-
-        foreach ($waitingInvites as $next) {
+            $availableSlots = $capacity - count($acceptedMemberIds);
             if ($availableSlots <= 0) {
-                break;
+                return $promoted;
             }
 
-            if (in_array($next->member_id, $acceptedMemberIds, true)) {
-                $next->delete();
-                continue;
-            }
+            $waitingInvites = PlayInvitation::where('schedule_id', $sch->id)
+                ->where('status', 'waiting')
+                ->lockForUpdate()
+                ->orderBy('updated_at', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
 
-            $nextMember = Member::find($next->member_id);
-            if (!$nextMember || !self::isMemberEligibleForSchedule($nextMember, $sch)) {
-                $next->delete();
-                continue;
-            }
-            if (
-                $nextMember
-                && !$nextMember->skip_credit_consumption
-                && !$this->memberSkipsLeagueFee($sch, $nextMember->id)
-                && !(bool) $sch->is_league_match
-            ) {
-                $estimatedFee = FeeHelper::playSessionFee(
-                    (float) $sch->session_rate,
-                    0,
-                    1,
-                    $nextMember
-                );
-                $walletMember = $this->resolveWalletMember($nextMember);
-                if ($walletMember->credit < $estimatedFee) {
+            foreach ($waitingInvites as $next) {
+                if ($availableSlots <= 0) {
+                    break;
+                }
+
+                if (in_array($next->member_id, $acceptedMemberIds, true)) {
+                    $next->delete();
                     continue;
                 }
-            }
 
-            $next->status = 'accepted';
-            $next->accepted_at = now();
-            $next->save();
-            $this->debitPlayInvite($sch, $next);
-
-            if ($nextMember) {
-                try {
-                    MailHelper::sendScheduleWaitingPromotionNotification($nextMember, $sch);
-                } catch (\Exception $e) {
-                    logger()->error("Waiting list promotion email failed for member {$nextMember->id}: " . $e->getMessage());
+                $nextMember = Member::find($next->member_id);
+                if (!$nextMember || !self::isMemberEligibleForSchedule($nextMember, $sch)) {
+                    $next->delete();
+                    continue;
                 }
+                if (
+                    $nextMember
+                    && !$nextMember->skip_credit_consumption
+                    && !$this->memberSkipsLeagueFee($sch, $nextMember->id)
+                    && !(bool) $sch->is_league_match
+                ) {
+                    $estimatedFee = FeeHelper::playSessionFee(
+                        (float) $sch->session_rate,
+                        0,
+                        1,
+                        $nextMember
+                    );
+                    $walletMember = $this->resolveWalletMember($nextMember);
+                    if ($walletMember->credit < $estimatedFee) {
+                        continue;
+                    }
+                }
+
+                $next->status = 'accepted';
+                $next->accepted_at = now();
+                $next->save();
+                $this->debitPlayInvite($sch, $next);
+
+                if ($nextMember) {
+                    try {
+                        MailHelper::sendScheduleWaitingPromotionNotification($nextMember, $sch);
+                    } catch (\Exception $e) {
+                        logger()->error("Waiting list promotion email failed for member {$nextMember->id}: " . $e->getMessage());
+                    }
+                }
+
+                $acceptedMemberIds[] = $next->member_id;
+                $promoted[] = $next;
+                $availableSlots--;
             }
 
-            $acceptedMemberIds[] = $next->member_id;
-            $promoted[] = $next;
-            $availableSlots--;
+            return $promoted;
+        };
+
+        // Already inside a caller transaction (e.g. respondInvitation): reuse it.
+        if (DB::transactionLevel() > 0) {
+            return $run();
         }
 
-        return $promoted;
+        return DB::transaction($run, 5);
     }
 
     public function close($id)
@@ -1909,7 +1921,10 @@ class PlayScheduleController extends Controller
             return response()->json(['message' => $message], 422);
         }
 
-        $response = DB::transaction(function () use ($id, $desired, $sch, $sessionPhase, &$promoted, &$invite) {
+        // Retry on MySQL deadlock (1213). Lock the schedule row first so concurrent
+        // accepts/declines for the same session take locks in a consistent order.
+        $response = DB::transaction(function () use ($id, $desired, $sessionPhase, &$promoted, &$invite, &$sch) {
+            $sch = PlaySchedule::where('id', $sch->id)->lockForUpdate()->firstOrFail();
             $invite = PlayInvitation::where('id', $id)->lockForUpdate()->firstOrFail();
 
             if ($desired === 'accepted') {
@@ -2028,7 +2043,7 @@ class PlayScheduleController extends Controller
             }
 
             return null;
-        });
+        }, 5);
 
         if ($response instanceof \Illuminate\Http\JsonResponse) {
             return $response;
