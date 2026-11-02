@@ -95,6 +95,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/schedules/{id}/rotation', [PlayScheduleController::class, 'updateRotation']);
     Route::patch('/schedules/{id}/rotation/show-grades', [PlayScheduleController::class, 'updateRotationShowGrades']);
     Route::post('/schedules/{id}/enroll', [PlayScheduleController::class, 'enroll']);
+    Route::post('/schedules/{id}/replace-player', [PlayScheduleController::class, 'replacePlayer']);
     
     // Play Invitations
     Route::get('/play-invitations', [PlayScheduleController::class, 'listInvitations']);
