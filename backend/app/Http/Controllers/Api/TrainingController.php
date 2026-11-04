@@ -126,10 +126,6 @@ class TrainingController extends Controller
         $repeatMonths = max(1, min(24, (int) $request->input('repeatMonths', 1)));
         $targetType = strtolower($request->targetType) === 'adult' ? 'adult' : 'junior';
 
-        if ($message = SessionTimingHelper::assertScheduleNotInPast($request->startDate)) {
-            return response()->json(['message' => $message], 422);
-        }
-
         $baseStart = \Carbon\Carbon::parse($request->startDate);
         $baseEnd = \Carbon\Carbon::parse($request->endDate);
         $durationMins = SessionTimingHelper::parseDurationMinutes($request->duration ?? '1 hour');
@@ -241,12 +237,6 @@ class TrainingController extends Controller
                 return response()->json([
                     'message' => 'Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.'
                 ], 422);
-            }
-        }
-
-        if ($request->has('startDate') && !empty($request->startDate)) {
-            if ($message = SessionTimingHelper::assertScheduleNotInPast($request->startDate)) {
-                return response()->json(['message' => $message], 422);
             }
         }
 
