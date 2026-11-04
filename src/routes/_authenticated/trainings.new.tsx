@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { parseScheduleDateTime } from "@/lib/format";
-import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
 import { generateTrainingProgramDates } from "@/lib/rotation";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,8 +63,6 @@ function NewTraining() {
   }, [locations, f.location]);
 
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
-
-  const minDateTime = datetimeLocalNow();
 
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.startDate), [f.startDate]);
 
@@ -169,10 +166,6 @@ function NewTraining() {
             toast.error("Please select at least one group for the training.");
             return;
           }
-          if (isScheduleDateTimeInPast(f.startDate)) {
-            toast.error("Schedule date and time must be today or later.");
-            return;
-          }
           setSubmitting(true);
           try {
             const totalSessions =
@@ -221,7 +214,6 @@ function NewTraining() {
               <DateTimePicker
                 value={f.startDate}
                 onChange={onDateChange}
-                minDateTime={minDateTime}
                 placeholder="Select Start Date & Time..."
               />
               {scheduleWhen && (

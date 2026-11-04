@@ -4,7 +4,6 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { parseScheduleDateTime } from "@/lib/format";
-import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
 import { generateTrainingProgramDates } from "@/lib/rotation";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -148,8 +147,6 @@ function EditTraining() {
 
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
 
-  const minDateTime = datetimeLocalNow();
-
   const scheduleWhen = useMemo(() => parseScheduleDateTime(f.startDate), [f.startDate]);
 
   const targetLeagueGroups = useMemo(() => {
@@ -235,10 +232,6 @@ function EditTraining() {
       toast.error(
         "Repeat for Weeks cannot be greater than 5. Please select a value between 1 and 5.",
       );
-      return;
-    }
-    if (isScheduleDateTimeInPast(f.startDate)) {
-      toast.error("Schedule date and time must be today or later.");
       return;
     }
     setSubmitting(true);
@@ -371,7 +364,6 @@ function EditTraining() {
               <DateTimePicker
                 value={f.startDate}
                 onChange={onDateChange}
-                minDateTime={minDateTime}
                 placeholder="Select Start Date & Time..."
               />
               {scheduleWhen && (
