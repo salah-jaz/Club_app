@@ -456,7 +456,11 @@ class TrainingController extends Controller
             if (empty($sItem->coach) && !empty($coachVal)) {
                 $sItemData['coach'] = $coachVal;
             }
-            if (empty($sItem->location) && !empty($locationVal)) {
+            // Always propagate an explicit location change across the series so every
+            // month card keeps the same saved location after edit.
+            if ($request->has('location') && !empty($request->location)) {
+                $sItemData['location'] = $request->location;
+            } elseif (empty($sItem->location) && !empty($locationVal)) {
                 $sItemData['location'] = $locationVal;
             }
             $sItem->update($sItemData);

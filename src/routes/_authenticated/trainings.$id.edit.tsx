@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useMemo, useState, useEffect, useRef } from "react";
+import { ChevronDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { parseScheduleDateTime } from "@/lib/format";
 import { datetimeLocalNow, isScheduleDateTimeInPast } from "@/lib/sessionTiming";
@@ -88,7 +89,7 @@ function EditTraining() {
     duration: "1 hour",
     fees: 120,
     coach: coaches[0] || "Coach Lee",
-    location: locations[0] || "",
+    location: tr?.location || "",
     targetType: (tr?.targetType || "junior") as "adult" | "junior",
     isGroupTraining: tr?.isGroupTraining || false,
     leagueGroupIds: tr?.leagueGroupIds || ([] as string[]),
@@ -114,7 +115,7 @@ function EditTraining() {
         duration: tr.duration,
         fees: tr.fees,
         coach: tr.coach || coaches[0] || "Coach Lee",
-        location: tr.location || locations[0] || "",
+        location: tr.location || "",
         targetType: tr.targetType || "junior",
         isGroupTraining: tr.isGroupTraining || false,
         leagueGroupIds: tr.leagueGroupIds || [],
@@ -122,7 +123,28 @@ function EditTraining() {
       nameTouchedRef.current = isCustomized;
       setNameTouched(isCustomized);
     }
-  }, [tr, coaches, locations]);
+  }, [tr, coaches]);
+
+  // Keep Location bound to the saved training value (and recover if options load later).
+  useEffect(() => {
+    if (!tr) return;
+    const saved = (tr.location || "").trim();
+    setF((p) => {
+      if (p.location && (!locations.length || locations.includes(p.location))) {
+        return p;
+      }
+      if (saved) return { ...p, location: saved };
+      if (!p.location && locations[0]) return { ...p, location: locations[0] };
+      return p;
+    });
+  }, [tr, tr?.location, locations]);
+
+  const locationOptions = useMemo(() => {
+    const opts = Array.isArray(locations) ? [...locations] : [];
+    const saved = (tr?.location || f.location || "").trim();
+    if (saved && !opts.includes(saved)) opts.unshift(saved);
+    return opts;
+  }, [locations, tr?.location, f.location]);
 
   const set = (k: keyof typeof f, v: any) => setF((p) => ({ ...p, [k]: v }));
 
@@ -546,18 +568,31 @@ function EditTraining() {
               <Label className="text-[10px] font-medium tracking-[0.1em] text-[#8A8A98] uppercase">
                 Location
               </Label>
-              <Select value={f.location} onValueChange={(v) => set("location", v)}>
-                <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
-                  <SelectValue placeholder="Select Location" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                  {locations.map((l) => (
-                    <SelectItem key={l} value={l}>
-                      {l}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {f.location || locationOptions.length > 0 ? (
+                <div className="relative">
+                  <select
+                    value={f.location || locationOptions[0] || ""}
+                    onChange={(e) => set("location", e.target.value)}
+                    required
+                    className="w-full h-10 rounded-lg border border-[rgba(255,255,255,0.06)] bg-[#1A2120] px-3 pr-9 py-2 text-sm text-[#F1F0EE] appearance-none focus:outline-none focus:border-[#10B981] transition-colors cursor-pointer"
+                  >
+                    {locationOptions.length === 0 ? (
+                      <option value={f.location || ""} className="bg-[#1A2120] text-[#F1F0EE]">
+                        {f.location || "Select Location"}
+                      </option>
+                    ) : (
+                      locationOptions.map((l) => (
+                        <option key={l} value={l} className="bg-[#1A2120] text-[#F1F0EE]">
+                          {l}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-[#8A8A98] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              ) : (
+                <div className="h-10 bg-[#1A2120] border border-[rgba(255,255,255,0.06)] rounded-lg animate-pulse" />
+              )}
             </div>
           </CardContent>
         </Card>
