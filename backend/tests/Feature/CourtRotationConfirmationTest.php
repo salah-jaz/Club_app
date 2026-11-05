@@ -174,14 +174,18 @@ class CourtRotationConfirmationTest extends TestCase
         $updatedRounds[2]['courts'][0]['players'] = [$this->bob->id, $this->dyna->id];
         $updatedRounds[2]['resting'] = [];
 
+        $updatedRounds[0]['courts'][0]['courtName'] = 'Centre Court A';
+
         $response = $this->actingAs($this->admin)->patchJson("/api/schedules/{$schedule->id}/rotation", [
             'rounds' => $updatedRounds,
         ]);
 
         $response->assertStatus(200);
         $response->assertJsonPath('message', 'Court rotation updated.');
+        $response->assertJsonPath('rotation.rounds.0.courts.0.courtName', 'Centre Court A');
 
         $rotationInDb = Rotation::where('schedule_id', $schedule->id)->first();
+        $this->assertEquals('Centre Court A', $rotationInDb->rounds[0]['courts'][0]['courtName'] ?? null);
         $this->assertCount(2, $rotationInDb->rounds[2]['courts'][0]['players']);
         $this->assertContains($this->dyna->id, $rotationInDb->rounds[2]['courts'][0]['players']);
         $this->assertEmpty($rotationInDb->rounds[2]['resting']);

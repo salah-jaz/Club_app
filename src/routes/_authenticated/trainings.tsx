@@ -19,7 +19,7 @@ import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { staggerContainer, staggerItem } from "@/components/MotionWrapper";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
-import { aggregateOpenInvitePhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
+import { aggregateTrainingSchedulePhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
 import {
   ReportDialog,
   ReportTriggerButton,
@@ -587,7 +587,7 @@ function TrainingsList() {
                 const isDeletable = isTrainingCardDeletable(card);
                 const sessionPhase =
                   card.status !== "cancelled"
-                    ? aggregateOpenInvitePhase(card.weeklySessions, now)
+                    ? aggregateTrainingSchedulePhase(card.weeklySessions, now)
                     : null;
 
                 return (
@@ -740,7 +740,7 @@ function TrainingsList() {
                 const isDeletable = isTrainingCardDeletable(card);
                 const sessionPhase =
                   card.status !== "cancelled"
-                    ? aggregateOpenInvitePhase(card.weeklySessions, now)
+                    ? aggregateTrainingSchedulePhase(card.weeklySessions, now)
                     : null;
 
                 return (

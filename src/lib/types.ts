@@ -117,6 +117,7 @@ export interface LeagueGroup {
 export type FixtureStatus =
   | "Created"
   | "Scheduled"
+  | "Confirmed"
   | "Completed"
   | "Opened"
   | "In Progress"
@@ -200,7 +201,7 @@ export interface PlayInvitation {
 
 export interface RotationRound {
   round: number;
-  courts: { courtNo: number; players: string[] }[];
+  courts: { courtNo: number; courtName?: string; players: string[] }[];
   resting: string[];
 }
 export interface Rotation {

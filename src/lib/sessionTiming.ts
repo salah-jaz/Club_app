@@ -116,13 +116,41 @@ export function sessionPhaseLabel(phase: SessionPhase): string {
   return "";
 }
 
-/** Prefer live session phase over workflow status so UI shows one badge. */
+/**
+ * Program-level phase: Pending before first session, In Progress until the last session ends, then Completed.
+ */
+export function aggregateTrainingSchedulePhase(
+  sessions: Array<Pick<Training, "startDate" | "endDate" | "duration">>,
+  nowMs: number = Date.now(),
+): SessionPhase | null {
+  if (sessions.length === 0) return null;
+
+  let firstStart = Infinity;
+  let lastEnd = -Infinity;
+
+  for (const session of sessions) {
+    const startMs = parseDateTimeMs(session.startDate);
+    if (!Number.isFinite(startMs)) continue;
+    const endMs = startMs + getTrainingSessionDurationMinutes(session) * 60_000;
+    if (startMs < firstStart) firstStart = startMs;
+    if (endMs > lastEnd) lastEnd = endMs;
+  }
+
+  if (!Number.isFinite(firstStart) || !Number.isFinite(lastEnd)) return null;
+  if (nowMs < firstStart) return "upcoming";
+  if (nowMs < lastEnd) return "in_progress";
+  return "finished";
+}
+
+/** Map session timeline to display status (Admin + Member Portal). */
 export function resolveTrainingDisplayStatus(
   workflowStatus: string,
   sessionPhase: SessionPhase | null | undefined,
 ): string {
   if (workflowStatus === "cancelled") return "cancelled";
-  if (sessionPhase === "in_progress" || sessionPhase === "finished") return sessionPhase;
+  if (sessionPhase === "upcoming") return "pending";
+  if (sessionPhase === "in_progress") return "in_progress";
+  if (sessionPhase === "finished") return "completed";
   return workflowStatus;
 }
 

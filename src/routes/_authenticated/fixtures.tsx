@@ -304,6 +304,7 @@ function FixturesList() {
   const totalFixtures = accessibleFixtures.length;
   const createdCount = accessibleFixtures.filter((f) => normalizeStatus(f.status) === "Created").length;
   const scheduledCount = accessibleFixtures.filter((f) => normalizeStatus(f.status) === "Scheduled").length;
+  const confirmedCount = accessibleFixtures.filter((f) => normalizeStatus(f.status) === "Confirmed").length;
   const completedCount = accessibleFixtures.filter((f) => normalizeStatus(f.status) === "Completed").length;
 
   const requestDeleteFixture = (fixture: Fixture) => {
@@ -386,7 +387,7 @@ function FixturesList() {
         variants={staggerContainer}
         initial="initial"
         animate="animate"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
+        className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4"
       >
         <FixtureStatCard
           label="Total Fixtures"
@@ -410,11 +411,18 @@ function FixturesList() {
           index={2}
         />
         <FixtureStatCard
+          label="Confirmed"
+          value={confirmedCount}
+          hint="Line-ups confirmed"
+          icon={CheckCircle2}
+          index={3}
+        />
+        <FixtureStatCard
           label="Completed"
           value={completedCount}
           hint="Completed or concluded"
           icon={Clock}
-          index={3}
+          index={4}
         />
       </motion.div>
 
@@ -431,6 +439,7 @@ function FixturesList() {
               { value: "all", label: "All statuses" },
               { value: "Created", label: "Created" },
               { value: "Scheduled", label: "Scheduled" },
+              { value: "Confirmed", label: "Confirmed" },
               { value: "Completed", label: "Completed" },
             ],
           },

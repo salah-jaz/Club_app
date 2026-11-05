@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 import { fmtMoney } from "@/lib/format";
 import { applyMemberFee, discountsFromStore, resolveWalletMember } from "@/lib/fees";
 import { useNow } from "@/hooks/useNow";
-import { aggregateOpenInvitePhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
+import { aggregateTrainingSchedulePhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
 import { ConfirmActionDialog, type ConfirmActionRequest } from "@/components/ConfirmActionDialog";
 import type { Member, Training } from "@/lib/types";
 
@@ -556,7 +556,7 @@ function TrainingPage() {
   };
 
   const sessionPhase =
-    t.status !== "cancelled" ? aggregateOpenInvitePhase(monthSessions, now) : null;
+    t.status !== "cancelled" ? aggregateTrainingSchedulePhase(monthSessions, now) : null;
 
   const getInviteRowData = (m: Member) => {
     const sessionIds = monthSessions.map((ms) => ms.id);

@@ -236,6 +236,48 @@ class TrainingWalletDeductionTest extends TestCase
         $this->assertEquals(60.0, (float) $txn->amount);
     }
 
+    public function test_force_accept_does_not_debit_twice_when_already_accepted()
+    {
+        $this->juniorMember->update(['credit' => 100.0]);
+
+        $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'Elite Junior Training',
+            'startDate' => '2026-09-01 19:00:00',
+            'endDate' => '2026-09-01 20:00:00',
+            'repeatWeeks' => 3,
+            'repeatMonths' => 1,
+            'slots' => 10,
+            'duration' => '1 hour',
+            'fees' => 60,
+            'coach' => 'Coach Lee',
+            'location' => 'Main Hall',
+            'targetType' => 'junior',
+        ])->assertStatus(201);
+
+        $sep1 = Training::orderBy('start_date', 'asc')->firstOrFail();
+        $sessionIds = Training::orderBy('start_date', 'asc')->pluck('id')->all();
+
+        $payload = [
+            'memberId' => $this->juniorMember->id,
+            'sessionIds' => $sessionIds,
+            'forceAccept' => true,
+        ];
+
+        $this->actingAs($this->admin)->postJson("/api/trainings/{$sep1->id}/update-member-invitation", $payload)
+            ->assertStatus(200);
+
+        $this->juniorMember->refresh();
+        $this->assertEquals(40.0, $this->juniorMember->credit);
+        $this->assertEquals(1, Transaction::where('member_id', $this->juniorMember->id)->where('type', 'debit')->count());
+
+        $this->actingAs($this->admin)->postJson("/api/trainings/{$sep1->id}/update-member-invitation", $payload)
+            ->assertStatus(200);
+
+        $this->juniorMember->refresh();
+        $this->assertEquals(40.0, $this->juniorMember->credit);
+        $this->assertEquals(1, Transaction::where('member_id', $this->juniorMember->id)->where('type', 'debit')->count());
+    }
+
     public function test_prevents_duplicate_deduction_on_re_accept()
     {
         $this->actingAs($this->admin)->postJson('/api/trainings', [

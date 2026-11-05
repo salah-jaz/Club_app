@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import {
   CourtRotationView,
   cloneRounds,
+  courtDisplayName,
   getCourtTimeRange,
   stripEmptySlots,
 } from "@/components/CourtRotationView";
@@ -94,7 +95,7 @@ function buildRotationCsv(
     for (const c of r.courts) {
       const players = [0, 1, 2, 3].map((i) => (c.players[i] ? nameOf(c.players[i]) : ""));
       rows.push(
-        [String(r.round), `Court ${c.courtNo}`, time, ...players, resting].map(csvEscape).join(","),
+        [String(r.round), courtDisplayName(c), time, ...players, resting].map(csvEscape).join(","),
       );
     }
     if (r.courts.length === 0 && r.resting.length > 0) {
@@ -292,7 +293,7 @@ async function downloadRotationPdf(
         doc.setTextColor(...ink);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
-        doc.text(`Court ${c.courtNo}`, x + 6, cy + 8);
+        doc.text(courtDisplayName(c), x + 6, cy + 8);
 
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);

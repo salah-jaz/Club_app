@@ -579,30 +579,59 @@ class TrainingController extends Controller
             }
             $appDisc = (bool)$member->apply_discount;
             $discountedMonthlyFee = FeeHelper::forMember((float)$tr->fees, $member, $appDisc);
-            $count = count($selectedSids);
-            if ($count === $repeatWeeks) {
-                $totalFeeToDeduct = $discountedMonthlyFee;
-            } else {
-                $totalFeeToDeduct = round(($discountedMonthlyFee / $repeatWeeks) * $count, 2);
-            }
 
-            return DB::transaction(function () use ($tr, $monthSessions, $selectedSids, $member, $totalFeeToDeduct, $existingInvs) {
-                $freshTrainings = Training::whereIn('id', $selectedSids)->lockForUpdate()->get();
-                foreach ($freshTrainings as $freshTr) {
-                    $maxSlots = (int)($freshTr->slots ?? 0);
-                    if ($maxSlots > 0) {
-                        $isAlreadyAccepted = $existingInvs->where('training_id', $freshTr->id)->where('status', 'accepted')->isNotEmpty();
-                        if (!$isAlreadyAccepted) {
-                            $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
-                                ->where('status', 'accepted')
-                                ->distinct('member_id')
-                                ->count('member_id');
-                                
-                            if ($acceptedCount >= $maxSlots) {
-                                return response()->json(['message' => 'Maximum players already accepted for this training.'], 422);
-                            }
-                        }
+            return DB::transaction(function () use ($tr, $selectedSids, $member, $discountedMonthlyFee, $repeatWeeks, $existingInvs) {
+                Training::whereIn('id', $selectedSids)->lockForUpdate()->get();
+
+                TrainingInvitation::whereIn('training_id', $selectedSids)
+                    ->where('member_id', $member->id)
+                    ->lockForUpdate()
+                    ->get();
+
+                $freshInvs = TrainingInvitation::whereIn('training_id', $selectedSids)
+                    ->where('member_id', $member->id)
+                    ->get();
+
+                $sessionsNeedingAccept = [];
+                foreach ($selectedSids as $sid) {
+                    $inv = $freshInvs->firstWhere('training_id', $sid);
+                    if (!$inv || $inv->status !== 'accepted') {
+                        $sessionsNeedingAccept[] = $sid;
                     }
+                }
+
+                if (count($sessionsNeedingAccept) === 0) {
+                    return response()->json([
+                        'message' => 'Training invitation force accepted successfully.',
+                    ]);
+                }
+
+                foreach ($sessionsNeedingAccept as $sid) {
+                    $freshTr = Training::where('id', $sid)->first();
+                    if (!$freshTr) {
+                        continue;
+                    }
+                    $maxSlots = (int)($freshTr->slots ?? 0);
+                    if ($maxSlots <= 0) {
+                        continue;
+                    }
+                    $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
+                        ->where('status', 'accepted')
+                        ->distinct('member_id')
+                        ->count('member_id');
+
+                    if ($acceptedCount >= $maxSlots) {
+                        return response()->json(['message' => 'Maximum players already accepted for this training.'], 422);
+                    }
+                }
+
+                $newCount = count($sessionsNeedingAccept);
+                $selectedCount = count($selectedSids);
+                if ($selectedCount === $repeatWeeks) {
+                    $alreadyPaid = (float) $freshInvs->where('status', 'accepted')->sum('accepted_amount');
+                    $totalFeeToDeduct = round(max(0, $discountedMonthlyFee - $alreadyPaid), 2);
+                } else {
+                    $totalFeeToDeduct = round(($discountedMonthlyFee / $repeatWeeks) * $newCount, 2);
                 }
 
                 // Force Accept is an admin override: always debit the fee even if the
@@ -633,24 +662,26 @@ class TrainingController extends Controller
                 }
 
                 foreach ($existingInvs as $inv) {
-                    if (!in_array($inv->training_id, $selectedSids) && $inv->status !== 'accepted') {
+                    if (!in_array($inv->training_id, $selectedSids, true) && $inv->status !== 'accepted') {
                         $inv->delete();
                     }
                 }
 
-                $countSids = count($selectedSids);
+                $countSids = count($sessionsNeedingAccept);
                 $basePerSession = $countSids > 0 ? floor(($totalFeeToDeduct / $countSids) * 100) / 100 : 0;
                 $remainderCents = $countSids > 0 ? (int) round(($totalFeeToDeduct - ($basePerSession * $countSids)) * 100) : 0;
 
                 $holidayDates = Holiday::pluck('date')->toArray();
-                foreach (array_values($selectedSids) as $index => $sid) {
+                foreach (array_values($sessionsNeedingAccept) as $index => $sid) {
                     $sessionObj = Training::find($sid);
+                    if (!$sessionObj) {
+                        continue;
+                    }
                     $repW = max(1, (int)($sessionObj->repeat_weeks ?? $tr->repeat_weeks ?? 1));
-                    $bPerW = (float)($sessionObj->fees ?? $tr->fees ?? 0) / $repW;
                     $inv = TrainingInvitation::where('training_id', $sid)->where('member_id', $member->id)->first();
                     $perSessAmount = round($basePerSession + ($index < $remainderCents ? 0.01 : 0.0), 2);
                     if (!$inv) {
-                        $inv = TrainingInvitation::create([
+                        TrainingInvitation::create([
                             'id' => 'ti_' . Str::random(8),
                             'training_id' => $sid,
                             'member_id' => $member->id,
@@ -669,19 +700,16 @@ class TrainingController extends Controller
                         $inv->save();
                     }
 
-                    $sessionObj = Training::find($sid);
-                    if ($sessionObj) {
-                        $sIso = \Carbon\Carbon::parse($sessionObj->start_date)->toDateString();
-                        if (!in_array($sIso, $holidayDates)) {
-                            TrainingDate::firstOrCreate([
-                                'training_id' => $sid,
-                                'member_id' => $member->id,
-                            ], [
-                                'id' => 'td_' . Str::random(8),
-                                'date' => $sessionObj->start_date,
-                                'attended' => null,
-                            ]);
-                        }
+                    $sIso = \Carbon\Carbon::parse($sessionObj->start_date)->toDateString();
+                    if (!in_array($sIso, $holidayDates, true)) {
+                        TrainingDate::firstOrCreate([
+                            'training_id' => $sid,
+                            'member_id' => $member->id,
+                        ], [
+                            'id' => 'td_' . Str::random(8),
+                            'date' => $sessionObj->start_date,
+                            'attended' => null,
+                        ]);
                     }
                 }
 

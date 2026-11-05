@@ -560,6 +560,7 @@ function NewFixturePage() {
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
                   <SelectItem value="Created">Created</SelectItem>
                   <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  <SelectItem value="Confirmed">Confirmed</SelectItem>
                   <SelectItem value="Completed">Completed</SelectItem>
                 </SelectContent>
               </Select>

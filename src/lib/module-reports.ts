@@ -799,6 +799,7 @@ export const FIXTURE_REPORT_STATUS = [
   { value: "all", label: "All statuses" },
   { value: "Created", label: "Created" },
   { value: "Scheduled", label: "Scheduled" },
+  { value: "Confirmed", label: "Confirmed" },
   { value: "Completed", label: "Completed" },
 ];
 

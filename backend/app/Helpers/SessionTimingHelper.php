@@ -152,6 +152,37 @@ class SessionTimingHelper
         return self::phase($start, self::trainingSessionEnd($training), $now);
     }
 
+    /**
+     * Program-level phase from first session start through final session end (club timezone).
+     *
+     * @param  iterable<Training>  $sessions
+     */
+    public static function aggregateTrainingSchedulePhase(iterable $sessions, ?Carbon $now = null): ?string
+    {
+        $firstStart = null;
+        $lastEnd = null;
+
+        foreach ($sessions as $session) {
+            if (!$session instanceof Training) {
+                continue;
+            }
+            $start = self::parseDateTime($session->start_date);
+            $end = self::trainingSessionEnd($session);
+            if ($firstStart === null || $start->lt($firstStart)) {
+                $firstStart = $start;
+            }
+            if ($lastEnd === null || $end->gt($lastEnd)) {
+                $lastEnd = $end;
+            }
+        }
+
+        if ($firstStart === null || $lastEnd === null) {
+            return null;
+        }
+
+        return self::phase($firstStart, $lastEnd, $now);
+    }
+
     public static function acceptBlockedMessage(string $phase): ?string
     {
         if ($phase === self::PHASE_IN_PROGRESS) {

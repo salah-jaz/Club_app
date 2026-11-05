@@ -209,6 +209,20 @@ class FixtureModuleTest extends TestCase
         $this->assertEquals('Away', $updateRes->json('venueType'));
         $this->assertEquals('Scheduled', $updateRes->json('status'));
 
+        $confirmedRes = $this->actingAs($this->admin)->putJson('/api/fixtures/' . $fixtureId, [
+            'name' => 'Championship Match 1 Updated',
+            'date' => '2026-08-15 15:30:00',
+            'leagueGroupId' => $this->group1->id,
+            'matchType' => 'Friendly',
+            'venueType' => 'Away',
+            'oppositionClub' => 'Hawks FC',
+            'teamName' => 'Lions Alpha',
+            'grade' => 'Division 1',
+            'status' => 'Confirmed',
+        ]);
+        $confirmedRes->assertOk();
+        $this->assertEquals('Confirmed', $confirmedRes->json('status'));
+
         // 5. Delete
         $deleteRes = $this->actingAs($this->admin)->deleteJson('/api/fixtures/' . $fixtureId);
         $deleteRes->assertOk();

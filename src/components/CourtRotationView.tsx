@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Clock, GripVertical, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser, useStore } from "@/lib/store";
@@ -63,12 +64,18 @@ type DragSource =
   | { kind: "court"; roundIdx: number; courtNo: number; slot: number; playerId: string }
   | { kind: "rest"; roundIdx: number; restIdx: number; playerId: string };
 
+export function courtDisplayName(c: { courtNo: number; courtName?: string | null }): string {
+  const custom = String(c.courtName ?? "").trim();
+  return custom || `Court ${c.courtNo}`;
+}
+
 function cloneRounds(rounds: RotationRound[]): RotationRound[] {
   return rounds.map((r) => ({
     round: r.round,
     resting: [...(r.resting || [])],
     courts: (r.courts || []).map((c) => ({
       courtNo: c.courtNo,
+      ...(c.courtName ? { courtName: c.courtName } : {}),
       players: [...(c.players || [])],
     })),
   }));
@@ -93,6 +100,7 @@ function stripEmptySlots(rounds: RotationRound[]): RotationRound[] {
     resting: (r.resting || []).filter(Boolean),
     courts: (r.courts || []).map((c) => ({
       courtNo: c.courtNo,
+      ...(c.courtName?.trim() ? { courtName: c.courtName.trim() } : {}),
       players: (c.players || []).filter(Boolean),
     })),
   }));
@@ -454,6 +462,20 @@ export function CourtRotationView({
 
   const visibleRoundList = showCourtFilter && courtFilter === "your" ? roundsForYou : rounds;
 
+  const updateCourtName = (roundIdx: number, courtNo: number, name: string) => {
+    if (!editing || !onDraftRoundsChange || !draftRounds) return;
+    const next = cloneRounds(draftRounds).map(normalizeRoundPlayers);
+    const court = next[roundIdx]?.courts.find((c) => c.courtNo === courtNo);
+    if (!court) return;
+    const trimmed = name.trim();
+    if (trimmed) {
+      court.courtName = trimmed;
+    } else {
+      delete court.courtName;
+    }
+    onDraftRoundsChange(next);
+  };
+
   // Keep selected round valid when switching Your Court / All Courts
   const effectiveRoundValue = visibleRoundList.some((r) => `r${r.round}` === activeRound)
     ? activeRound
@@ -752,8 +774,19 @@ export function CourtRotationView({
                     >
                       <CardHeader className="pb-3 border-b border-white/[0.03]">
                         <CardTitle className="text-[12px] font-semibold text-[#F1F0EE] flex flex-col xs:flex-row sm:flex-row sm:items-center justify-between gap-2">
-                          <span className="flex items-center gap-2">
-                            <Trophy className="size-4 text-[#34D399]" /> Court {c.courtNo}
+                          <span className="flex items-center gap-2 min-w-0 flex-1">
+                            <Trophy className="size-4 text-[#34D399] shrink-0" />
+                            {editing ? (
+                              <Input
+                                value={c.courtName ?? ""}
+                                onChange={(e) => updateCourtName(roundIdx, c.courtNo, e.target.value)}
+                                placeholder={`Court ${c.courtNo}`}
+                                className="h-8 text-[12px] bg-[#1A2120] border-[rgba(255,255,255,0.08)] text-[#F1F0EE] max-w-[220px]"
+                                aria-label={`Court name for court ${c.courtNo}`}
+                              />
+                            ) : (
+                              courtDisplayName(c)
+                            )}
                           </span>
                           <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-[#34D399] tracking-normal whitespace-nowrap">
                             <Clock className="size-3.5 opacity-80" aria-hidden="true" />
