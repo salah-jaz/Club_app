@@ -28,7 +28,7 @@ import {
   resolveTrainingDisplayStatus,
   isSessionInFuture,
   parseDateTimeMs,
-  aggregateOpenInvitePhase,
+  aggregateTrainingSchedulePhase,
 } from "@/lib/sessionTiming";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
@@ -419,7 +419,7 @@ function TrainingListCard({
               const rowTarget = viewAllTo || "/trainings";
               const sessionPhase =
                 tr.status !== "cancelled"
-                  ? aggregateOpenInvitePhase(tr.weeklySessions, now)
+                  ? aggregateTrainingSchedulePhase(tr.weeklySessions, now)
                   : null;
               return (
                 <motion.div

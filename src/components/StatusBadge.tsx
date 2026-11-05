@@ -28,6 +28,8 @@ const map: Record<string, string> = {
   opened: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
   Opened: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
   Created: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20",
+  Confirmed: "bg-[#818CF8]/10 text-[#A5B4FC] border-[#818CF8]/20",
+  confirmed: "bg-[#818CF8]/10 text-[#A5B4FC] border-[#818CF8]/20",
   finished: "bg-white/5 text-[#8A8A98] border-white/10",
 };
 
@@ -37,6 +39,7 @@ function labelFor(status: string, kind: StatusKind): string {
   if (status === "cancelled") return "Cancelled";
   if (status === "Created") return "Created";
   if (status === "Scheduled") return "Scheduled";
+  if (status === "Confirmed") return "Confirmed";
   if (status === "Completed") return "Completed";
   if (status === "created") return "pending";
   if (status === "pending") return "Pending";

@@ -22,7 +22,7 @@ import type { Member, Training, TrainingInvitation, TrainingUpdateRequest } from
 import { applyMemberFee, discountsFromStore, resolveWalletMember } from "@/lib/fees";
 import {
   getTrainingSessionPhase,
-  aggregateOpenInvitePhase,
+  aggregateTrainingSchedulePhase,
   resolveTrainingDisplayStatus,
 } from "@/lib/sessionTiming";
 import { useNow } from "@/hooks/useNow";
@@ -663,12 +663,14 @@ function TrainingModule() {
 
             const holidayName = getHolidayName(t.startDate);
             const sessionPhase =
-              !isCancelled && !holidayName ? aggregateOpenInvitePhase(monthSessions, now) : null;
+              !isCancelled && !holidayName ? aggregateTrainingSchedulePhase(monthSessions, now) : null;
 
             const monthDate = new Date(t.startDate);
             const monthLabel = Number.isNaN(monthDate.getTime())
               ? ""
               : monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+            const isJuniorProgram = targetType !== "adult";
 
             return (
               <div
@@ -697,9 +699,9 @@ function TrainingModule() {
                         {targetType === "adult" ? "Adult" : "Junior"}
                       </span>
                     </div>
-                    <div className="text-[11px] text-[#8A8A98] font-mono font-light">
+                    <div className="text-[11px] text-[#8A8A98] font-mono font-light break-words">
                       Coach {t.coach} · {t.location}
-                      {familyMonthInvites.length > 0 && (
+                      {!isJuniorProgram && familyMonthInvites.length > 0 && (
                         <span className="ml-1">
                           ·{" "}
                           {monthSessions
@@ -782,44 +784,85 @@ function TrainingModule() {
                         ? openInvitedSessions.length
                         : invitedMonthSessions.length;
 
+                  const sessionsForDateLabel =
+                    hasOpen && !isAnyAccepted ? openInvitedSessions : invitedMonthSessions;
+                  const juniorSessionDateLabel = sessionsForDateLabel
+                    .map((ms) =>
+                      new Date(ms.startDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      }),
+                    )
+                    .join(" · ");
+
+                  const openInviteIds = new Set(openInvitedSessions.map((ms) => ms.id));
+                  const onAcceptInvites = () => {
+                    setBulkAcceptPopup({
+                      member,
+                      training: t,
+                      monthSessions,
+                      invitedMonthSessions: openInvitedSessions,
+                      invites: mInvites.filter(
+                        (i) => i.status === "open" && openInviteIds.has(i.trainingId),
+                      ),
+                    });
+                  };
+                  const onDeclineInvites = async () => {
+                    const key = `${t.id}-${member.id}`;
+                    if (decliningMemberKey) return;
+                    setDecliningMemberKey(key);
+                    try {
+                      await s.respondTrainingBulk(
+                        mInvites.filter((i) => i.status === "open").map((i) => i.id),
+                        "declined",
+                      );
+                      toast.success("Declined invitation");
+                    } catch (error: any) {
+                      toast.error(error.message || "Failed to decline invitation.");
+                    } finally {
+                      setDecliningMemberKey(null);
+                    }
+                  };
+
                   return (
                     <div key={memberId} className="pt-2.5 border-t border-white/[0.04] space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
-                            <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">
-                              {targetType === "adult" ? "Member:" : "Child:"}
-                            </span>
-                            {name(memberId)}
+                      {isJuniorProgram ? (
+                        <div className="flex flex-col gap-3">
+                          <div className="min-w-0 space-y-1">
+                            <div className="text-[13px] font-medium text-[#F1F0EE] leading-snug">
+                              <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">
+                                Child:
+                              </span>
+                              {name(memberId)}
+                            </div>
+                            <div className="text-[11px] text-[#8A8A98] leading-relaxed">
+                              {displaySessionCount} invited session
+                              {displaySessionCount !== 1 ? "s" : ""} this month
+                            </div>
+                            {juniorSessionDateLabel && (
+                              <div className="text-[11px] text-[#A8A8B0] font-mono leading-relaxed break-words">
+                                {juniorSessionDateLabel}
+                              </div>
+                            )}
                           </div>
-                          <div className="text-[11px] text-[#8A8A98]">
-                            {displaySessionCount} invited session
-                            {displaySessionCount !== 1 ? "s" : ""} this month
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StatusBadge kind="invitation" status={displayStatus} />
+                            {showInProgress && <StatusBadge status="in_progress" />}
+                            {showFinished && <StatusBadge status="finished" />}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <StatusBadge kind="invitation" status={displayStatus} />
-                          {showInProgress && <StatusBadge status="in_progress" />}
-                          {showFinished && <StatusBadge status="finished" />}
+
                           {canRespondToInvites && (
-                            <div className="flex gap-2">
+                            <div
+                              className={cn(
+                                "grid gap-2 w-full",
+                                canDeclineInvites ? "grid-cols-2" : "grid-cols-1",
+                              )}
+                            >
                               <Button
                                 size="sm"
-                                className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
-                                onClick={() => {
-                                  const openIds = new Set(
-                                    openInvitedSessions.map((ms) => ms.id),
-                                  );
-                                  setBulkAcceptPopup({
-                                    member,
-                                    training: t,
-                                    monthSessions,
-                                    invitedMonthSessions: openInvitedSessions,
-                                    invites: mInvites.filter(
-                                      (i) => i.status === "open" && openIds.has(i.trainingId),
-                                    ),
-                                  });
-                                }}
+                                className="btn-premium-solid h-9 px-3 text-[11px] font-semibold cursor-pointer w-full min-w-0"
+                                onClick={onAcceptInvites}
                               >
                                 Accept
                               </Button>
@@ -827,27 +870,10 @@ function TrainingModule() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
+                                  className="btn-premium-outline h-9 px-3 text-[11px] cursor-pointer w-full min-w-0"
                                   disabled={decliningMemberKey !== null}
                                   loading={decliningMemberKey === `${t.id}-${member.id}`}
-                                  onClick={async () => {
-                                    const key = `${t.id}-${member.id}`;
-                                    if (decliningMemberKey) return;
-                                    setDecliningMemberKey(key);
-                                    try {
-                                      await s.respondTrainingBulk(
-                                        mInvites
-                                          .filter((i) => i.status === "open")
-                                          .map((i) => i.id),
-                                        "declined",
-                                      );
-                                      toast.success("Declined invitation");
-                                    } catch (error: any) {
-                                      toast.error(error.message || "Failed to decline invitation.");
-                                    } finally {
-                                      setDecliningMemberKey(null);
-                                    }
-                                  }}
+                                  onClick={onDeclineInvites}
                                 >
                                   Decline
                                 </Button>
@@ -855,7 +881,50 @@ function TrainingModule() {
                             </div>
                           )}
                         </div>
-                      </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-medium text-[#F1F0EE] truncate">
+                              <span className="text-[11px] text-[#8A8A98] font-normal mr-1.5">
+                                Member:
+                              </span>
+                              {name(memberId)}
+                            </div>
+                            <div className="text-[11px] text-[#8A8A98]">
+                              {displaySessionCount} invited session
+                              {displaySessionCount !== 1 ? "s" : ""} this month
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <StatusBadge kind="invitation" status={displayStatus} />
+                            {showInProgress && <StatusBadge status="in_progress" />}
+                            {showFinished && <StatusBadge status="finished" />}
+                            {canRespondToInvites && (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="btn-premium-solid h-7.5 px-3 text-[11px] font-semibold cursor-pointer"
+                                  onClick={onAcceptInvites}
+                                >
+                                  Accept
+                                </Button>
+                                {canDeclineInvites && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="btn-premium-outline h-7.5 px-3 text-[11px] cursor-pointer"
+                                    disabled={decliningMemberKey !== null}
+                                    loading={decliningMemberKey === `${t.id}-${member.id}`}
+                                    onClick={onDeclineInvites}
+                                  >
+                                    Decline
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {showFinished && (
                         <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">

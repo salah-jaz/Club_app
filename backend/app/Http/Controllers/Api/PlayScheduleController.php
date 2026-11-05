@@ -1223,10 +1223,14 @@ class PlayScheduleController extends Controller
                                     $players[] = $playerId;
                                 }
                             }
-                            $courts[] = [
+                            $courtEntry = [
                                 'courtNo' => (int) ($court['courtNo'] ?? 1),
                                 'players' => $players,
                             ];
+                            if (!empty($court['courtName'])) {
+                                $courtEntry['courtName'] = (string) $court['courtName'];
+                            }
+                            $courts[] = $courtEntry;
                         }
 
                         $resting = [];
@@ -1668,6 +1672,7 @@ class PlayScheduleController extends Controller
             'rounds.*.round' => 'required|integer|min:1',
             'rounds.*.courts' => 'required|array',
             'rounds.*.courts.*.courtNo' => 'required|integer|min:1',
+            'rounds.*.courts.*.courtName' => 'nullable|string|max:120',
             'rounds.*.courts.*.players' => 'present|array',
             'rounds.*.courts.*.players.*' => 'nullable|string',
             'rounds.*.resting' => 'present|array',
@@ -1687,10 +1692,15 @@ class PlayScheduleController extends Controller
                         'message' => 'Each court can have at most 4 players.',
                     ], 422);
                 }
-                $courts[] = [
+                $courtEntry = [
                     'courtNo' => (int) $court['courtNo'],
                     'players' => $players,
                 ];
+                $courtName = isset($court['courtName']) ? trim((string) $court['courtName']) : '';
+                if ($courtName !== '') {
+                    $courtEntry['courtName'] = $courtName;
+                }
+                $courts[] = $courtEntry;
             }
             $resting = array_values(array_filter(
                 $round['resting'] ?? [],

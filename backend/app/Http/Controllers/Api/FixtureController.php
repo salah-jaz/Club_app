@@ -52,7 +52,7 @@ class FixtureController extends Controller
             'Opened' => 'Created',
             'In Progress' => 'Scheduled',
             'Closed' => 'Completed',
-            'Created', 'Scheduled', 'Completed' => $status,
+            'Created', 'Scheduled', 'Confirmed', 'Completed' => $status,
             default => $status ?? 'Created',
         };
     }
@@ -198,7 +198,7 @@ class FixtureController extends Controller
             'teamName' => 'sometimes|required_without:team_name|string|max:255',
             'team_name' => 'sometimes|required_without:teamName|string|max:255',
             'grade' => 'required|string|max:255',
-            'status' => 'required|string|in:Created,Scheduled,Completed,Opened,In Progress,Closed',
+            'status' => 'required|string|in:Created,Scheduled,Confirmed,Completed,Opened,In Progress,Closed',
             'clubLocation' => 'nullable|string|max:255',
             'club_location' => 'nullable|string|max:255',
             'location' => 'nullable|string|max:255',
@@ -335,7 +335,7 @@ class FixtureController extends Controller
             'teamName' => 'sometimes|required|string|max:255',
             'team_name' => 'sometimes|required|string|max:255',
             'grade' => 'sometimes|required|string|max:255',
-            'status' => 'sometimes|required|string|in:Created,Scheduled,Completed,Opened,In Progress,Closed',
+            'status' => 'sometimes|required|string|in:Created,Scheduled,Confirmed,Completed,Opened,In Progress,Closed',
             'result' => 'nullable|string|in:Win,Loss',
             'clubLocation' => 'nullable|string|max:255',
             'club_location' => 'nullable|string|max:255',

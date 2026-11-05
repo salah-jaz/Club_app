@@ -72,6 +72,19 @@ import {
   filterMembersForReport,
 } from "@/lib/module-reports";
 
+/** Nested junior row (expanded under an adult) — theme tokens for light + dark. */
+const nestedJuniorSurface =
+  "border-l-2 border-l-amber-500/45 dark:border-l-[#F59E0B]/50 bg-card text-card-foreground dark:bg-[#131916]/90";
+const nestedJuniorSubBadge =
+  "text-[9px] px-1.5 py-0 border-amber-500/35 text-amber-800 dark:border-[#F59E0B]/35 dark:text-[#FBBF24] shrink-0";
+const nestedJuniorStatCell =
+  "rounded-lg bg-muted/70 dark:bg-[#0C0F0E]/60 border border-border dark:border-white/[0.04] px-3 py-2.5 min-w-0";
+const nestedJuniorStatLabel =
+  "text-muted-foreground uppercase tracking-wider text-[10px] font-medium mb-1";
+const nestedJuniorTableRow = "bg-amber-50/55 dark:bg-[rgba(245,158,11,0.03)]";
+const nestedJuniorTableMemberCell =
+  "pl-6 border-l-2 border-amber-500/40 dark:border-[#F59E0B]/40 ml-2";
+
 /** Flat or nested row for the members list (juniors nest under same-user adults when viewing All). */
 type MemberDisplayRow = {
   member: Member;
@@ -359,7 +372,13 @@ function MemberStatCard({
   );
 }
 
-function MemberTags({ member }: { member: Member }) {
+function MemberTags({
+  member,
+  nestedJunior = false,
+}: {
+  member: Member;
+  nestedJunior?: boolean;
+}) {
   const isJunior = member.memberType.toLowerCase() === "junior";
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -367,9 +386,11 @@ function MemberTags({ member }: { member: Member }) {
         variant="outline"
         className={cn(
           "text-[10px] font-medium border px-2 py-0",
-          isJunior
-            ? "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/25"
-            : "bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25",
+          nestedJunior && isJunior
+            ? "bg-amber-500/10 text-amber-800 border-amber-500/25 dark:bg-[#F59E0B]/10 dark:text-[#F59E0B] dark:border-[#F59E0B]/25"
+            : isJunior
+              ? "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/25"
+              : "bg-[#10B981]/10 text-[#34D399] border-[#10B981]/25",
         )}
       >
         {isJunior ? "Junior" : "Adult"}
@@ -377,7 +398,12 @@ function MemberTags({ member }: { member: Member }) {
       {member.grade && (
         <Badge
           variant="outline"
-          className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#C4D4CF] px-2 py-0"
+          className={cn(
+            "text-[10px] font-medium px-2 py-0",
+            nestedJunior
+              ? "bg-muted/80 border-border text-foreground"
+              : "bg-white/[0.03] border-white/10 text-[#C4D4CF]",
+          )}
         >
           {member.grade}
         </Badge>
@@ -385,7 +411,12 @@ function MemberTags({ member }: { member: Member }) {
       {member.membership && (
         <Badge
           variant="outline"
-          className="text-[10px] font-medium bg-[#2DD4BF]/10 text-[#5EEAD4] border-[#2DD4BF]/25 px-2 py-0"
+          className={cn(
+            "text-[10px] font-medium px-2 py-0",
+            nestedJunior
+              ? "bg-teal-500/10 text-teal-800 border-teal-500/25 dark:bg-[#2DD4BF]/10 dark:text-[#5EEAD4] dark:border-[#2DD4BF]/25"
+              : "bg-[#2DD4BF]/10 text-[#5EEAD4] border-[#2DD4BF]/25",
+          )}
         >
           Member
         </Badge>
@@ -393,7 +424,12 @@ function MemberTags({ member }: { member: Member }) {
       {member.trainingEligible && (
         <Badge
           variant="outline"
-          className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#8FA89F] px-2 py-0"
+          className={cn(
+            "text-[10px] font-medium px-2 py-0",
+            nestedJunior
+              ? "bg-muted/80 border-border text-muted-foreground"
+              : "bg-white/[0.03] border-white/10 text-[#8FA89F]",
+          )}
         >
           Training
         </Badge>
@@ -401,7 +437,12 @@ function MemberTags({ member }: { member: Member }) {
       {member.playEligible && (
         <Badge
           variant="outline"
-          className="text-[10px] font-medium bg-white/[0.03] border-white/10 text-[#93C5FD] px-2 py-0"
+          className={cn(
+            "text-[10px] font-medium px-2 py-0",
+            nestedJunior
+              ? "bg-blue-500/10 text-blue-800 border-blue-500/25 dark:bg-white/[0.03] dark:border-white/10 dark:text-[#93C5FD]"
+              : "bg-white/[0.03] border-white/10 text-[#93C5FD]",
+          )}
         >
           Play
         </Badge>
@@ -1726,6 +1767,7 @@ function MembersList() {
         >
           {visibleRows.map(({ member: m, depth, childCount = 0 }) => {
             const isJunior = m.memberType.toLowerCase() === "junior";
+            const isNestedJunior = depth === 1;
             const avatarBg = isJunior
               ? "bg-[#1A1A0A] text-[#F59E0B]"
               : "bg-[#0D2E22] text-[#10B981]";
@@ -1756,7 +1798,9 @@ function MembersList() {
                   className={cn(
                     "bg-[#131916] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.22)] transition-all cursor-pointer h-full signature-card-top w-full max-w-full overflow-hidden flex flex-col min-w-0",
                     selectedSet.has(m.id) && "border-[rgba(251,191,36,0.45)]",
-                    depth === 1 && "border-l-2 border-l-[#F59E0B]/50 bg-[#131916]/90",
+                    isNestedJunior && nestedJuniorSurface,
+                    isNestedJunior &&
+                      "hover:border-amber-500/35 dark:hover:border-[rgba(255,255,255,0.22)]",
                   )}
                 >
                   <CardContent className="p-4 sm:p-5 flex flex-col gap-3.5 sm:gap-4 h-full min-w-0">
@@ -1799,7 +1843,8 @@ function MembersList() {
                         )}
                         <Avatar
                           className={cn(
-                            "border border-white/10 shrink-0",
+                            "border shrink-0",
+                            isNestedJunior ? "border-border" : "border-white/10",
                             depth === 1 ? "size-9" : "size-10 sm:size-11",
                           )}
                         >
@@ -1812,14 +1857,16 @@ function MembersList() {
                         </Avatar>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                            <h3 className="font-semibold text-sm sm:text-[15px] text-[#EEF2F0] truncate">
+                            <h3
+                              className={cn(
+                                "font-semibold text-sm sm:text-[15px] truncate",
+                                isNestedJunior ? "text-foreground" : "text-[#EEF2F0]",
+                              )}
+                            >
                               {m.firstName} {m.lastName}
                             </h3>
                             {depth === 1 && (
-                              <Badge
-                                variant="outline"
-                                className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24] shrink-0"
-                              >
+                              <Badge variant="outline" className={nestedJuniorSubBadge}>
                                 Sub-member
                               </Badge>
                             )}
@@ -1832,8 +1879,18 @@ function MembersList() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-[12px] text-[#8FA89F] flex items-center gap-1 mt-0.5 min-w-0">
-                            <Mail className="size-3 shrink-0" />
+                          <p
+                            className={cn(
+                              "text-[12px] flex items-center gap-1 mt-0.5 min-w-0",
+                              isNestedJunior ? "text-muted-foreground" : "text-[#8FA89F]",
+                            )}
+                          >
+                            <Mail
+                              className={cn(
+                                "size-3 shrink-0",
+                                isNestedJunior && "text-muted-foreground",
+                              )}
+                            />
                             <span className="truncate min-w-0">{m.email}</span>
                           </p>
                         </div>
@@ -1843,16 +1900,31 @@ function MembersList() {
                       </div>
                     </div>
 
-                    <MemberTags member={m} />
+                    <MemberTags member={m} nestedJunior={isNestedJunior} />
 
                     <div className="grid grid-cols-2 gap-2.5 sm:gap-3 text-xs min-w-0">
-                      <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5 min-w-0">
-                        <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">
+                      <div
+                        className={
+                          isNestedJunior
+                            ? nestedJuniorStatCell
+                            : "rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5 min-w-0"
+                        }
+                      >
+                        <p
+                          className={
+                            isNestedJunior
+                              ? nestedJuniorStatLabel
+                              : "text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1"
+                          }
+                        >
                           Balance
                         </p>
                         {m.memberType === "junior" ? (
                           <p
-                            className="font-mono text-[#6B7F78] text-sm"
+                            className={cn(
+                              "font-mono text-sm",
+                              isNestedJunior ? "text-muted-foreground" : "text-[#6B7F78]",
+                            )}
                             title="Junior members share the parent adult's wallet"
                           >
                             —
@@ -1868,12 +1940,34 @@ function MembersList() {
                           </p>
                         )}
                       </div>
-                      <div className="rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5 min-w-0">
-                        <p className="text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1">
+                      <div
+                        className={
+                          isNestedJunior
+                            ? nestedJuniorStatCell
+                            : "rounded-lg bg-[#0C0F0E]/60 border border-white/[0.04] px-3 py-2.5 min-w-0"
+                        }
+                      >
+                        <p
+                          className={
+                            isNestedJunior
+                              ? nestedJuniorStatLabel
+                              : "text-[#6B7F78] uppercase tracking-wider text-[10px] font-medium mb-1"
+                          }
+                        >
                           BI ID
                         </p>
-                        <p className="font-mono text-[#C4D4CF] flex items-center gap-1 min-w-0">
-                          <IdCard className="size-3 shrink-0 text-[#6B7F78]" />
+                        <p
+                          className={cn(
+                            "font-mono flex items-center gap-1 min-w-0",
+                            isNestedJunior ? "text-foreground" : "text-[#C4D4CF]",
+                          )}
+                        >
+                          <IdCard
+                            className={cn(
+                              "size-3 shrink-0",
+                              isNestedJunior ? "text-muted-foreground" : "text-[#6B7F78]",
+                            )}
+                          />
                           <span className="truncate text-xs sm:text-sm min-w-0">
                             {m.biMemberId || "—"}
                           </span>
@@ -1926,6 +2020,7 @@ function MembersList() {
               <TableBody>
                 {visibleRows.map(({ member: m, depth, childCount = 0 }) => {
                   const isJunior = m.memberType.toLowerCase() === "junior";
+                  const isNestedJunior = depth === 1;
                   const avatarBg = isJunior
                     ? "bg-[#1A1A0A] text-[#F59E0B]"
                     : "bg-[#0D2E22] text-[#10B981]";
@@ -1947,7 +2042,7 @@ function MembersList() {
                       className={cn(
                         "border-b border-border hover:bg-muted/50 transition-colors cursor-pointer",
                         selectedSet.has(m.id) && "bg-[#FBBF24]/5",
-                        depth === 1 && "bg-[rgba(245,158,11,0.03)]",
+                        isNestedJunior && nestedJuniorTableRow,
                       )}
                     >
                       {SHOW_MEMBER_BULK_UI && activeRole === "admin" && (
@@ -1964,7 +2059,7 @@ function MembersList() {
                         <div
                           className={cn(
                             "flex items-center gap-2.5 min-w-0",
-                            depth === 1 && "pl-6 border-l-2 border-[#F59E0B]/40 ml-2",
+                            isNestedJunior && nestedJuniorTableMemberCell,
                           )}
                         >
                           {depth === 0 && childCount > 0 ? (
@@ -1993,7 +2088,8 @@ function MembersList() {
                           ) : null}
                           <Avatar
                             className={cn(
-                              "border border-white/10 shrink-0",
+                              "border shrink-0",
+                              isNestedJunior ? "border-border" : "border-white/10",
                               depth === 1 ? "size-8" : "size-9",
                             )}
                           >
@@ -2004,14 +2100,16 @@ function MembersList() {
                           </Avatar>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-semibold text-[14px] text-[#EEF2F0] truncate">
+                              <p
+                                className={cn(
+                                  "font-semibold text-[14px] truncate",
+                                  isNestedJunior ? "text-foreground" : "text-[#EEF2F0]",
+                                )}
+                              >
                                 {m.firstName} {m.lastName}
                               </p>
                               {depth === 1 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[9px] px-1.5 py-0 border-[#F59E0B]/35 text-[#FBBF24]"
-                                >
+                                <Badge variant="outline" className={nestedJuniorSubBadge}>
                                   Sub-member
                                 </Badge>
                               )}
@@ -2024,7 +2122,14 @@ function MembersList() {
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-[11px] text-[#6B7F78] truncate">{m.email}</p>
+                            <p
+                              className={cn(
+                                "text-[11px] truncate",
+                                isNestedJunior ? "text-muted-foreground" : "text-[#6B7F78]",
+                              )}
+                            >
+                              {m.email}
+                            </p>
                           </div>
                         </div>
                       </TableCell>
@@ -2035,7 +2140,12 @@ function MembersList() {
                           {m.membership && (
                             <Badge
                               variant="outline"
-                              className="text-[9px] px-1.5 py-0 border-[#2DD4BF]/30 text-[#5EEAD4]"
+                              className={cn(
+                                "text-[9px] px-1.5 py-0",
+                                isNestedJunior
+                                  ? "border-teal-500/30 text-teal-800 dark:border-[#2DD4BF]/30 dark:text-[#5EEAD4]"
+                                  : "border-[#2DD4BF]/30 text-[#5EEAD4]",
+                              )}
                             >
                               M
                             </Badge>
@@ -2043,7 +2153,12 @@ function MembersList() {
                           {m.trainingEligible && (
                             <Badge
                               variant="outline"
-                              className="text-[9px] px-1.5 py-0 border-white/15 text-[#8FA89F]"
+                              className={cn(
+                                "text-[9px] px-1.5 py-0",
+                                isNestedJunior
+                                  ? "border-border text-muted-foreground"
+                                  : "border-white/15 text-[#8FA89F]",
+                              )}
                             >
                               T
                             </Badge>
@@ -2051,13 +2166,25 @@ function MembersList() {
                           {m.playEligible && (
                             <Badge
                               variant="outline"
-                              className="text-[9px] px-1.5 py-0 border-[#3B82F6]/30 text-[#93C5FD]"
+                              className={cn(
+                                "text-[9px] px-1.5 py-0",
+                                isNestedJunior
+                                  ? "border-blue-500/30 text-blue-800 dark:border-[#3B82F6]/30 dark:text-[#93C5FD]"
+                                  : "border-[#3B82F6]/30 text-[#93C5FD]",
+                              )}
                             >
                               P
                             </Badge>
                           )}
                           {!m.membership && !m.trainingEligible && !m.playEligible && (
-                            <span className="text-[#6B7F78] text-xs">—</span>
+                            <span
+                              className={cn(
+                                "text-xs",
+                                isNestedJunior ? "text-muted-foreground" : "text-[#6B7F78]",
+                              )}
+                            >
+                              —
+                            </span>
                           )}
                         </div>
                       </TableCell>
@@ -2073,7 +2200,11 @@ function MembersList() {
                         }
                       >
                         {isJunior ? (
-                          <span className="text-[#6B7F78]">—</span>
+                          <span
+                            className={isNestedJunior ? "text-muted-foreground" : "text-[#6B7F78]"}
+                          >
+                            —
+                          </span>
                         ) : (
                           fmtMoney(m.credit)
                         )}

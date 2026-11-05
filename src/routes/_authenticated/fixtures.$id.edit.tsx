@@ -48,6 +48,7 @@ const DEFAULT_GRADES = [
 function normalizeStatus(status?: string): FixtureStatus {
   if (status === "Opened" || status === "Created") return "Created";
   if (status === "In Progress" || status === "Scheduled") return "Scheduled";
+  if (status === "Confirmed") return "Confirmed";
   if (status === "Closed" || status === "Completed") return "Completed";
   return "Created";
 }
@@ -765,6 +766,7 @@ function EditFixturePage() {
                 <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
                   <SelectItem value="Created">Created</SelectItem>
                   <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  <SelectItem value="Confirmed">Confirmed</SelectItem>
                   <SelectItem value="Completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
