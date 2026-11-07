@@ -147,6 +147,34 @@ function TrainingPage() {
     : monthDate.toLocaleString("en-US", { month: "long", year: "numeric" });
   const monthTitle = `Month ${monthIdx + 1} (${monthName})`;
 
+  const requestCloseTraining = () => {
+    setActionRequest({
+      title: "Close training program?",
+      description: (
+        <>
+          <span className="block">
+            Close <strong className="text-[#F1F0EE]">“{t.name}”</strong> ({monthTitle})?
+          </span>
+          <span className="block text-[#8A8A98]">
+            All sessions in this monthly program will be marked closed and hidden from the default
+            trainings list. Pending / In Progress / Completed badges still follow session dates.
+          </span>
+        </>
+      ),
+      confirmLabel: "Close program",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await s.closeTraining(t.id);
+          toast.success("Training program closed");
+        } catch (error: unknown) {
+          toast.error(error instanceof Error ? error.message : "Failed to close training program.");
+          throw error;
+        }
+      },
+    });
+  };
+
   const sessionFee = t.fees / repeatWeeks;
   const targetType = t.targetType || "junior";
 
@@ -719,13 +747,22 @@ function TrainingPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={resolveTrainingDisplayStatus(t.status, sessionPhase)} />
             {t.status !== "closed" && t.status !== "cancelled" && user.role === "admin" && (
-              <Button
-                variant="outline"
-                className="bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/30 hover:bg-[#EF4444]/20 hover:text-white h-9 px-4 text-xs font-semibold cursor-pointer w-full sm:w-auto"
-                onClick={() => setCancelDialogOpen(true)}
-              >
-                Cancel Training
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  className="btn-premium-outline h-9 px-4 text-xs cursor-pointer w-full sm:w-auto"
+                  onClick={requestCloseTraining}
+                >
+                  Close Program
+                </Button>
+                <Button
+                  variant="outline"
+                  className="bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/30 hover:bg-[#EF4444]/20 hover:text-white h-9 px-4 text-xs font-semibold cursor-pointer w-full sm:w-auto"
+                  onClick={() => setCancelDialogOpen(true)}
+                >
+                  Cancel Training
+                </Button>
+              </>
             )}
           </div>
         }

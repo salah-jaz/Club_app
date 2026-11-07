@@ -391,7 +391,14 @@ class TrainingController extends Controller
         } elseif (empty($tr->location)) {
             $data['location'] = $locationVal;
         }
-        if ($request->has('status') && !empty($request->status)) $data['status'] = $request->status;
+        if ($request->has('status') && !empty($request->status)) {
+            if ($request->status === 'closed') {
+                return response()->json([
+                    'message' => 'Use POST /trainings/{id}/close to close a training program.',
+                ], 422);
+            }
+            $data['status'] = $request->status;
+        }
         if ($request->has('targetType')) {
             $data['target_type'] = $targetTypeVal;
         }
@@ -2108,6 +2115,51 @@ class TrainingController extends Controller
         ]);
     }
 
+    /**
+     * Training workflow status is closed only via admin POST /trainings/{id}/close — no automatic closure.
+     */
+    public function close($id)
+    {
+        if ($response = PermissionHelper::denyAdminUnless(request(), 'trainings.edit')) {
+            return $response;
+        }
+
+        $t = Training::findOrFail($id);
+        if ($t->status === 'cancelled') {
+            return response()->json(['message' => 'Cannot close a cancelled training program.'], 422);
+        }
+
+        $parentId = $t->parent_id ?: $t->id;
+        $series = Training::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->get();
+
+        $tYearMonth = \Carbon\Carbon::parse($t->start_date)->format('Y-m');
+        $monthSessions = $series->filter(function ($sItem) use ($tYearMonth) {
+            return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $tYearMonth;
+        });
+
+        $idsToClose = $monthSessions
+            ->filter(fn ($s) => !in_array($s->status, ['closed', 'cancelled'], true))
+            ->pluck('id')
+            ->all();
+
+        if (empty($idsToClose)) {
+            return response()->json([
+                'message' => 'Training program is already closed.',
+                'training' => $this->formatTraining($t->fresh()),
+            ]);
+        }
+
+        Training::whereIn('id', $idsToClose)->update(['status' => 'closed']);
+        $t->refresh();
+
+        return response()->json([
+            'message' => 'Training program closed successfully.',
+            'training' => $this->formatTraining($t),
+        ]);
+    }
+
     private function refundTrainingSessions(array $sessionIds, bool $isDeletion = false): void
     {
         if ($isDeletion) {
@@ -2350,71 +2402,4 @@ class TrainingController extends Controller
             ->count();
     }
 
-    public static function processAutoClose()
-    {
-        $now = SessionTimingHelper::now();
-
-        // 1. Get all active sessions to identify which monthly groups need checking
-        $activeSessions = Training::whereNotIn('status', ['closed', 'cancelled'])->get();
-        if ($activeSessions->isEmpty()) {
-            return;
-        }
-
-        $parentIds = [];
-        $activeGroups = []; // "parent_id_YYYY-MM" => true
-
-        foreach ($activeSessions as $session) {
-            $pId = $session->parent_id ?: $session->id;
-            $parentIds[$pId] = true;
-            $ym = \Carbon\Carbon::parse($session->start_date)->format('Y-m');
-            $activeGroups["{$pId}_{$ym}"] = true;
-        }
-
-        $parentIds = array_keys($parentIds);
-
-        // 2. Fetch all sessions for these parent_ids so we know the true final schedule of each month
-        $allSeriesSessions = Training::whereIn('parent_id', $parentIds)
-            ->orWhereIn('id', $parentIds)
-            ->get();
-
-        $groupedByMonth = [];
-        foreach ($allSeriesSessions as $s) {
-            $pId = $s->parent_id ?: $s->id;
-            $ym = \Carbon\Carbon::parse($s->start_date)->format('Y-m');
-            $key = "{$pId}_{$ym}";
-            
-            // Only care about this month group if it has active sessions
-            if (isset($activeGroups[$key])) {
-                if (!isset($groupedByMonth[$key])) {
-                    $groupedByMonth[$key] = [];
-                }
-                $groupedByMonth[$key][] = $s;
-            }
-        }
-
-        // 3. Evaluate each active monthly group
-        $idsToClose = [];
-        foreach ($groupedByMonth as $key => $monthSessions) {
-            $lastEnd = null;
-            foreach ($monthSessions as $s) {
-                $end = SessionTimingHelper::trainingSessionEnd($s);
-                if ($lastEnd === null || $end->gt($lastEnd)) {
-                    $lastEnd = $end;
-                }
-            }
-
-            // If the final session for this month has ended, mark all active sessions in this month as closed
-            if ($lastEnd && $now->greaterThanOrEqualTo($lastEnd)) {
-                foreach ($monthSessions as $s) {
-                    if (!in_array($s->status, ['closed', 'cancelled'])) {
-                        $idsToClose[] = $s->id;
-                    }
-                }
-            }
-        }
-
-        if (!empty($idsToClose)) {
-            Training::whereIn('id', $idsToClose)->update(['status' => 'closed']);
-        }
-    }
 }

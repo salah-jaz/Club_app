@@ -1526,12 +1526,12 @@ function SchedulePage() {
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-6 px-1.5 text-[11px] font-medium text-[#2DD4BF] hover:text-[#2DD4BF] hover:bg-[#2DD4BF]/10 cursor-pointer border border-[#2DD4BF]/20 rounded"
+                          className="h-6 w-6 p-0 text-[#2DD4BF] hover:text-[#2DD4BF] hover:bg-[#2DD4BF]/10 cursor-pointer border border-[#2DD4BF]/20 rounded"
                           onClick={() => handleOpenReplace(i.memberId)}
-                          title={`Replace ${memberName(i.memberId)}`}
+                          title="Replace Player"
+                          aria-label="Replace Player"
                         >
-                          <ArrowLeftRight className="size-3 mr-1" />
-                          Replace
+                          <ArrowLeftRight className="size-3.5" aria-hidden="true" />
                         </Button>
                       )}
                     </div>

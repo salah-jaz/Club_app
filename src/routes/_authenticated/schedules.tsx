@@ -139,18 +139,6 @@ function SchedulesList() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const report = useReportDialog();
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const visibleIds = processed
-        .filter((sch) => isScheduleDeletable(sch, s.playInvites))
-        .map((sch) => sch.id);
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
-    } else {
-      const visibleSet = new Set(processed.map((sch) => sch.id));
-      setSelectedIds((prev) => prev.filter((id) => !visibleSet.has(id)));
-    }
-  };
-
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
@@ -376,6 +364,25 @@ function SchedulesList() {
     }
   });
 
+  const selectableSchedules = processed.filter((sch) =>
+    isScheduleDeletable(sch, s.playInvites),
+  );
+
+  const allSelectableSelected =
+    selectableSchedules.length > 0 &&
+    selectableSchedules.every((sch) => selectedIds.includes(sch.id));
+  const someSelectableSelected = selectableSchedules.some((sch) => selectedIds.includes(sch.id));
+
+  const handleSelectAll = () => {
+    const selectableIds = selectableSchedules.map((sch) => sch.id);
+    if (allSelectableSelected) {
+      const drop = new Set(selectableIds);
+      setSelectedIds((prev) => prev.filter((id) => !drop.has(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...selectableIds])));
+    }
+  };
+
   const scheduleLocationOptions = useMemo(
     () => [
       { value: "all", label: "All locations" },
@@ -549,13 +556,13 @@ function SchedulesList() {
               <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium text-[#EEF2F0] hover:text-white transition-colors">
                 <Checkbox
                   checked={
-                    processed.length > 0 && processed.every((sch) => selectedIds.includes(sch.id))
+                    allSelectableSelected
                       ? true
-                      : processed.some((sch) => selectedIds.includes(sch.id))
+                      : someSelectableSelected
                         ? "indeterminate"
                         : false
                   }
-                  onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                  onCheckedChange={handleSelectAll}
                 />
                 <span>Select All</span>
               </label>
