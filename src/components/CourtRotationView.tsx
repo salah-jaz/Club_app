@@ -467,11 +467,10 @@ export function CourtRotationView({
     const next = cloneRounds(draftRounds).map(normalizeRoundPlayers);
     const court = next[roundIdx]?.courts.find((c) => c.courtNo === courtNo);
     if (!court) return;
-    const trimmed = name.trim();
-    if (trimmed) {
-      court.courtName = trimmed;
-    } else {
+    if (name.length === 0) {
       delete court.courtName;
+    } else {
+      court.courtName = name;
     }
     onDraftRoundsChange(next);
   };

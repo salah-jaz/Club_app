@@ -179,9 +179,9 @@ class PlayScheduleOverdueClosureTest extends TestCase
     }
 
     /**
-     * Test 3: Nobody accepts and the start time passes -> schedule automatically closes without rotation.
+     * Test 3: Nobody accepts and the start time passes -> status stays released (no automatic close).
      */
-    public function test_3_nobody_accepts_and_start_time_passes_schedule_automatically_closes(): void
+    public function test_3_nobody_accepts_and_start_time_passes_schedule_stays_released(): void
     {
         $schedule = PlaySchedule::create([
             'id' => 'sch_nobody_test',
@@ -211,7 +211,7 @@ class PlayScheduleOverdueClosureTest extends TestCase
         PlayScheduleController::processAutoPublishAndRotation();
 
         $schedule->refresh();
-        $this->assertEquals('closed', $schedule->status);
+        $this->assertEquals('released', $schedule->status);
         $this->assertNull(Rotation::where('schedule_id', $schedule->id)->first());
     }
 
@@ -252,11 +252,10 @@ class PlayScheduleOverdueClosureTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJson([
-            'message' => 'This session is closed. Accept and decline are no longer available.',
+            'message' => 'This session has started. Accept and decline are no longer available.',
         ]);
 
-        // Verify schedule is closed
-        $this->assertEquals('closed', $schedule->fresh()->status);
+        $this->assertEquals('released', $schedule->fresh()->status);
         // Verify invitation remained open (not accepted)
         $this->assertEquals('open', $invite->fresh()->status);
         // Verify no wallet debit occurred
@@ -358,23 +357,21 @@ class PlayScheduleOverdueClosureTest extends TestCase
         // Advance time past match start: 2026-10-17 21:00:00
         Carbon::setTestNow(Carbon::parse('2026-10-17 21:00:00', 'Asia/Kolkata'));
 
-        // Admin schedules list automatically updates and reflects closed status
         $adminRes = $this->actingAs($this->admin)->getJson('/api/schedules');
         $adminRes->assertStatus(200);
         $adminSchedules = collect($adminRes->json());
         $foundAdmin = $adminSchedules->firstWhere('id', $schedule->id);
         $this->assertNotNull($foundAdmin);
-        $this->assertEquals('closed', $foundAdmin['status']);
+        $this->assertEquals('released', $foundAdmin['status']);
 
-        // Member schedules list also reflects closed status
         $memberRes = $this->actingAs($this->memberUser)->getJson('/api/schedules');
         $memberRes->assertStatus(200);
         $memberSchedules = collect($memberRes->json());
         $foundMember = $memberSchedules->firstWhere('id', $schedule->id);
         $this->assertNotNull($foundMember);
-        $this->assertEquals('closed', $foundMember['status']);
+        $this->assertEquals('released', $foundMember['status']);
 
-        // Upcoming dashboard sessions excludes closed past sessions
+        // Upcoming dashboard sessions excludes past sessions (by date/phase, not auto-close)
         $upcomingRes = $this->actingAs($this->memberUser)->getJson('/api/schedules/upcoming-play-sessions');
         $upcomingRes->assertStatus(200);
         $upcomingSchedules = collect($upcomingRes->json());
@@ -414,5 +411,52 @@ class PlayScheduleOverdueClosureTest extends TestCase
         // Status remains published (preserving completed rotation workflow)
         $this->assertEquals('published', $schedule->fresh()->status);
         $this->assertNotNull(Rotation::where('schedule_id', $schedule->id)->first());
+    }
+
+    /**
+     * Test 8: Only admin manual close changes status to closed (released and published).
+     */
+    public function test_8_only_admin_manual_close_sets_closed_status(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-17 21:00:00', 'Asia/Kolkata'));
+
+        $released = PlaySchedule::create([
+            'id' => 'sch_manual_close_released',
+            'name' => 'Manual Close Released',
+            'date' => '2026-10-17 19:30:00',
+            'courts' => 2,
+            'players' => 8,
+            'slot_hours' => 2,
+            'slot_duration' => '2 Hours',
+            'session_rate' => 10,
+            'hall_rate' => 50,
+            'location' => 'Court 1',
+            'status' => 'released',
+        ]);
+
+        $published = PlaySchedule::create([
+            'id' => 'sch_manual_close_published',
+            'name' => 'Manual Close Published',
+            'date' => '2026-10-17 19:30:00',
+            'courts' => 2,
+            'players' => 8,
+            'slot_hours' => 2,
+            'slot_duration' => '2 Hours',
+            'session_rate' => 10,
+            'hall_rate' => 50,
+            'location' => 'Court 1',
+            'status' => 'published',
+        ]);
+
+        PlayScheduleController::processOverdueClosure();
+        PlayScheduleController::processAutoPublishAndRotation();
+        $this->assertEquals('released', $released->fresh()->status);
+        $this->assertEquals('published', $published->fresh()->status);
+
+        $this->actingAs($this->admin)->postJson("/api/schedules/{$released->id}/close")->assertStatus(200);
+        $this->actingAs($this->admin)->postJson("/api/schedules/{$published->id}/close")->assertStatus(200);
+
+        $this->assertEquals('closed', $released->fresh()->status);
+        $this->assertEquals('closed', $published->fresh()->status);
     }
 }

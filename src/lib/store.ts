@@ -211,6 +211,7 @@ interface State {
   updateTraining: (id: string, patch: Partial<Training>) => Promise<void>;
   releaseTraining: (id: string, memberIds?: string[]) => Promise<{ message?: string }>;
   cancelTraining: (id: string, reason: string) => Promise<void>;
+  closeTraining: (id: string) => Promise<void>;
   deleteTraining: (id: string) => Promise<void>;
   enrollTraining: (trainingId: string, memberIds: string[]) => Promise<void>;
   registerTrainingJunior: (
@@ -1192,6 +1193,11 @@ export const useStore = create<State>((set, get) => ({
 
   cancelTraining: async (id, reason) => {
     await api.post<{ training: Training }>(`/trainings/${id}/cancel`, { reason });
+    await get().syncData();
+  },
+
+  closeTraining: async (id) => {
+    await api.post<{ training: Training }>(`/trainings/${id}/close`);
     await get().syncData();
   },
 

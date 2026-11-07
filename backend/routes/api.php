@@ -112,6 +112,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/trainings/{id}/process-overpayment-refund', [TrainingController::class, 'processOverpaymentRefund']);
     Route::post('/trainings/{id}/enroll', [TrainingController::class, 'enroll']);
     Route::post('/trainings/{id}/cancel', [TrainingController::class, 'cancel']);
+    Route::post('/trainings/{id}/close', [TrainingController::class, 'close']);
     
     // Training Invitations & Dates
     Route::get('/training-invitations', [TrainingController::class, 'listInvitations']);

@@ -231,15 +231,25 @@ function TrainingsList() {
     });
   }, [allMonthCards, searchTerm, statusFilter, sortBy]);
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const visibleIds = filteredCards
-        .filter((card) => isTrainingCardDeletable(card))
-        .map((card) => card.id);
-      setSelectedCardIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+  const selectableCards = useMemo(
+    () => filteredCards.filter((card) => isTrainingCardDeletable(card)),
+    [filteredCards],
+  );
+
+  const allSelectableSelected =
+    selectableCards.length > 0 &&
+    selectableCards.every((card) => selectedCardIds.includes(card.id));
+  const someSelectableSelected = selectableCards.some((card) =>
+    selectedCardIds.includes(card.id),
+  );
+
+  const handleSelectAll = () => {
+    const selectableIds = selectableCards.map((card) => card.id);
+    if (allSelectableSelected) {
+      const drop = new Set(selectableIds);
+      setSelectedCardIds((prev) => prev.filter((id) => !drop.has(id)));
     } else {
-      const visibleSet = new Set(filteredCards.map((card) => card.id));
-      setSelectedCardIds((prev) => prev.filter((id) => !visibleSet.has(id)));
+      setSelectedCardIds((prev) => Array.from(new Set([...prev, ...selectableIds])));
     }
   };
 
@@ -500,14 +510,13 @@ function TrainingsList() {
               <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium text-[#EEF2F0] hover:text-white transition-colors">
                 <Checkbox
                   checked={
-                    filteredCards.length > 0 &&
-                    filteredCards.every((card) => selectedCardIds.includes(card.id))
+                    allSelectableSelected
                       ? true
-                      : filteredCards.some((card) => selectedCardIds.includes(card.id))
+                      : someSelectableSelected
                         ? "indeterminate"
                         : false
                   }
-                  onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                  onCheckedChange={handleSelectAll}
                 />
                 <span>Select All</span>
               </label>
