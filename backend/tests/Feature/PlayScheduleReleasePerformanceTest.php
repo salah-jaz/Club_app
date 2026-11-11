@@ -47,6 +47,7 @@ class PlayScheduleReleasePerformanceTest extends TestCase
             'address' => '123 Admin St',
             'password' => bcrypt('password'),
             'role' => 'admin',
+            'is_super_admin' => true,
             'status' => 'active',
         ]);
 
@@ -308,7 +309,8 @@ class PlayScheduleReleasePerformanceTest extends TestCase
 
         // Second release
         $res2 = $this->actingAs($this->adminUser)->postJson("/api/schedules/{$schedule->id}/release");
-        $res2->assertStatus(200);
+        // Re-release is rejected (only open schedules can be released).
+        $res2->assertStatus(422);
 
         $secondCount = PlayInvitation::where('schedule_id', $schedule->id)->count();
 

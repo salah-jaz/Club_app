@@ -17,11 +17,12 @@ use App\Http\Controllers\Api\PolicyController;
 use Illuminate\Support\Facades\Route;
 
 // Public auth routes
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('/verify-reset-otp', [AuthController::class, 'verifyResetOtp']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+// Each route gets its own throttle bucket (third parameter = prefix) so they don't share a counter.
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1,auth-login');
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1,auth-register');
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1,auth-forgot');
+Route::post('/verify-reset-otp', [AuthController::class, 'verifyResetOtp'])->middleware('throttle:5,1,auth-verify-otp');
+Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1,auth-reset');
 Route::get('/settings', [SettingController::class, 'index']);
 
 // Public policy access routes (preview & download enforce appropriate member/public rules)
@@ -32,7 +33,7 @@ Route::get('/policies/{type}/download', [PolicyController::class, 'download']);
 Route::get('/policies/{type}/external', [PolicyController::class, 'external']);
 
 // Authenticated API routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
     Route::get('/sync-data', [SyncController::class, 'index']);
     // Session / Info
     Route::post('/logout', [AuthController::class, 'logout']);

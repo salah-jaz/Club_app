@@ -107,9 +107,26 @@ export const api = {
   getBaseUrl,
   getPolicyUrl: (type: string, action: "preview" | "download" | "external") => {
     const base = getBaseUrl();
+    return `${base}/policies/${type}/${action}`;
+  },
+  /**
+   * Fetch a policy PDF with the Authorization header and return an object URL.
+   * Avoids putting Sanctum tokens in query strings.
+   */
+  fetchPolicyBlobUrl: async (type: string, action: "preview" | "download" = "preview") => {
     const token = typeof window !== "undefined" ? localStorage.getItem("clubapp_token") : null;
-    const url = `${base}/policies/${type}/${action}`;
-    return token ? `${url}?token=${encodeURIComponent(token)}` : url;
+    const url = `${getBaseUrl()}/policies/${type}/${action}`;
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/pdf",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!response.ok) {
+      throw new Error(response.status === 401 ? "Unauthorized" : "Failed to load policy document");
+    }
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
   },
 };
 

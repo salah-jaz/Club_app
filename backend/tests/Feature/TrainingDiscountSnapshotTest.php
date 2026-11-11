@@ -48,6 +48,7 @@ class TrainingDiscountSnapshotTest extends TestCase
                 'address' => 'Test Address',
                 'password' => bcrypt('password'),
                 'role' => 'admin',
+                'is_super_admin' => true,
                 'status' => 'active',
             ]
         );
@@ -205,7 +206,7 @@ class TrainingDiscountSnapshotTest extends TestCase
 
         // 4. Member B accepts invitation for P1 -> Wallet is debited $25.00 (NOT $22.50)
         $creditBefore = $this->regularMember->fresh()->credit;
-        $respondRes = $this->actingAs($this->memberUser)->postJson("/api/training-invitations/{$invBAfter->id}/respond", [
+        $respondRes = $this->actingAs(User::find($this->regularMember->user_id))->postJson("/api/training-invitations/{$invBAfter->id}/respond", [
             'status' => 'accepted',
         ]);
         $respondRes->assertStatus(200);
@@ -254,7 +255,7 @@ class TrainingDiscountSnapshotTest extends TestCase
 
         // 4. Member B accepts invitation for P2 -> Wallet is debited $22.50
         $creditBefore = $this->regularMember->fresh()->credit;
-        $respondRes = $this->actingAs($this->memberUser)->postJson("/api/training-invitations/{$invBP2->id}/respond", [
+        $respondRes = $this->actingAs(User::find($this->regularMember->user_id))->postJson("/api/training-invitations/{$invBP2->id}/respond", [
             'status' => 'accepted',
         ]);
         $respondRes->assertStatus(200);

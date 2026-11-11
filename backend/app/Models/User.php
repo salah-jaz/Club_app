@@ -32,6 +32,7 @@ class User extends Authenticatable
         'is_super_admin',
         'created_by',
         'status',
+        'privacy_accepted_at',
     ];
 
     protected $hidden = [
@@ -45,6 +46,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_super_admin' => 'boolean',
+            'privacy_accepted_at' => 'datetime',
         ];
     }
 
@@ -65,8 +67,13 @@ class User extends Authenticatable
             return [];
         }
 
-        if ($this->is_super_admin || !$this->admin_role_id) {
+        if ($this->is_super_admin) {
             return Permission::pluck('id')->all();
+        }
+
+        // Fail closed: admins without a role get no permissions (kept in sync with PermissionHelper).
+        if (!$this->admin_role_id) {
+            return [];
         }
 
         $role = $this->relationLoaded('adminRole') ? $this->adminRole : $this->adminRole()->first();

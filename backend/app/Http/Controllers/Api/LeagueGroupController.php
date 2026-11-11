@@ -6,8 +6,11 @@ use App\Helpers\PermissionHelper;
 use App\Helpers\WalletHelper;
 use App\Http\Controllers\Controller;
 use App\Models\LeagueGroup;
+use App\Models\PlaySchedule;
+use App\Models\Training;
 use App\Models\Member;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class LeagueGroupController extends Controller
@@ -15,11 +18,6 @@ class LeagueGroupController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-
-        // Enforce cleanup of any non-club members from group memberships
-        \Illuminate\Support\Facades\DB::table('league_group_member')
-            ->whereIn('member_id', Member::where('membership', false)->pluck('id'))
-            ->delete();
 
         $groups = LeagueGroup::with(['members.parentMember'])->orderBy('name')->get();
 
@@ -39,7 +37,41 @@ class LeagueGroupController extends Controller
             })->values();
         }
 
-        return response()->json($groups->map(fn ($g) => $this->formatGroup($g)));
+        $isAdmin = $user->role === 'admin';
+
+        return response()->json($groups->map(fn ($g) => $this->formatGroup($g, $isAdmin)));
+    }
+
+    /**
+     * Remove non-club members from every group membership.
+     * Runs only from admin write operations (never from a GET).
+     */
+    private function purgeNonClubMemberships(): void
+    {
+        DB::table('league_group_member')
+            ->whereIn('member_id', Member::where('membership', false)->pluck('id'))
+            ->delete();
+    }
+
+    /**
+     * Strip a deleted group id from the league_group_ids JSON arrays of schedules and trainings.
+     */
+    private function stripGroupFromSchedules(string $groupId): void
+    {
+        foreach ([PlaySchedule::class, Training::class] as $modelClass) {
+            $modelClass::whereNotNull('league_group_ids')->get()->each(function ($model) use ($groupId) {
+                $ids = $model->league_group_ids;
+                if (is_string($ids)) {
+                    $ids = json_decode($ids, true) ?? [];
+                }
+                if (!is_array($ids) || !in_array($groupId, $ids, true)) {
+                    return;
+                }
+
+                $model->league_group_ids = array_values(array_filter($ids, fn ($gid) => $gid !== $groupId));
+                $model->save();
+            });
+        }
     }
 
     public function store(Request $request)
@@ -88,7 +120,9 @@ class LeagueGroupController extends Controller
             $group->members()->sync($syncData);
         }
 
-        return response()->json($this->formatGroup($group->load(['members.parentMember'])), 201);
+        $this->purgeNonClubMemberships();
+
+        return response()->json($this->formatGroup($group->load(['members.parentMember']), true), 201);
     }
 
     public function update(Request $request, $id)
@@ -152,7 +186,9 @@ class LeagueGroupController extends Controller
             $group->members()->sync($syncData);
         }
 
-        return response()->json($this->formatGroup($group->load(['members.parentMember'])));
+        $this->purgeNonClubMemberships();
+
+        return response()->json($this->formatGroup($group->load(['members.parentMember']), true));
     }
 
     public function destroy(Request $request, $id)
@@ -165,8 +201,13 @@ class LeagueGroupController extends Controller
             return response()->json(['message' => 'Only admins can delete groups.'], 403);
         }
 
-        $group = LeagueGroup::findOrFail($id);
-        $group->delete();
+        DB::transaction(function () use ($id) {
+            $group = LeagueGroup::findOrFail($id);
+            $this->stripGroupFromSchedules((string) $group->id);
+            $group->delete();
+        });
+
+        $this->purgeNonClubMemberships();
 
         return response()->json(['message' => 'Group deleted successfully.']);
     }
@@ -187,7 +228,7 @@ class LeagueGroupController extends Controller
         return $data;
     }
 
-    private function formatGroup($g): array
+    private function formatGroup($g, bool $includeWallet = false): array
     {
         $memberIds       = [];
         $memberPositions = [];
@@ -196,15 +237,19 @@ class LeagueGroupController extends Controller
         foreach ($g->members as $member) {
             $memberIds[]                  = $member->id;
             $memberPositions[$member->id] = $member->pivot->position ?? null;
-            $walletMember                 = WalletHelper::resolveMember($member);
-            $members[] = [
+            $entry = [
                 'id'            => $member->id,
                 'firstName'     => $member->first_name,
                 'lastName'      => $member->last_name,
                 'grade'         => $member->grade,
                 'position'      => $member->pivot->position ?? null,
-                'walletBalance' => (float) ($walletMember->credit ?? 0.0),
             ];
+            // Wallet balances are financial data: admins only.
+            if ($includeWallet) {
+                $walletMember          = WalletHelper::resolveMember($member);
+                $entry['walletBalance'] = (float) ($walletMember->credit ?? 0.0);
+            }
+            $members[] = $entry;
         }
 
         return [

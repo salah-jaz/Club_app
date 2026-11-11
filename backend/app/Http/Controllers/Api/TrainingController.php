@@ -13,6 +13,7 @@ use App\Models\Setting;
 use App\Models\Transaction;
 use App\Helpers\MailHelper;
 use App\Helpers\PermissionHelper;
+use App\Helpers\FamilyScopeHelper;
 use App\Helpers\FeeHelper;
 use App\Helpers\SessionTimingHelper;
 use App\Helpers\WalletHelper;
@@ -32,12 +33,7 @@ class TrainingController extends Controller
             return [];
         }
 
-        return Member::where('user_id', $user->id)
-            ->orWhereIn('parent_member_id', function ($query) use ($user) {
-                $query->select('id')->from('members')->where('user_id', $user->id);
-            })
-            ->pluck('id')
-            ->all();
+        return FamilyScopeHelper::familyMemberIds($user);
     }
 
     public function index(?Request $request = null)
@@ -86,7 +82,7 @@ class TrainingController extends Controller
 
     public function store(Request $request)
     {
-        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.create')) {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.create')) {
             return $response;
         }
 
@@ -225,7 +221,7 @@ class TrainingController extends Controller
 
     public function update(Request $request, $id)
     {
-        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.edit')) {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit')) {
             return $response;
         }
 
@@ -397,6 +393,11 @@ class TrainingController extends Controller
                     'message' => 'Use POST /trainings/{id}/close to close a training program.',
                 ], 422);
             }
+            if ($request->status === 'cancelled') {
+                return response()->json([
+                    'message' => 'Use POST /trainings/{id}/cancel to cancel a training program.',
+                ], 422);
+            }
             $data['status'] = $request->status;
         }
         if ($request->has('targetType')) {
@@ -467,7 +468,7 @@ class TrainingController extends Controller
 
     public function release(Request $request, $id)
     {
-        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.edit')) {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit')) {
             return $response;
         }
 
@@ -525,6 +526,10 @@ class TrainingController extends Controller
 
     public function updateMemberInvitation(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'memberId' => 'required|string',
             'sessionIds' => 'present|array',
@@ -775,6 +780,14 @@ class TrainingController extends Controller
             'memberIds.*' => 'required|string',
         ]);
 
+        $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
+
+        // Admins enrolling on behalf of members need the training edit permission.
+        if ($isAdmin && ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit'))) {
+            return $response;
+        }
+
         $tr = Training::findOrFail($id);
 
         $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
@@ -793,21 +806,32 @@ class TrainingController extends Controller
             $tr->save();
         }
 
-        $memberIds = $request->memberIds;
-        $userId = $request->user()->id;
+        $memberIds = array_values(array_unique($request->memberIds));
         $targetType = $tr->target_type ?? 'junior';
 
-        $familyMemberIds = Member::query()
-            ->where('user_id', $userId)
-            ->where('member_type', $targetType)
-            ->where('status', 'active')
-            ->whereIn('id', $memberIds)
-            ->pluck('id')
-            ->all();
+        if ($isAdmin) {
+            // Admin enroll: any active, training-eligible member matching the program target type.
+            $allowedMemberIds = Member::eligibleForTraining($targetType)
+                ->whereIn('id', $memberIds)
+                ->pluck('id')
+                ->all();
+            $notAllowedMessage = "One or more selected members are not active, eligible {$targetType} members.";
+        } else {
+            // Members: own family members only.
+            $familyIds = FamilyScopeHelper::familyMemberIds($user);
+            $allowedMemberIds = Member::query()
+                ->whereIn('id', $familyIds)
+                ->where('member_type', $targetType)
+                ->where('status', 'active')
+                ->whereIn('id', $memberIds)
+                ->pluck('id')
+                ->all();
+            $notAllowedMessage = "You can only enroll your own active {$targetType} family members.";
+        }
 
-        if (count($familyMemberIds) !== count($memberIds)) {
+        if (count($allowedMemberIds) !== count($memberIds)) {
             return response()->json([
-                'message' => "You can only enroll your own active {$targetType} family members.",
+                'message' => $notAllowedMessage,
             ], 422);
         }
 
@@ -820,97 +844,75 @@ class TrainingController extends Controller
 
         if (count($newMemberIds) === 0) {
             return response()->json([
-                'message' => 'Selected family members are already enrolled in this program.',
+                'message' => $isAdmin
+                    ? 'Selected members are already enrolled in this program.'
+                    : 'Selected family members are already enrolled in this program.',
             ], 422);
         }
 
-        // Validate wallet balance for all new members before enrolling
-        $repeatWeeks = (int)($tr->repeat_weeks ?? 0);
-        if ($repeatWeeks <= 0) {
-            return response()->json([
-                'message' => 'Invalid or missing Repeat for Weeks configured for this training program.',
-            ], 422);
-        }
-        if ($tr->fees === null || (float)$tr->fees < 0) {
-            return response()->json([
-                'message' => 'Invalid monthly fee configured for this training program.',
-            ], 422);
-        }
-        $basePerWeekFee = (float) $tr->fees / $repeatWeeks;
+        // Validate configuration and wallet balance for all new members (pre-check only - NO debit here).
+        // The single debit happens in processTrainingAcceptance via createInvitationsForMembers().
+        // FIN-06: same formula as processTrainingAcceptance (monthly fee discounted, divided by repeat weeks).
         foreach ($newMemberIds as $mid) {
             $member = Member::find($mid);
-            if ($member) {
-                $existingInv = TrainingInvitation::where('training_id', $tr->id)->where('member_id', $mid)->first();
-                $appDisc = $existingInv && $existingInv->apply_discount !== null ? (bool)$existingInv->apply_discount : (bool)$member->apply_discount;
-                $feeToDeduct = $existingInv && $existingInv->calculated_per_session_fee !== null ? (float)$existingInv->calculated_per_session_fee : FeeHelper::forMember($basePerWeekFee, $member, $appDisc);
-                $walletMember = $this->getWalletMember($member, $feeToDeduct);
-                if (!$walletMember->skip_credit_consumption && $feeToDeduct > 0) {
-                    if ($walletMember->credit < $feeToDeduct) {
-                        return response()->json([
-                            'message' => 'Insufficient wallet balance. Please add funds before accepting this training invitation.',
-                        ], 422);
-                    }
+            if (!$member) {
+                continue;
+            }
+
+            $computed = $this->computeAcceptanceFee($tr, $member, null);
+            if (is_string($computed)) {
+                return response()->json(['message' => $computed], 422);
+            }
+            $feeToDeduct = $computed['fee'];
+
+            $walletMember = $this->getWalletMember($member, $feeToDeduct);
+            if (!$walletMember->skip_credit_consumption && $feeToDeduct > 0) {
+                if ($walletMember->credit < $feeToDeduct) {
+                    return response()->json([
+                        'message' => 'Insufficient wallet balance. Please add funds before accepting this training invitation.',
+                    ], 422);
                 }
             }
         }
 
-        return DB::transaction(function () use ($tr, $newMemberIds, $basePerWeekFee) {
-            $freshTr = Training::where('id', $tr->id)->lockForUpdate()->first();
-            if ($freshTr) {
-                $maxSlots = (int)($freshTr->slots ?? 0);
-                if ($maxSlots > 0) {
-                    $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
-                        ->where('status', 'accepted')
-                        ->distinct('member_id')
-                        ->count('member_id');
-                        
-                    $newAcceptances = count(array_unique($newMemberIds));
-                    
-                    if (($acceptedCount + $newAcceptances) > $maxSlots) {
-                        return response()->json(['message' => 'Maximum players already accepted for this training.'], 422);
-                    }
-                }
-            }
+        try {
+            return DB::transaction(function () use ($tr, $newMemberIds) {
+                $freshTr = Training::where('id', $tr->id)->lockForUpdate()->first();
+                if ($freshTr) {
+                    $maxSlots = (int)($freshTr->slots ?? 0);
+                    if ($maxSlots > 0) {
+                        $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
+                            ->where('status', 'accepted')
+                            ->distinct('member_id')
+                            ->count('member_id');
 
-            foreach ($newMemberIds as $mid) {
-                $member = Member::find($mid);
-                if ($member) {
-                    $existingInv = TrainingInvitation::where('training_id', $tr->id)->where('member_id', $mid)->first();
-                    $appDisc = $existingInv && $existingInv->apply_discount !== null ? (bool)$existingInv->apply_discount : (bool)$member->apply_discount;
-                    $feeToDeduct = $existingInv && $existingInv->calculated_per_session_fee !== null ? (float)$existingInv->calculated_per_session_fee : FeeHelper::forMember($basePerWeekFee, $member, $appDisc);
-                    $walletMember = $this->getWalletMember($member, $feeToDeduct);
-                    if (!$walletMember->skip_credit_consumption && $feeToDeduct > 0) {
-                        $freshWalletMember = Member::where('id', $walletMember->id)->lockForUpdate()->first();
-                        $freshWalletMember->credit = round($freshWalletMember->credit - $feeToDeduct, 2);
-                        $freshWalletMember->save();
+                        $newAcceptances = count(array_unique($newMemberIds));
 
-                        $transaction = Transaction::create([
-                            'id' => 't_' . Str::random(8),
-                            'member_id' => $freshWalletMember->id,
-                            'type' => 'debit',
-                            'amount' => $feeToDeduct,
-                            'description' => 'Training program invitation accepted for ' . $member->name . ': ' . $tr->name,
-                            'date' => now(),
-                        ]);
-
-                        try {
-                            MailHelper::sendTransactionEmail($freshWalletMember, $transaction);
-                        } catch (\Exception $e) {
-                            logger()->error("Transaction email failed for member {$freshWalletMember->id}: " . $e->getMessage());
+                        if (($acceptedCount + $newAcceptances) > $maxSlots) {
+                            return response()->json(['message' => 'Maximum players already accepted for this training.'], 422);
                         }
                     }
                 }
-            }
 
-            [$invites, $trainingDates] = $this->createInvitationsForMembers($tr, $newMemberIds, false, 'accepted');
+                // FIN-03: no pre-debit here. createInvitationsForMembers(..., 'accepted') debits exactly once.
+                $this->acceptanceErrors = [];
+                [$invites, $trainingDates] = $this->createInvitationsForMembers($tr, $newMemberIds, false, 'accepted');
 
-            return response()->json([
-                'message' => 'Family members accepted into this training program.',
-                'training' => $this->formatTraining($tr),
-                'invitations' => $invites,
-                'dates' => $trainingDates,
-            ]);
-        });
+                if (!empty($this->acceptanceErrors)) {
+                    // Roll back everything (invites created for members whose acceptance failed).
+                    throw new \RuntimeException($this->acceptanceErrors[0]);
+                }
+
+                return response()->json([
+                    'message' => 'Family members accepted into this training program.',
+                    'training' => $this->formatTraining($tr),
+                    'invitations' => $invites,
+                    'dates' => $trainingDates,
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 
     private function formatInvitation(TrainingInvitation $inv): array
@@ -945,7 +947,7 @@ class TrainingController extends Controller
             return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
         }
 
-        InvitationSyncService::syncAllTrainingInvitations();
+        // SYNC-01: GET must never mutate invitations or wallets (no automatic sync / refund here).
         $invites = TrainingInvitation::all();
         return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
     }
@@ -958,30 +960,155 @@ class TrainingController extends Controller
 
         $invite = TrainingInvitation::findOrFail($id);
         $desired = $request->status;
+        $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
 
-        if ($desired !== 'accepted') {
-            $tr = Training::find($invite->training_id);
-            if ($tr) {
-                $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
-                if ($message = SessionTimingHelper::actionsBlockedMessage($sessionPhase)) {
-                    return response()->json(['message' => $message], 422);
-                }
-            }
+        // SEC-04: members may only respond to invitations of their own family members.
+        if ($response = FamilyScopeHelper::assertOwnsMemberOrAdmin($user, (string) $invite->member_id)) {
+            return $response;
         }
 
+        $tr = Training::find($invite->training_id);
+
         if ($desired === 'accepted') {
-            $error = $this->processTrainingAcceptance($invite);
+            if ($invite->status !== 'accepted') {
+                if ($error = $this->acceptPreconditionError($invite, $tr, $isAdmin)) {
+                    return response()->json(['message' => $error], 422);
+                }
+            }
+
+            $error = $this->processTrainingAcceptance($invite, $isAdmin);
             if ($error !== null) {
                 return response()->json([
                     'message' => $error,
                 ], 422);
             }
         } else {
-            $invite->status = $desired;
-            $invite->save();
+            if ($tr) {
+                $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
+                if ($message = SessionTimingHelper::actionsBlockedMessage($sessionPhase)) {
+                    return response()->json(['message' => $message], 422);
+                }
+            }
+
+            $error = $this->changeInvitationStatus($invite, $desired);
+            if ($error !== null) {
+                return response()->json(['message' => $error], 422);
+            }
         }
 
         return response()->json($this->formatInvitation($invite));
+    }
+
+    /**
+     * TRN-04: validates that an invitation may be accepted right now (status, phase, pending).
+     */
+    private function acceptPreconditionError(TrainingInvitation $invite, ?Training $tr, bool $isAdmin, bool $bulkMonthAccept = false): ?string
+    {
+        if ($invite->status === 'pending' && !$isAdmin) {
+            return 'This invitation has not been sent yet and cannot be accepted.';
+        }
+
+        if (!$tr) {
+            return null;
+        }
+
+        // Bulk (whole-month) accept intentionally keeps allowing sessions that already started/finished and
+        // not-yet-released siblings of the month; it only refuses cancelled/closed sessions.
+        $blockedStatuses = $bulkMonthAccept ? ['cancelled', 'closed'] : ['cancelled', 'closed', 'created'];
+        if (in_array($tr->status, $blockedStatuses, true)) {
+            return 'This training program is not open for enrollment.';
+        }
+
+        if ($bulkMonthAccept) {
+            return null;
+        }
+
+        $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
+        if ($message = SessionTimingHelper::acceptBlockedMessage($sessionPhase)) {
+            return $message;
+        }
+
+        return null;
+    }
+
+    /**
+     * Applies a non-accept status (declined/waiting/open) to an invitation.
+     *
+     * TRN-01: when an invitation that was accepted AND paid is declined, the accepted amount
+     * (minus any attendance refund already issued for that session) is refunded once to the
+     * wallet, the session attendance row is removed and accepted_amount is zeroed so that a
+     * later cancel/refund can never refund the same session twice.
+     *
+     * Returns an error message or null on success. Updates $invite in place.
+     */
+    private function changeInvitationStatus(TrainingInvitation $invite, string $desired): ?string
+    {
+        return DB::transaction(function () use ($invite, $desired) {
+            $fresh = TrainingInvitation::where('id', $invite->id)->lockForUpdate()->first();
+            if (!$fresh) {
+                return 'Invitation not found.';
+            }
+
+            if ($fresh->status === 'accepted' && $desired !== 'accepted') {
+                $paid = (float) ($fresh->accepted_amount ?? 0);
+
+                if ($paid > 0) {
+                    if ($desired !== 'declined') {
+                        return 'Contact admin to cancel after payment';
+                    }
+
+                    $member = Member::find($fresh->member_id);
+                    $tr = Training::find($fresh->training_id);
+                    $tDate = TrainingDate::where('training_id', $fresh->training_id)
+                        ->where('member_id', $fresh->member_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    $priorRefund = $tDate && $tDate->refund_amount !== null ? (float) $tDate->refund_amount : 0.0;
+                    $refundAmount = round(max(0, $paid - $priorRefund), 2);
+
+                    if ($member && $refundAmount > 0) {
+                        $walletMember = WalletHelper::resolveMember($member);
+                        if (!$walletMember->skip_credit_consumption) {
+                            $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                            $freshWallet->credit = round($freshWallet->credit + $refundAmount, 2);
+                            $freshWallet->save();
+
+                            $transaction = Transaction::create([
+                                'id' => 't_' . Str::random(8),
+                                'member_id' => $freshWallet->id,
+                                'type' => 'refund',
+                                'amount' => $refundAmount,
+                                'description' => 'Refund — declined training session for ' . $member->name . ': ' . ($tr ? $tr->name : ''),
+                                'date' => now(),
+                            ]);
+
+                            try {
+                                MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                            } catch (\Exception $e) {
+                                logger()->error("Transaction refund email failed for member {$freshWallet->id}: " . $e->getMessage());
+                            }
+                        }
+                    }
+
+                    $fresh->accepted_amount = 0;
+                    $fresh->accepted_per_session_fee = 0;
+                }
+
+                // Member is no longer attending this session.
+                TrainingDate::where('training_id', $fresh->training_id)
+                    ->where('member_id', $fresh->member_id)
+                    ->delete();
+            }
+
+            $fresh->status = $desired;
+            $fresh->save();
+
+            $invite->setRawAttributes($fresh->getAttributes(), true);
+
+            return null;
+        });
     }
 
     private function getWalletMember(Member $member, float $feeToDeduct = 0): Member
@@ -989,7 +1116,56 @@ class TrainingController extends Controller
         return WalletHelper::resolveMember($member);
     }
 
-    private function processTrainingAcceptance(TrainingInvitation $invite): ?string
+    /**
+     * Single source of truth for the per-session fee charged on acceptance
+     * (FeeHelper::forMember on the MONTHLY fee, divided by repeat weeks; the last
+     * session of a full month takes the remainder of the monthly fee).
+     *
+     * @return array{fee: float, discountedMonthlyFee: float, appDisc: bool}|string  error message on invalid config
+     */
+    private function computeAcceptanceFee(Training $tr, Member $member, ?TrainingInvitation $invite = null)
+    {
+        $repeatWeeks = (int)($tr->repeat_weeks ?? 0);
+        if ($repeatWeeks <= 0) {
+            return 'Invalid or missing Repeat for Weeks configured for this training program.';
+        }
+        if ($tr->fees === null || (float)$tr->fees < 0) {
+            return 'Invalid monthly fee configured for this training program.';
+        }
+
+        $appDisc = $invite && $invite->apply_discount !== null ? (bool)$invite->apply_discount : (bool)$member->apply_discount;
+        $discountedMonthlyFee = $invite && $invite->calculated_monthly_fee !== null
+            ? (float)$invite->calculated_monthly_fee
+            : FeeHelper::forMember((float) $tr->fees, $member, $appDisc);
+
+        $parentId = $tr->parent_id ?: $tr->id;
+        $seriesSessionIds = Training::where('parent_id', $parentId)->orWhere('id', $parentId)->pluck('id')->all();
+        $otherAcceptedQuery = TrainingInvitation::whereIn('training_id', $seriesSessionIds)
+            ->where('member_id', $member->id)
+            ->where('status', 'accepted');
+        if ($invite) {
+            $otherAcceptedQuery->where('id', '!=', $invite->id);
+        }
+        $otherAcceptedInvs = $otherAcceptedQuery->get();
+
+        if ($otherAcceptedInvs->count() + 1 === $repeatWeeks) {
+            $alreadyPaidSum = (float) $otherAcceptedInvs->sum('accepted_amount');
+            $feeToDeduct = round(max(0, $discountedMonthlyFee - $alreadyPaidSum), 2);
+        } else {
+            $feeToDeduct = round($discountedMonthlyFee / $repeatWeeks, 2);
+        }
+
+        return [
+            'fee' => $feeToDeduct,
+            'discountedMonthlyFee' => $discountedMonthlyFee,
+            'appDisc' => $appDisc,
+        ];
+    }
+
+    /** Errors raised by processTrainingAcceptance while called from bulk helpers (enroll/release). */
+    private array $acceptanceErrors = [];
+
+    private function processTrainingAcceptance(TrainingInvitation $invite, bool $allowPending = false): ?string
     {
         if ($invite->status === 'accepted') {
             return null;
@@ -1000,39 +1176,31 @@ class TrainingController extends Controller
             return null;
         }
 
-        $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
-
-
         $member = Member::find($invite->member_id);
         if (!$member) {
             return null;
         }
 
+        // TRN-04: status / phase / pending guards (centralised so every accept path is covered).
+        if ($error = $this->acceptPreconditionError($invite, $tr, $allowPending)) {
+            $this->acceptanceErrors[] = $error;
+            return $error;
+        }
+
         $repeatWeeks = (int)($tr->repeat_weeks ?? 0);
-        if ($repeatWeeks <= 0) {
-            return 'Invalid or missing Repeat for Weeks configured for this training program.';
+        $computed = $this->computeAcceptanceFee($tr, $member, $invite);
+        if (is_string($computed)) {
+            $this->acceptanceErrors[] = $computed;
+            return $computed;
         }
-        if ($tr->fees === null || (float)$tr->fees < 0) {
-            return 'Invalid monthly fee configured for this training program.';
-        }
-        $appDisc = $invite->apply_discount !== null ? (bool)$invite->apply_discount : (bool)$member->apply_discount;
-        $discountedMonthlyFee = $invite->calculated_monthly_fee !== null ? (float)$invite->calculated_monthly_fee : FeeHelper::forMember((float) $tr->fees, $member, $appDisc);
-
-        $parentId = $tr->parent_id ?: $tr->id;
-        $seriesSessionIds = Training::where('parent_id', $parentId)->orWhere('id', $parentId)->pluck('id')->all();
-        $otherAcceptedInvs = TrainingInvitation::whereIn('training_id', $seriesSessionIds)->where('member_id', $member->id)->where('status', 'accepted')->where('id', '!=', $invite->id)->get();
-
-        if ($otherAcceptedInvs->count() + 1 === $repeatWeeks) {
-            $alreadyPaidSum = (float) $otherAcceptedInvs->sum('accepted_amount');
-            $feeToDeduct = round(max(0, $discountedMonthlyFee - $alreadyPaidSum), 2);
-        } else {
-            $feeToDeduct = round($discountedMonthlyFee / $repeatWeeks, 2);
-        }
+        $feeToDeduct = $computed['fee'];
+        $discountedMonthlyFee = $computed['discountedMonthlyFee'];
+        $appDisc = $computed['appDisc'];
 
         $originalFee = round((float) $tr->fees / $repeatWeeks, 2);
         $discountApplied = round(max(0, $originalFee - $feeToDeduct), 2);
 
-        return DB::transaction(function () use ($invite, $tr, $member, $feeToDeduct, $repeatWeeks, $originalFee, $discountApplied, $appDisc, $discountedMonthlyFee) {
+        $result = DB::transaction(function () use ($invite, $tr, $member, $feeToDeduct, $repeatWeeks, $originalFee, $discountApplied, $appDisc, $discountedMonthlyFee, $allowPending) {
             // Re-fetch invitation with lock to prevent concurrent acceptance
             $freshInvite = TrainingInvitation::where('id', $invite->id)->lockForUpdate()->first();
             if (!$freshInvite || $freshInvite->status === 'accepted') {
@@ -1041,6 +1209,10 @@ class TrainingController extends Controller
 
             $freshTr = Training::where('id', $tr->id)->lockForUpdate()->first();
             if ($freshTr) {
+                if ($error = $this->acceptPreconditionError($freshInvite, $freshTr, $allowPending)) {
+                    return $error;
+                }
+
                 $maxSlots = (int)($freshTr->slots ?? 0);
                 if ($maxSlots > 0) {
                     $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
@@ -1123,6 +1295,12 @@ class TrainingController extends Controller
 
             return null;
         });
+
+        if (is_string($result)) {
+            $this->acceptanceErrors[] = $result;
+        }
+
+        return $result;
     }
 
     public function respondBulk(Request $request)
@@ -1135,6 +1313,19 @@ class TrainingController extends Controller
 
         $status = $request->status;
         $inviteIds = $request->inviteIds;
+        $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
+
+        // SEC-04: non-admins may only act on invitations that belong to their own family members.
+        if (!$isAdmin) {
+            $familyIds = FamilyScopeHelper::familyMemberIds($user);
+            $foreign = TrainingInvitation::whereIn('id', $inviteIds)
+                ->whereNotIn('member_id', $familyIds)
+                ->exists();
+            if ($foreign) {
+                return response()->json(['message' => 'You do not have access to this member.'], 403);
+            }
+        }
 
         if ($status !== 'accepted') {
             $invites = TrainingInvitation::whereIn('id', $inviteIds)->get();
@@ -1149,12 +1340,24 @@ class TrainingController extends Controller
                 }
             }
 
-            TrainingInvitation::whereIn('id', $inviteIds)->update(['status' => $status]);
+            // TRN-01: declining an accepted + paid invitation refunds it once (all-or-nothing).
+            try {
+                DB::transaction(function () use ($invites) {
+                    foreach ($invites as $inv) {
+                        if ($error = $this->changeInvitationStatus($inv, 'declined')) {
+                            throw new \RuntimeException($error);
+                        }
+                    }
+                });
+            } catch (\RuntimeException $e) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+
             return response()->json(['message' => 'Invitations declined.']);
         }
 
         try {
-            return DB::transaction(function () use ($inviteIds) {
+            return DB::transaction(function () use ($inviteIds, $isAdmin) {
                 $invites = TrainingInvitation::whereIn('id', $inviteIds)
                     ->where('status', '!=', 'accepted')
                     ->lockForUpdate()
@@ -1164,11 +1367,22 @@ class TrainingController extends Controller
                     return response()->json(['message' => 'No valid invitations to accept.'], 422);
                 }
 
+                // TRN-04: status / pending guards for every invitation being accepted.
+                // Phase guard: a month accept that still contains upcoming sessions is allowed (earlier
+                // sessions of the month may already have started); but if EVERY selected session has
+                // already started/finished there is nothing left to accept.
+                $phaseMessages = [];
                 foreach ($invites as $inv) {
                     $tr = Training::find($inv->training_id);
-                    if (!$tr) {
-                        continue;
+                    if ($error = $this->acceptPreconditionError($inv, $tr, $isAdmin, true)) {
+                        throw new \Exception($error);
                     }
+                    if ($tr) {
+                        $phaseMessages[] = SessionTimingHelper::acceptBlockedMessage(SessionTimingHelper::trainingSessionPhase($tr));
+                    }
+                }
+                if (count($phaseMessages) > 0 && !in_array(null, $phaseMessages, true)) {
+                    throw new \Exception($phaseMessages[0]);
                 }
 
                 $trainingIds = $invites->pluck('training_id')->unique()->all();
@@ -1371,6 +1585,10 @@ class TrainingController extends Controller
 
     public function sendUpdateRequest(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'memberId' => 'required|string',
             'existingSessionIds' => 'present|array',
@@ -1429,6 +1647,10 @@ class TrainingController extends Controller
         ]);
 
         $updateReq = TrainingUpdateRequest::findOrFail($id);
+
+        if ($response = FamilyScopeHelper::assertOwnsMemberOrAdmin($request->user(), (string) $updateReq->member_id)) {
+            return $response;
+        }
 
         if ($updateReq->status !== 'pending') {
             return response()->json([
@@ -1636,7 +1858,7 @@ class TrainingController extends Controller
 
     public function markAttendance(Request $request, $id)
     {
-        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.edit')) {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit')) {
             return $response;
         }
 
@@ -1658,8 +1880,9 @@ class TrainingController extends Controller
                 if (in_array($priorRefundStatus, ['half', 'full'], true) && $priorRefundAmount > 0) {
                     $member = Member::find($tDate->member_id);
                     $tr = Training::find($tDate->training_id);
-                    if ($member && $tr && !$member->skip_credit_consumption) {
-                        $walletMember = $this->getWalletMember($member, 0);
+                    // WAL-01: skip flag lives on the wallet owner (parent for juniors).
+                    $walletMember = $member ? WalletHelper::resolveMember($member) : null;
+                    if ($member && $tr && $walletMember && !$walletMember->skip_credit_consumption) {
                         $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
                         if ($freshWallet) {
                             $freshWallet->credit = round($freshWallet->credit - $priorRefundAmount, 2);
@@ -1708,71 +1931,81 @@ class TrainingController extends Controller
 
     public function processRefund(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'refundType' => 'required|in:none,half,full',
         ]);
 
-        $tDate = TrainingDate::findOrFail($id);
-
-        if ($tDate->refund_status !== null) {
-            return response()->json([
-                'message' => 'This attendance session has already been refunded or processed and cannot be changed.',
-            ], 422);
-        }
-
-        if ($tDate->attended !== false) {
-            return response()->json([
-                'message' => 'Refund can only be processed for absent attendance sessions.',
-            ], 422);
-        }
-
-        $tr = Training::find($tDate->training_id);
-        if (!$tr) {
-            return response()->json(['message' => 'Training program session not found.'], 404);
-        }
-
-        $member = Member::find($tDate->member_id);
-        if (!$member) {
-            return response()->json(['message' => 'Member not found.'], 404);
-        }
-
-        $parentId = $tr->parent_id ?: $tr->id;
-        $series = Training::where('parent_id', $parentId)
-            ->orWhere('id', $parentId)
-            ->orderBy('start_date', 'asc')
-            ->get();
-
-        $idx = $series->search(fn($item) => $item->id === $tr->id);
-        if ($idx === false) $idx = 0;
-
-        $repeatWeeks = (int)($tr->repeat_weeks ?? 0);
-        if ($repeatWeeks <= 0) {
-            return response()->json(['message' => 'Invalid or missing Repeat for Weeks configured for this training program.'], 422);
-        }
-        if ($tr->fees === null || (float)$tr->fees < 0) {
-            return response()->json(['message' => 'Invalid monthly fee configured for this training program.'], 422);
-        }
-        $existingInv = TrainingInvitation::where('training_id', $tr->id)->where('member_id', $member->id)->first();
-        $appDisc = $existingInv && $existingInv->apply_discount !== null ? (bool)$existingInv->apply_discount : (bool)$member->apply_discount;
-        $discountedMonthlyFee = FeeHelper::forMember((float) $tr->fees, $member, $appDisc);
-        $weeklyFee = round($discountedMonthlyFee / $repeatWeeks, 2);
-
+        TrainingDate::findOrFail($id);
         $refundType = $request->refundType;
-        $refundAmount = 0.0;
 
-        if ($refundType === 'half') {
-            $refundAmount = round($weeklyFee * 0.5, 2);
-        } else if ($refundType === 'full') {
-            $refundAmount = round($weeklyFee, 2);
-        }
+        return DB::transaction(function () use ($id, $refundType) {
+            // FIN-08: lock the attendance row BEFORE reading refund_status so concurrent calls cannot double refund.
+            $tDate = TrainingDate::where('id', $id)->lockForUpdate()->firstOrFail();
 
-        return DB::transaction(function () use ($tDate, $tr, $member, $refundType, $refundAmount) {
+            if ($tDate->refund_status !== null) {
+                return response()->json([
+                    'message' => 'This attendance session has already been refunded or processed and cannot be changed.',
+                ], 422);
+            }
+
+            if ($tDate->attended !== false) {
+                return response()->json([
+                    'message' => 'Refund can only be processed for absent attendance sessions.',
+                ], 422);
+            }
+
+            $tr = Training::find($tDate->training_id);
+            if (!$tr) {
+                return response()->json(['message' => 'Training program session not found.'], 404);
+            }
+
+            $member = Member::find($tDate->member_id);
+            if (!$member) {
+                return response()->json(['message' => 'Member not found.'], 404);
+            }
+
+            $refundAmount = 0.0;
+            $walletMember = WalletHelper::resolveMember($member);
+
+            if ($refundType !== 'none') {
+                // FIN-01: refunds are only possible against an accepted + paid invitation for this session.
+                $inv = TrainingInvitation::where('training_id', $tr->id)
+                    ->where('member_id', $member->id)
+                    ->where('status', 'accepted')
+                    ->lockForUpdate()
+                    ->first();
+
+                $paid = $inv ? (float) ($inv->accepted_amount ?? 0) : 0.0;
+                if (!$inv || $paid <= 0) {
+                    return response()->json([
+                        'message' => 'No paid accepted enrollment found for this member and session; nothing to refund.',
+                    ], 422);
+                }
+
+                // FIN-02: base the refund on the amount actually paid (invitation snapshot), never live fee settings.
+                $priorRefunds = $tDate->refund_amount !== null ? (float) $tDate->refund_amount : 0.0;
+                $refundable = round(max(0, $paid - $priorRefunds), 2);
+
+                $refundAmount = $refundType === 'half'
+                    ? round($paid * 0.5, 2)
+                    : round($paid, 2);
+                $refundAmount = round(min($refundAmount, $refundable), 2);
+
+                // WAL-01: wallet owners that skip credit consumption were never debited -> nothing to credit back.
+                if ($walletMember->skip_credit_consumption) {
+                    $refundAmount = 0.0;
+                }
+            }
+
             $tDate->refund_status = $refundType;
             $tDate->refund_amount = $refundAmount;
             $tDate->save();
 
-            if ($refundAmount > 0 && !$member->skip_credit_consumption) {
-                $walletMember = $this->getWalletMember($member, 0);
+            if ($refundAmount > 0) {
                 $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
                 $freshWallet->credit = round($freshWallet->credit + $refundAmount, 2);
                 $freshWallet->save();
@@ -1929,6 +2162,10 @@ class TrainingController extends Controller
 
     public function processOverpaymentRefund(Request $request, $id)
     {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit')) {
+            return $response;
+        }
+
         $request->validate([
             'memberId' => 'required|string',
             'amount' => 'required|numeric|min:0.01',
@@ -1936,7 +2173,15 @@ class TrainingController extends Controller
 
         $tr = Training::findOrFail($id);
         $member = Member::findOrFail($request->memberId);
-        $refundAmount = round((float)$request->amount, 2);
+        $requestedAmount = round((float)$request->amount, 2);
+
+        // WAL-01: skip flag lives on the wallet owner (parent for juniors).
+        $walletOwner = WalletHelper::resolveMember($member);
+        if ($walletOwner->skip_credit_consumption) {
+            return response()->json([
+                'message' => 'This member does not consume wallet credits; there is nothing to refund.',
+            ], 422);
+        }
 
         $parentId = $tr->parent_id ?: $tr->id;
         $series = Training::where('parent_id', $parentId)
@@ -1949,10 +2194,56 @@ class TrainingController extends Controller
             return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $trYearMonth;
         });
         $monthSessionIds = $monthSessions->pluck('id')->all();
+        $monthSessionNames = $monthSessions->pluck('name')->filter()->unique()->values()->all();
 
-        return DB::transaction(function () use ($tr, $member, $refundAmount, $parentId, $monthSessionIds) {
-            $walletMember = $this->getWalletMember($member, 0);
-            $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+        return DB::transaction(function () use ($tr, $member, $requestedAmount, $parentId, $monthSessionIds, $monthSessionNames, $walletOwner) {
+            $invs = TrainingInvitation::whereIn('training_id', $monthSessionIds)
+                ->where('member_id', $member->id)
+                ->lockForUpdate()
+                ->get();
+
+            $acceptedInvs = $invs->where('status', 'accepted');
+            if ($acceptedInvs->isEmpty()) {
+                return response()->json([
+                    'message' => 'No accepted invitation found for this member in this training month; nothing to refund.',
+                ], 422);
+            }
+
+            // FIN-02: cap at what was actually paid for the month minus what was already refunded.
+            // (Earlier overpayment refunds already reduced accepted_amount, so they are not subtracted twice.)
+            $totalPaid = (float) $acceptedInvs->sum(fn ($i) => (float) ($i->accepted_amount ?? $i->accepted_per_session_fee ?? 0));
+
+            $attendanceRefunded = (float) TrainingDate::whereIn('training_id', $monthSessionIds)
+                ->where('member_id', $member->id)
+                ->whereNotNull('refund_amount')
+                ->sum('refund_amount');
+
+            $updateRefunded = 0.0;
+            if (!empty($monthSessionNames)) {
+                $updateRefunded = (float) Transaction::where('member_id', $walletOwner->id)
+                    ->whereIn('type', Transaction::inflowTypes())
+                    ->where(function ($q) use ($member, $monthSessionNames) {
+                        foreach ($monthSessionNames as $i => $name) {
+                            $like = 'Training program update refund for ' . $member->name . ': ' . $name . '%';
+                            if ($i === 0) {
+                                $q->where('description', 'like', $like);
+                            } else {
+                                $q->orWhere('description', 'like', $like);
+                            }
+                        }
+                    })
+                    ->sum('amount');
+            }
+
+            $maxRefund = max(0, round($totalPaid - $attendanceRefunded - $updateRefunded, 2));
+            $refundAmount = round(min($requestedAmount, $maxRefund), 2);
+            if ($refundAmount <= 0) {
+                return response()->json([
+                    'message' => 'Nothing left to refund for this member in this training month.',
+                ], 422);
+            }
+
+            $freshWallet = Member::where('id', $walletOwner->id)->lockForUpdate()->first();
             $freshWallet->credit = round($freshWallet->credit + $refundAmount, 2);
             $freshWallet->save();
 
@@ -1976,10 +2267,6 @@ class TrainingController extends Controller
                 ->where('status', 'accepted')
                 ->latest()
                 ->first();
-
-            $invs = TrainingInvitation::whereIn('training_id', $monthSessionIds)
-                ->where('member_id', $member->id)
-                ->get();
 
             $prevPaidSum = $existingUpdateReq
                 ? (float)($existingUpdateReq->updated_monthly_fee ?? 0)
@@ -2005,26 +2292,25 @@ class TrainingController extends Controller
                 ]);
             }
 
-            foreach ($invs as $inv) {
-                if ($inv->status === 'accepted') {
-                    $acceptedCount = $invs->where('status', 'accepted')->count();
-                    $perSess = $acceptedCount > 0 ? round($targetFee / $acceptedCount, 2) : 0;
-                    $inv->accepted_per_session_fee = $perSess;
-                    $inv->accepted_amount = $perSess;
-                    $inv->save();
-                }
+            $acceptedCount = $acceptedInvs->count();
+            $perSess = $acceptedCount > 0 ? round($targetFee / $acceptedCount, 2) : 0;
+            foreach ($acceptedInvs as $inv) {
+                $inv->accepted_per_session_fee = $perSess;
+                $inv->accepted_amount = $perSess;
+                $inv->save();
             }
 
             $currency = Setting::where('key', 'currency')->value('value') ?? '$';
             return response()->json([
                 'message' => "Refund of {$currency}" . number_format($refundAmount, 2) . " processed successfully to {$member->name}'s wallet.",
+                'refundedAmount' => $refundAmount,
             ]);
         });
     }
 
     public function destroy($id)
     {
-        if ($response = PermissionHelper::denyAdminUnless(request(), 'trainings.delete')) {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'trainings.delete')) {
             return $response;
         }
 
@@ -2086,7 +2372,7 @@ class TrainingController extends Controller
 
     public function cancel(Request $request, $id)
     {
-        if ($response = PermissionHelper::denyAdminUnless($request, 'trainings.edit')) {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit')) {
             return $response;
         }
 
@@ -2094,25 +2380,31 @@ class TrainingController extends Controller
             'reason' => 'required|string|max:1000',
         ]);
 
-        $tr = Training::findOrFail($id);
-        if ($tr->status === 'cancelled') {
+        Training::findOrFail($id);
+        $reason = trim($request->reason);
+
+        return DB::transaction(function () use ($id, $reason) {
+            // Lock the session so concurrent cancel calls cannot both refund.
+            $tr = Training::where('id', $id)->lockForUpdate()->firstOrFail();
+            if ($tr->status === 'cancelled') {
+                return response()->json([
+                    'message' => 'Training program is already cancelled.',
+                    'training' => $this->formatTraining($tr),
+                ]);
+            }
+
+            $tr->status = 'cancelled';
+            $tr->cancel_reason = $reason;
+            $tr->save();
+
+            // Refund ONLY this cancelled session for members who paid for it (once, on cancellation).
+            $this->refundTrainingSessions([$tr->id], false);
+
             return response()->json([
-                'message' => 'Training program is already cancelled.',
+                'message' => 'Training program cancelled successfully and eligible fees refunded.',
                 'training' => $this->formatTraining($tr),
             ]);
-        }
-
-        $tr->status = 'cancelled';
-        $tr->cancel_reason = trim($request->reason);
-        $tr->save();
-
-        // Process refunds for members who have paid for this training program session (refund happens only once upon cancellation)
-        $this->refundTrainingSessions([$tr->id], false);
-
-        return response()->json([
-            'message' => 'Training program cancelled successfully and eligible fees refunded.',
-            'training' => $this->formatTraining($tr),
-        ]);
+        });
     }
 
     /**
@@ -2120,7 +2412,7 @@ class TrainingController extends Controller
      */
     public function close($id)
     {
-        if ($response = PermissionHelper::denyAdminUnless(request(), 'trainings.edit')) {
+        if ($response = PermissionHelper::requireAdminPermission(request(), 'trainings.edit')) {
             return $response;
         }
 
@@ -2160,6 +2452,12 @@ class TrainingController extends Controller
         ]);
     }
 
+    /**
+     * FIN-04: refunds ONLY the cancelled session(s): for every accepted invitation on that session the
+     * remaining refundable amount (session paid amount minus attendance refund for THAT session, capped by
+     * what is still left of the series payment after attendance / cancel / overpayment / update refunds)
+     * is credited back to the wallet owner.
+     */
     private function refundTrainingSessions(array $sessionIds, bool $isDeletion = false): void
     {
         if ($isDeletion) {
@@ -2167,136 +2465,48 @@ class TrainingController extends Controller
         }
 
         $sessions = Training::whereIn('id', $sessionIds)->get();
-        $processedMemberParents = [];
 
         foreach ($sessions as $session) {
-            if ($session->status === 'cancelled' && !$isDeletion) {
-                // Cancellation refund is handled when status changes to cancelled
-            }
-
-            $parentId = $session->parent_id ?: $session->id;
-
-            // Find all session IDs belonging to this training program series
-            $seriesSessionIds = Training::where('parent_id', $parentId)
-                ->orWhere('id', $parentId)
-                ->pluck('id')
-                ->all();
-
             $invitations = TrainingInvitation::where('training_id', $session->id)
                 ->where('status', 'accepted')
+                ->lockForUpdate()
                 ->get();
-
-            $baseName = trim(explode(' - Week', $session->name)[0]);
-            $cleanBaseName = trim(preg_replace('/ \(\d+\)$/', '', $baseName));
 
             foreach ($invitations as $invite) {
                 $member = Member::find($invite->member_id);
-                if (!$member || $member->skip_credit_consumption) {
+                if (!$member) {
                     continue;
                 }
 
-                if (isset($processedMemberParents[$parentId][$member->id])) {
+                // WAL-01: skip flag lives on the wallet owner (parent for juniors).
+                $walletMember = WalletHelper::resolveMember($member);
+                if ($walletMember->skip_credit_consumption) {
                     continue;
                 }
 
-                // Resolve the wallet member: parent for juniors, self for adults.
-                $walletMember = $this->getWalletMember($member);
-
-                // 1. Total Amount Deducted at Acceptance for this member for this training program
-                $acceptedSeriesInvites = TrainingInvitation::whereIn('training_id', $seriesSessionIds)
-                    ->where('member_id', $member->id)
-                    ->where('status', 'accepted')
-                    ->get();
-
-                $calculatedDeducted = 0.0;
-                foreach ($acceptedSeriesInvites as $accInv) {
-                    if ($accInv->accepted_amount !== null) {
-                        $calculatedDeducted += (float) $accInv->accepted_amount;
-                    } else {
-                        $trSession = Training::find($accInv->training_id);
-                        if ($trSession) {
-                            $repeatWeeks = max(1, (int)($trSession->repeat_weeks ?? 1));
-                            $appDisc = $accInv->apply_discount !== null ? (bool)$accInv->apply_discount : (bool)$member->apply_discount;
-                            $discountedMonthlyFee = $accInv->calculated_monthly_fee !== null ? (float)$accInv->calculated_monthly_fee : FeeHelper::forMember((float) $trSession->fees, $member, $appDisc);
-                            $calculatedDeducted += round($discountedMonthlyFee / $repeatWeeks, 2);
-                        }
-                    }
-                }
-
-                // Search debit transactions against the wallet member's id (parent for juniors)
-                $debitSum = (float) Transaction::where('member_id', $walletMember->id)
-                    ->where('type', 'debit')
-                    ->where(function ($q) use ($session, $cleanBaseName) {
-                        $q->where('description', 'like', '%' . $session->name . '%')
-                          ->orWhere('description', 'like', '%' . $cleanBaseName . '%')
-                          ->orWhere('description', 'like', 'Training%');
-                    })
-                    ->sum('amount');
-
-                $totalDeducted = max($calculatedDeducted, $debitSum);
-
-                if ($totalDeducted <= 0) {
+                $remainingRefund = InvitationSyncService::remainingSessionRefund($session, $member, $invite);
+                if ($remainingRefund <= 0) {
                     continue;
                 }
 
-                // 2. Total Attendance Refunds Already Approved for this member across this training series
-                $tdAttendanceRefunds = TrainingDate::whereIn('training_id', $seriesSessionIds)
-                    ->where('member_id', $member->id)
-                    ->whereNotNull('refund_amount')
-                    ->sum('refund_amount');
+                $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                $freshWallet->credit = round($freshWallet->credit + $remainingRefund, 2);
+                $freshWallet->save();
 
-                $txnAttendanceRefunds = Transaction::where('member_id', $walletMember->id)
-                    ->whereIn('type', Transaction::inflowTypes())
-                    ->where('description', 'like', 'Training session absent%')
-                    ->where(function ($q) use ($session, $cleanBaseName) {
-                        $q->where('description', 'like', '%' . $session->name . '%')
-                          ->orWhere('description', 'like', '%' . $cleanBaseName . '%');
-                    })
-                    ->sum('amount');
+                $transaction = Transaction::create([
+                    'id' => 't_' . Str::random(8),
+                    'member_id' => $freshWallet->id,
+                    'type' => 'refund',
+                    'amount' => $remainingRefund,
+                    'description' => 'Refund — cancelled training session for ' . $member->name . ': ' . $session->name,
+                    'date' => now(),
+                ]);
 
-                $alreadyRefundedAttendance = max((float)$tdAttendanceRefunds, (float)$txnAttendanceRefunds);
-
-                // 3. Previous Cancellation / Deletion Refunds Already Issued for this member for this training program
-                $alreadyRefundedCancellation = (float) Transaction::where('member_id', $walletMember->id)
-                    ->whereIn('type', Transaction::inflowTypes())
-                    ->where(function ($q) {
-                        $q->where('description', 'like', 'Refund — cancelled training session%')
-                          ->orWhere('description', 'like', 'Refund — deleted training session%');
-                    })
-                    ->where(function ($q) use ($session, $cleanBaseName) {
-                        $q->where('description', 'like', '%' . $session->name . '%')
-                          ->orWhere('description', 'like', '%' . $cleanBaseName . '%');
-                    })
-                    ->sum('amount');
-
-                // 4. Calculate Remaining Refund
-                // Remaining Refund = Total Deducted − Total Attendance Refunds Already Approved − Previous Cancellation Refunds Already Issued
-                $remainingRefund = round($totalDeducted - $alreadyRefundedAttendance - $alreadyRefundedCancellation, 2);
-
-                if ($remainingRefund > 0) {
-                    $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
-                    $freshWallet->credit = round($freshWallet->credit + $remainingRefund, 2);
-                    $freshWallet->save();
-
-                    $transaction = Transaction::create([
-                        'id' => 't_' . Str::random(8),
-                        'member_id' => $freshWallet->id,
-                        'type' => 'refund',
-                        'amount' => $remainingRefund,
-                        'description' => ($isDeletion
-                            ? 'Refund — deleted training session for '
-                            : 'Refund — cancelled training session for ') . $member->name . ': ' . $session->name,
-                        'date' => now(),
-                    ]);
-
-                    try {
-                        MailHelper::sendTransactionEmail($freshWallet, $transaction);
-                    } catch (\Exception $e) {
-                        logger()->error("Transaction refund email failed for member {$freshWallet->id}: " . $e->getMessage());
-                    }
+                try {
+                    MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                } catch (\Exception $e) {
+                    logger()->error("Transaction refund email failed for member {$freshWallet->id}: " . $e->getMessage());
                 }
-
-                $processedMemberParents[$parentId][$member->id] = true;
             }
         }
     }

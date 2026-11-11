@@ -359,35 +359,51 @@ class InvitationSyncService
      */
     private static function refundPlayInvite(PlaySchedule $schedule, PlayInvitation $invite, Member $member): void
     {
-        if (!$invite->debited) {
-            return;
-        }
-
-        if ($member->skip_credit_consumption || self::memberSkipsLeagueFee($schedule, $member->id)) {
-            return;
-        }
-
-        $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
-        if ($memberFee > 0) {
-            $walletMember = WalletHelper::resolveMember($member);
-            $walletMember->credit = round($walletMember->credit + $memberFee, 2);
-            $walletMember->saveQuietly();
-
-            $transaction = Transaction::create([
-                'id' => 't_' . Str::random(8),
-                'member_id' => $walletMember->id,
-                'type' => 'refund',
-                'amount' => $memberFee,
-                'description' => 'Refund — cancelled play session: ' . $schedule->name . ' - ' . $member->name,
-                'date' => now(),
-            ]);
-
-            try {
-                MailHelper::sendTransactionEmail($walletMember, $transaction);
-            } catch (\Exception $e) {
-                logger()->error("Transaction refund email failed for member {$walletMember->id}: " . $e->getMessage());
+        DB::transaction(function () use ($schedule, $invite, $member) {
+            // Lock the invite and only refund if it is still debited under the lock.
+            $locked = PlayInvitation::where('id', $invite->id)->lockForUpdate()->first();
+            if (!$locked || !$locked->debited) {
+                return;
             }
-        }
+
+            $snapshot = $locked->debited_amount;
+            if ($snapshot !== null) {
+                // Refund exactly what was charged, regardless of later rate/discount/flag changes.
+                $memberFee = round((float) $snapshot, 2);
+            } else {
+                if ($member->skip_credit_consumption || self::memberSkipsLeagueFee($schedule, $member->id)) {
+                    return;
+                }
+                $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
+            }
+
+            if ($memberFee > 0) {
+                $walletMember = WalletHelper::resolveMember($member);
+                $walletMember = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                $walletMember->credit = round($walletMember->credit + $memberFee, 2);
+                $walletMember->saveQuietly();
+
+                $transaction = Transaction::create([
+                    'id' => 't_' . Str::random(8),
+                    'member_id' => $walletMember->id,
+                    'type' => 'refund',
+                    'amount' => $memberFee,
+                    'description' => 'Refund — cancelled play session: ' . $schedule->name . ' - ' . $member->name,
+                    'date' => now(),
+                ]);
+
+                try {
+                    MailHelper::sendTransactionEmail($walletMember, $transaction);
+                } catch (\Exception $e) {
+                    logger()->error("Transaction refund email failed for member {$walletMember->id}: " . $e->getMessage());
+                }
+            }
+
+            $locked->debited = false;
+            $locked->debited_amount = null;
+            $locked->save();
+            $invite->setRawAttributes($locked->getAttributes(), true);
+        });
     }
 
     private static function memberSkipsLeagueFee(PlaySchedule $schedule, string $memberId): bool
@@ -428,6 +444,7 @@ class InvitationSyncService
 
         if (self::memberSkipsLeagueFee($schedule, $member->id)) {
             $invite->debited = true;
+            $invite->debited_amount = 0;
             $invite->save();
             return;
         }
@@ -435,11 +452,14 @@ class InvitationSyncService
         $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
         $isLeague = (bool) $schedule->is_league_match;
         $walletMember = WalletHelper::resolveMember($member);
+        $chargedAmount = 0.0;
 
         if (!$walletMember->skip_credit_consumption && $memberFee > 0) {
+            $walletMember = Member::where('id', $walletMember->id)->lockForUpdate()->first();
             if (!$isLeague && $walletMember->credit < $memberFee) {
                 return;
             }
+            $chargedAmount = $memberFee;
             $walletMember->credit = round($walletMember->credit - $memberFee, 2);
             $walletMember->saveQuietly();
 
@@ -460,127 +480,211 @@ class InvitationSyncService
         }
 
         $invite->debited = true;
+        $invite->debited_amount = $chargedAmount;
         $invite->save();
     }
 
     /**
-     * Cancel training enrollment and refund remaining eligible amount when eligibility is disabled.
+     * FIN-04: remaining refundable amount for ONE accepted session of a member.
+     *
+     * - Session paid amount = invitation accepted_amount (legacy rows without it fall back to the
+     *   computed per-session fee, or an even share of the series debit transactions).
+     * - Minus the attendance refund already issued for THAT session only.
+     * - Capped by what is still left of the whole series payment after attendance, cancel/delete,
+     *   overpayment and update refunds were taken into account.
      */
-    private static function cancelAndRefundTrainingEnrollment(Training $tr, Member $member): void
+    public static function remainingSessionRefund(Training $session, Member $member, TrainingInvitation $invite): float
     {
-        $parentId = $tr->parent_id ?: $tr->id;
+        $parentId = $session->parent_id ?: $session->id;
 
         $seriesSessionIds = Training::where('parent_id', $parentId)
             ->orWhere('id', $parentId)
             ->pluck('id')
             ->all();
 
-        // 1. Calculate total deducted amount for this member across this training series
+        $walletMember = WalletHelper::resolveMember($member);
+
         $acceptedSeriesInvites = TrainingInvitation::whereIn('training_id', $seriesSessionIds)
             ->where('member_id', $member->id)
             ->where('status', 'accepted')
             ->get();
-
-        $calculatedDeducted = 0.0;
-        foreach ($acceptedSeriesInvites as $accInv) {
-            if ($accInv->accepted_amount !== null) {
-                $calculatedDeducted += (float) $accInv->accepted_amount;
-            } else {
-                $trSession = Training::find($accInv->training_id);
-                if ($trSession) {
-                    $repeatWeeks = max(1, (int) ($trSession->repeat_weeks ?? 1));
-                    $discountedMonthlyFee = FeeHelper::forMember((float) $trSession->fees, $member);
-                    $calculatedDeducted += round($discountedMonthlyFee / $repeatWeeks, 2);
-                }
-            }
+        if (!$acceptedSeriesInvites->contains('id', $invite->id)) {
+            $acceptedSeriesInvites->push($invite);
         }
 
-        $walletMember = WalletHelper::resolveMember($member);
-        $baseName = trim(explode(' - Week', $tr->name)[0]);
+        $baseName = trim(explode(' - Week', $session->name)[0]);
         $cleanBaseName = trim(preg_replace('/ \(\d+\)$/', '', $baseName));
 
-        $debitSum = (float) Transaction::where('member_id', $walletMember->id)
-            ->where('type', 'debit')
-            ->where(function ($q) use ($tr, $cleanBaseName) {
-                $q->where('description', 'like', '%' . $tr->name . '%')
-                    ->orWhere('description', 'like', '%' . $cleanBaseName . '%')
-                    ->orWhere('description', 'like', 'Training%');
-            })
-            ->sum('amount');
+        // Name matchers scoped to this series only. Never match generic "Training%".
+        $seriesNames = Training::whereIn('id', $seriesSessionIds)->pluck('name')->all();
+        $nameMatchers = collect($seriesNames)
+            ->push($session->name)
+            ->push($cleanBaseName)
+            ->map(fn ($n) => trim((string) $n))
+            ->filter(fn ($n) => $n !== '')
+            ->unique()
+            ->values()
+            ->all();
 
-        $totalDeducted = max($calculatedDeducted, $debitSum);
+        $matchSeriesName = function ($q) use ($nameMatchers) {
+            foreach ($nameMatchers as $i => $name) {
+                if ($i === 0) {
+                    $q->where('description', 'like', '%' . $name . '%');
+                } else {
+                    $q->orWhere('description', 'like', '%' . $name . '%');
+                }
+            }
+        };
 
-        // 2. Attendance Refunds Already Approved
-        $tdAttendanceRefunds = TrainingDate::whereIn('training_id', $seriesSessionIds)
+        $sumRefundsLike = function (array $patterns) use ($walletMember, $nameMatchers, $matchSeriesName): float {
+            if (empty($nameMatchers)) {
+                return 0.0;
+            }
+
+            return (float) Transaction::where('member_id', $walletMember->id)
+                ->whereIn('type', Transaction::inflowTypes())
+                ->where(function ($q) use ($patterns) {
+                    foreach ($patterns as $i => $pattern) {
+                        if ($i === 0) {
+                            $q->where('description', 'like', $pattern);
+                        } else {
+                            $q->orWhere('description', 'like', $pattern);
+                        }
+                    }
+                })
+                ->where($matchSeriesName)
+                ->sum('amount');
+        };
+
+        // Legacy lump-sum debits (series-scoped) are only needed for invitations without accepted_amount.
+        $legacyShare = null;
+        $paidFor = function (TrainingInvitation $inv) use ($member, $walletMember, $nameMatchers, $matchSeriesName, $acceptedSeriesInvites, &$legacyShare): float {
+            if ($inv->accepted_amount !== null) {
+                return (float) $inv->accepted_amount;
+            }
+
+            $computed = 0.0;
+            $trSession = Training::find($inv->training_id);
+            if ($trSession) {
+                $repeatWeeks = max(1, (int) ($trSession->repeat_weeks ?? 1));
+                $appDisc = $inv->apply_discount !== null ? (bool) $inv->apply_discount : (bool) $member->apply_discount;
+                $discountedMonthlyFee = $inv->calculated_monthly_fee !== null
+                    ? (float) $inv->calculated_monthly_fee
+                    : FeeHelper::forMember((float) $trSession->fees, $member, $appDisc);
+                $computed = round($discountedMonthlyFee / $repeatWeeks, 2);
+            }
+
+            if ($legacyShare === null) {
+                $debitSum = empty($nameMatchers)
+                    ? 0.0
+                    : (float) Transaction::where('member_id', $walletMember->id)
+                        ->where('type', 'debit')
+                        ->where($matchSeriesName)
+                        ->sum('amount');
+                $legacyShare = round($debitSum / max(1, $acceptedSeriesInvites->count()), 2);
+            }
+
+            return max($computed, $legacyShare);
+        };
+
+        $sessionPaid = $paidFor($invite);
+        $seriesPaid = (float) $acceptedSeriesInvites->sum(fn ($inv) => $paidFor($inv));
+
+        // Attendance refund for THIS session only.
+        $sessionAttendanceRefund = (float) TrainingDate::where('training_id', $session->id)
             ->where('member_id', $member->id)
             ->whereNotNull('refund_amount')
             ->sum('refund_amount');
+        $sessionRefundable = max(0.0, $sessionPaid - $sessionAttendanceRefund);
 
-        $txnAttendanceRefunds = Transaction::where('member_id', $walletMember->id)
-            ->whereIn('type', Transaction::inflowTypes())
-            ->where('description', 'like', 'Training session absent%')
-            ->where(function ($q) use ($tr, $cleanBaseName) {
-                $q->where('description', 'like', '%' . $tr->name . '%')
-                    ->orWhere('description', 'like', '%' . $cleanBaseName . '%');
-            })
-            ->sum('amount');
-
-        $alreadyRefundedAttendance = max((float) $tdAttendanceRefunds, (float) $txnAttendanceRefunds);
-
-        // 3. Previous Cancellation Refunds Already Issued
-        $alreadyRefundedCancellation = (float) Transaction::where('member_id', $walletMember->id)
-            ->whereIn('type', Transaction::inflowTypes())
-            ->where(function ($q) {
-                $q->where('description', 'like', 'Refund — cancelled training session%')
-                    ->orWhere('description', 'like', 'Refund — deleted training session%');
-            })
-            ->where(function ($q) use ($tr, $cleanBaseName) {
-                $q->where('description', 'like', '%' . $tr->name . '%')
-                    ->orWhere('description', 'like', '%' . $cleanBaseName . '%');
-            })
-            ->sum('amount');
-
-        // 4. Remaining Refund
-        $remainingRefund = round($totalDeducted - $alreadyRefundedAttendance - $alreadyRefundedCancellation, 2);
-
-        if ($remainingRefund > 0 && !$walletMember->skip_credit_consumption) {
-            $walletMember->credit = round($walletMember->credit + $remainingRefund, 2);
-            $walletMember->saveQuietly();
-
-            $transaction = Transaction::create([
-                'id' => 't_' . Str::random(8),
-                'member_id' => $walletMember->id,
-                'type' => 'refund',
-                'amount' => $remainingRefund,
-                'description' => 'Refund — cancelled training session for ' . $member->name . ': ' . $tr->name,
-                'date' => now(),
-            ]);
-
-            try {
-                MailHelper::sendTransactionEmail($walletMember, $transaction);
-            } catch (\Exception $e) {
-                logger()->error("Transaction refund email failed for member {$walletMember->id}: " . $e->getMessage());
-            }
-        }
-
-        // 5. Remove attendance records that have not yet occurred
-        TrainingDate::where('member_id', $member->id)
-            ->whereIn('training_id', $seriesSessionIds)
-            ->where(function ($q) {
-                $q->where('date', '>', now()->toDateTimeString())
-                    ->orWhere('attended', false);
-            })
-            ->delete();
-
-        // 6. Delete pending update requests
-        TrainingUpdateRequest::where('member_id', $member->id)
-            ->whereIn('training_id', $seriesSessionIds)
-            ->delete();
-
-        // 7. Remove training invitations for this member across the series
-        TrainingInvitation::whereIn('training_id', $seriesSessionIds)
+        // Series-wide pool: everything paid minus everything already refunded.
+        $tdAttendanceRefunds = (float) TrainingDate::whereIn('training_id', $seriesSessionIds)
             ->where('member_id', $member->id)
-            ->delete();
+            ->whereNotNull('refund_amount')
+            ->sum('refund_amount');
+        $txnAttendanceRefunds = $sumRefundsLike(['Training session absent%']);
+        $alreadyRefundedAttendance = max($tdAttendanceRefunds, $txnAttendanceRefunds);
+
+        $alreadyRefundedCancellation = $sumRefundsLike([
+            'Refund — cancelled training session%',
+            'Refund — deleted training session%',
+            'Refund — declined training session%',
+        ]);
+        $overpaymentRefunds = $sumRefundsLike(['Training program overpayment refund%']);
+        $updateRefunds = $sumRefundsLike(['Training program update refund%']);
+
+        // Overpayment refunds rewrite accepted_amount (already netted out of $seriesPaid), so add them
+        // back to the "paid" side before subtracting them as refunds - net effect: counted exactly once.
+        $originalPaid = $seriesPaid + $overpaymentRefunds;
+        $pool = $originalPaid
+            - $alreadyRefundedAttendance
+            - $alreadyRefundedCancellation
+            - $overpaymentRefunds
+            - $updateRefunds;
+
+        return round(max(0.0, min($sessionRefundable, $pool)), 2);
+    }
+
+    /**
+     * Cancel ONE session enrollment (member no longer eligible) and refund the remaining eligible
+     * amount for that session only (not the whole series).
+     */
+    private static function cancelAndRefundTrainingEnrollment(Training $tr, Member $member): void
+    {
+        DB::transaction(function () use ($tr, $member) {
+            $invite = TrainingInvitation::where('training_id', $tr->id)
+                ->where('member_id', $member->id)
+                ->where('status', 'accepted')
+                ->lockForUpdate()
+                ->first();
+
+            // WAL-01: skip flag lives on the wallet owner (parent for juniors).
+            $walletMember = WalletHelper::resolveMember($member);
+
+            if ($invite && !$walletMember->skip_credit_consumption) {
+                $remainingRefund = self::remainingSessionRefund($tr, $member, $invite);
+
+                if ($remainingRefund > 0) {
+                    $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first() ?? $walletMember;
+                    $freshWallet->credit = round($freshWallet->credit + $remainingRefund, 2);
+                    $freshWallet->saveQuietly();
+
+                    $transaction = Transaction::create([
+                        'id' => 't_' . Str::random(8),
+                        'member_id' => $freshWallet->id,
+                        'type' => 'refund',
+                        'amount' => $remainingRefund,
+                        'description' => 'Refund — cancelled training session for ' . $member->name . ': ' . $tr->name,
+                        'date' => now(),
+                    ]);
+
+                    try {
+                        MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                    } catch (\Exception $e) {
+                        logger()->error("Transaction refund email failed for member {$freshWallet->id}: " . $e->getMessage());
+                    }
+                }
+            }
+
+            // Remove this session's attendance record (not yet occurred / absent).
+            TrainingDate::where('member_id', $member->id)
+                ->where('training_id', $tr->id)
+                ->where(function ($q) {
+                    $q->where('date', '>', now()->toDateTimeString())
+                        ->orWhere('attended', false);
+                })
+                ->delete();
+
+            // Delete pending update requests for this session.
+            TrainingUpdateRequest::where('member_id', $member->id)
+                ->where('training_id', $tr->id)
+                ->delete();
+
+            // Remove this session's invitation for the member.
+            TrainingInvitation::where('training_id', $tr->id)
+                ->where('member_id', $member->id)
+                ->delete();
+        });
     }
 }
 

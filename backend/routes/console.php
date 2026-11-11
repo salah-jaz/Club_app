@@ -38,37 +38,17 @@ Artisan::command('debit:cancellations', function () {
             continue;
         }
 
-        $fee = $schedule->session_rate;
-        $feeRounded = round($fee, 2);
+        // Reuse the controller's debit logic (FeeHelper, wallet locks, league skip, skip_credit,
+        // 'Play session: ...' description). Non-league members with insufficient credit stay undebited.
+        $controller = app(\App\Http\Controllers\Api\PlayScheduleController::class);
 
         foreach ($undebitedAcceptedInvs as $inv) {
             /** @var PlayInvitation $inv */
-            $member = Member::find($inv->member_id);
-            if ($member) {
-                $memberFee = FeeHelper::forMember($feeRounded, $member);
-                $walletMember = WalletHelper::resolveMember($member);
-                if (!$walletMember->skip_credit_consumption && $memberFee > 0) {
-                    $walletMember->credit -= $memberFee;
-                    $walletMember->save();
-
-                    $transaction = Transaction::create([
-                        'id' => 't_' . Str::random(8),
-                        'member_id' => $walletMember->id,
-                        'type' => 'debit',
-                        'amount' => $memberFee,
-                        'description' => "Auto Debit - Play session: " . $schedule->name . " - " . $member->name,
-                        'date' => now(),
-                    ]);
-
-                    try {
-                        MailHelper::sendTransactionEmail($walletMember, $transaction);
-                    } catch (\Exception $e) {
-                        logger()->error("Transaction auto-debit email failed for member {$walletMember->id}: " . $e->getMessage());
-                    }
-                }
+            try {
+                $controller->debitPlayInvite($schedule, $inv);
+            } catch (\Throwable $e) {
+                logger()->error("Auto debit failed for play invite {$inv->id}: " . $e->getMessage());
             }
-            $inv->debited = true;
-            $inv->save();
         }
     }
 })->purpose('Safety net: debit any accepted play invites that were not charged on accept')->everyMinute();

@@ -40,6 +40,7 @@ class LeagueGroupWalletBalanceTest extends TestCase
             'address' => '123 Admin Way',
             'password' => bcrypt('password123'),
             'role' => 'admin',
+            'is_super_admin' => true,
             'status' => 'active',
         ]);
 

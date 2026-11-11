@@ -25,6 +25,7 @@ class BulkImportMemberMappingTest extends TestCase
         // Admin user to perform import
         $admin = User::factory()->create([
             'role' => 'admin',
+            'is_super_admin' => true,
             'status' => 'active',
         ]);
 
@@ -75,6 +76,7 @@ class BulkImportMemberMappingTest extends TestCase
     {
         $admin = User::factory()->create([
             'role' => 'admin',
+            'is_super_admin' => true,
             'status' => 'active',
         ]);
 

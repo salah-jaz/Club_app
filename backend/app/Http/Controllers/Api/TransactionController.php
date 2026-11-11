@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\FamilyScopeHelper;
 use App\Helpers\PermissionHelper;
 use App\Http\Controllers\Controller;
 use App\Models\CreditRequest;
@@ -12,10 +13,35 @@ use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        $query = Transaction::query();
+
+        if ($user->role === 'admin') {
+            if ($response = PermissionHelper::requireAdminPermission($request, 'transactions.view')) {
+                return $response;
+            }
+        } else {
+            // Members see ledger entries for their family plus the shared wallet
+            // (parent) of any junior in their family. Entries with no member are admin-only.
+            $familyIds = FamilyScopeHelper::familyMemberIds($user);
+            $walletParentIds = empty($familyIds)
+                ? []
+                : Member::whereIn('id', $familyIds)
+                    ->whereNotNull('parent_member_id')
+                    ->pluck('parent_member_id')
+                    ->all();
+            $visibleIds = array_values(array_unique(array_merge($familyIds, $walletParentIds)));
+            $query->whereIn('member_id', $visibleIds);
+        }
+
         $tz = \App\Helpers\SessionTimingHelper::clubTimezone();
-        $txs = Transaction::orderBy('date', 'desc')->get();
+        $txs = $query->orderBy('date', 'desc')->get();
         return response()->json($txs->map(function ($t) use ($tz) {
             $dateVal = $t->date;
             if ($dateVal instanceof \DateTimeInterface) {
@@ -53,51 +79,37 @@ class TransactionController extends Controller
         $txn = Transaction::findOrFail($id);
 
         // Only expense ledger entries may be deleted from the transactions module.
-        if ($txn->resolvedType() !== 'expense') {
+        // Strict type check: legacy credit/refund rows whose description merely mentions
+        // "expense" must never be deleted here (that would orphan wallet balance).
+        if ($txn->type !== 'expense') {
             return response()->json([
                 'message' => 'Only expense transactions can be deleted.',
             ], 403);
         }
 
         return DB::transaction(function () use ($id) {
-            $txn = Transaction::findOrFail($id);
+            $txn = Transaction::lockForUpdate()->findOrFail($id);
 
-            // The transaction's member_id is always the wallet member (parent for juniors).
-            // Reversing the balance directly on that member is correct.
-            $member = Member::lockForUpdate()->find($txn->member_id);
-
-            if ($member) {
-                if (in_array($txn->type, Transaction::inflowTypes(), true)) {
-                    $member->credit -= (float) $txn->amount;
-                } elseif ($txn->type === 'debit') {
-                    $member->credit += (float) $txn->amount;
-                }
-                $member->save();
+            if ($txn->type !== 'expense') {
+                abort(response()->json([
+                    'message' => 'Only expense transactions can be deleted.',
+                ], 403));
             }
 
-            // Find corresponding credit request record (may be linked by id or by member)
-            $cr = null;
+            // Expenses are ledger-only and never touch any wallet balance, so there is
+            // nothing to reverse. Delete only the credit request explicitly linked to
+            // this transaction (never match unrelated requests by amount/member).
             if ($txn->credit_request_id) {
-                $cr = CreditRequest::find($txn->credit_request_id);
-            }
-            if (!$cr) {
-                // Fallback: search by the transaction's wallet-member id first, then any member
-                $crQuery = CreditRequest::where('amount', $txn->amount)
-                    ->where('status', 'approved')
-                    ->orderBy('created_at', 'desc');
-
-                $cr = (clone $crQuery)->where('member_id', $txn->member_id)->first()
-                    ?? $crQuery->first();
-            }
-            if ($cr) {
-                $cr->delete();
+                $cr = CreditRequest::lockForUpdate()->find($txn->credit_request_id);
+                if ($cr && $cr->type === 'expense') {
+                    $cr->delete();
+                }
             }
 
             $txn->delete();
 
             return response()->json([
-                'message' => 'Transaction deleted and reversed successfully.',
-                'memberCredit' => $member ? (float) $member->credit : 0,
+                'message' => 'Transaction deleted successfully.',
             ]);
         });
     }

@@ -43,6 +43,7 @@ class AutoPublishRotationTest extends TestCase
                 'emergency_name' => 'Emergency',
                 'emergency_phone' => '+1999999999',
                 'role' => 'admin',
+                'is_super_admin' => true,
                 'status' => 'approved',
                 'password' => bcrypt('password'),
             ]

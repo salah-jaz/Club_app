@@ -120,8 +120,9 @@ class FixtureController extends Controller
             ], 403);
         }
 
-        // All fixtures are visible to members who have access to the Fixtures module
+        // Members only see fixtures for groups they belong to
         $fixtures = Fixture::with('leagueGroup')
+            ->whereIn('league_group_id', $groupIds)
             ->orderBy('date', 'asc')
             ->get();
 
@@ -151,8 +152,10 @@ class FixtureController extends Controller
             ], 403);
         }
 
-        // All fixtures are visible to members who have access to the Fixtures module
-        $fixture = Fixture::with('leagueGroup')->findOrFail($id);
+        // Members only see fixtures for groups they belong to
+        $fixture = Fixture::with('leagueGroup')
+            ->whereIn('league_group_id', $groupIds)
+            ->findOrFail($id);
 
         return response()->json($this->formatFixture($fixture));
     }
@@ -513,6 +516,11 @@ class FixtureController extends Controller
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
+        // Sending external email is admin-only (members must not control recipients).
+        if ($response = PermissionHelper::requireAdminPermission($request, 'fixtures.edit')) {
+            return $response;
+        }
+
         // 1. Backend enforcement of notification toggle rule
         if (!MailHelper::isTemplateEnabled('fixture_scheduled')) {
             return response()->json([
@@ -525,23 +533,6 @@ class FixtureController extends Controller
         $fixture = null;
         if ($fixtureId) {
             $fixture = Fixture::with('leagueGroup')->findOrFail($fixtureId);
-            if ($user->role !== 'admin') {
-                $groupIds = $this->getMemberGroupIds($user);
-                if (!in_array($fixture->league_group_id, $groupIds, true)) {
-                    return response()->json(['message' => 'Unauthorized. You can only send emails for fixtures associated with your groups.'], 403);
-                }
-            }
-        } else {
-            if ($user->role !== 'admin') {
-                $groupIds = $this->getMemberGroupIds($user);
-                if (empty($groupIds)) {
-                    return response()->json(['message' => 'Unauthorized. You do not belong to any groups.'], 403);
-                }
-                $groupId = $request->input('leagueGroupId') ?? $request->input('league_group_id');
-                if (!empty($groupId) && !in_array($groupId, $groupIds, true)) {
-                    return response()->json(['message' => 'Unauthorized. You can only send fixture emails for your assigned groups.'], 403);
-                }
-            }
         }
 
         // 2. Resolve captain emails for To and CC

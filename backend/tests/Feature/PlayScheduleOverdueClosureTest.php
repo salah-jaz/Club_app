@@ -46,6 +46,7 @@ class PlayScheduleOverdueClosureTest extends TestCase
                 'emergency_name' => 'Emerg',
                 'emergency_phone' => '+1111111112',
                 'role' => 'admin',
+                'is_super_admin' => true,
                 'status' => 'approved',
                 'password' => bcrypt('secret'),
             ]

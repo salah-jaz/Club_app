@@ -41,6 +41,7 @@ class AdminWalletTransactionTimestampTest extends TestCase
                 'address' => 'Admin HQ',
                 'password' => bcrypt('secret'),
                 'role' => 'admin',
+                'is_super_admin' => true,
                 'status' => 'active',
             ]
         );

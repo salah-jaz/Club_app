@@ -37,6 +37,7 @@ class TrainingInvitationSingleEmailTest extends TestCase
                 'address' => 'Test Address',
                 'password' => bcrypt('password'),
                 'role' => 'admin',
+                'is_super_admin' => true,
                 'status' => 'active',
             ]
         );

@@ -136,6 +136,29 @@ class SettingController extends Controller
         $data['emailTemplates'] = $mergedTemplates;
         $data['policies'] = PolicyController::getAllPoliciesData();
 
+        // SEC-02: never expose SMTP credentials / template internals to non-privileged callers.
+        $request = request();
+        $caller = $request->user() ?: $request->user('sanctum');
+        $isSettingsAdmin = $caller
+            && $caller->role === 'admin'
+            && (PermissionHelper::userHasPermission($caller, 'settings.view')
+                || PermissionHelper::userHasPermission($caller, 'settings.edit'));
+
+        if (!$isSettingsAdmin) {
+            foreach (['mailPassword', 'mailHost', 'mailPort', 'mailUsername', 'mailEncryption'] as $secretKey) {
+                unset($data[$secretKey]);
+            }
+
+            if ($caller) {
+                // Authenticated non-settings users only need the per-template enabled flags.
+                $data['emailTemplates'] = collect($mergedTemplates)
+                    ->map(fn ($tpl) => ['is_enabled' => $tpl['is_enabled'] ?? true])
+                    ->all();
+            } else {
+                $data['emailTemplates'] = new \stdClass();
+            }
+        }
+
         return response()->json($data);
     }
 
@@ -444,9 +467,14 @@ class SettingController extends Controller
                         continue;
                     }
 
-                    if ($member->skip_credit_consumption || $this->memberSkipsLeagueFee($schedule, $member->id)) {
+                    $walletMember = \App\Helpers\WalletHelper::resolveMember($member);
+
+                    if ($walletMember->skip_credit_consumption || $this->memberSkipsLeagueFee($schedule, $member->id)) {
                         if ($invite) {
                             $invite->debited = false;
+                            if (isset($invite->debited_amount)) {
+                                $invite->debited_amount = null;
+                            }
                             $invite->save();
                         }
                         continue;
@@ -455,7 +483,7 @@ class SettingController extends Controller
                     $desc = 'Refund – Club Holiday: ' . $scheduleDateStr;
                     $descHyphen = 'Refund - Club Holiday: ' . $scheduleDateStr;
 
-                    $alreadyRefunded = Transaction::where('member_id', $member->id)
+                    $alreadyRefunded = Transaction::where('member_id', $walletMember->id)
                         ->whereIn('type', Transaction::inflowTypes())
                         ->where(function ($q) use ($desc, $descHyphen, $scheduleDateStr) {
                             $q->where('description', $desc)
@@ -465,40 +493,54 @@ class SettingController extends Controller
                         ->exists();
 
                     if (!$alreadyRefunded) {
-                        $debitTxn = Transaction::where('member_id', $member->id)
-                            ->where('type', 'debit')
-                            ->where(function ($q) use ($schedule) {
-                                $q->where('description', 'Play session: ' . $schedule->name)
-                                  ->orWhere('description', 'like', '%' . $schedule->name . '%');
-                            })
-                            ->latest()
-                            ->first();
+                        $refundAmount = null;
+                        if ($invite && isset($invite->debited_amount) && $invite->debited_amount !== null) {
+                            $refundAmount = (float) $invite->debited_amount;
+                        } else {
+                            $debitTxn = Transaction::where('member_id', $walletMember->id)
+                                ->where('type', 'debit')
+                                ->where(function ($q) use ($schedule) {
+                                    $q->where('description', 'Play session: ' . $schedule->name)
+                                      ->orWhere('description', 'like', 'Play session: ' . $schedule->name . '%')
+                                      ->orWhere('description', 'like', '%' . $schedule->name . '%');
+                                })
+                                ->latest()
+                                ->first();
 
-                        $refundAmount = $debitTxn ? (float) $debitTxn->amount : FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
+                            $refundAmount = $debitTxn
+                                ? (float) $debitTxn->amount
+                                : FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
+                        }
 
                         if ($refundAmount > 0) {
-                            $member->credit += $refundAmount;
-                            $member->save();
+                            $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                            if ($freshWallet) {
+                                $freshWallet->credit = round((float) $freshWallet->credit + $refundAmount, 2);
+                                $freshWallet->save();
 
-                            $transaction = Transaction::create([
-                                'id' => 't_' . Str::random(8),
-                                'member_id' => $member->id,
-                                'type' => 'refund',
-                                'amount' => $refundAmount,
-                                'description' => $desc,
-                                'date' => now(),
-                            ]);
+                                $transaction = Transaction::create([
+                                    'id' => 't_' . Str::random(8),
+                                    'member_id' => $freshWallet->id,
+                                    'type' => 'refund',
+                                    'amount' => $refundAmount,
+                                    'description' => $desc,
+                                    'date' => now(),
+                                ]);
 
-                            try {
-                                MailHelper::sendTransactionEmail($member, $transaction);
-                            } catch (\Exception $e) {
-                                logger()->error("Holiday refund email failed for member {$member->id}: " . $e->getMessage());
+                                try {
+                                    MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                                } catch (\Exception $e) {
+                                    logger()->error("Holiday refund email failed for member {$freshWallet->id}: " . $e->getMessage());
+                                }
                             }
                         }
                     }
 
                     if ($invite) {
                         $invite->debited = false;
+                        if (isset($invite->debited_amount)) {
+                            $invite->debited_amount = null;
+                        }
                         $invite->save();
                     }
                 }

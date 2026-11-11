@@ -9,7 +9,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Laravel\Sanctum\PersonalAccessToken;
 
 class PolicyController extends Controller
 {
@@ -390,14 +389,8 @@ class PolicyController extends Controller
      */
     private function authorizeMemberAccess(Request $request): ?JsonResponse
     {
+        // Bearer / Sanctum session only — never accept tokens via query string (leaks in logs/history).
         $user = $request->user('sanctum') ?? $request->user();
-
-        if (!$user && $request->filled('token')) {
-            $token = PersonalAccessToken::findToken($request->query('token'));
-            if ($token && (!$token->expires_at || $token->expires_at->isFuture())) {
-                $user = $token->tokenable;
-            }
-        }
 
         if (!$user) {
             return response()->json(['message' => 'Unauthorized. Please sign in to access Member Policy.'], 401);

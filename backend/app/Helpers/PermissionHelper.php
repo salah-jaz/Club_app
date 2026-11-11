@@ -14,8 +14,15 @@ class PermissionHelper
             return false;
         }
 
-        if ($user->is_super_admin || !$user->admin_role_id) {
+        // Fail closed: an admin without an assigned role is NOT granted everything.
+        // Only explicit super admins bypass role checks. Legacy admins with a null
+        // admin_role_id are backfilled by migration 2026_11_11_000002.
+        if ($user->is_super_admin) {
             return true;
+        }
+
+        if (!$user->admin_role_id) {
+            return false;
         }
 
         return in_array($permission, $user->getPermissionIds(), true);
@@ -27,8 +34,12 @@ class PermissionHelper
             return false;
         }
 
-        if ($user->is_super_admin || !$user->admin_role_id) {
+        if ($user->is_super_admin) {
             return true;
+        }
+
+        if (!$user->admin_role_id) {
+            return false;
         }
 
         foreach ($user->getPermissionIds() as $id) {
@@ -61,6 +72,26 @@ class PermissionHelper
     public static function requireAdminPermission(Request $request, string $permission): ?JsonResponse
     {
         return self::authorizeAdmin($request, $permission);
+    }
+
+    /**
+     * Admin must hold at least one of the given permissions (or be super admin).
+     */
+    public static function requireAnyAdminPermission(Request $request, array $permissions): ?JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user || $user->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
+        }
+
+        foreach ($permissions as $permission) {
+            if (self::userHasPermission($user, $permission)) {
+                return null;
+            }
+        }
+
+        return response()->json(['message' => 'You do not have permission to perform this action.'], 403);
     }
 
     /**

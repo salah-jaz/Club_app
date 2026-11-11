@@ -11,9 +11,55 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
+    private const MAX_AUTH_ATTEMPTS = 5;
+    private const AUTH_DECAY_SECONDS = 60;
+    private const MAX_OTP_FAILURES = 5;
+    private const OTP_ATTEMPT_TTL_MINUTES = 15;
+
+    /**
+     * Abort with HTTP 429 when the given limiter key has exhausted its attempts.
+     */
+    private function ensureNotRateLimited(string $key, int $max = self::MAX_AUTH_ATTEMPTS): void
+    {
+        if (RateLimiter::tooManyAttempts($key, $max)) {
+            $seconds = RateLimiter::availableIn($key);
+            throw new HttpResponseException(response()->json([
+                'message' => 'Too many attempts. Please try again in ' . $seconds . ' seconds.',
+                'retry_after' => $seconds,
+            ], 429)->header('Retry-After', (string) $seconds));
+        }
+    }
+
+    private function throttleKey(Request $request, string $scope): string
+    {
+        return $scope . ':' . Str::lower((string) $request->input('email')) . '|' . $request->ip();
+    }
+
+    private function otpAttemptsKey(string $email): string
+    {
+        return 'pwd_reset_otp_attempts:' . sha1(Str::lower($email));
+    }
+
+    private function recordFailedOtp(string $email): void
+    {
+        $key = $this->otpAttemptsKey($email);
+        Cache::add($key, 0, now()->addMinutes(self::OTP_ATTEMPT_TTL_MINUTES));
+        $attempts = Cache::increment($key);
+
+        if ($attempts >= self::MAX_OTP_FAILURES) {
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+            Cache::forget($key);
+        }
+    }
+
     public function login(Request $request)
     {
         $request->validate([
@@ -21,13 +67,19 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
+        $throttleKey = $this->throttleKey($request, 'login');
+        $this->ensureNotRateLimited($throttleKey);
+
         $user = User::with('adminRole')->where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
+            RateLimiter::hit($throttleKey, self::AUTH_DECAY_SECONDS);
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials do not match our records.'],
             ]);
         }
+
+        RateLimiter::clear($throttleKey);
 
         if ($user->status === 'rejected') {
             throw ValidationException::withMessages([
@@ -91,7 +143,7 @@ class AuthController extends Controller
             ]);
         }
 
-        $user = User::create([
+        $attributes = [
             'id' => 'u_' . Str::random(8),
             'first_name' => $request->firstName,
             'last_name' => $request->lastName,
@@ -104,7 +156,13 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
             'role' => 'member',
             'status' => 'created', // needs admin approval
-        ]);
+        ];
+
+        if (Schema::hasColumn('users', 'privacy_accepted_at')) {
+            $attributes['privacy_accepted_at'] = now();
+        }
+
+        $user = User::create($attributes);
 
         try {
             MailHelper::sendRegistrationEmail($user);
@@ -130,6 +188,15 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = $request->user()->load('adminRole');
+
+        if (in_array($user->status, ['rejected', 'created'], true)) {
+            $user->currentAccessToken()?->delete();
+            return response()->json([
+                'message' => $user->status === 'rejected'
+                    ? 'Your account has been declined. Please contact the administrator.'
+                    : 'Your registration is still pending admin approval.',
+            ], 401);
+        }
 
         return response()->json($this->formatUser($user));
     }
@@ -161,11 +228,22 @@ class AuthController extends Controller
         $user->mobile = $request->mobile;
         $user->address = $request->address;
 
-        if ($request->filled('password')) {
+        $passwordChanged = $request->filled('password');
+        if ($passwordChanged) {
             $user->password = Hash::make($request->password);
         }
 
         $user->save();
+
+        if ($passwordChanged) {
+            // Revoke every other session/token; keep the one making this request.
+            $current = $user->currentAccessToken();
+            if ($current instanceof PersonalAccessToken) {
+                $user->tokens()->where('id', '!=', $current->id)->delete();
+            } else {
+                $user->tokens()->delete();
+            }
+        }
 
         // Synchronize member profile if exists
         $member = Member::where('user_id', $user->id)
@@ -243,18 +321,22 @@ class AuthController extends Controller
             'email' => 'required|email',
         ]);
 
+        $throttleKey = $this->throttleKey($request, 'forgot-password');
+        $this->ensureNotRateLimited($throttleKey);
+        RateLimiter::hit($throttleKey, self::AUTH_DECAY_SECONDS);
+
+        $maskedEmail = $this->maskEmail($request->email);
+
+        // Always respond with the same message body (no status/body branching on existence).
+        $genericResponse = response()->json([
+            'message' => 'If an account exists for that email address, a password reset OTP has been sent.',
+            'maskedEmail' => $maskedEmail,
+        ]);
+
         $user = User::where('email', $request->email)->first();
 
-        if (!$user) {
-            throw ValidationException::withMessages([
-                'email' => ['No registered account was found with this email address.'],
-            ]);
-        }
-
-        if ($user->status === 'rejected') {
-            throw ValidationException::withMessages([
-                'email' => ['Account registration request has been declined. Please contact support.'],
-            ]);
+        if (!$user || $user->status === 'rejected') {
+            return $genericResponse;
         }
 
         // Generate 6-digit OTP code
@@ -267,23 +349,16 @@ class AuthController extends Controller
                 'created_at' => now(),
             ]
         );
-
-        $maskedEmail = $this->maskEmail($request->email);
+        Cache::forget($this->otpAttemptsKey($request->email));
 
         try {
             MailHelper::sendPasswordResetOtpEmail($user, $otp);
         } catch (\Exception $e) {
+            // Logged only; the response must not reveal that the account exists or SMTP details.
             logger()->error("Password reset OTP email failed: " . $e->getMessage());
-            return response()->json([
-                'message' => 'Failed to send OTP email. Please verify SMTP settings.',
-                'error' => $e->getMessage(),
-            ], 500);
         }
 
-        return response()->json([
-            'message' => "Password reset OTP sent to {$maskedEmail}",
-            'maskedEmail' => $maskedEmail,
-        ]);
+        return $genericResponse;
     }
 
     public function verifyResetOtp(Request $request)
@@ -292,6 +367,10 @@ class AuthController extends Controller
             'email' => 'required|email',
             'otp' => 'required|string|size:6',
         ]);
+
+        $throttleKey = $this->throttleKey($request, 'verify-reset-otp');
+        $this->ensureNotRateLimited($throttleKey);
+        RateLimiter::hit($throttleKey, self::AUTH_DECAY_SECONDS);
 
         $record = DB::table('password_reset_tokens')->where('email', $request->email)->first();
 
@@ -304,16 +383,20 @@ class AuthController extends Controller
         // Check 15-minute expiration
         if (\Carbon\Carbon::parse($record->created_at)->addMinutes(15)->isPast()) {
             DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+            Cache::forget($this->otpAttemptsKey($request->email));
             throw ValidationException::withMessages([
                 'otp' => ['This OTP has expired. Please request a new OTP.'],
             ]);
         }
 
         if (!Hash::check($request->otp, $record->token)) {
+            $this->recordFailedOtp($request->email);
             throw ValidationException::withMessages([
                 'otp' => ['The OTP entered is incorrect. Please try again.'],
             ]);
         }
+
+        RateLimiter::clear($throttleKey);
 
         return response()->json([
             'message' => 'OTP verified successfully.',
@@ -329,6 +412,10 @@ class AuthController extends Controller
             'password' => 'required|string|min:6|confirmed',
         ]);
 
+        $throttleKey = $this->throttleKey($request, 'reset-password');
+        $this->ensureNotRateLimited($throttleKey);
+        RateLimiter::hit($throttleKey, self::AUTH_DECAY_SECONDS);
+
         $record = DB::table('password_reset_tokens')->where('email', $request->email)->first();
 
         if (!$record) {
@@ -339,12 +426,14 @@ class AuthController extends Controller
 
         if (\Carbon\Carbon::parse($record->created_at)->addMinutes(15)->isPast()) {
             DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+            Cache::forget($this->otpAttemptsKey($request->email));
             throw ValidationException::withMessages([
                 'otp' => ['This OTP has expired. Please request a new OTP.'],
             ]);
         }
 
         if (!Hash::check($request->otp, $record->token)) {
+            $this->recordFailedOtp($request->email);
             throw ValidationException::withMessages([
                 'otp' => ['The OTP entered is incorrect. Please try again.'],
             ]);
@@ -360,8 +449,13 @@ class AuthController extends Controller
         $user->password = Hash::make($request->password);
         $user->save();
 
+        // Invalidate every existing session for this account.
+        $user->tokens()->delete();
+
         // Delete used token record
         DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+        Cache::forget($this->otpAttemptsKey($request->email));
+        RateLimiter::clear($throttleKey);
 
         try {
             MailHelper::sendPasswordResetSuccessEmail($user);
