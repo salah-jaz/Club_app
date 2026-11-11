@@ -39,6 +39,7 @@ class LeagueGroupClubMembershipEligibilityTest extends TestCase
             'address' => 'Admin Street',
             'password' => bcrypt('password123'),
             'role' => 'admin',
+            'is_super_admin' => true,
             'status' => 'active',
         ]);
 

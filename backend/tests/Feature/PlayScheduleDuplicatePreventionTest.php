@@ -45,6 +45,7 @@ class PlayScheduleDuplicatePreventionTest extends TestCase
                 'address' => '123 Admin St',
                 'password' => bcrypt('password'),
                 'role' => 'admin',
+                'is_super_admin' => true,
                 'status' => 'active',
             ]
         );

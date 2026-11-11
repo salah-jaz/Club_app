@@ -54,6 +54,7 @@ class TrainingMemberDiscountTest extends TestCase
                 'address' => 'Test Address',
                 'password' => bcrypt('password'),
                 'role' => 'admin',
+                'is_super_admin' => true,
                 'status' => 'active',
             ]
         );
@@ -333,7 +334,7 @@ class TrainingMemberDiscountTest extends TestCase
 
         // Apply discount is OFF -> pays full base per week fee $25
         $initialCredit = $this->noDiscountMember->fresh()->credit;
-        $response = $this->actingAs($this->memberUser)->postJson("/api/training-invitations/{$inv->id}/respond", [
+        $response = $this->actingAs(\App\Models\User::find($this->noDiscountMember->user_id))->postJson("/api/training-invitations/{$inv->id}/respond", [
             'status' => 'accepted',
         ]);
         $response->assertStatus(200);

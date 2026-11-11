@@ -827,13 +827,20 @@ export const useStore = create<State>((set, get) => ({
         creditRequests,
         leagueGroups,
         fixtures: fixtures || [],
+        // Prefer scoped transactions from sync when the API includes them
+        ...((syncRes as { transactions?: Transaction[] }).transactions
+          ? { transactions: (syncRes as { transactions: Transaction[] }).transactions }
+          : {}),
       });
 
       // Fetch non-critical secondary data asynchronously in background
       void Promise.all([
         api.get<Rotation[]>("/rotations").catch(() => [] as Rotation[]),
         api.get<TrainingDate[]>("/training-dates").catch(() => [] as TrainingDate[]),
-        api.get<Transaction[]>("/transactions").catch(() => [] as Transaction[]),
+        // Keep as fallback when sync payload omits transactions
+        (syncRes as { transactions?: Transaction[] }).transactions
+          ? Promise.resolve((syncRes as { transactions: Transaction[] }).transactions)
+          : api.get<Transaction[]>("/transactions").catch(() => [] as Transaction[]),
       ]).then(([rotations, trainingDates, transactions]) => {
         set({ rotations, trainingDates, transactions });
       });

@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Helpers\FamilyScopeHelper;
 use App\Helpers\PermissionHelper;
+use App\Helpers\WalletHelper;
 use App\Http\Controllers\Controller;
+use App\Models\CreditRequest;
 use App\Models\Grade;
 use App\Models\Member;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +20,31 @@ class MemberController extends Controller
 {
     public function index(Request $request)
     {
+        $authUser = $request->user();
+        if (!$authUser) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
         $query = Member::query();
+
+        if ($authUser->role === 'admin') {
+            // Credits/transactions/schedules UIs need member names even without members.view.
+            if ($response = PermissionHelper::requireAnyAdminPermission($request, [
+                'members.view',
+                'credits.view',
+                'transactions.view',
+                'schedules.view',
+                'trainings.view',
+                'approvals.view',
+                'league_groups.view',
+                'fixtures.view',
+            ])) {
+                return $response;
+            }
+        } else {
+            // Members only ever see their own family (themselves + linked juniors).
+            $query->whereIn('id', FamilyScopeHelper::familyMemberIds($authUser));
+        }
 
         if ($search = trim((string) $request->query('search', ''))) {
             $like = '%' . $search . '%';
@@ -78,8 +106,23 @@ class MemberController extends Controller
             'status' => $isAdmin
                 ? 'required|in:active,disabled,pending,rejected'
                 : 'sometimes|in:active,disabled,pending,rejected',
-            'parentMemberId' => 'nullable|string|exists:members,id',
+            'parentMemberId' => ($isAdmin && $request->memberType === 'junior')
+                ? 'required|string|exists:members,id'
+                : 'nullable|string|exists:members,id',
         ];
+
+        if ($isAdmin && $request->memberType === 'junior') {
+            $parentCheck = Member::find($request->input('parentMemberId'));
+            if (!$request->filled('parentMemberId') || !$parentCheck) {
+                return response()->json([
+                    'message' => 'A parent adult member is required when member type is junior.',
+                    'errors' => ['parentMemberId' => ['A parent adult member is required when member type is junior.']],
+                ], 422);
+            }
+            if ($parentCheck->member_type !== 'adult') {
+                return response()->json(['message' => 'Parent must be an adult member.'], 422);
+            }
+        }
 
         $biMemberId = trim((string) ($request->input('biMemberId') ?? ''));
         $biMemberId = $biMemberId !== '' ? $biMemberId : null;
@@ -319,7 +362,55 @@ class MemberController extends Controller
             }
         }
 
+        // Optional initial credit (admin only) — seed via ledger, never silent ignore.
+        if ($isAdmin && $request->filled('credit') && (float) $request->credit > 0) {
+            $this->seedInitialCredit($member, (float) $request->credit);
+            $member->refresh();
+        }
+
         return response()->json($this->formatMember($member), 201);
+    }
+
+    /**
+     * Apply an opening wallet balance with a matching credit ledger entry.
+     * Juniors credit the parent wallet; junior credit column stays 0.
+     */
+    private function seedInitialCredit(Member $member, float $amount): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        DB::transaction(function () use ($member, $amount) {
+            $wallet = WalletHelper::resolveMember($member);
+            $fresh = Member::where('id', $wallet->id)->lockForUpdate()->first();
+            if (!$fresh) {
+                return;
+            }
+
+            $fresh->credit = round((float) $fresh->credit + $amount, 2);
+            $fresh->save();
+
+            $cr = CreditRequest::create([
+                'id' => 'c_' . Str::random(8),
+                'member_id' => $member->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'date' => now()->toDateString(),
+                'status' => 'approved',
+                'reason' => 'Initial credit on member create',
+            ]);
+
+            Transaction::create([
+                'id' => 't_' . Str::random(8),
+                'member_id' => $fresh->id,
+                'credit_request_id' => $cr->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'description' => 'Initial credit on member create',
+                'date' => now(),
+            ]);
+        });
     }
 
     public function update(Request $request, $id)
@@ -332,7 +423,7 @@ class MemberController extends Controller
         $user = $request->user();
         $isAdmin = $user && $user->role === 'admin';
 
-        if (!$isAdmin && $member->user_id !== $user->id) {
+        if (!$isAdmin && !FamilyScopeHelper::ownsMember($user, (string) $member->id)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
@@ -340,18 +431,23 @@ class MemberController extends Controller
         $originalType = strtolower((string) $member->member_type);
 
         $data = [];
-        if ($request->has('firstName')) $data['first_name'] = $request->firstName;
-        if ($request->has('lastName')) $data['last_name'] = $request->lastName;
+        // Fields any owner (member or admin) may change.
         if ($request->has('dob')) $data['dob'] = $request->dob;
-        if ($request->has('email')) $data['email'] = $request->email;
         if ($request->has('mobile')) $data['mobile'] = $request->mobile;
         if ($request->has('sex')) $data['sex'] = $request->sex;
-        if ($request->has('grade')) $data['grade'] = $request->grade;
-        if ($request->has('biMemberId')) {
-            $bi = trim((string) ($request->biMemberId ?? ''));
-            $data['bi_member_id'] = $bi !== '' ? $bi : null;
-        }
         if ($request->has('nickname')) $data['nickname'] = $request->nickname;
+
+        // Identity / club-managed fields are admin-only.
+        if ($isAdmin) {
+            if ($request->has('firstName')) $data['first_name'] = $request->firstName;
+            if ($request->has('lastName')) $data['last_name'] = $request->lastName;
+            if ($request->has('email')) $data['email'] = $request->email;
+            if ($request->has('grade')) $data['grade'] = $request->grade;
+            if ($request->has('biMemberId')) {
+                $bi = trim((string) ($request->biMemberId ?? ''));
+                $data['bi_member_id'] = $bi !== '' ? $bi : null;
+            }
+        }
 
         $newType = $originalType;
         if ($isAdmin && $request->has('memberType')) {
@@ -372,10 +468,8 @@ class MemberController extends Controller
                 }
                 $data['status'] = $request->status;
             }
-            if ($request->has('credit')) {
-                // Juniors share the parent wallet — their own credit column stays at 0.
-                $data['credit'] = $newType === 'junior' ? 0.00 : $request->credit;
-            }
+            // NOTE: wallet balance is intentionally NOT editable here. Balance changes
+            // must go through credit-requests so every change has a ledger entry.
             if ($request->has('skipCreditConsumption')) $data['skip_credit_consumption'] = $request->boolean('skipCreditConsumption');
             if ($request->has('applyDiscount')) $data['apply_discount'] = $request->boolean('applyDiscount');
 
@@ -441,7 +535,7 @@ class MemberController extends Controller
         $targetStatus = array_key_exists('status', $data) ? $data['status'] : $member->status;
         $targetType = $newType;
 
-        if ($targetStatus === 'active' && ($request->has('email') || $request->has('status') || $request->has('memberType'))) {
+        if ($targetStatus === 'active' && (array_key_exists('email', $data) || array_key_exists('status', $data) || array_key_exists('member_type', $data))) {
             if ($targetType === 'adult') {
                 $conflict = Member::where('email', $targetEmail)
                     ->where('status', 'active')
@@ -645,8 +739,25 @@ class MemberController extends Controller
             return response()->json(['message' => 'Only admins can delete junior members.'], 403);
         }
 
-        if ($user->role !== 'admin' && $member->user_id !== $user->id) {
+        if ($user->role !== 'admin' && !FamilyScopeHelper::ownsMember($user, (string) $member->id)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        // Adults who still have juniors cannot be removed by a member (self-delete).
+        if (
+            $user->role !== 'admin'
+            && strtolower((string) $member->member_type) === 'adult'
+            && $member->juniorMembers()->exists()
+        ) {
+            return response()->json([
+                'message' => 'Cannot delete a member who still has junior members. Contact an admin.',
+            ], 422);
+        }
+
+        // Preserve the ledger: refuse deletion when the member (or any junior that would be
+        // cascade-deleted with them) has a non-zero balance or any transaction history.
+        if ($blockMessage = $this->ledgerDeleteBlockMessage($member)) {
+            return response()->json(['message' => $blockMessage], 422);
         }
 
         DB::transaction(function () use ($member) {
@@ -657,6 +768,28 @@ class MemberController extends Controller
         });
 
         return response()->json(['message' => 'Member deleted successfully.']);
+    }
+
+    /**
+     * Returns a reason string when deleting this member (and any juniors cascade-deleted
+     * with them) would destroy ledger data, otherwise null.
+     */
+    private function ledgerDeleteBlockMessage(Member $member): ?string
+    {
+        $affectedIds = array_merge(
+            [$member->id],
+            $member->juniorMembers()->pluck('id')->all()
+        );
+
+        if (Member::whereIn('id', $affectedIds)->where('credit', '!=', 0)->exists()) {
+            return 'Cannot delete a member with a non-zero wallet balance.';
+        }
+
+        if (Transaction::whereIn('member_id', $affectedIds)->exists()) {
+            return 'Cannot delete a member that has transaction history.';
+        }
+
+        return null;
     }
 
     public function bulkDelete(Request $request)
@@ -676,6 +809,14 @@ class MemberController extends Controller
 
         $ids = array_values(array_unique($data['ids']));
         $deleted = 0;
+
+        foreach (Member::whereIn('id', $ids)->get() as $candidate) {
+            if ($blockMessage = $this->ledgerDeleteBlockMessage($candidate)) {
+                return response()->json([
+                    'message' => $candidate->name . ': ' . $blockMessage,
+                ], 422);
+            }
+        }
 
         DB::transaction(function () use ($ids, &$deleted) {
             // Prefer deleting adults first so cascade removes juniors in one pass
@@ -740,9 +881,24 @@ class MemberController extends Controller
 
         $user = User::findOrFail($member->user_id);
 
+        if ($user->role === 'admin') {
+            logger()->warning('Blocked admin attempt to impersonate an admin account.', [
+                'admin_user_id' => $request->user()->id,
+                'target_user_id' => $user->id,
+                'member_id' => $member->id,
+            ]);
+            return response()->json(['message' => 'Cannot log in as an admin account.'], 403);
+        }
+
         if ($user->status !== 'active') {
             return response()->json(['message' => 'User account is not active.'], 422);
         }
+
+        logger()->info('Admin impersonation (login-as) started.', [
+            'admin_user_id' => $request->user()->id,
+            'target_user_id' => $user->id,
+            'member_id' => $member->id,
+        ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -890,7 +1046,7 @@ class MemberController extends Controller
                         'dob' => $row['dob'] ?? '1990-01-01',
                         'mobile' => $row['mobile'] ?? $row['phone'] ?? '',
                         'address' => $row['address'] ?? '',
-                        'password' => Hash::make('password123'),
+                        'password' => Hash::make(Str::password(16)),
                         'role' => 'member',
                         'status' => 'active',
                     ]);
@@ -977,7 +1133,7 @@ class MemberController extends Controller
                         'dob' => $row['dob'] ?? '1990-01-01',
                         'mobile' => $row['mobile'] ?? $row['phone'] ?? '',
                         'address' => $row['address'] ?? '',
-                        'password' => Hash::make('password123'),
+                        'password' => Hash::make(Str::password(16)),
                         'role' => 'member',
                         'status' => 'active',
                     ]);

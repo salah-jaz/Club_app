@@ -12,7 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        // Global API rate limiting (limiter "api" is defined in AppServiceProvider).
+        $middleware->throttleApi();
+        $middleware->alias([
+            'active.user' => \App\Http\Middleware\EnsureUserIsActive::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->render(function (\Illuminate\Database\QueryException $e, \Illuminate\Http\Request $request) {

@@ -55,6 +55,7 @@ class GroupPlayScheduleVisibilityTest extends TestCase
                 'address' => 'Admin Address',
                 'password' => bcrypt('password'),
                 'role' => 'admin',
+                'is_super_admin' => true,
                 'status' => 'active',
             ]
         );

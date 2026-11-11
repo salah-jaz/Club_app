@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $status
  * @property \Illuminate\Support\Carbon|null $accepted_at
  * @property bool $debited
+ * @property float|null $debited_amount
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  */
@@ -27,10 +28,12 @@ class PlayInvitation extends Model
         'status',
         'accepted_at',
         'debited',
+        'debited_amount',
     ];
 
     protected $casts = [
         'debited' => 'boolean',
+        'debited_amount' => 'float',
         'accepted_at' => 'datetime',
     ];
 

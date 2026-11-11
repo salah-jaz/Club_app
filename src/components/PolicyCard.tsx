@@ -209,19 +209,7 @@ export function PolicyCard({ type, title, description }: PolicyCardProps) {
     if (!hasFile) return;
     setIsDownloading(true);
     try {
-      const downloadUrl = api.getPolicyUrl(type, "download");
-      const token = typeof window !== "undefined" ? localStorage.getItem("clubapp_token") : null;
-      const headers: Record<string, string> = {};
-      if (token && type === "member_policy") {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const res = await fetch(downloadUrl, { headers });
-      if (!res.ok) {
-        throw new Error("Failed to download document");
-      }
-      const blob = await res.blob();
-      const objectUrl = window.URL.createObjectURL(blob);
+      const objectUrl = await api.fetchPolicyBlobUrl(type, "download");
       const a = document.createElement("a");
       a.href = objectUrl;
       a.download = policy?.fileName || `${title.replace(/\s+/g, "_")}.pdf`;

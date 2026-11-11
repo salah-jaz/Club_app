@@ -43,6 +43,16 @@ export function PolicyDocumentModal({
 
   const [downloading, setDownloading] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(true);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const isGoogleDoc = policy?.sourceType === "google_doc";
+  const hasDocument = Boolean(policy?.hasDocument);
+  const hasFile = Boolean(policy?.hasFile || (!isGoogleDoc && hasDocument));
+  const hasGoogleDoc = Boolean(policy?.hasGoogleDoc || (isGoogleDoc && policy?.googleDocsUrl));
+  const downloadUrl = useMemo(
+    () => (hasFile ? api.getPolicyUrl(type, "download") : null),
+    [hasFile, type],
+  );
 
   // Always refresh policy metadata when modal opens to ensure latest version is shown
   useEffect(() => {
@@ -52,43 +62,40 @@ export function PolicyDocumentModal({
     }
   }, [open, fetchPolicies]);
 
-  const isGoogleDoc = policy?.sourceType === "google_doc";
-  const hasDocument = Boolean(policy?.hasDocument);
-  const hasFile = Boolean(policy?.hasFile || (!isGoogleDoc && hasDocument));
-  const hasGoogleDoc = Boolean(policy?.hasGoogleDoc || (isGoogleDoc && policy?.googleDocsUrl));
+  // Load PDF preview via Authorization header (never put token in the URL)
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
 
-  // Compute URLs with cache busting query param and auth token if applicable
-  const { previewUrl, downloadUrl } = useMemo(() => {
-    if (!hasFile) return { previewUrl: null, downloadUrl: null };
+    async function loadPreview() {
+      if (!open || !hasFile || isGoogleDoc) {
+        setPreviewUrl(null);
+        return;
+      }
+      setIframeLoading(true);
+      try {
+        objectUrl = await api.fetchPolicyBlobUrl(type, "preview");
+        if (!cancelled) setPreviewUrl(objectUrl);
+      } catch {
+        if (!cancelled) {
+          setPreviewUrl(null);
+          toast.error("Unable to load the policy document.");
+        }
+      }
+    }
 
-    const preview = api.getPolicyUrl(type, "preview");
-    const download = api.getPolicyUrl(type, "download");
-    const version = policy?.updatedAt ? new Date(policy.updatedAt).getTime() : Date.now();
-    const delimP = preview.includes("?") ? "&" : "?";
-    const delimD = download.includes("?") ? "&" : "?";
-
-    return {
-      previewUrl: `${preview}${delimP}v=${version}`,
-      downloadUrl: `${download}${delimD}v=${version}`,
+    void loadPreview();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [hasFile, type, policy?.updatedAt]);
+  }, [open, hasFile, isGoogleDoc, type, policy?.updatedAt]);
 
   const handleDownload = async () => {
     if (!downloadUrl) return;
     setDownloading(true);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("clubapp_token") : null;
-      const headers: Record<string, string> = {};
-      if (token && type === "member_policy") {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const res = await fetch(downloadUrl, { headers });
-      if (!res.ok) {
-        throw new Error("Failed to download document");
-      }
-      const blob = await res.blob();
-      const objectUrl = window.URL.createObjectURL(blob);
+      const objectUrl = await api.fetchPolicyBlobUrl(type, "download");
       const a = document.createElement("a");
       a.href = objectUrl;
       a.download = policy?.fileName || `${title.replace(/\s+/g, "_")}.pdf`;

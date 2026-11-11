@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminRole;
 use App\Models\Grade;
 use App\Models\Member;
 use App\Models\User;
@@ -16,6 +17,17 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
+        // Admins only: needs approvals.view or members.view.
+        if ($response = PermissionHelper::authorizeAdmin($request)) {
+            return $response;
+        }
+
+        $caller = $request->user();
+        if (!PermissionHelper::userHasPermission($caller, 'approvals.view')
+            && !PermissionHelper::userHasPermission($caller, 'members.view')) {
+            return response()->json(['message' => 'You do not have permission to perform this action.'], 403);
+        }
+
         $query = User::query();
 
         if ($request->has('status')) {
@@ -144,6 +156,7 @@ class UserController extends Controller
         $user = User::findOrFail($id);
         $user->status = 'rejected';
         $user->save();
+        $user->tokens()->delete();
 
         try {
             MailHelper::sendRejectionEmail($user);
@@ -165,16 +178,62 @@ class UserController extends Controller
 
         $request->validate([
             'role' => 'required|in:admin,member,volunteer',
+            'adminRoleId' => 'required_if:role,admin|nullable|string|exists:admin_roles,id',
         ]);
 
+        $caller = $request->user();
         $user = User::findOrFail($id);
-        $user->role = $request->role;
+        $wasAdmin = $user->role === 'admin';
+
+        if ($request->role === 'admin') {
+            $adminRole = AdminRole::findOrFail($request->adminRoleId);
+
+            if ($adminRole->is_super && !$caller->is_super_admin) {
+                return response()->json(['message' => 'Only super admins can assign the Super Admin role.'], 403);
+            }
+
+            if ($user->is_super_admin && !$caller->is_super_admin) {
+                return response()->json(['message' => 'Only super admins can modify super admin accounts.'], 403);
+            }
+
+            // Changing a super admin to a non-super role must leave at least one super admin.
+            if ($user->is_super_admin && !$adminRole->is_super && $this->remainingSuperAdminCount($user) < 1) {
+                return response()->json(['message' => 'At least one super admin must remain.'], 422);
+            }
+
+            $user->role = 'admin';
+            $user->admin_role_id = $adminRole->id;
+            $user->is_super_admin = (bool) $adminRole->is_super;
+        } else {
+            if ($wasAdmin && $user->is_super_admin) {
+                if (!$caller->is_super_admin) {
+                    return response()->json(['message' => 'Only super admins can modify super admin accounts.'], 403);
+                }
+
+                if ($this->remainingSuperAdminCount($user) < 1) {
+                    return response()->json(['message' => 'At least one super admin must remain.'], 422);
+                }
+            }
+
+            $user->role = $request->role;
+            $user->admin_role_id = null;
+            $user->is_super_admin = false;
+        }
+
         $user->save();
 
         return response()->json([
             'message' => 'User role updated successfully.',
             'user' => $this->formatUser($user)
         ]);
+    }
+
+    private function remainingSuperAdminCount(User $excluding): int
+    {
+        return User::where('role', 'admin')
+            ->where('is_super_admin', true)
+            ->where('id', '!=', $excluding->id)
+            ->count();
     }
 
     private function formatUser(User|\stdClass $u)

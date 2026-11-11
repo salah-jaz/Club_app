@@ -88,19 +88,18 @@ export async function openPolicyExternal(type: PolicyType): Promise<void> {
     return;
   }
 
-  // 2. Uploaded Document source (PDF)
-  const basePreviewUrl = api.getPolicyUrl(type, "preview");
+  // 2. Uploaded Document source (PDF) — fetch with Bearer, never put token in the URL
   const token = typeof window !== "undefined" ? localStorage.getItem("clubapp_token") : null;
 
-  // Enforce auth check for member policy on client
   if (type === "member_policy" && !token && !currentUser) {
     toast.error("Unauthorized. Please sign in to view the Member Policy.");
     return;
   }
 
-  const v = policy.updatedAt ? new Date(policy.updatedAt).getTime() : Date.now();
-  const delim = basePreviewUrl.includes("?") ? "&" : "?";
-  const finalUrl = `${basePreviewUrl}${delim}v=${v}`;
-
-  window.open(finalUrl, "_blank", "noopener,noreferrer");
+  try {
+    const objectUrl = await api.fetchPolicyBlobUrl(type, "preview");
+    window.open(objectUrl, "_blank", "noopener,noreferrer");
+  } catch {
+    toast.error(`Unable to open ${title}. Please sign in and try again.`);
+  }
 }

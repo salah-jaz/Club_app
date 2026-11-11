@@ -14,6 +14,7 @@ use App\Models\Setting;
 use App\Models\Holiday;
 use App\Helpers\MailHelper;
 use App\Helpers\PermissionHelper;
+use App\Helpers\FamilyScopeHelper;
 use App\Helpers\FeeHelper;
 use App\Helpers\SessionTimingHelper;
 use App\Helpers\WalletHelper;
@@ -408,6 +409,24 @@ class PlayScheduleController extends Controller
             ], 422);
         }
 
+        // Lifecycle statuses are driven by dedicated endpoints (release/rotate/publish/close/cancel).
+        if ($request->has('status') && in_array($request->input('status'), ['cancelled', 'closed', 'published', 'rotated'], true)) {
+            return response()->json([
+                'message' => 'Schedule status cannot be changed through update. Use the dedicated action instead.',
+            ], 422);
+        }
+
+        // Never shrink capacity below the number of members already accepted.
+        if ($request->has('players')) {
+            $newCapacity = (int) $request->input('players');
+            $acceptedUnique = $this->uniqueAcceptedCount($sch->id);
+            if ($newCapacity < $acceptedUnique) {
+                return response()->json([
+                    'message' => "Cannot reduce players below the {$acceptedUnique} members already accepted.",
+                ], 422);
+            }
+        }
+
         if (empty($sch->parent_id)) {
             $sch->parent_id = $sch->id;
             $sch->save();
@@ -442,6 +461,22 @@ class PlayScheduleController extends Controller
             if ($newRemaining < $currentRemaining) {
                 // Delete excess future sessions from the tail of the series
                 $keepUntilIndex = $schIndex + $newRemaining;
+
+                // Block (before mutating anything) when a session to be removed still has
+                // accepted/waiting/debited invitations; admin must cancel it so fees are refunded.
+                for ($i = $keepUntilIndex; $i < $series->count(); $i++) {
+                    $hasCommitted = PlayInvitation::where('schedule_id', $series[$i]->id)
+                        ->where(function ($q) {
+                            $q->whereIn('status', ['accepted', 'waiting'])->orWhere('debited', true);
+                        })
+                        ->exists();
+                    if ($hasCommitted) {
+                        return response()->json([
+                            'message' => 'Cannot reduce repeat weeks: a session that would be removed already has accepted or paid players. Cancel that session first so fees are refunded.',
+                        ], 422);
+                    }
+                }
+
                 for ($i = $keepUntilIndex; $i < $series->count(); $i++) {
                     $sToDelete = $series[$i];
                     PlayInvitation::where('schedule_id', $sToDelete->id)->delete();
@@ -537,9 +572,23 @@ class PlayScheduleController extends Controller
             return $response;
         }
 
+        return $this->releaseWithoutAuthCheck($id);
+    }
+
+    /**
+     * Release logic shared by the admin endpoint and system callers (auto-release, console).
+     * Callers MUST enforce authorization themselves; this method performs none.
+     * Only schedules in 'open' status can be released.
+     */
+    private function releaseWithoutAuthCheck($id)
+    {
         $sch = PlaySchedule::findOrFail($id);
-        $sch->status = 'released';
-        $sch->save();
+
+        if ($sch->status !== 'open') {
+            return response()->json([
+                'message' => 'Only an open schedule can be released. This schedule is already ' . $sch->status . '.',
+            ], 422);
+        }
 
         // Get active adult league participants and eligible juniors (non-league)
         $groupIds = is_array($sch->league_group_ids)
@@ -584,7 +633,25 @@ class PlayScheduleController extends Controller
         $transactionNotifications = [];
 
         // Create new invitations (league matches auto-accept up to capacity)
-        $invites = DB::transaction(function () use ($sch, $id, $eligible, $isLeague, $capacity, &$acceptedCount, &$releaseNotifications, &$transactionNotifications) {
+        $invites = DB::transaction(function () use (&$sch, $id, $eligible, $isLeague, $capacity, &$acceptedCount, &$releaseNotifications, &$transactionNotifications) {
+            // Lock the schedule and re-check status so two concurrent releases cannot both proceed.
+            $lockedSch = PlaySchedule::where('id', $id)->lockForUpdate()->firstOrFail();
+            if ($lockedSch->status !== 'open') {
+                return response()->json([
+                    'message' => 'Only an open schedule can be released. This schedule is already ' . $lockedSch->status . '.',
+                ], 422);
+            }
+            $lockedSch->status = 'released';
+            $lockedSch->save();
+            $sch = $lockedSch;
+
+            // Any stale invitations on an open schedule must be refunded before removal.
+            $staleInvites = PlayInvitation::where('schedule_id', $id)->lockForUpdate()->get();
+            foreach ($staleInvites as $stale) {
+                if ($stale->debited) {
+                    $this->refundPlayInvite($sch, $stale);
+                }
+            }
             PlayInvitation::where('schedule_id', $id)->delete();
 
             $invites = [];
@@ -638,6 +705,10 @@ class PlayScheduleController extends Controller
 
             return $invites;
         });
+
+        if ($invites instanceof \Illuminate\Http\JsonResponse) {
+            return $invites;
+        }
 
         // Offload email notifications to background so HTTP response completes immediately
         if (!MailHelper::isTemplateEnabled('schedule')) {
@@ -697,30 +768,39 @@ class PlayScheduleController extends Controller
         }
 
         $memberIds = array_values(array_unique($request->memberIds));
-        $userId = $request->user()->id;
+        $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
 
-        $allowedAdultIds = Member::eligibleForPlay()
-            ->where('user_id', $userId)
-            ->whereIn('id', $memberIds)
-            ->pluck('id')
-            ->all();
+        // Admins may enroll any eligible member (needs schedules.edit); members are family-only.
+        if ($isAdmin && ($response = PermissionHelper::denyAdminUnless($request, 'schedules.edit'))) {
+            return $response;
+        }
+        $familyIds = $isAdmin ? null : FamilyScopeHelper::familyMemberIds($user);
+
+        $adultQuery = Member::eligibleForPlay()->whereIn('id', $memberIds);
+        if ($familyIds !== null) {
+            $adultQuery->whereIn('id', $familyIds);
+        }
+        $allowedAdultIds = $adultQuery->pluck('id')->all();
 
         // Juniors: family head enrolls play-eligible children (same pattern as trainings).
         // League matches stay adult-only.
         $allowedJuniorIds = [];
         if (!(bool) $sch->is_league_match) {
-            $allowedJuniorIds = Member::eligibleForPlayAsJunior()
-                ->where('user_id', $userId)
-                ->whereIn('id', $memberIds)
-                ->pluck('id')
-                ->all();
+            $juniorQuery = Member::eligibleForPlayAsJunior()->whereIn('id', $memberIds);
+            if ($familyIds !== null) {
+                $juniorQuery->whereIn('id', $familyIds);
+            }
+            $allowedJuniorIds = $juniorQuery->pluck('id')->all();
         }
 
         $allowedIds = array_values(array_unique(array_merge($allowedAdultIds, $allowedJuniorIds)));
 
         if (count($allowedIds) !== count($memberIds)) {
             return response()->json([
-                'message' => 'You can only enroll your own eligible family members (adults with club membership, or play-eligible juniors).',
+                'message' => $isAdmin
+                    ? 'One or more selected members are not eligible for play (adults with club membership, or play-eligible juniors).'
+                    : 'You can only enroll your own eligible family members (adults with club membership, or play-eligible juniors).',
             ], 422);
         }
 
@@ -820,6 +900,15 @@ class PlayScheduleController extends Controller
     private function resolveWalletMember(Member $member): Member
     {
         return WalletHelper::resolveMember($member);
+    }
+
+    private function uniqueAcceptedCount(string $scheduleId): int
+    {
+        return PlayInvitation::where('schedule_id', $scheduleId)
+            ->where('status', 'accepted')
+            ->pluck('member_id')
+            ->unique()
+            ->count();
     }
 
     private function acceptNewlyEnrolledInvite(PlaySchedule $sch, PlayInvitation $invite, ?Member $member): ?string
@@ -1133,6 +1222,7 @@ class PlayScheduleController extends Controller
                     $outgoingInvite->status = 'open';
                     $outgoingInvite->accepted_at = null;
                     $outgoingInvite->debited = false;
+                    $outgoingInvite->debited_amount = null;
                     $outgoingInvite->save();
                 }
 
@@ -1146,6 +1236,7 @@ class PlayScheduleController extends Controller
 
                 $bypassesCredit = (bool) $replacementWallet->skip_credit_consumption || $replacementSkipsLeague;
                 $isReplacementDebited = false;
+                $replacementChargedAmount = 0.0;
 
                 if (!$bypassesCredit && $replacementFee > 0) {
                     $freshReplacementWallet = Member::where('id', $replacementWallet->id)->lockForUpdate()->first();
@@ -1172,6 +1263,7 @@ class PlayScheduleController extends Controller
                     }
 
                     $isReplacementDebited = true;
+                    $replacementChargedAmount = $replacementFee;
                 } else {
                     $isReplacementDebited = true;
                 }
@@ -1186,6 +1278,7 @@ class PlayScheduleController extends Controller
                     $replacementInvite->status = 'accepted';
                     $replacementInvite->accepted_at = now();
                     $replacementInvite->debited = $isReplacementDebited;
+                    $replacementInvite->debited_amount = $replacementChargedAmount;
                     $replacementInvite->save();
                 } else {
                     $replacementInvite = PlayInvitation::create([
@@ -1195,6 +1288,7 @@ class PlayScheduleController extends Controller
                         'status' => 'accepted',
                         'accepted_at' => now(),
                         'debited' => $isReplacementDebited,
+                        'debited_amount' => $replacementChargedAmount,
                     ]);
                 }
 
@@ -1279,6 +1373,12 @@ class PlayScheduleController extends Controller
         }
 
         $sch = PlaySchedule::findOrFail($id);
+        if ($sch->status === 'cancelled') {
+            return response()->json([
+                'message' => 'A cancelled schedule cannot be closed.',
+            ], 422);
+        }
+
         $sch->status = 'closed';
         $sch->save();
 
@@ -1298,27 +1398,41 @@ class PlayScheduleController extends Controller
             'reason' => 'required|string|max:1000',
         ]);
 
-        $sch = PlaySchedule::findOrFail($id);
-        if ($sch->status === 'cancelled') {
+        PlaySchedule::findOrFail($id);
+
+        $alreadyCancelled = false;
+        $sch = null;
+        DB::transaction(function () use ($id, $request, &$sch, &$alreadyCancelled) {
+            // Lock the schedule first so concurrent cancel/accept/rotate calls serialize.
+            $sch = PlaySchedule::where('id', $id)->lockForUpdate()->firstOrFail();
+            if ($sch->status === 'cancelled') {
+                $alreadyCancelled = true;
+                return;
+            }
+
+            $sch->status = 'cancelled';
+            $sch->cancel_reason = trim($request->reason);
+            $sch->save();
+
+            // Process refunds for members who have paid for this session.
+            // refundPlayInvite locks each invite and refunds only if still debited.
+            $invitations = PlayInvitation::where('schedule_id', $sch->id)->get();
+            foreach ($invitations as $invite) {
+                if ($invite->debited && $invite->member_id && !str_starts_with($invite->member_id, 'guest_')) {
+                    $this->refundPlayInvite($sch, $invite);
+                } else {
+                    $invite->debited = false;
+                    $invite->debited_amount = null;
+                    $invite->save();
+                }
+            }
+        });
+
+        if ($alreadyCancelled) {
             return response()->json([
                 'message' => 'Schedule is already cancelled.',
                 'schedule' => $this->formatSchedule($sch),
             ]);
-        }
-
-        $sch->status = 'cancelled';
-        $sch->cancel_reason = trim($request->reason);
-        $sch->save();
-
-        // Process refunds for members who have paid for this session
-        $invitations = PlayInvitation::where('schedule_id', $sch->id)->get();
-        foreach ($invitations as $invite) {
-            if ($invite->debited && $invite->member_id && !str_starts_with($invite->member_id, 'guest_')) {
-                $this->refundPlayInvite($sch, $invite);
-            } else {
-                $invite->debited = false;
-                $invite->save();
-            }
         }
 
         return response()->json([
@@ -1397,6 +1511,13 @@ class PlayScheduleController extends Controller
     public function performRotate(PlaySchedule $schedule): ?Rotation
     {
         return DB::transaction(function () use ($schedule) {
+        // Lock the schedule row first so concurrent rotate / accept / cancel calls serialize.
+        PlaySchedule::where('id', $schedule->id)->lockForUpdate()->firstOrFail();
+        $schedule->refresh();
+        if (in_array($schedule->status, ['closed', 'cancelled'], true)) {
+            return null;
+        }
+
         $invites = PlayInvitation::where('schedule_id', $schedule->id)->where('status', 'accepted')->get()->unique('member_id');
         $playerIds = $invites->pluck('member_id')->values()->all();
 
@@ -1465,14 +1586,22 @@ class PlayScheduleController extends Controller
             try {
                 $matchStart = SessionTimingHelper::parseDateTime($schedule->date);
 
-                if ($now->greaterThanOrEqualTo($matchStart)) {
-                    continue;
-                }
-
                 $lockDeadline = $matchStart->copy()->subHours($lockHours);
 
-                if ($now->lt($lockDeadline)) {
-                    continue;
+                if ($lockHours === 0) {
+                    // Lock window of 0h: rotate/publish at or after the match start.
+                    if ($now->lt($lockDeadline)) {
+                        continue;
+                    }
+                } else {
+                    // Once the match has started (and a lock window exists) leave it alone.
+                    if ($now->greaterThanOrEqualTo($matchStart)) {
+                        continue;
+                    }
+
+                    if ($now->lt($lockDeadline)) {
+                        continue;
+                    }
                 }
 
                 $acceptedCount = PlayInvitation::where('schedule_id', $schedule->id)
@@ -1547,7 +1676,7 @@ class PlayScheduleController extends Controller
 
         if ($existingNext) {
             if ($existingNext->status === 'open') {
-                $controller->release($existingNext->id);
+                $controller->releaseWithoutAuthCheck($existingNext->id);
             }
             return;
         }
@@ -1581,7 +1710,7 @@ class PlayScheduleController extends Controller
             ->orWhere('id', $parentId)
             ->update(['repeat_weeks' => $newRepeatWeeks]);
 
-        $controller->release($nextSchedule->id);
+        $controller->releaseWithoutAuthCheck($nextSchedule->id);
     }
 
     public function rotate($id)
@@ -1607,11 +1736,14 @@ class PlayScheduleController extends Controller
         }
 
         $rotation = $this->performRotate($schedule);
+        if (!$rotation) {
+            return response()->json(['message' => 'Cannot generate rotation for a closed or cancelled schedule.'], 422);
+        }
 
         return response()->json([
             'message' => 'Rotation generated successfully.',
             'rotation' => $this->formatRotation($rotation),
-            'schedule' => $this->formatSchedule($schedule)
+            'schedule' => $this->formatSchedule($schedule->fresh()),
         ]);
     }
 
@@ -1995,8 +2127,8 @@ class PlayScheduleController extends Controller
 
         $user = $request ? $request->user() : auth()->user();
         $isAdmin = $user && $user->role === 'admin';
-        $userMembers = $user ? Member::where('user_id', $user->id)->get() : collect();
-        $userMemberIds = $userMembers->pluck('id')->all();
+        $familyMemberIds = $isAdmin ? [] : FamilyScopeHelper::familyMemberIds($user);
+        $userMembers = !empty($familyMemberIds) ? Member::whereIn('id', $familyMemberIds)->get() : collect();
         $eligibleUserMemberIds = $userMembers->where('status', 'active')->where('membership', true)->pluck('id')->all();
 
         $releasedSchedules = PlaySchedule::where('status', 'released')->get();
@@ -2041,13 +2173,11 @@ class PlayScheduleController extends Controller
                     continue;
                 }
 
-                $cleanScheduleInvites = $scheduleInvites->filter(function($inv) use ($userMemberIds, $eligibleUserMemberIds) {
-                    if (in_array($inv->member_id, $userMemberIds, true)) {
-                        return in_array($inv->member_id, $eligibleUserMemberIds, true);
-                    }
-                    return true;
-                });
-                $filteredInvites = $filteredInvites->merge($cleanScheduleInvites);
+                // Never expose other members' invitations: only the caller's eligible family members.
+                $ownInvites = $scheduleInvites->filter(
+                    fn($inv) => in_array($inv->member_id, $eligibleUserMemberIds, true)
+                );
+                $filteredInvites = $filteredInvites->merge($ownInvites);
                 continue;
             }
 
@@ -2071,22 +2201,11 @@ class PlayScheduleController extends Controller
                 continue;
             }
 
-            $isPublishedOrClosed = in_array($schedule->status, ['published', 'closed'], true);
-
-            if (!$isPublishedOrClosed || $hasActiveAcceptedOrWaiting) {
-                $cleanScheduleInvites = $scheduleInvites->filter(function($inv) use ($userMemberIds, $eligibleUserMemberIds) {
-                    if (in_array($inv->member_id, $userMemberIds, true)) {
-                        return in_array($inv->member_id, $eligibleUserMemberIds, true);
-                    }
-                    return true;
-                });
-                $filteredInvites = $filteredInvites->merge($cleanScheduleInvites);
-            } else {
-                $userInvites = $scheduleInvites->filter(function($inv) use ($eligibleUserMemberIds) {
-                    return in_array($inv->member_id, $eligibleUserMemberIds, true);
-                });
-                $filteredInvites = $filteredInvites->merge($userInvites);
-            }
+            // Never expose other members' invitations: only the caller's eligible family members.
+            $ownInvites = $scheduleInvites->filter(
+                fn($inv) => in_array($inv->member_id, $eligibleUserMemberIds, true)
+            );
+            $filteredInvites = $filteredInvites->merge($ownInvites);
         }
 
         $payload = $filteredInvites->map(fn(PlayInvitation $i) => $this->formatInvitation($i))->values()->all();
@@ -2155,11 +2274,17 @@ class PlayScheduleController extends Controller
 
     public function respondInvitation(Request $request, $id)
     {
-        self::processAutoPublishAndRotation();
         $request->validate([
             'status' => 'required|in:accepted,declined',
         ]);
 
+        // IDOR guard: non-admins may only respond to invitations for their own family members.
+        $invite = PlayInvitation::findOrFail($id);
+        if ($response = FamilyScopeHelper::assertOwnsMemberOrAdmin($request->user(), (string) $invite->member_id)) {
+            return $response;
+        }
+
+        self::processAutoPublishAndRotation();
         $invite = PlayInvitation::findOrFail($id);
         $sch = PlaySchedule::findOrFail($invite->schedule_id);
         $desired = $request->status;
@@ -2305,6 +2430,7 @@ class PlayScheduleController extends Controller
                 $invite->status = 'open';
                 $invite->accepted_at = null;
                 $invite->debited = false;
+                $invite->debited_amount = null;
                 $invite->save();
 
                 // Free seat in Accepted → promote earliest waiting member (first come) to end of Accepted
@@ -2336,119 +2462,153 @@ class PlayScheduleController extends Controller
      * League matches: always debit (allow negative credit) unless position skips league fee.
      * Non-league: skip debit when insufficient credit (rotate/cron safety).
      */
-    private function debitPlayInvite(PlaySchedule $schedule, PlayInvitation $invite, bool $deferEmail = false, ?array &$deferredEmails = null): void
+    public function debitPlayInvite(PlaySchedule $schedule, PlayInvitation $invite, bool $deferEmail = false, ?array &$deferredEmails = null): void
     {
-        $invite->refresh();
-        if ($invite->debited || $invite->status !== 'accepted') {
-            return;
-        }
-        if ($this->isGuestMemberId($invite->member_id)) {
-            $invite->debited = true;
-            $invite->save();
-            return;
-        }
-
-        $member = Member::find($invite->member_id);
-        if (!$member) {
-            return;
-        }
-
-        if ($this->memberSkipsLeagueFee($schedule, $member->id)) {
-            $invite->debited = true;
-            $invite->save();
-            return;
-        }
-
-        // Juniors always debit from the parent adult's wallet.
-        $walletMember = $this->resolveWalletMember($member);
-        $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
-        $isLeague = (bool) $schedule->is_league_match;
-
-        if (!$walletMember->skip_credit_consumption && $memberFee > 0) {
-            if (!$isLeague && $walletMember->credit < $memberFee) {
+        DB::transaction(function () use ($schedule, $invite, $deferEmail, &$deferredEmails) {
+            // Lock the invite row so concurrent accept / rotate / cron paths cannot double-debit.
+            $locked = PlayInvitation::where('id', $invite->id)->lockForUpdate()->first();
+            if (!$locked) {
                 return;
             }
-            $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
-            $freshWallet->credit = round($freshWallet->credit - $memberFee, 2);
-            $freshWallet->save();
+            $invite->setRawAttributes($locked->getAttributes(), true);
 
-            $transaction = Transaction::create([
-                'id' => 't_' . Str::random(8),
-                'member_id' => $freshWallet->id,
-                'type' => 'debit',
-                'amount' => $memberFee,
-                'description' => 'Play session: ' . $schedule->name . ' - ' . $member->name,
-                'date' => now(),
-            ]);
+            if ($invite->debited || $invite->status !== 'accepted') {
+                return;
+            }
+            if ($this->isGuestMemberId($invite->member_id)) {
+                $invite->debited = true;
+                $invite->debited_amount = 0;
+                $invite->save();
+                return;
+            }
 
-            if ($deferEmail && $deferredEmails !== null) {
-                $deferredEmails[] = [
-                    'wallet_member_id' => $freshWallet->id,
-                    'transaction_id' => $transaction->id,
-                ];
-            } else {
-                try {
-                    MailHelper::sendTransactionEmail($freshWallet, $transaction);
-                } catch (\Exception $e) {
-                    logger()->error("Transaction debit email failed for member {$freshWallet->id}: " . $e->getMessage());
+            $member = Member::find($invite->member_id);
+            if (!$member) {
+                return;
+            }
+
+            if ($this->memberSkipsLeagueFee($schedule, $member->id)) {
+                $invite->debited = true;
+                $invite->debited_amount = 0;
+                $invite->save();
+                return;
+            }
+
+            // Juniors always debit from the parent adult's wallet.
+            $walletMember = $this->resolveWalletMember($member);
+            $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
+            $isLeague = (bool) $schedule->is_league_match;
+            $chargedAmount = 0.0;
+
+            if (!$walletMember->skip_credit_consumption && $memberFee > 0) {
+                $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                // Re-check credit under the wallet lock (non-league only; league may go negative).
+                if (!$isLeague && $freshWallet->credit < $memberFee) {
+                    return;
+                }
+                $freshWallet->credit = round($freshWallet->credit - $memberFee, 2);
+                $freshWallet->save();
+                $chargedAmount = $memberFee;
+
+                $transaction = Transaction::create([
+                    'id' => 't_' . Str::random(8),
+                    'member_id' => $freshWallet->id,
+                    'type' => 'debit',
+                    'amount' => $memberFee,
+                    'description' => 'Play session: ' . $schedule->name . ' - ' . $member->name,
+                    'date' => now(),
+                ]);
+
+                if ($deferEmail && $deferredEmails !== null) {
+                    $deferredEmails[] = [
+                        'wallet_member_id' => $freshWallet->id,
+                        'transaction_id' => $transaction->id,
+                    ];
+                } else {
+                    try {
+                        MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                    } catch (\Exception $e) {
+                        logger()->error("Transaction debit email failed for member {$freshWallet->id}: " . $e->getMessage());
+                    }
                 }
             }
-        }
 
-        $invite->debited = true;
-        $invite->save();
+            $invite->debited = true;
+            $invite->debited_amount = $chargedAmount;
+            $invite->save();
+        });
     }
 
     /**
-     * Refund play session fee when a member cancels within the allowed window.
+     * Refund play session fee (accept-cancel, session cancel, re-release, etc.).
+     * Locks the invite and refunds only if it is still debited under the lock.
+     * Refunds the stored debited_amount snapshot when present, otherwise falls back to FeeHelper.
      */
     private function refundPlayInvite(PlaySchedule $schedule, PlayInvitation $invite): void
     {
-        $invite->refresh();
-        if (!$invite->debited || $this->isGuestMemberId($invite->member_id)) {
-            return;
-        }
-
-        $member = Member::find($invite->member_id);
-        if (!$member || $this->memberSkipsLeagueFee($schedule, $member->id)) {
-            $invite->debited = false;
-            $invite->save();
-            return;
-        }
-
-        // Juniors always refund to the parent adult's wallet.
-        $walletMember = $this->resolveWalletMember($member);
-
-        if ($walletMember->skip_credit_consumption) {
-            $invite->debited = false;
-            $invite->save();
-            return;
-        }
-
-        $memberFee = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
-        if ($memberFee > 0) {
-            $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
-            $freshWallet->credit = round($freshWallet->credit + $memberFee, 2);
-            $freshWallet->save();
-
-            $transaction = Transaction::create([
-                'id' => 't_' . Str::random(8),
-                'member_id' => $freshWallet->id,
-                'type' => 'refund',
-                'amount' => $memberFee,
-                'description' => 'Refund — cancelled play session: ' . $schedule->name . ' - ' . $member->name,
-                'date' => now(),
-            ]);
-
-            try {
-                MailHelper::sendTransactionEmail($freshWallet, $transaction);
-            } catch (\Exception $e) {
-                logger()->error("Transaction refund email failed for member {$freshWallet->id}: " . $e->getMessage());
+        DB::transaction(function () use ($schedule, $invite) {
+            $locked = PlayInvitation::where('id', $invite->id)->lockForUpdate()->first();
+            if (!$locked) {
+                return;
             }
-        }
+            $invite->setRawAttributes($locked->getAttributes(), true);
 
-        $invite->debited = false;
-        $invite->save();
+            if (!$invite->debited || $this->isGuestMemberId($invite->member_id)) {
+                return;
+            }
+
+            $member = Member::find($invite->member_id);
+            if (!$member) {
+                $invite->debited = false;
+                $invite->debited_amount = null;
+                $invite->save();
+                return;
+            }
+
+            $snapshot = $invite->debited_amount;
+            // Juniors always refund to the parent adult's wallet.
+            $walletMember = $this->resolveWalletMember($member);
+
+            if ($snapshot !== null) {
+                $refundAmount = round((float) $snapshot, 2);
+            } else {
+                if (
+                    $this->memberSkipsLeagueFee($schedule, $member->id)
+                    || $walletMember->skip_credit_consumption
+                ) {
+                    $invite->debited = false;
+                    $invite->debited_amount = null;
+                    $invite->save();
+                    return;
+                }
+                $refundAmount = FeeHelper::playSessionFee((float) $schedule->session_rate, 0, 1, $member);
+            }
+
+            if ($refundAmount > 0) {
+                $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+                $freshWallet->credit = round($freshWallet->credit + $refundAmount, 2);
+                $freshWallet->save();
+
+                $transaction = Transaction::create([
+                    'id' => 't_' . Str::random(8),
+                    'member_id' => $freshWallet->id,
+                    'type' => 'refund',
+                    'amount' => $refundAmount,
+                    'description' => 'Refund — cancelled play session: ' . $schedule->name . ' - ' . $member->name,
+                    'date' => now(),
+                ]);
+
+                try {
+                    MailHelper::sendTransactionEmail($freshWallet, $transaction);
+                } catch (\Exception $e) {
+                    logger()->error("Transaction refund email failed for member {$freshWallet->id}: " . $e->getMessage());
+                }
+            }
+
+            $invite->debited = false;
+            $invite->debited_amount = null;
+            $invite->save();
+        });
     }
 
     /**
