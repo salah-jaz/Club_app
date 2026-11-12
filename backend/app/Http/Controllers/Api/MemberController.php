@@ -535,11 +535,28 @@ class MemberController extends Controller
         $targetStatus = array_key_exists('status', $data) ? $data['status'] : $member->status;
         $targetType = $newType;
 
-        if ($targetStatus === 'active' && (array_key_exists('email', $data) || array_key_exists('status', $data) || array_key_exists('member_type', $data))) {
+        // Only re-validate uniqueness when the identity footprint actually changes.
+        // Edit forms always re-submit email/status; unchanged values must not block
+        // membership or other field updates (especially parents who share email with juniors).
+        $emailChanged = array_key_exists('email', $data)
+            && strcasecmp(trim((string) $data['email']), trim((string) ($member->email ?? ''))) !== 0;
+        $statusChangedToActive = array_key_exists('status', $data)
+            && $data['status'] === 'active'
+            && $member->status !== 'active';
+        $typeChanged = array_key_exists('member_type', $data)
+            && strtolower((string) $data['member_type']) !== $originalType;
+
+        if ($targetStatus === 'active' && ($emailChanged || $statusChangedToActive || $typeChanged)) {
             if ($targetType === 'adult') {
+                // Match DB unique on active adults, and allow this adult's own juniors
+                // to keep sharing the family email without false conflicts.
                 $conflict = Member::where('email', $targetEmail)
                     ->where('status', 'active')
                     ->where('id', '!=', $member->id)
+                    ->where(function ($q) use ($member) {
+                        $q->whereNull('parent_member_id')
+                          ->orWhere('parent_member_id', '!=', $member->id);
+                    })
                     ->exists();
                 if ($conflict) {
                     return response()->json([

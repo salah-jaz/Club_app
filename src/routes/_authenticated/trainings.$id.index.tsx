@@ -43,6 +43,10 @@ import {
 import { cn } from "@/lib/utils";
 import { fmtMoney } from "@/lib/format";
 import { applyMemberFee, discountsFromStore, resolveWalletMember } from "@/lib/fees";
+import {
+  computeTotalSessionNet,
+  summarizeMemberTrainingPayments,
+} from "@/lib/trainingPaymentSummary";
 import { useNow } from "@/hooks/useNow";
 import { aggregateTrainingSchedulePhase, resolveTrainingDisplayStatus } from "@/lib/sessionTiming";
 import { ConfirmActionDialog, type ConfirmActionRequest } from "@/components/ConfirmActionDialog";
@@ -203,44 +207,16 @@ function TrainingPage() {
     );
   }, [s.members, targetType, t.isGroupTraining, t.leagueGroupIds, s.leagueGroups]);
 
-  const totalSessionNet = useMemo(() => {
-    let sum = 0;
-    const cleanBaseName = (t.name || "").split(" - Week")[0].replace(/ \(\d+\)$/, "").trim().toLowerCase();
-    const trainingNameLower = (t.name || "").toLowerCase();
+  const monthSessionNames = useMemo(() => {
+    const names = monthSessions.map((ms) => ms.name).filter(Boolean);
+    if (t.name && !names.includes(t.name)) names.push(t.name);
+    return names;
+  }, [monthSessions, t.name]);
 
-    for (const m of eligibleMembers) {
-      const walletMemberId = m.parentMemberId || m.id;
-      const firstNameStr = m.firstName || "";
-      const lastNameStr = m.lastName || "";
-      const expectedNameFragment = `${firstNameStr} ${lastNameStr}`.trim().toLowerCase();
-      const expectedFirstNameFragment = firstNameStr.toLowerCase();
-
-      const relatedTransactions = (s.transactions || []).filter((tx) => {
-        if (tx.memberId !== walletMemberId) return false;
-        const lowerDesc = (tx.description || "").toLowerCase();
-        
-        const hasFullName = expectedNameFragment.length > 0 && lowerDesc.includes(expectedNameFragment);
-        const hasFirstName = expectedFirstNameFragment.length > 0 && lowerDesc.includes(expectedFirstNameFragment);
-        
-        if (!hasFullName && !hasFirstName) return false;
-        if (!lowerDesc.includes("training")) return false;
-        if (lowerDesc.includes(trainingNameLower) || (cleanBaseName.length > 0 && lowerDesc.includes(cleanBaseName))) return true;
-        return false;
-      });
-
-      const displayActualPaid = relatedTransactions
-        .filter((tx) => tx.type === "debit")
-        .reduce((sum, tx) => sum + tx.amount, 0);
-
-      const displayTotalRefunded = relatedTransactions
-        .filter((tx) => tx.type === "refund" || tx.type === "credit")
-        .reduce((sum, tx) => sum + tx.amount, 0);
-
-      const displayFinalNet = displayActualPaid - displayTotalRefunded;
-      sum += displayFinalNet;
-    }
-    return sum;
-  }, [eligibleMembers, s.transactions, t.name]);
+  const totalSessionNet = useMemo(
+    () => computeTotalSessionNet(eligibleMembers, s.transactions, monthSessionNames),
+    [eligibleMembers, s.transactions, monthSessionNames],
+  );
 
   const [memberSearch, setMemberSearch] = useState("");
   const [expandedPaymentRows, setExpandedPaymentRows] = useState<Set<string>>(new Set());
@@ -674,37 +650,19 @@ function TrainingPage() {
 
     const additionalAmountForUpdate = unacceptedMonthSessions.length * baseMemberWeekFee;
 
+    // Shared parent wallets: attribute via strict "for {name}:" (same as backend).
+    // Match every month-session name so attendance refunds on other weeks are included.
     const walletMemberId = m.parentMemberId || m.id;
-    const firstNameStr = m.firstName || "";
-    const lastNameStr = m.lastName || "";
-    const expectedNameFragment = `${firstNameStr} ${lastNameStr}`.trim().toLowerCase();
-    const expectedFirstNameFragment = firstNameStr.toLowerCase();
-
-    const cleanBaseName = (t.name || "").split(" - Week")[0].replace(/ \(\d+\)$/, "").trim().toLowerCase();
-    const trainingNameLower = (t.name || "").toLowerCase();
-
-    const relatedTransactions = (s.transactions || []).filter((tx) => {
-      if (tx.memberId !== walletMemberId) return false;
-      const lowerDesc = (tx.description || "").toLowerCase();
-      
-      const hasFullName = expectedNameFragment.length > 0 && lowerDesc.includes(expectedNameFragment);
-      const hasFirstName = expectedFirstNameFragment.length > 0 && lowerDesc.includes(expectedFirstNameFragment);
-      
-      if (!hasFullName && !hasFirstName) return false;
-      if (!lowerDesc.includes("training")) return false;
-      if (lowerDesc.includes(trainingNameLower) || (cleanBaseName.length > 0 && lowerDesc.includes(cleanBaseName))) return true;
-      return false;
+    const memberFullName = memberName.trim() || m.id;
+    const {
+      actualPaid: displayActualPaid,
+      totalRefunded: displayTotalRefunded,
+      finalNet: displayFinalNet,
+    } = summarizeMemberTrainingPayments(s.transactions, {
+      walletMemberId,
+      memberFullName,
+      trainingName: monthSessionNames,
     });
-
-    const displayActualPaid = relatedTransactions
-      .filter((tx) => tx.type === "debit")
-      .reduce((sum, tx) => sum + tx.amount, 0);
-
-    const displayTotalRefunded = relatedTransactions
-      .filter((tx) => tx.type === "refund" || tx.type === "credit")
-      .reduce((sum, tx) => sum + tx.amount, 0);
-
-    const displayFinalNet = displayActualPaid - displayTotalRefunded;
 
     return {
       memberInvs,
@@ -781,8 +739,12 @@ function TrainingPage() {
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">Cancel Training Program</DialogTitle>
             <DialogDescription className="text-[#C4D4CF] text-xs">
-              Enter a reason for cancelling <strong className="text-[#F1F0EE]">“{t.name}”</strong>.
-              Members will be notified and any paid fees will be refunded automatically.
+              Enter a reason for cancelling{" "}
+              <strong className="text-[#F1F0EE]">“{t.name}”</strong> ({monthTitle}). All sessions in
+              this monthly program will be cancelled. Each enrolled member (including juniors on a
+              shared parent wallet) is refunded the exact total amount deducted for this program —
+              linked to their original debit — not a single week’s share. Prior attendance refunds
+              are deducted; other trainings are never included.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
