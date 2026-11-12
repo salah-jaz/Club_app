@@ -485,13 +485,66 @@ class InvitationSyncService
     }
 
     /**
-     * FIN-04: remaining refundable amount for ONE accepted session of a member.
+     * Build series-scoped + enrolled-member-scoped transaction matchers.
      *
-     * - Session paid amount = invitation accepted_amount (legacy rows without it fall back to the
-     *   computed per-session fee, or an even share of the series debit transactions).
-     * - Minus the attendance refund already issued for THAT session only.
-     * - Capped by what is still left of the whole series payment after attendance, cancel/delete,
-     *   overpayment and update refunds were taken into account.
+     * Critical: refunds/debits for siblings that share a parent wallet must NOT share one
+     * pool. Descriptions always include "for {member name}:", so we require that token.
+     *
+     * @return array{0: array<int,string>, 1: \Closure, 2: \Closure}
+     */
+    private static function seriesTransactionMatchers(Training $session, Member $member, array $seriesSessionIds): array
+    {
+        $baseName = trim(explode(' - Week', $session->name)[0]);
+        $cleanBaseName = trim(preg_replace('/ \(\d+\)$/', '', $baseName));
+
+        $seriesNames = Training::whereIn('id', $seriesSessionIds)->pluck('name')->all();
+        $nameMatchers = collect($seriesNames)
+            ->push($session->name)
+            ->push($cleanBaseName)
+            ->map(fn ($n) => trim((string) $n))
+            ->filter(fn ($n) => $n !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        $memberName = trim((string) $member->name);
+        $memberToken = $memberName !== '' ? ('for ' . $memberName . ':') : null;
+
+        $matchSeriesName = function ($q) use ($nameMatchers) {
+            foreach ($nameMatchers as $i => $name) {
+                if ($i === 0) {
+                    $q->where('description', 'like', '%' . $name . '%');
+                } else {
+                    $q->orWhere('description', 'like', '%' . $name . '%');
+                }
+            }
+        };
+
+        // Attribute to this enrolled member when the description contains
+        // "for {name}:". Also allow legacy rows that have no "for Name:" clause
+        // at all. Never include a sibling's "for Other Name:" rows on a shared wallet.
+        $matchEnrolledMember = function ($q) use ($memberToken) {
+            $q->where(function ($inner) use ($memberToken) {
+                if ($memberToken !== null) {
+                    $inner->where('description', 'like', '%' . $memberToken . '%');
+                }
+                $inner->orWhere(function ($legacy) {
+                    $legacy->where('description', 'not like', '% for %:%');
+                });
+            });
+        };
+
+        return [$nameMatchers, $matchSeriesName, $matchEnrolledMember];
+    }
+
+    /**
+     * Remaining refundable amount for ONE accepted session of a member
+     * (individual-session cancel / decline / eligibility sync).
+     *
+     * - Session paid amount = invitation accepted_amount (actual share deducted).
+     * - Minus attendance refund for THAT session only.
+     * - Capped by this enrolled member's remaining series balance (never a sibling's
+     *   refunds on a shared parent wallet, never other trainings).
      */
     public static function remainingSessionRefund(Training $session, Member $member, TrainingInvitation $invite): float
     {
@@ -512,31 +565,13 @@ class InvitationSyncService
             $acceptedSeriesInvites->push($invite);
         }
 
-        $baseName = trim(explode(' - Week', $session->name)[0]);
-        $cleanBaseName = trim(preg_replace('/ \(\d+\)$/', '', $baseName));
+        [$nameMatchers, $matchSeriesName, $matchEnrolledMember] = self::seriesTransactionMatchers(
+            $session,
+            $member,
+            $seriesSessionIds
+        );
 
-        // Name matchers scoped to this series only. Never match generic "Training%".
-        $seriesNames = Training::whereIn('id', $seriesSessionIds)->pluck('name')->all();
-        $nameMatchers = collect($seriesNames)
-            ->push($session->name)
-            ->push($cleanBaseName)
-            ->map(fn ($n) => trim((string) $n))
-            ->filter(fn ($n) => $n !== '')
-            ->unique()
-            ->values()
-            ->all();
-
-        $matchSeriesName = function ($q) use ($nameMatchers) {
-            foreach ($nameMatchers as $i => $name) {
-                if ($i === 0) {
-                    $q->where('description', 'like', '%' . $name . '%');
-                } else {
-                    $q->orWhere('description', 'like', '%' . $name . '%');
-                }
-            }
-        };
-
-        $sumRefundsLike = function (array $patterns) use ($walletMember, $nameMatchers, $matchSeriesName): float {
+        $sumRefundsLike = function (array $patterns) use ($walletMember, $nameMatchers, $matchSeriesName, $matchEnrolledMember): float {
             if (empty($nameMatchers)) {
                 return 0.0;
             }
@@ -552,13 +587,14 @@ class InvitationSyncService
                         }
                     }
                 })
+                ->where($matchEnrolledMember)
                 ->where($matchSeriesName)
                 ->sum('amount');
         };
 
-        // Legacy lump-sum debits (series-scoped) are only needed for invitations without accepted_amount.
+        // Legacy lump-sum debits: only this enrolled member's debits for this series.
         $legacyShare = null;
-        $paidFor = function (TrainingInvitation $inv) use ($member, $walletMember, $nameMatchers, $matchSeriesName, $acceptedSeriesInvites, &$legacyShare): float {
+        $paidFor = function (TrainingInvitation $inv) use ($member, $walletMember, $nameMatchers, $matchSeriesName, $matchEnrolledMember, $acceptedSeriesInvites, &$legacyShare): float {
             if ($inv->accepted_amount !== null) {
                 return (float) $inv->accepted_amount;
             }
@@ -579,6 +615,7 @@ class InvitationSyncService
                     ? 0.0
                     : (float) Transaction::where('member_id', $walletMember->id)
                         ->where('type', 'debit')
+                        ->where($matchEnrolledMember)
                         ->where($matchSeriesName)
                         ->sum('amount');
                 $legacyShare = round($debitSum / max(1, $acceptedSeriesInvites->count()), 2);
@@ -590,14 +627,12 @@ class InvitationSyncService
         $sessionPaid = $paidFor($invite);
         $seriesPaid = (float) $acceptedSeriesInvites->sum(fn ($inv) => $paidFor($inv));
 
-        // Attendance refund for THIS session only.
         $sessionAttendanceRefund = (float) TrainingDate::where('training_id', $session->id)
             ->where('member_id', $member->id)
             ->whereNotNull('refund_amount')
             ->sum('refund_amount');
         $sessionRefundable = max(0.0, $sessionPaid - $sessionAttendanceRefund);
 
-        // Series-wide pool: everything paid minus everything already refunded.
         $tdAttendanceRefunds = (float) TrainingDate::whereIn('training_id', $seriesSessionIds)
             ->where('member_id', $member->id)
             ->whereNotNull('refund_amount')
@@ -606,6 +641,7 @@ class InvitationSyncService
         $alreadyRefundedAttendance = max($tdAttendanceRefunds, $txnAttendanceRefunds);
 
         $alreadyRefundedCancellation = $sumRefundsLike([
+            'Refund — cancelled training program%',
             'Refund — cancelled training session%',
             'Refund — deleted training session%',
             'Refund — declined training session%',
@@ -613,8 +649,6 @@ class InvitationSyncService
         $overpaymentRefunds = $sumRefundsLike(['Training program overpayment refund%']);
         $updateRefunds = $sumRefundsLike(['Training program update refund%']);
 
-        // Overpayment refunds rewrite accepted_amount (already netted out of $seriesPaid), so add them
-        // back to the "paid" side before subtracting them as refunds - net effect: counted exactly once.
         $originalPaid = $seriesPaid + $overpaymentRefunds;
         $pool = $originalPaid
             - $alreadyRefundedAttendance
@@ -623,6 +657,108 @@ class InvitationSyncService
             - $updateRefunds;
 
         return round(max(0.0, min($sessionRefundable, $pool)), 2);
+    }
+
+    /**
+     * Remaining refundable amount when an entire monthly training program is cancelled.
+     *
+     * Uses the exact total actually charged for this enrolled member across the cancelled
+     * sessions (sum of accepted_amount, with debit fallback) — NOT a fresh fees÷weeks split.
+     * Sibling juniors on a shared parent wallet each keep their own balance.
+     *
+     * @param  \Illuminate\Support\Collection<int, Training>  $sessions
+     * @param  \Illuminate\Support\Collection<int, TrainingInvitation>  $memberInvites
+     */
+    public static function remainingProgramRefund($sessions, Member $member, $memberInvites): float
+    {
+        if ($sessions->isEmpty() || $memberInvites->isEmpty()) {
+            return 0.0;
+        }
+
+        $sessionIds = $sessions->pluck('id')->all();
+        $first = $sessions->first();
+        $parentId = $first->parent_id ?: $first->id;
+        $seriesSessionIds = Training::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->pluck('id')
+            ->all();
+
+        $walletMember = WalletHelper::resolveMember($member);
+        [$nameMatchers, $matchSeriesName, $matchEnrolledMember] = self::seriesTransactionMatchers(
+            $first,
+            $member,
+            $seriesSessionIds
+        );
+
+        $sumRefundsLike = function (array $patterns) use ($walletMember, $nameMatchers, $matchSeriesName, $matchEnrolledMember): float {
+            if (empty($nameMatchers)) {
+                return 0.0;
+            }
+
+            return (float) Transaction::where('member_id', $walletMember->id)
+                ->whereIn('type', Transaction::inflowTypes())
+                ->where(function ($q) use ($patterns) {
+                    foreach ($patterns as $i => $pattern) {
+                        if ($i === 0) {
+                            $q->where('description', 'like', $pattern);
+                        } else {
+                            $q->orWhere('description', 'like', $pattern);
+                        }
+                    }
+                })
+                ->where($matchEnrolledMember)
+                ->where($matchSeriesName)
+                ->sum('amount');
+        };
+
+        $acceptedPaid = (float) $memberInvites->sum(function (TrainingInvitation $inv) {
+            if ($inv->accepted_amount !== null) {
+                return (float) $inv->accepted_amount;
+            }
+            if ($inv->accepted_per_session_fee !== null) {
+                return (float) $inv->accepted_per_session_fee;
+            }
+            return 0.0;
+        });
+
+        // Source of truth for what was charged: prefer invitation snapshots; if missing,
+        // fall back to this member's debit transaction(s) for this series only.
+        $debitPaid = empty($nameMatchers)
+            ? 0.0
+            : (float) Transaction::where('member_id', $walletMember->id)
+                ->where('type', 'debit')
+                ->where($matchEnrolledMember)
+                ->where($matchSeriesName)
+                ->sum('amount');
+
+        $totalPaid = round(max($acceptedPaid, $debitPaid), 2);
+        if ($totalPaid <= 0) {
+            return 0.0;
+        }
+
+        $tdAttendanceRefunds = (float) TrainingDate::whereIn('training_id', $sessionIds)
+            ->where('member_id', $member->id)
+            ->whereNotNull('refund_amount')
+            ->sum('refund_amount');
+        $txnAttendanceRefunds = $sumRefundsLike(['Training session absent%']);
+        $alreadyRefundedAttendance = max($tdAttendanceRefunds, $txnAttendanceRefunds);
+
+        $alreadyRefundedCancellation = $sumRefundsLike([
+            'Refund — cancelled training program%',
+            'Refund — cancelled training session%',
+            'Refund — deleted training session%',
+            'Refund — declined training session%',
+        ]);
+        $overpaymentRefunds = $sumRefundsLike(['Training program overpayment refund%']);
+        $updateRefunds = $sumRefundsLike(['Training program update refund%']);
+
+        $remaining = $totalPaid
+            - $alreadyRefundedAttendance
+            - $alreadyRefundedCancellation
+            - $overpaymentRefunds
+            - $updateRefunds;
+
+        return round(max(0.0, $remaining), 2);
     }
 
     /**

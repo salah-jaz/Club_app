@@ -2384,27 +2384,121 @@ class TrainingController extends Controller
         $reason = trim($request->reason);
 
         return DB::transaction(function () use ($id, $reason) {
-            // Lock the session so concurrent cancel calls cannot both refund.
+            // Lock the clicked session, then the rest of the monthly program, so concurrent
+            // cancel calls cannot both refund the same members.
             $tr = Training::where('id', $id)->lockForUpdate()->firstOrFail();
-            if ($tr->status === 'cancelled') {
+
+            $parentId = $tr->parent_id ?: $tr->id;
+            $series = Training::where(function ($q) use ($parentId) {
+                $q->where('parent_id', $parentId)->orWhere('id', $parentId);
+            })->lockForUpdate()->get();
+
+            $tYearMonth = \Carbon\Carbon::parse($tr->start_date)->format('Y-m');
+            $monthSessions = $series->filter(function ($sItem) use ($tYearMonth) {
+                return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $tYearMonth;
+            });
+
+            // Same monthly scope as close()/destroy(): cancel the whole program card, not one week.
+            $idsToCancel = $monthSessions
+                ->filter(fn ($s) => $s->status !== 'cancelled')
+                ->pluck('id')
+                ->values()
+                ->all();
+
+            if (empty($idsToCancel)) {
                 return response()->json([
                     'message' => 'Training program is already cancelled.',
                     'training' => $this->formatTraining($tr),
                 ]);
             }
 
-            $tr->status = 'cancelled';
-            $tr->cancel_reason = $reason;
-            $tr->save();
+            Training::whereIn('id', $idsToCancel)->update([
+                'status' => 'cancelled',
+                'cancel_reason' => $reason,
+            ]);
 
-            // Refund ONLY this cancelled session for members who paid for it (once, on cancellation).
-            $this->refundTrainingSessions([$tr->id], false);
+            // Entire monthly program cancel: one net refund per enrolled member equal to the
+            // exact total charged for this program (not a single week's share). Sibling juniors
+            // that share a parent wallet are refunded independently.
+            $this->refundCancelledTrainingProgram($idsToCancel);
+
+            $tr->refresh();
 
             return response()->json([
                 'message' => 'Training program cancelled successfully and eligible fees refunded.',
                 'training' => $this->formatTraining($tr),
             ]);
         });
+    }
+
+    /**
+     * Program-level cancellation refund: for each enrolled member with accepted invitations
+     * on the cancelled sessions, credit back the remaining net amount actually charged for
+     * this program (accepted_amount / debit total minus attendance & prior cancel refunds).
+     * Issues one refund transaction per member, linked to that member in the description.
+     */
+    private function refundCancelledTrainingProgram(array $sessionIds): void
+    {
+        if (empty($sessionIds)) {
+            return;
+        }
+
+        $sessions = Training::whereIn('id', $sessionIds)->orderBy('start_date', 'asc')->get();
+        if ($sessions->isEmpty()) {
+            return;
+        }
+
+        $invites = TrainingInvitation::whereIn('training_id', $sessionIds)
+            ->where('status', 'accepted')
+            ->lockForUpdate()
+            ->get();
+
+        $programLabel = $sessions->first()->name;
+        $baseLabel = trim(explode(' - Week', $programLabel)[0]);
+        $baseLabel = trim(preg_replace('/ \(\d+\)$/', '', $baseLabel));
+        if ($baseLabel !== '') {
+            $programLabel = $baseLabel;
+        }
+
+        foreach ($invites->groupBy('member_id') as $memberId => $memberInvites) {
+            $member = Member::find($memberId);
+            if (!$member) {
+                continue;
+            }
+
+            $walletMember = WalletHelper::resolveMember($member);
+            if ($walletMember->skip_credit_consumption) {
+                continue;
+            }
+
+            $remainingRefund = InvitationSyncService::remainingProgramRefund(
+                $sessions,
+                $member,
+                $memberInvites
+            );
+            if ($remainingRefund <= 0) {
+                continue;
+            }
+
+            $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
+            $freshWallet->credit = round($freshWallet->credit + $remainingRefund, 2);
+            $freshWallet->save();
+
+            $transaction = Transaction::create([
+                'id' => 't_' . Str::random(8),
+                'member_id' => $freshWallet->id,
+                'type' => 'refund',
+                'amount' => $remainingRefund,
+                'description' => 'Refund — cancelled training program for ' . $member->name . ': ' . $programLabel,
+                'date' => now(),
+            ]);
+
+            try {
+                MailHelper::sendTransactionEmail($freshWallet, $transaction);
+            } catch (\Exception $e) {
+                logger()->error("Transaction refund email failed for member {$freshWallet->id}: " . $e->getMessage());
+            }
+        }
     }
 
     /**
@@ -2453,10 +2547,13 @@ class TrainingController extends Controller
     }
 
     /**
-     * FIN-04: refunds ONLY the cancelled session(s): for every accepted invitation on that session the
-     * remaining refundable amount (session paid amount minus attendance refund for THAT session, capped by
-     * what is still left of the series payment after attendance / cancel / overpayment / update refunds)
-     * is credited back to the wallet owner.
+     * Refund accepted invitations on the given cancelled session IDs.
+     *
+     * For each accepted invitation, credits the remaining refundable amount
+     * (accepted_amount actually deducted for that session, minus any attendance refund
+     * for that session, capped by what is still left of this series' payment after
+     * attendance / prior cancel / overpayment / update refunds). Does not use a
+     * fresh fees÷weeks recalculation, and never includes other trainings' payments.
      */
     private function refundTrainingSessions(array $sessionIds, bool $isDeletion = false): void
     {
@@ -2464,7 +2561,7 @@ class TrainingController extends Controller
             return;
         }
 
-        $sessions = Training::whereIn('id', $sessionIds)->get();
+        $sessions = Training::whereIn('id', $sessionIds)->orderBy('start_date', 'asc')->get();
 
         foreach ($sessions as $session) {
             $invitations = TrainingInvitation::where('training_id', $session->id)

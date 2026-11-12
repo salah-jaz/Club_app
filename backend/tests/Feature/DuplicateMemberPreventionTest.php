@@ -389,4 +389,98 @@ class DuplicateMemberPreventionTest extends TestCase
             'message' => 'An active member with this email already exists.',
         ]);
     }
+
+    public function test_updating_parent_with_shared_family_email_does_not_false_conflict(): void
+    {
+        $familyEmail = 'family_update_' . Str::random(5) . '@test.com';
+
+        $parentUser = User::create([
+            'id' => 'u_fu_' . Str::random(5),
+            'first_name' => 'Parent',
+            'last_name' => 'Update',
+            'sex' => 'female',
+            'dob' => '1980-01-01',
+            'email' => $familyEmail,
+            'mobile' => '1212121212',
+            'address' => 'Family Home',
+            'password' => bcrypt('password'),
+            'role' => 'member',
+            'status' => 'active',
+        ]);
+
+        $parent = Member::create([
+            'id' => 'm_fu_' . Str::random(5),
+            'user_id' => $parentUser->id,
+            'first_name' => 'Parent',
+            'last_name' => 'Update',
+            'dob' => '1980-01-01',
+            'email' => $familyEmail,
+            'mobile' => '1212121212',
+            'sex' => 'female',
+            'member_type' => 'adult',
+            'membership' => true,
+            'grade' => 'Grade A',
+            'status' => 'active',
+            'credit' => 0.00,
+        ]);
+
+        Member::create([
+            'id' => 'm_fj_' . Str::random(5),
+            'user_id' => $parentUser->id,
+            'parent_member_id' => $parent->id,
+            'first_name' => 'Child',
+            'last_name' => 'Update',
+            'dob' => '2016-01-01',
+            'email' => $familyEmail,
+            'sex' => 'male',
+            'member_type' => 'junior',
+            'membership' => true,
+            'grade' => 'Beginner',
+            'status' => 'active',
+            'credit' => 0.00,
+        ]);
+
+        // Edit form re-submits the same email while toggling membership.
+        $res = $this->actingAs($this->admin)->patchJson("/api/members/{$parent->id}", [
+            'firstName' => 'Parent',
+            'lastName' => 'Update',
+            'dob' => '1980-01-01',
+            'email' => $familyEmail,
+            'mobile' => '1212121212',
+            'sex' => 'female',
+            'memberType' => 'adult',
+            'membership' => false,
+            'trainingEligible' => false,
+            'playEligible' => false,
+            'grade' => 'Grade A',
+            'status' => 'active',
+        ]);
+        $res->assertOk();
+        $this->assertFalse((bool) $parent->fresh()->membership);
+
+        // Changing to another active adult's email is still blocked.
+        $otherEmail = 'other_adult_' . Str::random(5) . '@test.com';
+        Member::create([
+            'id' => 'm_oa_' . Str::random(5),
+            'user_id' => null,
+            'first_name' => 'Other',
+            'last_name' => 'Adult',
+            'dob' => '1975-01-01',
+            'email' => $otherEmail,
+            'sex' => 'male',
+            'member_type' => 'adult',
+            'grade' => 'Grade A',
+            'status' => 'active',
+            'credit' => 0.00,
+        ]);
+
+        $conflict = $this->actingAs($this->admin)->patchJson("/api/members/{$parent->id}", [
+            'email' => $otherEmail,
+        ]);
+        $conflict->assertStatus(422);
+        $conflict->assertJsonFragment([
+            'message' => 'An active member with this email already exists.',
+        ]);
+        $this->assertEquals($familyEmail, $parent->fresh()->email);
+    }
 }

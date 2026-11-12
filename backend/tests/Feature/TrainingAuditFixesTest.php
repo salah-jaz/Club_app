@@ -446,7 +446,7 @@ class TrainingAuditFixesTest extends TestCase
         $this->assertEquals(120.0, (float) $this->junior->fresh()->credit);
     }
 
-    public function test_cancelling_one_session_refunds_only_that_session(): void
+    public function test_cancelling_monthly_program_refunds_all_month_sessions_once(): void
     {
         $week1 = $this->makeTraining([
             'id' => 'tr_audit_w1_' . Str::random(4),
@@ -470,18 +470,24 @@ class TrainingAuditFixesTest extends TestCase
             'reason' => 'Coach sick',
         ])->assertOk();
 
-        // Only week 1 (20) is refunded; week 2 payment is untouched.
-        $this->assertEquals(80.0, (float) $this->junior->fresh()->credit);
-        $this->assertSame(1, Transaction::where('member_id', $this->junior->id)->where('type', 'refund')->count());
+        // Whole monthly program is cancelled; total deducted (40) is refunded.
+        $this->assertEquals('cancelled', $week1->fresh()->status);
+        $this->assertEquals('cancelled', $week2->fresh()->status);
+        $this->assertEquals(100.0, (float) $this->junior->fresh()->credit);
+        $this->assertEquals(
+            40.0,
+            (float) Transaction::where('member_id', $this->junior->id)->where('type', 'refund')->sum('amount')
+        );
 
-        // Second cancel call is idempotent.
+        // Second cancel call is idempotent (no duplicate refund).
         $this->actingAs($this->admin)->postJson("/api/trainings/{$week1->id}/cancel", [
             'reason' => 'Coach sick again',
         ])->assertOk();
-        $this->assertEquals(80.0, (float) $this->junior->fresh()->credit);
-
-        // Week 2 is still accepted/paid.
-        $this->assertEquals('accepted', TrainingInvitation::where('training_id', $week2->id)->where('member_id', $this->junior->id)->value('status'));
+        $this->assertEquals(100.0, (float) $this->junior->fresh()->credit);
+        $this->assertEquals(
+            40.0,
+            (float) Transaction::where('member_id', $this->junior->id)->where('type', 'refund')->sum('amount')
+        );
     }
 
     public function test_declining_after_paid_acceptance_refunds_once(): void

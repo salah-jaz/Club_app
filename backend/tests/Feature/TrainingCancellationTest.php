@@ -165,7 +165,7 @@ class TrainingCancellationTest extends TestCase
             'member_id' => $this->juniorMember->id,
             'type' => 'refund',
             'amount' => 60.0,
-            'description' => 'Refund — cancelled training session for Child User: Sunday Junior Coaching',
+            'description' => 'Refund — cancelled training program for Child User: Sunday Junior Coaching',
         ]);
     }
 
@@ -517,22 +517,24 @@ class TrainingCancellationTest extends TestCase
         ]);
         $this->juniorMember->update(['credit' => 300.0]); // Initial $350 - $50 = $300
 
-        // Step 1: Admin cancels Week 1 only -> refunds ONLY that session ($50 lump / 2 sessions = $25) -> Wallet = $325
+        // Step 1: Admin cancels the monthly program -> refunds the full $50 deducted for both weeks
         $cancelRes = $this->actingAs($this->admin)->postJson("/api/trainings/{$tr1->id}/cancel", [
             'reason' => 'Court unavailable',
         ]);
         $cancelRes->assertOk();
 
         $this->juniorMember->refresh();
-        $this->assertEquals(325.0, $this->juniorMember->credit);
+        $this->assertEquals(350.0, $this->juniorMember->credit);
+        $this->assertEquals('cancelled', $tr1->fresh()->status);
+        $this->assertEquals('cancelled', $tr2->fresh()->status);
 
         // Step 2: Admin deletes the cancelled training
         $delRes = $this->actingAs($this->admin)->deleteJson("/api/trainings/{$tr1->id}");
         $delRes->assertOk();
 
-        // Step 3: Member wallet balance MUST remain $325 (no duplicate refund on delete)
+        // Step 3: Member wallet balance MUST remain $350 (no duplicate refund on delete)
         $this->juniorMember->refresh();
-        $this->assertEquals(325.0, $this->juniorMember->credit);
+        $this->assertEquals(350.0, $this->juniorMember->credit);
     }
 
     public function test_cancellation_refund_deducts_already_approved_attendance_refund(): void
@@ -629,12 +631,12 @@ class TrainingCancellationTest extends TestCase
         $this->juniorMember->refresh();
         $this->assertEquals(150.0, $this->juniorMember->credit);
 
-        // Assert 1 cancellation refund transaction for remaining $25
+        // Assert 1 program cancellation refund for remaining $25
         $this->assertDatabaseHas('transactions', [
             'member_id' => $this->juniorMember->id,
             'type' => 'refund',
             'amount' => 25.0,
-            'description' => 'Refund — cancelled training session for Child User: Badminton Coaching - Week 1',
+            'description' => 'Refund — cancelled training program for Child User: Badminton Coaching',
         ]);
     }
 
@@ -737,5 +739,436 @@ class TrainingCancellationTest extends TestCase
 
         $txnCountAfter = Transaction::where('member_id', $this->juniorMember->id)->count();
         $this->assertEquals($txnCountBefore, $txnCountAfter);
+    }
+
+    /**
+     * Regression: member paid €2.00 total for a 3-week invitation.
+     * Cancelling the program must refund the full €2.00 deducted — not €0.67 (one week).
+     */
+    public function test_cancel_multi_week_program_refunds_exact_total_deducted_not_per_week(): void
+    {
+        $this->juniorMember->update(['credit' => 10.0]);
+
+        // Keep all three weeks inside the same calendar month so cancel's monthly
+        // program scope (same as close/delete) includes every paid session.
+        $base = now()->startOfMonth()->addDays(2)->setTime(10, 0);
+        $weeks = [];
+        for ($i = 1; $i <= 3; $i++) {
+            $start = $base->copy()->addDays(($i - 1) * 7);
+            $weeks[$i] = Training::create([
+                'id' => 'tr_mw_w' . $i . '_' . \Illuminate\Support\Str::random(4),
+                'parent_id' => null,
+                'name' => "Multi Week Coaching - Week {$i}",
+                'start_date' => $start,
+                'end_date' => $start->copy()->addHours(2),
+                'sessions' => 3,
+                'repeat_weeks' => 3,
+                'repeat_months' => 1,
+                'slots' => 10,
+                'duration' => '2 Hours',
+                'fees' => 2.0,
+                'coach' => 'Coach Smith',
+                'location' => 'Main Hall',
+                'status' => 'released',
+                'target_type' => 'junior',
+            ]);
+        }
+        $weeks[1]->update(['parent_id' => $weeks[1]->id]);
+        $weeks[2]->update(['parent_id' => $weeks[1]->id]);
+        $weeks[3]->update(['parent_id' => $weeks[1]->id]);
+
+        // Mirror accept-time cent split of a €2.00 lump across 3 weeks: 0.67 + 0.67 + 0.66
+        $perSession = [1 => 0.67, 2 => 0.67, 3 => 0.66];
+        foreach ($weeks as $i => $tr) {
+            TrainingInvitation::create([
+                'id' => 'ti_mw_' . $i . '_' . \Illuminate\Support\Str::random(4),
+                'training_id' => $tr->id,
+                'member_id' => $this->juniorMember->id,
+                'status' => 'accepted',
+                'accepted_amount' => $perSession[$i],
+                'accepted_per_session_fee' => $perSession[$i],
+                'accepted_monthly_fee' => 2.0,
+                'accepted_repeat_weeks' => 3,
+            ]);
+        }
+
+        Transaction::create([
+            'id' => 't_mw_debit_' . \Illuminate\Support\Str::random(4),
+            'member_id' => $this->juniorMember->id,
+            'type' => 'debit',
+            'amount' => 2.0,
+            'description' => 'Training program invitation accepted for Child User: Multi Week Coaching - Week 1, Multi Week Coaching - Week 2, Multi Week Coaching - Week 3',
+            'date' => now(),
+        ]);
+        $this->juniorMember->update(['credit' => 8.0]); // 10 - 2
+
+        $res = $this->actingAs($this->admin)->postJson("/api/trainings/{$weeks[1]->id}/cancel", [
+            'reason' => 'Program cancelled — full refund expected',
+        ]);
+        $res->assertOk();
+
+        foreach ($weeks as $tr) {
+            $this->assertEquals('cancelled', $tr->fresh()->status);
+        }
+
+        $this->juniorMember->refresh();
+        $this->assertEquals(10.0, $this->juniorMember->credit);
+
+        $refundTotal = (float) Transaction::where('member_id', $this->juniorMember->id)
+            ->where('type', 'refund')
+            ->sum('amount');
+        $this->assertEquals(2.0, $refundTotal);
+
+        // Idempotent: second cancel must not refund again
+        $again = $this->actingAs($this->admin)->postJson("/api/trainings/{$weeks[1]->id}/cancel", [
+            'reason' => 'Already cancelled',
+        ]);
+        $again->assertOk();
+        $this->juniorMember->refresh();
+        $this->assertEquals(10.0, $this->juniorMember->credit);
+        $this->assertEquals(
+            2.0,
+            (float) Transaction::where('member_id', $this->juniorMember->id)->where('type', 'refund')->sum('amount')
+        );
+    }
+
+    /**
+     * Regression: single-week training cancellation refunds the exact amount deducted.
+     */
+    public function test_cancel_single_week_program_refunds_exact_amount_deducted(): void
+    {
+        $this->juniorMember->update(['credit' => 10.0]);
+
+        $tr = Training::create([
+            'id' => 'tr_sw_' . \Illuminate\Support\Str::random(4),
+            'parent_id' => null,
+            'name' => 'Single Week Coaching',
+            'start_date' => now()->addDays(2),
+            'end_date' => now()->addDays(2)->addHours(2),
+            'sessions' => 1,
+            'repeat_weeks' => 1,
+            'repeat_months' => 1,
+            'slots' => 10,
+            'duration' => '2 Hours',
+            'fees' => 2.0,
+            'coach' => 'Coach Smith',
+            'location' => 'Main Hall',
+            'status' => 'released',
+            'target_type' => 'junior',
+        ]);
+        $tr->update(['parent_id' => $tr->id]);
+
+        TrainingInvitation::create([
+            'id' => 'ti_sw_' . \Illuminate\Support\Str::random(4),
+            'training_id' => $tr->id,
+            'member_id' => $this->juniorMember->id,
+            'status' => 'accepted',
+            'accepted_amount' => 2.0,
+            'accepted_per_session_fee' => 2.0,
+            'accepted_monthly_fee' => 2.0,
+            'accepted_repeat_weeks' => 1,
+        ]);
+        Transaction::create([
+            'id' => 't_sw_debit_' . \Illuminate\Support\Str::random(4),
+            'member_id' => $this->juniorMember->id,
+            'type' => 'debit',
+            'amount' => 2.0,
+            'description' => 'Training program invitation accepted for Child User: Single Week Coaching',
+            'date' => now(),
+        ]);
+        $this->juniorMember->update(['credit' => 8.0]);
+
+        $res = $this->actingAs($this->admin)->postJson("/api/trainings/{$tr->id}/cancel", [
+            'reason' => 'Single week cancel',
+        ]);
+        $res->assertOk();
+
+        $this->juniorMember->refresh();
+        $this->assertEquals(10.0, $this->juniorMember->credit);
+        $this->assertDatabaseHas('transactions', [
+            'member_id' => $this->juniorMember->id,
+            'type' => 'refund',
+            'amount' => 2.0,
+        ]);
+    }
+
+    /**
+     * Parent-linked junior: cancellation refunds the exact deducted total onto the shared parent wallet.
+     */
+    public function test_cancel_refunds_parent_linked_junior_wallet_exact_total(): void
+    {
+        $parentMember = Member::firstOrCreate(
+            ['id' => 'm_parent_wallet_cancel'],
+            [
+                'user_id' => $this->memberUser->id,
+                'first_name' => 'Parent',
+                'last_name' => 'Adult',
+                'email' => 'parent_adult_cancel@test.com',
+                'sex' => 'male',
+                'dob' => '1985-01-01',
+                'member_type' => 'adult',
+                'grade' => 'Grade A',
+                'status' => 'active',
+                'training_eligible' => true,
+                'credit' => 20.0,
+                'skip_credit_consumption' => false,
+            ]
+        );
+
+        $linkedJunior = Member::firstOrCreate(
+            ['id' => 'm_linked_junior_cancel'],
+            [
+                'parent_user_id' => $this->memberUser->id,
+                'parent_member_id' => $parentMember->id,
+                'first_name' => 'Linked',
+                'last_name' => 'Junior',
+                'email' => 'linked_junior_cancel@test.com',
+                'sex' => 'female',
+                'dob' => '2016-01-01',
+                'member_type' => 'junior',
+                'grade' => 'Grade A',
+                'status' => 'active',
+                'training_eligible' => true,
+                'credit' => 0.0,
+                'skip_credit_consumption' => false,
+            ]
+        );
+
+        $tr1 = Training::create([
+            'id' => 'tr_plink_1_' . \Illuminate\Support\Str::random(4),
+            'parent_id' => null,
+            'name' => 'Parent Link Coaching - Week 1',
+            'start_date' => now()->addDays(3),
+            'end_date' => now()->addDays(3)->addHours(1),
+            'sessions' => 2,
+            'repeat_weeks' => 2,
+            'repeat_months' => 1,
+            'slots' => 10,
+            'duration' => '1 Hour',
+            'fees' => 2.0,
+            'coach' => 'Coach Smith',
+            'location' => 'Main Hall',
+            'status' => 'released',
+            'target_type' => 'junior',
+        ]);
+        $tr1->update(['parent_id' => $tr1->id]);
+
+        $tr2 = Training::create([
+            'id' => 'tr_plink_2_' . \Illuminate\Support\Str::random(4),
+            'parent_id' => $tr1->id,
+            'name' => 'Parent Link Coaching - Week 2',
+            'start_date' => now()->addDays(10),
+            'end_date' => now()->addDays(10)->addHours(1),
+            'sessions' => 2,
+            'repeat_weeks' => 2,
+            'repeat_months' => 1,
+            'slots' => 10,
+            'duration' => '1 Hour',
+            'fees' => 2.0,
+            'coach' => 'Coach Smith',
+            'location' => 'Main Hall',
+            'status' => 'released',
+            'target_type' => 'junior',
+        ]);
+
+        foreach ([[$tr1, 1.0], [$tr2, 1.0]] as [$tr, $amt]) {
+            TrainingInvitation::create([
+                'id' => 'ti_plink_' . \Illuminate\Support\Str::random(4),
+                'training_id' => $tr->id,
+                'member_id' => $linkedJunior->id,
+                'status' => 'accepted',
+                'accepted_amount' => $amt,
+                'accepted_per_session_fee' => $amt,
+                'accepted_monthly_fee' => 2.0,
+                'accepted_repeat_weeks' => 2,
+            ]);
+        }
+
+        Transaction::create([
+            'id' => 't_plink_debit_' . \Illuminate\Support\Str::random(4),
+            'member_id' => $parentMember->id,
+            'type' => 'debit',
+            'amount' => 2.0,
+            'description' => 'Training program invitation accepted for Linked Junior: Parent Link Coaching - Week 1, Parent Link Coaching - Week 2',
+            'date' => now(),
+        ]);
+        $parentMember->update(['credit' => 18.0]);
+
+        $res = $this->actingAs($this->admin)->postJson("/api/trainings/{$tr1->id}/cancel", [
+            'reason' => 'Parent-link full refund',
+        ]);
+        $res->assertOk();
+
+        $parentMember->refresh();
+        $linkedJunior->refresh();
+        $this->assertEquals(20.0, $parentMember->credit);
+        $this->assertEquals(0.0, $linkedJunior->credit);
+        $this->assertEquals(
+            2.0,
+            (float) Transaction::where('member_id', $parentMember->id)->where('type', 'refund')->sum('amount')
+        );
+        $this->assertSame(
+            0,
+            Transaction::where('member_id', $linkedJunior->id)->where('type', 'refund')->count()
+        );
+    }
+
+    /**
+     * Screenshot regression: two juniors on one parent wallet each force-accepted a €10
+     * 3-week Friday program. Cancelling must refund €10 per junior (€20 total to parent),
+     * not ~€3.33/€3.34 with siblings stealing from a shared series pool.
+     */
+    public function test_cancel_refunds_ten_euro_full_amount_per_sibling_on_shared_parent_wallet(): void
+    {
+        $parent = Member::create([
+            'id' => 'm_parent_euro10_' . \Illuminate\Support\Str::random(4),
+            'user_id' => $this->memberUser->id,
+            'first_name' => 'Member',
+            'last_name' => '01',
+            'email' => 'parent_euro10@test.com',
+            'sex' => 'male',
+            'dob' => '1985-01-01',
+            'member_type' => 'adult',
+            'grade' => 'Grade A',
+            'status' => 'active',
+            'training_eligible' => true,
+            'credit' => 100.0,
+            'skip_credit_consumption' => false,
+        ]);
+
+        $junior11 = Member::create([
+            'id' => 'm_j11_euro10_' . \Illuminate\Support\Str::random(4),
+            'parent_user_id' => $this->memberUser->id,
+            'parent_member_id' => $parent->id,
+            'first_name' => 'Member',
+            'last_name' => '11',
+            'email' => 'j11_euro10@test.com',
+            'sex' => 'female',
+            'dob' => '2015-01-01',
+            'member_type' => 'junior',
+            'grade' => 'Grade A',
+            'status' => 'active',
+            'training_eligible' => true,
+            'credit' => 0.0,
+            'skip_credit_consumption' => false,
+        ]);
+
+        $junior111 = Member::create([
+            'id' => 'm_j111_euro10_' . \Illuminate\Support\Str::random(4),
+            'parent_user_id' => $this->memberUser->id,
+            'parent_member_id' => $parent->id,
+            'first_name' => 'member',
+            'last_name' => '1111',
+            'email' => 'j111_euro10@test.com',
+            'sex' => 'female',
+            'dob' => '2016-01-01',
+            'member_type' => 'junior',
+            'grade' => 'Grade A',
+            'status' => 'active',
+            'training_eligible' => true,
+            'credit' => 0.0,
+            'skip_credit_consumption' => false,
+        ]);
+
+        $base = now()->startOfMonth()->addDays(5)->setTime(19, 0);
+        $weeks = [];
+        for ($i = 1; $i <= 3; $i++) {
+            $start = $base->copy()->addDays(($i - 1) * 7);
+            $weeks[$i] = Training::create([
+                'id' => 'tr_euro10_w' . $i . '_' . \Illuminate\Support\Str::random(4),
+                'parent_id' => null,
+                'name' => 'Friday · ' . $start->format('M j, Y') . ' · 7:00 PM',
+                'start_date' => $start,
+                'end_date' => $start->copy()->addHours(2),
+                'sessions' => 3,
+                'repeat_weeks' => 3,
+                'repeat_months' => 1,
+                'slots' => 10,
+                'duration' => '2 Hours',
+                'fees' => 10.0,
+                'coach' => 'Coach Smith',
+                'location' => 'Main Hall',
+                'status' => 'released',
+                'target_type' => 'junior',
+            ]);
+        }
+        $weeks[1]->update(['parent_id' => $weeks[1]->id]);
+        $weeks[2]->update(['parent_id' => $weeks[1]->id]);
+        $weeks[3]->update(['parent_id' => $weeks[1]->id]);
+
+        // Cent split of €10 across 3 weeks: 3.34 + 3.33 + 3.33
+        $perSession = [1 => 3.34, 2 => 3.33, 3 => 3.33];
+
+        foreach ([$junior11, $junior111] as $junior) {
+            foreach ($weeks as $i => $tr) {
+                TrainingInvitation::create([
+                    'id' => 'ti_euro10_' . \Illuminate\Support\Str::random(6),
+                    'training_id' => $tr->id,
+                    'member_id' => $junior->id,
+                    'status' => 'accepted',
+                    'accepted_amount' => $perSession[$i],
+                    'accepted_per_session_fee' => $perSession[$i],
+                    'accepted_monthly_fee' => 10.0,
+                    'accepted_repeat_weeks' => 3,
+                ]);
+            }
+
+            Transaction::create([
+                'id' => 't_euro10_deb_' . \Illuminate\Support\Str::random(4),
+                'member_id' => $parent->id,
+                'type' => 'debit',
+                'amount' => 10.0,
+                'description' => 'Training program invitation force accepted for ' . $junior->name . ': ' . $weeks[1]->name,
+                'date' => now(),
+            ]);
+        }
+        $parent->update(['credit' => 80.0]); // 100 - 10 - 10
+
+        $res = $this->actingAs($this->admin)->postJson("/api/trainings/{$weeks[1]->id}/cancel", [
+            'reason' => 'Screenshot regression — full €10 per member',
+        ]);
+        $res->assertOk();
+
+        foreach ($weeks as $tr) {
+            $this->assertEquals('cancelled', $tr->fresh()->status);
+        }
+
+        $parent->refresh();
+        // Both juniors fully refunded onto the shared parent wallet.
+        $this->assertEquals(100.0, $parent->credit);
+
+        $refunds = Transaction::where('member_id', $parent->id)
+            ->where('type', 'refund')
+            ->orderBy('description')
+            ->get();
+
+        $this->assertCount(2, $refunds);
+        $this->assertEquals(20.0, (float) $refunds->sum('amount'));
+
+        $programLabel = $weeks[1]->name;
+        $this->assertDatabaseHas('transactions', [
+            'member_id' => $parent->id,
+            'type' => 'refund',
+            'amount' => 10.0,
+            'description' => 'Refund — cancelled training program for Member 11: ' . $programLabel,
+        ]);
+        $this->assertDatabaseHas('transactions', [
+            'member_id' => $parent->id,
+            'type' => 'refund',
+            'amount' => 10.0,
+            'description' => 'Refund — cancelled training program for member 1111: ' . $programLabel,
+        ]);
+
+        // No refunds posted on the junior rows themselves.
+        $this->assertSame(0, Transaction::whereIn('member_id', [$junior11->id, $junior111->id])->where('type', 'refund')->count());
+
+        // Idempotent re-cancel: no duplicate refunds.
+        $again = $this->actingAs($this->admin)->postJson("/api/trainings/{$weeks[1]->id}/cancel", [
+            'reason' => 'Already cancelled',
+        ]);
+        $again->assertOk();
+        $parent->refresh();
+        $this->assertEquals(100.0, $parent->credit);
+        $this->assertSame(2, Transaction::where('member_id', $parent->id)->where('type', 'refund')->count());
     }
 }
