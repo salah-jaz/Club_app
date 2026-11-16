@@ -27,6 +27,7 @@ import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedEmailTemplatesRouteImport } from './routes/_authenticated/email-templates'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCreditsRouteImport } from './routes/_authenticated/credits'
+import { Route as AuthenticatedBackupsRouteImport } from './routes/_authenticated/backups'
 import { Route as AuthenticatedApprovalsRouteImport } from './routes/_authenticated/approvals'
 import { Route as AuthenticatedAdminManagementRouteImport } from './routes/_authenticated/admin-management'
 import { Route as AuthenticatedTrainingsNewRouteImport } from './routes/_authenticated/trainings.new'
@@ -134,6 +135,11 @@ const AuthenticatedCreditsRoute = AuthenticatedCreditsRouteImport.update({
   path: '/credits',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedBackupsRoute = AuthenticatedBackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedApprovalsRoute = AuthenticatedApprovalsRouteImport.update({
   id: '/approvals',
   path: '/approvals',
@@ -217,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/admin-management': typeof AuthenticatedAdminManagementRoute
   '/approvals': typeof AuthenticatedApprovalsRoute
+  '/backups': typeof AuthenticatedBackupsRoute
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/email-templates': typeof AuthenticatedEmailTemplatesRoute
@@ -249,6 +256,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/admin-management': typeof AuthenticatedAdminManagementRoute
   '/approvals': typeof AuthenticatedApprovalsRoute
+  '/backups': typeof AuthenticatedBackupsRoute
   '/credits': typeof AuthenticatedCreditsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/email-templates': typeof AuthenticatedEmailTemplatesRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/_authenticated/admin-management': typeof AuthenticatedAdminManagementRoute
   '/_authenticated/approvals': typeof AuthenticatedApprovalsRoute
+  '/_authenticated/backups': typeof AuthenticatedBackupsRoute
   '/_authenticated/credits': typeof AuthenticatedCreditsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/email-templates': typeof AuthenticatedEmailTemplatesRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/admin-management'
     | '/approvals'
+    | '/backups'
     | '/credits'
     | '/dashboard'
     | '/email-templates'
@@ -349,6 +359,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/admin-management'
     | '/approvals'
+    | '/backups'
     | '/credits'
     | '/dashboard'
     | '/email-templates'
@@ -382,6 +393,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/_authenticated/admin-management'
     | '/_authenticated/approvals'
+    | '/_authenticated/backups'
     | '/_authenticated/credits'
     | '/_authenticated/dashboard'
     | '/_authenticated/email-templates'
@@ -542,6 +554,13 @@ declare module '@tanstack/react-router' {
       path: '/credits'
       fullPath: '/credits'
       preLoaderRoute: typeof AuthenticatedCreditsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/backups': {
+      id: '/_authenticated/backups'
+      path: '/backups'
+      fullPath: '/backups'
+      preLoaderRoute: typeof AuthenticatedBackupsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/approvals': {
@@ -707,6 +726,7 @@ const AuthenticatedTrainingsRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminManagementRoute: typeof AuthenticatedAdminManagementRoute
   AuthenticatedApprovalsRoute: typeof AuthenticatedApprovalsRoute
+  AuthenticatedBackupsRoute: typeof AuthenticatedBackupsRoute
   AuthenticatedCreditsRoute: typeof AuthenticatedCreditsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEmailTemplatesRoute: typeof AuthenticatedEmailTemplatesRoute
@@ -726,6 +746,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminManagementRoute: AuthenticatedAdminManagementRoute,
   AuthenticatedApprovalsRoute: AuthenticatedApprovalsRoute,
+  AuthenticatedBackupsRoute: AuthenticatedBackupsRoute,
   AuthenticatedCreditsRoute: AuthenticatedCreditsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEmailTemplatesRoute: AuthenticatedEmailTemplatesRoute,

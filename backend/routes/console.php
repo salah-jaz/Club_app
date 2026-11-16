@@ -2,6 +2,7 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 use App\Models\PlaySchedule;
 use App\Models\PlayInvitation;
 use App\Models\Member;
@@ -57,3 +58,13 @@ Artisan::command('schedules:auto-publish', function () {
     \App\Helpers\SessionTimingHelper::applyClubTimezone();
     \App\Http\Controllers\Api\PlayScheduleController::processAutoPublishAndRotation();
 })->purpose('Automatically publish schedule and generate player court rotation when Cancellation Lock Window is reached')->everyMinute();
+
+// Automated Daily Database Backup
+// Runs every day at a fixed, configurable time (default: 2:00 AM server time).
+// Verifies integrity, maintains 30-day retention, stores offsite if configured, and never locks tables.
+Schedule::command('db:backup')
+    ->dailyAt(config('backup.daily_time', '02:00'))
+    ->withoutOverlapping(120)
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/backup-cron.log'));
+

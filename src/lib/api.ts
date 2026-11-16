@@ -45,6 +45,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   if (response.status === 401) {
     if (typeof window !== "undefined") {
       localStorage.removeItem("clubapp_token");
+      localStorage.removeItem("clubapp_user_id");
+      localStorage.removeItem("clubapp_active_role");
+      localStorage.removeItem("clubapp_original_admin_token");
+      localStorage.removeItem("clubapp_original_admin_user_id");
+      localStorage.removeItem("clubapp_original_admin_role");
+      localStorage.removeItem("clubapp_original_admin_path");
+      localStorage.removeItem("clubapp_is_impersonating");
       // Redirect to login if token is invalid
       window.location.href = "/login";
     }

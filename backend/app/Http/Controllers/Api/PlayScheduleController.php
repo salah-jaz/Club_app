@@ -272,12 +272,14 @@ class PlayScheduleController extends Controller
     {
         $sch = PlaySchedule::findOrFail($id);
         $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
 
-        if ($user && $user->role !== 'admin') {
+        if ($user && !$isAdmin) {
             $userMembers = Member::where('user_id', $user->id)
                 ->where('status', 'active')
                 ->where('membership', true)
                 ->get();
+            $familyIds = $userMembers->pluck('id')->all();
 
             $isEligible = false;
             foreach ($userMembers as $member) {
@@ -287,13 +289,55 @@ class PlayScheduleController extends Controller
                 }
             }
 
-            if (!$isEligible) {
+            // Match member portal: eligible family OR already accepted/waiting on this schedule.
+            $hasAcceptedOrWaiting = !empty($familyIds) && PlayInvitation::where('schedule_id', $id)
+                ->whereIn('member_id', $familyIds)
+                ->whereIn('status', ['accepted', 'waiting'])
+                ->exists();
+
+            if (!$isEligible && !$hasAcceptedOrWaiting) {
                 return response()->json(['message' => 'You do not have permission to view player details for this schedule.'], 403);
             }
         }
 
         $invites = PlayInvitation::where('schedule_id', $id)->get();
-        return response()->json($invites->map(fn($i) => $this->formatInvitation($i)));
+
+        // Members only need the public roster (accepted + waiting). Admins keep full invite list.
+        if (!$isAdmin) {
+            $invites = $invites->whereIn('status', ['accepted', 'waiting'])->values();
+        }
+
+        $payload = $this->formatSchedulePlayerInvitations($sch, $invites)->all();
+
+        // Guest fillers belong on the Accepted roster once a rotation exists.
+        if (in_array($sch->status, ['rotated', 'published', 'closed'], true)) {
+            $realAccepted = PlayInvitation::where('schedule_id', $id)
+                ->where('status', 'accepted')
+                ->get()
+                ->unique('member_id')
+                ->filter(fn(PlayInvitation $i) => !$this->isGuestMemberId($i->member_id))
+                ->count();
+
+            foreach ($this->guestIdsForAccepted($sch, $realAccepted) as $guestId) {
+                $n = (int) explode('_', $guestId)[1];
+                $payload[] = [
+                    'id' => 'pi_guest_' . $id . '_' . $n,
+                    'scheduleId' => $id,
+                    'memberId' => $guestId,
+                    'status' => 'accepted',
+                    'debited' => true,
+                    'acceptedAt' => null,
+                    'updatedAt' => optional($sch->updated_at)?->toISOString(),
+                    'createdAt' => optional($sch->created_at)?->toISOString(),
+                    'isGuest' => true,
+                    'memberName' => 'Guest Player ' . $n,
+                    'memberGrade' => null,
+                    'memberPosition' => null,
+                ];
+            }
+        }
+
+        return response()->json(array_values($payload));
     }
 
     public function store(Request $request)
@@ -2748,12 +2792,148 @@ class PlayScheduleController extends Controller
         ];
     }
 
+    /**
+     * Public schedule roster rows with display fields (no wallet/PII beyond name/grade/position).
+     *
+     * @param  \Illuminate\Support\Collection<int, PlayInvitation>  $invites
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function formatSchedulePlayerInvitations(PlaySchedule $schedule, $invites)
+    {
+        $realIds = $invites
+            ->pluck('member_id')
+            ->unique()
+            ->filter(fn($mid) => !$this->isGuestMemberId($mid))
+            ->values()
+            ->all();
+
+        $membersById = empty($realIds)
+            ? collect()
+            : Member::whereIn('id', $realIds)->get(['id', 'first_name', 'last_name', 'grade'])->keyBy('id');
+        $positions = $this->memberPositionsForSchedule($schedule, $realIds);
+
+        return $invites->map(function (PlayInvitation $i) use ($membersById, $positions) {
+            $row = $this->formatInvitation($i);
+            if ($this->isGuestMemberId($i->member_id)) {
+                $n = (int) (explode('_', (string) $i->member_id)[1] ?? 0);
+                $row['memberName'] = 'Guest Player ' . max(1, $n);
+                $row['memberGrade'] = null;
+                $row['memberPosition'] = null;
+                return $row;
+            }
+
+            $member = $membersById->get($i->member_id);
+            $row['memberName'] = $member
+                ? trim($member->first_name . ' ' . $member->last_name)
+                : '?';
+            $row['memberGrade'] = $member?->grade;
+            $row['memberPosition'] = $positions[$i->member_id] ?? null;
+            return $row;
+        })->values();
+    }
+
+    /**
+     * League-group player positions for members on this schedule (first matching group wins).
+     *
+     * @param  array<int, string>  $memberIds
+     * @return array<string, string|null>
+     */
+    private function memberPositionsForSchedule(PlaySchedule $schedule, array $memberIds): array
+    {
+        if (empty($memberIds)) {
+            return [];
+        }
+
+        $groupIds = is_array($schedule->league_group_ids)
+            ? $schedule->league_group_ids
+            : (json_decode($schedule->league_group_ids ?? '[]', true) ?? []);
+        $groupIds = array_values(array_filter((array) $groupIds));
+        if (empty($groupIds)) {
+            return [];
+        }
+
+        $rows = DB::table('league_group_member')
+            ->whereIn('league_group_id', $groupIds)
+            ->whereIn('member_id', $memberIds)
+            ->orderBy('id')
+            ->get(['member_id', 'position']);
+
+        $positions = [];
+        foreach ($rows as $row) {
+            if (!array_key_exists($row->member_id, $positions)) {
+                $positions[$row->member_id] = $row->position ?: null;
+            }
+        }
+        return $positions;
+    }
+
+    /**
+     * Display directory for rotation player IDs (family-scoped clients cannot resolve other members).
+     *
+     * @return array<string, array{name: string, grade: ?string, position: ?string}>
+     */
+    private function playerDirectoryForRotation(PlaySchedule $schedule, ?array $rounds): array
+    {
+        $ids = [];
+        foreach ($rounds ?? [] as $round) {
+            foreach ($round['courts'] ?? [] as $court) {
+                foreach ($court['players'] ?? [] as $playerId) {
+                    if ($playerId) {
+                        $ids[] = (string) $playerId;
+                    }
+                }
+            }
+            foreach ($round['resting'] ?? [] as $playerId) {
+                if ($playerId) {
+                    $ids[] = (string) $playerId;
+                }
+            }
+        }
+        $ids = array_values(array_unique($ids));
+        if (empty($ids)) {
+            return [];
+        }
+
+        $realIds = array_values(array_filter($ids, fn($id) => !$this->isGuestMemberId($id)));
+        $membersById = empty($realIds)
+            ? collect()
+            : Member::whereIn('id', $realIds)->get(['id', 'first_name', 'last_name', 'grade'])->keyBy('id');
+        $positions = $this->memberPositionsForSchedule($schedule, $realIds);
+
+        $directory = [];
+        foreach ($ids as $id) {
+            if ($this->isGuestMemberId($id)) {
+                $n = (int) (explode('_', $id)[1] ?? 0);
+                $directory[$id] = [
+                    'name' => 'Guest Player ' . max(1, $n),
+                    'grade' => null,
+                    'position' => null,
+                ];
+                continue;
+            }
+            $member = $membersById->get($id);
+            $directory[$id] = [
+                'name' => $member ? trim($member->first_name . ' ' . $member->last_name) : '?',
+                'grade' => $member?->grade,
+                'position' => $positions[$id] ?? null,
+            ];
+        }
+
+        return $directory;
+    }
+
     private function formatRotation(Rotation $r): array
     {
+        $schedule = PlaySchedule::find($r->schedule_id);
+        $rounds = $r->rounds ?? [];
+
         return [
             'scheduleId' => $r->schedule_id,
-            'rounds' => $r->rounds ?? [],
+            'rounds' => $rounds,
             'showMemberGrades' => (bool) $r->show_member_grades,
+            'playerDirectory' => $schedule
+                ? $this->playerDirectoryForRotation($schedule, is_array($rounds) ? $rounds : [])
+                : [],
         ];
     }
 

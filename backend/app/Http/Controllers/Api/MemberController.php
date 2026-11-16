@@ -911,13 +911,15 @@ class MemberController extends Controller
             return response()->json(['message' => 'User account is not active.'], 422);
         }
 
+        $admin = $request->user();
+
         logger()->info('Admin impersonation (login-as) started.', [
-            'admin_user_id' => $request->user()->id,
+            'admin_user_id' => $admin->id,
             'target_user_id' => $user->id,
             'member_id' => $member->id,
         ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $token = $user->createToken('impersonation:' . $admin->id, ['*'], now()->addHours(24))->plainTextToken;
 
         return response()->json([
             'token' => $token,
@@ -925,6 +927,7 @@ class MemberController extends Controller
                 'id' => $user->id,
                 'firstName' => $user->first_name,
                 'lastName' => $user->last_name,
+                'nickname' => $member->nickname ?? $user->nickname,
                 'sex' => $user->sex,
                 'dob' => $user->dob,
                 'email' => $user->email,
@@ -933,7 +936,52 @@ class MemberController extends Controller
                 'role' => $user->role,
                 'status' => $user->status,
                 'createdAt' => $user->created_at->toISOString(),
-            ]
+            ],
+            'impersonation' => [
+                'isImpersonating' => true,
+                'adminId' => $admin->id,
+                'adminName' => $admin->name,
+                'adminEmail' => $admin->email,
+            ],
+        ]);
+    }
+
+    public function exitLoginAs(Request $request)
+    {
+        $token = $request->user()->currentAccessToken();
+
+        if (!$token || !str_starts_with($token->name, 'impersonation:')) {
+            return response()->json([
+                'message' => 'No active impersonation session found.'
+            ], 403);
+        }
+
+        $adminId = \Illuminate\Support\Str::after($token->name, 'impersonation:');
+        $admin = User::with('adminRole')->find($adminId);
+
+        // Securely revoke the temporary impersonation token
+        $token->delete();
+
+        logger()->info('Admin impersonation ended.', [
+            'admin_user_id' => $adminId,
+            'target_user_id' => $request->user()->id,
+        ]);
+
+        if (!$admin || $admin->role !== 'admin' || $admin->status !== 'active') {
+            return response()->json([
+                'message' => 'Admin account is no longer active.',
+                'adminActive' => false,
+            ], 403);
+        }
+
+        return response()->json([
+            'message' => 'Impersonation session ended successfully.',
+            'adminActive' => true,
+            'admin' => [
+                'id' => $admin->id,
+                'name' => $admin->name,
+                'email' => $admin->email,
+            ],
         ]);
     }
 

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\AdminRoleController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\PolicyController;
+use App\Http\Controllers\Api\BackupController;
 use Illuminate\Support\Facades\Route;
 
 // Public auth routes
@@ -37,6 +38,8 @@ Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
     Route::get('/sync-data', [SyncController::class, 'index']);
     // Session / Info
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/exit-login-as', [MemberController::class, 'exitLoginAs']);
+    Route::post('/members/exit-login-as', [MemberController::class, 'exitLoginAs']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/profile', [AuthController::class, 'me']);
     Route::match(['post', 'put', 'patch'], '/profile', [AuthController::class, 'updateProfile']);
@@ -156,4 +159,12 @@ Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
     Route::patch('/admin-users/{id}', [AdminUserController::class, 'update']);
     Route::delete('/admin-users/{id}', [AdminUserController::class, 'destroy']);
     Route::post('/admin-users/{id}/reset-password', [AdminUserController::class, 'resetPassword']);
+
+    // Database Backups & Recovery
+    Route::get('/backups', [BackupController::class, 'index']);
+    Route::post('/backups', [BackupController::class, 'store']);
+    Route::post('/backups/{filename}/verify', [BackupController::class, 'verify']);
+    Route::post('/backups/{filename}/restore', [BackupController::class, 'restore']);
+    Route::get('/backups/{filename}/download', [BackupController::class, 'download']);
+    Route::delete('/backups/{filename}', [BackupController::class, 'destroy']);
 });

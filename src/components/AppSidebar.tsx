@@ -15,6 +15,7 @@ import {
   UserCog,
   FileText,
   Swords,
+  Database,
 } from "lucide-react";
 import {
   Sidebar,
@@ -38,6 +39,8 @@ import { openPolicyExternal } from "@/lib/policies";
 export function AppSidebar() {
   const user = useCurrentUser();
   const logout = useStore((s) => s.logout);
+  const isImpersonating = useStore((s) => s.isImpersonating);
+  const exitLoginAs = useStore((s) => s.exitLoginAs);
   const appName = useStore((s) => s.appName);
   const appLogoText = useStore((s) => s.appLogoText);
   const appLogoBase64 = useStore((s) => s.appLogoBase64);
@@ -48,7 +51,6 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { setOpenMobile, isMobile } = useSidebar();
 
-  if (!user) return null;
   const isAdmin = activeRole === "admin";
   const isMember = activeRole === "member";
   const isVol = activeRole === "volunteer";
@@ -63,9 +65,12 @@ export function AppSidebar() {
   const canApprovals = useCanModule("approvals");
   const canEmailTemplates = useCanModule("email_templates");
   const canSettings = useCanModule("settings");
+  const canBackups = useCanModule("backups");
   const canAdminManagement = useCanModule("admin_management");
   const leagueGroups = useStore((s) => s.leagueGroups);
   const hasGroupMembership = Array.isArray(leagueGroups) && leagueGroups.length > 0;
+
+  if (!user) return null;
 
   const closeSidebarMobile = () => {
     if (isMobile) {
@@ -126,6 +131,7 @@ export function AppSidebar() {
     { to: "/approvals", label: "Approvals", icon: ShieldCheck, show: canApprovals },
     { to: "/email-templates", label: "Email Templates", icon: Inbox, show: canEmailTemplates },
     { to: "/settings", label: "Settings", icon: Settings, show: canSettings },
+    { to: "/backups", label: "Database Backups", icon: Database, show: canBackups },
     { to: "/admin-management", label: "Club Admin", icon: UserCog, show: canAdminManagement },
   ].filter((i) => i.show);
 
@@ -289,6 +295,39 @@ export function AppSidebar() {
                     <FileText />
                   </motion.span>
                   <span>Member Policy</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+            {isImpersonating && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={async () => {
+                    closeSidebarMobile();
+                    try {
+                      const { returnPath } = await exitLoginAs();
+                      toast.success("Returned to Admin account");
+                      try {
+                        await navigate({ href: returnPath, replace: true } as never);
+                      } catch {
+                        await navigate({ to: "/members", replace: true });
+                      }
+                    } catch (err: unknown) {
+                      const message =
+                        err instanceof Error ? err.message : "Failed to exit impersonation mode.";
+                      toast.error(message);
+                    }
+                  }}
+                  className="text-primary hover:text-primary hover:bg-primary/10 cursor-pointer"
+                  title="Exit Login As session"
+                >
+                  <motion.span
+                    whileHover={{ scale: 1.15, x: -2 }}
+                    transition={{ duration: 0.15 }}
+                    className="inline-flex text-primary"
+                  >
+                    <LogOut />
+                  </motion.span>
+                  <span className="font-semibold text-primary">Exit Login As</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )}

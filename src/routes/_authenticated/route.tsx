@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, Navigate, useRouterState } from "@tanstack/rea
 import { canModule, firstAllowedAdminPath, moduleForPath } from "@/lib/permissions";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { applyCustomTheme } from "@/lib/utils";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useCurrentUser, useStore } from "@/lib/store";
@@ -225,6 +226,7 @@ function Layout() {
     fixtures: "Fixtures",
     "admin-management": "Club Admin",
     "email-templates": "Email Templates",
+    backups: "Database Backups",
   };
   const screenName = routeNames[pathPart] || pathPart.charAt(0).toUpperCase() + pathPart.slice(1);
 
@@ -244,51 +246,54 @@ function Layout() {
             )}
           </AnimatePresence>
 
-          <header className="h-14 sm:h-12 flex items-center justify-between px-3 sm:px-6 border-b border-border bg-background sticky top-0 z-10 gap-2">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <SidebarTrigger className="hidden md:flex text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0 size-9 sm:size-7" />
-              <Separator orientation="vertical" className="h-4 bg-border hidden sm:block" />
-              <div className="breadcrumbs text-[13px] font-normal text-muted-foreground/60 flex items-center gap-2 min-w-0 truncate">
-                <span className="hidden sm:inline">{appName}</span>
-                <span className="breadcrumbs-separator opacity-40 hidden sm:inline">/</span>
-                <span className="breadcrumbs-current text-muted-foreground truncate">
-                  {screenName}
-                </span>
+          <div className="sticky top-0 z-20 flex flex-col w-full">
+            <ImpersonationBanner />
+            <header className="h-14 sm:h-12 flex items-center justify-between px-3 sm:px-6 border-b border-border bg-background gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <SidebarTrigger className="hidden md:flex text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0 size-9 sm:size-7" />
+                <Separator orientation="vertical" className="h-4 bg-border hidden sm:block" />
+                <div className="breadcrumbs text-[13px] font-normal text-muted-foreground/60 flex items-center gap-2 min-w-0 truncate">
+                  <span className="hidden sm:inline">{appName}</span>
+                  <span className="breadcrumbs-separator opacity-40 hidden sm:inline">/</span>
+                  <span className="breadcrumbs-current text-muted-foreground truncate">
+                    {screenName}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-3 sm:gap-5 shrink-0">
-              {/* Theme Toggle — animated rotation on hover */}
-              <motion.button
-                onClick={toggleTheme}
-                whileHover={{ rotate: 20, scale: 1.1 }}
-                whileTap={{ scale: 0.88 }}
-                className="flex items-center justify-center size-9 sm:size-8 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-border/80 cursor-pointer transition-colors"
-                title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-                aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-              >
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.span
-                    key={theme}
-                    initial={{ opacity: 0, rotate: -30 }}
-                    animate={{ opacity: 1, rotate: 0 }}
-                    exit={{ opacity: 0, rotate: 30 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-                  </motion.span>
-                </AnimatePresence>
-              </motion.button>
+              <div className="flex items-center gap-3 sm:gap-5 shrink-0">
+                {/* Theme Toggle — animated rotation on hover */}
+                <motion.button
+                  onClick={toggleTheme}
+                  whileHover={{ rotate: 20, scale: 1.1 }}
+                  whileTap={{ scale: 0.88 }}
+                  className="flex items-center justify-center size-9 sm:size-8 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-border/80 cursor-pointer transition-colors"
+                  title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                  aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                >
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={theme}
+                      initial={{ opacity: 0, rotate: -30 }}
+                      animate={{ opacity: 1, rotate: 0 }}
+                      exit={{ opacity: 0, rotate: 30 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                    </motion.span>
+                  </AnimatePresence>
+                </motion.button>
 
-              {/* Live clock — hidden on small screens to reduce chrome crowding */}
-              <div
-                className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight hidden md:block"
-                aria-hidden="true"
-              >
-                {timeStr}
+                {/* Live clock — hidden on small screens to reduce chrome crowding */}
+                <div
+                  className="clock font-mono text-[13px] text-muted-foreground/60 tracking-tight hidden md:block"
+                  aria-hidden="true"
+                >
+                  {timeStr}
+                </div>
               </div>
-            </div>
-          </header>
+            </header>
+          </div>
 
           <main
             id="main-content"

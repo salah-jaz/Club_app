@@ -22,6 +22,7 @@ import type {
   PolicyDocument,
   PolicyType,
   PolicySourceType,
+  ImpersonationInfo,
 } from "./types";
 import { api } from "./api";
 
@@ -29,6 +30,8 @@ interface State {
   currentUserId: string | null;
   currentUser: User | null;
   activeRole: Role | null;
+  isImpersonating: boolean;
+  impersonationAdmin: ImpersonationInfo | null;
   users: User[];
   members: Member[];
   creditRequests: CreditRequest[];
@@ -127,6 +130,7 @@ interface State {
     memberId: string,
     onBeforeStateChange?: () => Promise<void> | void,
   ) => Promise<User>;
+  exitLoginAs: () => Promise<{ adminUser: User | null; returnPath: string }>;
   logout: () => Promise<void>;
 
   // user admin
@@ -191,6 +195,8 @@ interface State {
   publishSchedule: (id: string) => Promise<void>;
   respondPlay: (inviteId: string, status: "accepted" | "declined") => Promise<PlayInvitation>;
   enrollPlay: (scheduleId: string, memberIds: string[], autoAccept?: boolean) => Promise<void>;
+  /** Full accepted/waiting roster for a schedule (includes display names for other members). */
+  fetchSchedulePlayers: (scheduleId: string) => Promise<PlayInvitation[]>;
   generateRotation: (scheduleId: string) => Promise<void>;
   updateRotation: (scheduleId: string, rounds: Rotation["rounds"]) => Promise<void>;
   updateRotationShowGrades: (scheduleId: string, showMemberGrades: boolean) => Promise<void>;
@@ -399,10 +405,22 @@ const getInitialActiveRole = () => {
   return null;
 };
 
+const getInitialIsImpersonating = () => {
+  if (typeof window !== "undefined") {
+    return (
+      localStorage.getItem("clubapp_is_impersonating") === "true" &&
+      Boolean(localStorage.getItem("clubapp_original_admin_token"))
+    );
+  }
+  return false;
+};
+
 export const useStore = create<State>((set, get) => ({
   currentUserId: getInitialUserId(),
   currentUser: null,
   activeRole: getInitialActiveRole(),
+  isImpersonating: getInitialIsImpersonating(),
+  impersonationAdmin: null,
   users: [],
   members: [],
   creditRequests: [],
@@ -655,7 +673,18 @@ export const useStore = create<State>((set, get) => ({
   syncCurrentUser: async () => {
     try {
       const user = await api.get<User>("/me");
-      set({ currentUser: user, currentUserId: user.id });
+      const isImpersonating =
+        Boolean(user.impersonation?.isImpersonating) ||
+        (typeof window !== "undefined" &&
+          localStorage.getItem("clubapp_is_impersonating") === "true" &&
+          Boolean(localStorage.getItem("clubapp_original_admin_token")));
+
+      set({
+        currentUser: user,
+        currentUserId: user.id,
+        isImpersonating,
+        impersonationAdmin: user.impersonation ?? get().impersonationAdmin,
+      });
       if (!get().activeRole) {
         set({ activeRole: user.role });
       }
@@ -664,10 +693,21 @@ export const useStore = create<State>((set, get) => ({
       }
       return user;
     } catch {
-      set({ currentUser: null, currentUserId: null });
+      set({
+        currentUser: null,
+        currentUserId: null,
+        isImpersonating: false,
+        impersonationAdmin: null,
+      });
       if (typeof window !== "undefined") {
         localStorage.removeItem("clubapp_user_id");
         localStorage.removeItem("clubapp_token");
+        localStorage.removeItem("clubapp_active_role");
+        localStorage.removeItem("clubapp_original_admin_token");
+        localStorage.removeItem("clubapp_original_admin_user_id");
+        localStorage.removeItem("clubapp_original_admin_role");
+        localStorage.removeItem("clubapp_original_admin_path");
+        localStorage.removeItem("clubapp_is_impersonating");
       }
       return null;
     }
@@ -886,29 +926,168 @@ export const useStore = create<State>((set, get) => ({
   },
 
   login: async (email, password) => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("clubapp_original_admin_token");
+      localStorage.removeItem("clubapp_original_admin_user_id");
+      localStorage.removeItem("clubapp_original_admin_role");
+      localStorage.removeItem("clubapp_original_admin_path");
+      localStorage.removeItem("clubapp_is_impersonating");
+    }
     const res = await api.post<{ token: string; user: User }>("/login", { email, password });
     if (typeof window !== "undefined") {
       localStorage.setItem("clubapp_token", res.token);
       localStorage.setItem("clubapp_user_id", res.user.id);
       localStorage.setItem("clubapp_active_role", res.user.role);
     }
-    set({ currentUserId: res.user.id, currentUser: res.user, activeRole: res.user.role });
+    set({
+      currentUserId: res.user.id,
+      currentUser: res.user,
+      activeRole: res.user.role,
+      isImpersonating: false,
+      impersonationAdmin: null,
+    });
     return res.user;
   },
 
   loginAs: async (memberId, onBeforeStateChange) => {
-    const res = await api.post<{ token: string; user: User }>(`/members/${memberId}/login-as`);
+    // Preserve the original Admin session before impersonation
+    if (typeof window !== "undefined") {
+      const currentAdminToken = localStorage.getItem("clubapp_token");
+      const currentAdminId = localStorage.getItem("clubapp_user_id");
+      const currentAdminRole = localStorage.getItem("clubapp_active_role") || "admin";
+      const currentPath = window.location.pathname + window.location.search;
+
+      if (currentAdminToken) {
+        localStorage.setItem("clubapp_original_admin_token", currentAdminToken);
+        if (currentAdminId) {
+          localStorage.setItem("clubapp_original_admin_user_id", currentAdminId);
+        }
+        localStorage.setItem("clubapp_original_admin_role", currentAdminRole);
+        localStorage.setItem("clubapp_original_admin_path", currentPath || "/members");
+        localStorage.setItem("clubapp_is_impersonating", "true");
+      }
+    }
+
+    const res = await api.post<{
+      token: string;
+      user: User;
+      impersonation?: ImpersonationInfo;
+    }>(`/members/${memberId}/login-as`);
+
     if (typeof window !== "undefined") {
       localStorage.setItem("clubapp_token", res.token);
       localStorage.setItem("clubapp_user_id", res.user.id);
       localStorage.setItem("clubapp_active_role", res.user.role);
     }
+
     if (onBeforeStateChange) {
       await onBeforeStateChange();
     }
-    set({ currentUserId: res.user.id, currentUser: res.user, activeRole: res.user.role });
+
+    set({
+      currentUserId: res.user.id,
+      currentUser: res.user,
+      activeRole: res.user.role,
+      isImpersonating: true,
+      impersonationAdmin: res.impersonation ?? null,
+    });
+
     await get().syncData();
     return res.user;
+  },
+
+  exitLoginAs: async () => {
+    const adminToken =
+      typeof window !== "undefined"
+        ? localStorage.getItem("clubapp_original_admin_token")
+        : null;
+    const adminUserId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("clubapp_original_admin_user_id")
+        : null;
+    const adminRole =
+      (typeof window !== "undefined"
+        ? localStorage.getItem("clubapp_original_admin_role")
+        : null) || "admin";
+    const returnPath =
+      (typeof window !== "undefined"
+        ? localStorage.getItem("clubapp_original_admin_path")
+        : null) || "/members";
+
+    // 1. Ask backend to terminate the impersonation session and revoke member token
+    try {
+      await api.post("/exit-login-as");
+    } catch (e) {
+      console.warn("Backend exit impersonation call failed or token already revoked", e);
+    }
+
+    // 2. Clear impersonation backup keys
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("clubapp_original_admin_token");
+      localStorage.removeItem("clubapp_original_admin_user_id");
+      localStorage.removeItem("clubapp_original_admin_role");
+      localStorage.removeItem("clubapp_original_admin_path");
+      localStorage.removeItem("clubapp_is_impersonating");
+    }
+
+    // 3. Ensure we have preserved Admin token
+    if (!adminToken) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("clubapp_token");
+        localStorage.removeItem("clubapp_user_id");
+        localStorage.removeItem("clubapp_active_role");
+        window.location.href = "/login";
+      }
+      set({
+        currentUserId: null,
+        currentUser: null,
+        activeRole: null,
+        isImpersonating: false,
+        impersonationAdmin: null,
+      });
+      throw new Error("Admin session not found. Please log in again.");
+    }
+
+    // 4. Restore Admin token and user details to localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clubapp_token", adminToken);
+      if (adminUserId) {
+        localStorage.setItem("clubapp_user_id", adminUserId);
+      }
+      localStorage.setItem("clubapp_active_role", adminRole);
+    }
+
+    set({
+      currentUserId: adminUserId,
+      activeRole: adminRole as Role,
+      isImpersonating: false,
+      impersonationAdmin: null,
+    });
+
+    // 5. Verify the restored Admin session with the backend
+    const adminUser = await get().syncCurrentUser();
+
+    if (!adminUser || adminUser.role !== "admin") {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("clubapp_token");
+        localStorage.removeItem("clubapp_user_id");
+        localStorage.removeItem("clubapp_active_role");
+        window.location.href = "/login";
+      }
+      set({
+        currentUserId: null,
+        currentUser: null,
+        activeRole: null,
+        isImpersonating: false,
+        impersonationAdmin: null,
+      });
+      throw new Error("Admin session has expired. Please log in again.");
+    }
+
+    set({ activeRole: "admin" });
+    await get().syncData();
+
+    return { adminUser, returnPath };
   },
 
   logout: async () => {
@@ -921,8 +1100,19 @@ export const useStore = create<State>((set, get) => ({
       localStorage.removeItem("clubapp_token");
       localStorage.removeItem("clubapp_user_id");
       localStorage.removeItem("clubapp_active_role");
+      localStorage.removeItem("clubapp_original_admin_token");
+      localStorage.removeItem("clubapp_original_admin_user_id");
+      localStorage.removeItem("clubapp_original_admin_role");
+      localStorage.removeItem("clubapp_original_admin_path");
+      localStorage.removeItem("clubapp_is_impersonating");
     }
-    set({ currentUserId: null, currentUser: null, activeRole: null });
+    set({
+      currentUserId: null,
+      currentUser: null,
+      activeRole: null,
+      isImpersonating: false,
+      impersonationAdmin: null,
+    });
   },
 
   approveUser: async (id, opts) => {
@@ -1125,6 +1315,10 @@ export const useStore = create<State>((set, get) => ({
     if (autoAccept) {
       await get().syncData();
     }
+  },
+
+  fetchSchedulePlayers: async (scheduleId) => {
+    return api.get<PlayInvitation[]>(`/schedules/${scheduleId}/players`);
   },
 
   generateRotation: async (scheduleId) => {

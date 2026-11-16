@@ -1,6 +1,13 @@
 export type Role = "admin" | "member" | "volunteer";
 export type UserStatus = "created" | "active" | "rejected";
 
+export interface ImpersonationInfo {
+  isImpersonating: boolean;
+  adminId: string;
+  adminName: string;
+  adminEmail?: string;
+}
+
 export interface User {
   id: string;
   firstName: string;
@@ -19,6 +26,7 @@ export interface User {
   adminRoleName?: string | null;
   isSuperAdmin?: boolean;
   permissions?: string[];
+  impersonation?: ImpersonationInfo | null;
 }
 
 export interface AdminRole {
@@ -197,6 +205,16 @@ export interface PlayInvitation {
   updatedAt?: string;
   createdAt?: string;
   isGuest?: boolean;
+  /** Present on schedule roster endpoints (e.g. GET /schedules/{id}/players). */
+  memberName?: string | null;
+  memberGrade?: string | null;
+  memberPosition?: string | null;
+}
+
+export interface RotationPlayerInfo {
+  name: string;
+  grade?: string | null;
+  position?: string | null;
 }
 
 export interface RotationRound {
@@ -209,6 +227,8 @@ export interface Rotation {
   rounds: RotationRound[];
   /** Admin-set before publish; locked after publish */
   showMemberGrades?: boolean;
+  /** Display names for player IDs (needed when members list is family-scoped). */
+  playerDirectory?: Record<string, RotationPlayerInfo>;
 }
 
 export interface Training {
