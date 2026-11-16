@@ -603,7 +603,7 @@ function CreditsPage() {
       </Tabs>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md overflow-visible">
+        <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-md !overflow-visible">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">
               {entryType === "debit"

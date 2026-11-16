@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Search, Loader2 } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { fmtMoney } from "@/lib/format";
 import { api } from "@/lib/api";
@@ -9,6 +8,7 @@ import type { Member } from "@/lib/types";
 const SERVER_SEARCH_THRESHOLD = 200;
 const SERVER_RESULT_LIMIT = 80;
 const LIST_MAX_HEIGHT = 280;
+const PANEL_CHROME_HEIGHT = 96; // search + footer approx
 const DEBOUNCE_MS = 300;
 
 function memberLabel(m: Member) {
@@ -45,6 +45,14 @@ type MemberComboboxProps = {
   id?: string;
 };
 
+/**
+ * In-dialog combobox (no body portal).
+ *
+ * Radix Dialog applies body { pointer-events: none } via react-remove-scroll and only
+ * re-enables pointer-events on the dialog content. A portaled Popover sits under body,
+ * so search / scroll / selection appear dead in production (large member lists).
+ * Rendering the panel inside the dialog keeps focus-trap + pointer-events intact.
+ */
 export function MemberCombobox({
   members,
   value,
@@ -62,7 +70,9 @@ export function MemberCombobox({
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [serverResults, setServerResults] = useState<Member[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [placement, setPlacement] = useState<"bottom" | "top">("bottom");
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<(HTMLDivElement | null)[]>([]);
   const abortRef = useRef<AbortController | null>(null);
@@ -122,6 +132,15 @@ export function MemberCombobox({
     optionRefs.current = [];
   }, [query, debouncedQuery, filtered.length, open]);
 
+  useLayoutEffect(() => {
+    if (!open || !rootRef.current) return;
+    const rect = rootRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const needed = LIST_MAX_HEIGHT + PANEL_CHROME_HEIGHT + 12;
+    setPlacement(spaceBelow < needed && spaceAbove > spaceBelow ? "top" : "bottom");
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const frame = requestAnimationFrame(() => inputRef.current?.focus());
@@ -133,6 +152,33 @@ export function MemberCombobox({
     optionRefs.current[highlightIndex]?.scrollIntoView({ block: "nearest" });
   }, [highlightIndex, open]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (rootRef.current?.contains(target)) return;
+      setOpen(false);
+      setQuery("");
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
+      setQuery("");
+    };
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [open]);
+
   const selectMember = useCallback(
     (memberId: string) => {
       onValueChange(memberId);
@@ -142,7 +188,7 @@ export function MemberCombobox({
     [onValueChange],
   );
 
-  /** Dialog traps wheel events — keep scroll on this list. */
+  /** Keep wheel/touch scroll on the list even when a parent dialog locks page scroll. */
   const keepScrollLocal = (e: React.WheelEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
@@ -178,214 +224,217 @@ export function MemberCombobox({
       ? `${listboxId}-option-${filtered[highlightIndex].id}`
       : undefined;
 
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setQuery("");
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          id={triggerId}
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listboxId}
-          aria-haspopup="listbox"
-          className={cn(
-            "group flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] px-3 text-left text-sm text-[#F1F0EE] transition-colors cursor-pointer outline-none",
-            "hover:border-[rgba(255,255,255,0.14)]",
-            "focus-visible:border-[#10B981]/50 focus-visible:ring-2 focus-visible:ring-[#10B981]/20",
-            open && "border-[#10B981]/40 ring-2 ring-[#10B981]/15",
-            className,
-          )}
-        >
-          {selected ? (
-            <span className="min-w-0 flex-1 truncate">
-              <span className="font-medium text-[#EEF2F0]">{memberLabel(selected)}</span>
-              <span className="text-[#6B7F78]"> · </span>
-              <span className="font-mono text-[12px] text-[#8FA89F]">
-                {fmtMoney(selected.credit)}
-              </span>
-            </span>
-          ) : (
-            <span className="text-[#8A8A98]">{placeholder}</span>
-          )}
-          <ChevronDown
-            className={cn(
-              "size-4 shrink-0 text-[#8A8A98] transition-transform duration-200",
-              open && "rotate-180 text-[#34D399]",
-            )}
-            aria-hidden="true"
-          />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        sideOffset={6}
-        // Allow wheel/touch scroll inside Dialog (react-remove-scroll)
-        data-scroll-lock-scrollable=""
-        className={cn(
-          "z-[80] w-[var(--radix-popover-trigger-width)] min-w-[min(100vw-2rem,320px)] p-0",
-          "rounded-xl border border-[rgba(255,255,255,0.10)] bg-[#131916] text-[#F1F0EE]",
-          "shadow-[0_16px_48px_rgba(0,0,0,0.55)] overflow-hidden",
-        )}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onKeyDown={onKeyDown}
-        onWheel={keepScrollLocal}
-      >
-        <div className="p-2.5 border-b border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/80">
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#1A2120] px-2.5",
-              "focus-within:border-[#10B981]/45 focus-within:ring-2 focus-within:ring-[#10B981]/15",
-            )}
-          >
-            <Search className="size-3.5 shrink-0 text-[#6B7F78]" aria-hidden="true" />
-            <input
-              ref={inputRef}
-              aria-controls={listboxId}
-              aria-autocomplete="list"
-              aria-activedescendant={activeOptionId}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder="Search name or BI ID…"
-              autoComplete="chrome-off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              name="member-combobox-search"
-              data-1p-ignore
-              data-lpignore="true"
-              data-form-type="other"
-              className="h-9 w-full min-w-0 bg-transparent text-[13px] text-[#F1F0EE] outline-none placeholder:text-[#6B7F78] border-0 shadow-none ring-0 focus:ring-0 focus-visible:ring-0 rounded-none p-0"
-            />
-            {loading && (
-              <Loader2
-                className="size-3.5 shrink-0 animate-spin text-[#8FA89F]"
-                aria-hidden="true"
-              />
-            )}
-          </div>
-        </div>
+  const close = () => {
+    setOpen(false);
+    setQuery("");
+  };
 
-        <div
-          ref={listRef}
-          id={listboxId}
-          role="listbox"
-          aria-label="Members"
-          data-scroll-lock-scrollable=""
+  return (
+    <div ref={rootRef} className={cn("relative w-full", className)}>
+      <button
+        type="button"
+        id={triggerId}
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-haspopup="listbox"
+        className={cn(
+          "group flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0C0F0E] px-3 text-left text-sm text-[#F1F0EE] transition-colors cursor-pointer outline-none",
+          "hover:border-[rgba(255,255,255,0.14)]",
+          "focus-visible:border-[#10B981]/50 focus-visible:ring-2 focus-visible:ring-[#10B981]/20",
+          open && "border-[#10B981]/40 ring-2 ring-[#10B981]/15",
+        )}
+        onClick={() => {
+          if (open) close();
+          else setOpen(true);
+        }}
+      >
+        {selected ? (
+          <span className="min-w-0 flex-1 truncate">
+            <span className="font-medium text-[#EEF2F0]">{memberLabel(selected)}</span>
+            <span className="text-[#6B7F78]"> · </span>
+            <span className="font-mono text-[12px] text-[#8FA89F]">
+              {fmtMoney(selected.credit)}
+            </span>
+          </span>
+        ) : (
+          <span className="text-[#8A8A98]">{placeholder}</span>
+        )}
+        <ChevronDown
           className={cn(
-            "overflow-y-scroll overflow-x-hidden overscroll-contain",
-            // Visible scrollbar so it’s clear more members exist
-            "[scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.22)_transparent]",
-            "[&::-webkit-scrollbar]:w-2",
-            "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20",
-            "[&::-webkit-scrollbar-track]:bg-transparent",
+            "size-4 shrink-0 text-[#8A8A98] transition-transform duration-200",
+            open && "rotate-180 text-[#34D399]",
           )}
-          style={{ maxHeight: LIST_MAX_HEIGHT }}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open && (
+        <div
+          // Stay inside Dialog's pointer-events:auto subtree (no body portal).
+          className={cn(
+            "absolute left-0 right-0 z-[80] min-w-0 p-0 pointer-events-auto",
+            "rounded-xl border border-[rgba(255,255,255,0.10)] bg-[#131916] text-[#F1F0EE]",
+            "shadow-[0_16px_48px_rgba(0,0,0,0.55)] overflow-hidden",
+            placement === "bottom" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]",
+          )}
+          data-scroll-lock-scrollable=""
+          onKeyDown={onKeyDown}
           onWheel={keepScrollLocal}
-          onTouchMove={keepScrollLocal}
         >
-          {filtered.length === 0 ? (
-            <div className="px-4 py-8 text-center" role="status">
-              <p className="text-sm text-[#8FA89F]">
-                {loading ? "Searching…" : "No members found."}
-              </p>
-              {!loading && query.trim() && (
-                <p className="mt-1 text-[11px] text-[#6B7F78]">Try a different name or BI ID</p>
+          <div className="p-2.5 border-b border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/80">
+            <div
+              className={cn(
+                "flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#1A2120] px-2.5",
+                "focus-within:border-[#10B981]/45 focus-within:ring-2 focus-within:ring-[#10B981]/15",
+              )}
+            >
+              <Search className="size-3.5 shrink-0 text-[#6B7F78]" aria-hidden="true" />
+              <input
+                ref={inputRef}
+                aria-controls={listboxId}
+                aria-autocomplete="list"
+                aria-activedescendant={activeOptionId}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Search name or BI ID…"
+                autoComplete="chrome-off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                name="member-combobox-search"
+                data-1p-ignore
+                data-lpignore="true"
+                data-form-type="other"
+                className="h-9 w-full min-w-0 bg-transparent text-[13px] text-[#F1F0EE] outline-none placeholder:text-[#6B7F78] border-0 shadow-none ring-0 focus:ring-0 focus-visible:ring-0 rounded-none p-0"
+              />
+              {loading && (
+                <Loader2
+                  className="size-3.5 shrink-0 animate-spin text-[#8FA89F]"
+                  aria-hidden="true"
+                />
               )}
             </div>
-          ) : (
-            filtered.map((m, index) => {
-              const isSelected = m.id === value;
-              const isHighlighted = index === highlightIndex;
-              const isJunior = m.memberType.toLowerCase() === "junior";
-              return (
-                <div
-                  key={m.id}
-                  ref={(el) => {
-                    optionRefs.current[index] = el;
-                  }}
-                  id={`${listboxId}-option-${m.id}`}
-                  role="option"
-                  aria-selected={isSelected}
-                  data-highlighted={isHighlighted || undefined}
-                  className={cn(
-                    "flex h-14 w-full cursor-pointer select-none items-center gap-2.5 px-2.5 outline-none",
-                    isHighlighted && "bg-[#10B981]/10",
-                    isSelected && !isHighlighted && "bg-white/[0.03]",
-                  )}
-                  onMouseEnter={() => setHighlightIndex(index)}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    selectMember(m.id);
-                  }}
-                >
+          </div>
+
+          <div
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            aria-label="Members"
+            data-scroll-lock-scrollable=""
+            className={cn(
+              "overflow-y-scroll overflow-x-hidden overscroll-contain",
+              "[scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.22)_transparent]",
+              "[&::-webkit-scrollbar]:w-2",
+              "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20",
+              "[&::-webkit-scrollbar-track]:bg-transparent",
+            )}
+            style={{ maxHeight: LIST_MAX_HEIGHT }}
+            onWheel={keepScrollLocal}
+            onTouchMove={keepScrollLocal}
+          >
+            {filtered.length === 0 ? (
+              <div className="px-4 py-8 text-center" role="status">
+                <p className="text-sm text-[#8FA89F]">
+                  {loading ? "Searching…" : "No members found."}
+                </p>
+                {!loading && query.trim() && (
+                  <p className="mt-1 text-[11px] text-[#6B7F78]">Try a different name or BI ID</p>
+                )}
+              </div>
+            ) : (
+              filtered.map((m, index) => {
+                const isSelected = m.id === value;
+                const isHighlighted = index === highlightIndex;
+                const isJunior = m.memberType.toLowerCase() === "junior";
+                return (
                   <div
+                    key={m.id}
+                    ref={(el) => {
+                      optionRefs.current[index] = el;
+                    }}
+                    id={`${listboxId}-option-${m.id}`}
+                    role="option"
+                    aria-selected={isSelected}
+                    data-highlighted={isHighlighted || undefined}
                     className={cn(
-                      "size-8 shrink-0 rounded-full grid place-items-center text-[11px] font-semibold border border-white/10",
-                      isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#34D399]",
+                      "flex h-14 w-full cursor-pointer select-none items-center gap-2.5 px-2.5 outline-none",
+                      isHighlighted && "bg-[#10B981]/10",
+                      isSelected && !isHighlighted && "bg-white/[0.03]",
                     )}
+                    onMouseEnter={() => setHighlightIndex(index)}
+                    onMouseDown={(e) => {
+                      // Prevent input blur / dialog focus fight before selection lands.
+                      e.preventDefault();
+                      selectMember(m.id);
+                    }}
                   >
-                    {m.firstName[0]}
-                    {m.lastName[0]}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="truncate text-[13px] font-medium text-[#EEF2F0]">
-                        {memberLabel(m)}
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide",
-                          isJunior
-                            ? "bg-[#F59E0B]/12 text-[#FBBF24]"
-                            : "bg-[#10B981]/12 text-[#34D399]",
-                        )}
-                      >
-                        {isJunior ? "Junior" : "Adult"}
-                      </span>
-                    </div>
-                    <p className="truncate text-[11px] text-[#6B7F78] mt-0.5">
-                      {m.biMemberId ? m.biMemberId : "No BI ID"}
-                      {m.grade ? ` · ${m.grade}` : ""}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right pl-1">
-                    <p
+                    <div
                       className={cn(
-                        "font-mono text-[12px] font-medium",
-                        m.credit < 0 ? "text-[#F87171]" : "text-[#8FA89F]",
+                        "size-8 shrink-0 rounded-full grid place-items-center text-[11px] font-semibold border border-white/10",
+                        isJunior ? "bg-[#1A1A0A] text-[#F59E0B]" : "bg-[#0D2E22] text-[#34D399]",
                       )}
                     >
-                      {fmtMoney(m.credit)}
-                    </p>
+                      {m.firstName[0]}
+                      {m.lastName[0]}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="truncate text-[13px] font-medium text-[#EEF2F0]">
+                          {memberLabel(m)}
+                        </span>
+                        <span
+                          className={cn(
+                            "shrink-0 rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide",
+                            isJunior
+                              ? "bg-[#F59E0B]/12 text-[#FBBF24]"
+                              : "bg-[#10B981]/12 text-[#34D399]",
+                          )}
+                        >
+                          {isJunior ? "Junior" : "Adult"}
+                        </span>
+                      </div>
+                      <p className="truncate text-[11px] text-[#6B7F78] mt-0.5">
+                        {m.biMemberId ? m.biMemberId : "No BI ID"}
+                        {m.grade ? ` · ${m.grade}` : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right pl-1">
+                      <p
+                        className={cn(
+                          "font-mono text-[12px] font-medium",
+                          m.credit < 0 ? "text-[#F87171]" : "text-[#8FA89F]",
+                        )}
+                      >
+                        {fmtMoney(m.credit)}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <Check className="size-4 shrink-0 text-[#10B981]" aria-hidden="true" />
+                    )}
                   </div>
-                  {isSelected && (
-                    <Check className="size-4 shrink-0 text-[#10B981]" aria-hidden="true" />
-                  )}
-                </div>
-              );
-            })
+                );
+              })
+            )}
+          </div>
+
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between gap-2 border-t border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-1.5">
+              <p className="text-[10px] text-[#6B7F78]">
+                {query.trim()
+                  ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}`
+                  : `${filtered.length} member${filtered.length === 1 ? "" : "s"}`}
+                {filtered.length > 5 ? " · scroll for more" : ""}
+              </p>
+              <p className="text-[10px] text-[#6B7F78] hidden sm:block">
+                ↑↓ navigate · Enter select
+              </p>
+            </div>
           )}
         </div>
-
-        {filtered.length > 0 && (
-          <div className="flex items-center justify-between gap-2 border-t border-[rgba(255,255,255,0.06)] bg-[#0C0F0E]/60 px-3 py-1.5">
-            <p className="text-[10px] text-[#6B7F78]">
-              {query.trim()
-                ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}`
-                : `${filtered.length} member${filtered.length === 1 ? "" : "s"}`}
-              {filtered.length > 5 ? " · scroll for more" : ""}
-            </p>
-            <p className="text-[10px] text-[#6B7F78] hidden sm:block">↑↓ navigate · Enter select</p>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }

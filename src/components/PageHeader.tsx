@@ -46,6 +46,12 @@ export function PageHeader({
         return "ADMIN / APPROVALS";
       case "admin-management":
         return "ADMIN / MANAGEMENT";
+      case "email-templates":
+        return "ADMIN / TEMPLATES";
+      case "settings":
+        return "ADMIN / SETTINGS";
+      case "backups":
+        return "ADMIN / BACKUPS";
       default:
         return `${role} / PORTAL`;
     }

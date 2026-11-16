@@ -198,7 +198,22 @@ class AuthController extends Controller
             ], 401);
         }
 
-        return response()->json($this->formatUser($user));
+        $formatted = $this->formatUser($user);
+        $token = $request->user()->currentAccessToken();
+        if ($token && str_starts_with($token->name, 'impersonation:')) {
+            $adminId = Str::after($token->name, 'impersonation:');
+            $adminUser = User::find($adminId);
+            $formatted['impersonation'] = [
+                'isImpersonating' => true,
+                'adminId' => $adminId,
+                'adminName' => $adminUser?->name ?? 'Admin',
+                'adminEmail' => $adminUser?->email,
+            ];
+        } else {
+            $formatted['impersonation'] = null;
+        }
+
+        return response()->json($formatted);
     }
 
     public function updateProfile(Request $request)

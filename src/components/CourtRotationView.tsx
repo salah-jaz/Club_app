@@ -400,6 +400,7 @@ export function CourtRotationView({
   rotation,
   memberName,
   memberGrade,
+  memberPosition,
   className,
   editing = false,
   draftRounds,
@@ -411,6 +412,8 @@ export function CourtRotationView({
   memberName: (id: string) => string;
   /** Optional grade lookup — guests return empty */
   memberGrade?: (id: string) => string | undefined;
+  /** Optional league-group position lookup */
+  memberPosition?: (id: string) => string | undefined;
   className?: string;
   /** Admin drag-edit mode */
   editing?: boolean;
@@ -622,17 +625,24 @@ export function CourtRotationView({
           isOver && editing && "border-[#10B981]/60 bg-[#10B981]/10 ring-1 ring-[#10B981]/30",
           isDragging && "opacity-40",
           editing && playerId && "inline-flex items-center justify-center gap-1",
-          showGrade &&
+          (showGrade || !!memberPosition?.(playerId || "")) &&
             playerId &&
             !opts.resting &&
             "flex flex-col items-center justify-center gap-0.5",
-          showGrade && playerId && opts.resting && "inline-flex flex-col items-center gap-0.5",
+          (showGrade || !!memberPosition?.(playerId || "")) &&
+            playerId &&
+            opts.resting &&
+            "inline-flex flex-col items-center gap-0.5",
         )}
         title={
           playerId
-            ? showGrade && memberGrade?.(playerId)
-              ? `${displayName(playerId)} · ${memberGrade(playerId)}`
-              : displayName(playerId)
+            ? [
+                displayName(playerId),
+                showGrade && memberGrade?.(playerId) ? memberGrade(playerId) : null,
+                memberPosition?.(playerId) || null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
             : editing
               ? "Drop player here"
               : undefined
@@ -654,6 +664,16 @@ export function CourtRotationView({
             )}
           >
             {memberGrade(playerId)}
+          </span>
+        )}
+        {playerId && memberPosition?.(playerId) && (
+          <span
+            className={cn(
+              "text-[10px] font-medium truncate max-w-full leading-tight",
+              isYou ? "text-[#6EE7B7]" : "text-[#8FA89F]",
+            )}
+          >
+            {memberPosition(playerId)}
           </span>
         )}
       </div>

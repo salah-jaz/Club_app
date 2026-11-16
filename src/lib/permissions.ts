@@ -15,6 +15,7 @@ export const ADMIN_MODULE_BY_PATH: Record<string, string> = {
   settings: "settings",
   "email-templates": "email_templates",
   "admin-management": "admin_management",
+  backups: "backups",
 };
 
 const ADMIN_HOME_ORDER = [
@@ -29,6 +30,7 @@ const ADMIN_HOME_ORDER = [
   "/approvals",
   "/email-templates",
   "/settings",
+  "/backups",
   "/admin-management",
 ] as const;
 
@@ -54,6 +56,14 @@ export function canModule(module: string): boolean {
   if (!user) return false;
   if (user.isSuperAdmin) return true;
   const perms = user.permissions ?? [];
+  if (module === "backups") {
+    return (
+      CRUD_ACTIONS.some((action) => perms.includes(`settings.${action}`)) ||
+      perms.some((p) => p.startsWith("settings.")) ||
+      CRUD_ACTIONS.some((action) => perms.includes(`backups.${action}`)) ||
+      perms.some((p) => p.startsWith("backups."))
+    );
+  }
   return (
     CRUD_ACTIONS.some((action) => perms.includes(`${module}.${action}`)) ||
     perms.some((p) => p.startsWith(`${module}.`))
@@ -79,6 +89,14 @@ export function useCanModule(module: string): boolean {
   if (!user || user.role !== "admin") return false;
   if (user.isSuperAdmin) return true;
   const perms = user.permissions ?? [];
+  if (module === "backups") {
+    return (
+      CRUD_ACTIONS.some((action) => perms.includes(`settings.${action}`)) ||
+      perms.some((p) => p.startsWith("settings.")) ||
+      CRUD_ACTIONS.some((action) => perms.includes(`backups.${action}`)) ||
+      perms.some((p) => p.startsWith("backups."))
+    );
+  }
   return (
     CRUD_ACTIONS.some((action) => perms.includes(`${module}.${action}`)) ||
     perms.some((p) => p.startsWith(`${module}.`))

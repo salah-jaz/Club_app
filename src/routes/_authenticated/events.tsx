@@ -177,6 +177,12 @@ function Events() {
     rotation: Rotation;
   } | null>(null);
   const [playersPopup, setPlayersPopup] = useState<PlaySchedule | null>(null);
+  const [playersRoster, setPlayersRoster] = useState<PlayInvitation[] | null>(null);
+  const [playersRosterLoading, setPlayersRosterLoading] = useState(false);
+  const [scheduleDisplayNames, setScheduleDisplayNames] = useState<
+    Record<string, { name: string; grade?: string | null; position?: string | null }>
+  >({});
+  const fetchSchedulePlayers = useStore((st) => st.fetchSchedulePlayers);
 
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
   const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
@@ -254,13 +260,61 @@ function Events() {
     if (typeof mid === "string" && mid.startsWith("guest_")) {
       return `Guest Player ${mid.split("_")[1]}`;
     }
+    const fromRoster = scheduleDisplayNames[mid]?.name;
+    if (fromRoster) return fromRoster;
     const m = s.members.find((x) => x.id === mid);
     return m ? `${m.firstName} ${m.lastName}` : "?";
   };
 
   const gradeOf = (mid: string) => {
     if (typeof mid === "string" && mid.startsWith("guest_")) return undefined;
+    const fromRoster = scheduleDisplayNames[mid]?.grade;
+    if (fromRoster) return fromRoster;
     return s.members.find((x) => x.id === mid)?.grade || undefined;
+  };
+
+  const positionOf = (mid: string) => {
+    if (typeof mid === "string" && mid.startsWith("guest_")) return undefined;
+    return scheduleDisplayNames[mid]?.position || undefined;
+  };
+
+  const buildDisplayMapFromInvites = (invites: PlayInvitation[]) => {
+    const map: Record<string, { name: string; grade?: string | null; position?: string | null }> =
+      {};
+    for (const inv of invites) {
+      if (!inv.memberId) continue;
+      let displayName = inv.memberName?.trim() || "";
+      if (!displayName) {
+        if (typeof inv.memberId === "string" && inv.memberId.startsWith("guest_")) {
+          displayName = `Guest Player ${inv.memberId.split("_")[1]}`;
+        } else {
+          const m = s.members.find((x) => x.id === inv.memberId);
+          displayName = m ? `${m.firstName} ${m.lastName}` : "?";
+        }
+      }
+      map[inv.memberId] = {
+        name: displayName,
+        grade: inv.memberGrade ?? null,
+        position: inv.memberPosition ?? null,
+      };
+    }
+    return map;
+  };
+
+  const mergeRotationDirectory = (
+    rotation: Rotation,
+    base: Record<string, { name: string; grade?: string | null; position?: string | null }>,
+  ) => {
+    const next = { ...base };
+    const directory = rotation.playerDirectory ?? {};
+    for (const [id, info] of Object.entries(directory)) {
+      next[id] = {
+        name: info.name || next[id]?.name || "?",
+        grade: info.grade ?? next[id]?.grade ?? null,
+        position: info.position ?? next[id]?.position ?? null,
+      };
+    }
+    return next;
   };
 
   const getHolidayName = (dateStr: string) => {
@@ -272,7 +326,7 @@ function Events() {
     return null;
   };
 
-  const openCourtsPopup = (sch: PlaySchedule) => {
+  const openCourtsPopup = async (sch: PlaySchedule) => {
     const isEligible = myMembers.some((m) => isEligibleForPlaySchedule(m, sch, s.leagueGroups));
     const hasAccepted = playInvs.some((i) => i.scheduleId === sch.id && i.status === "accepted");
     if (!isEligible && !hasAccepted) {
@@ -284,10 +338,19 @@ function Events() {
       toast.error("Court rotation is not available yet.");
       return;
     }
+
+    let displayMap = mergeRotationDirectory(rotation, {});
+    try {
+      const roster = await fetchSchedulePlayers(sch.id);
+      displayMap = mergeRotationDirectory(rotation, buildDisplayMapFromInvites(roster));
+    } catch {
+      // Rotation playerDirectory alone is enough for court chips when roster fetch fails.
+    }
+    setScheduleDisplayNames(displayMap);
     setCourtsPopup({ schedule: sch, rotation });
   };
 
-  const openPlayersPopup = (sch: PlaySchedule) => {
+  const openPlayersPopup = async (sch: PlaySchedule) => {
     const isEligible = myMembers.some((m) => isEligibleForPlaySchedule(m, sch, s.leagueGroups));
     const hasAccepted = playInvs.some((i) => i.scheduleId === sch.id && i.status === "accepted");
     if (!isEligible && !hasAccepted) {
@@ -295,13 +358,24 @@ function Events() {
       return;
     }
     setPlayersPopup(sch);
+    setPlayersRoster(null);
+    setPlayersRosterLoading(true);
+    try {
+      const roster = await fetchSchedulePlayers(sch.id);
+      setPlayersRoster(roster);
+      setScheduleDisplayNames(buildDisplayMapFromInvites(roster));
+    } catch (error: unknown) {
+      setPlayersPopup(null);
+      toast.error(error instanceof Error ? error.message : "Failed to load schedule players.");
+    } finally {
+      setPlayersRosterLoading(false);
+    }
   };
 
-  const schedulePlayerLists = (scheduleId: string) => {
-    const invs = s.playInvites.filter((i) => i.scheduleId === scheduleId);
+  const schedulePlayerLists = (invites: PlayInvitation[]) => {
     return {
-      accepted: invs.filter((i) => i.status === "accepted").sort(byFirstCome),
-      waiting: invs.filter((i) => i.status === "waiting").sort(byFirstCome),
+      accepted: invites.filter((i) => i.status === "accepted").sort(byFirstCome),
+      waiting: invites.filter((i) => i.status === "waiting").sort(byFirstCome),
     };
   };
 
@@ -718,7 +792,15 @@ function Events() {
 
   return (
     <div className="space-y-6 w-full min-w-0 max-w-full">
-      <Dialog open={!!courtsPopup} onOpenChange={(open) => !open && setCourtsPopup(null)}>
+      <Dialog
+        open={!!courtsPopup}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCourtsPopup(null);
+            setScheduleDisplayNames({});
+          }
+        }}
+      >
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">
@@ -736,12 +818,22 @@ function Events() {
               rotation={courtsPopup.rotation}
               memberName={name}
               memberGrade={gradeOf}
+              memberPosition={positionOf}
             />
           )}
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!playersPopup} onOpenChange={(open) => !open && setPlayersPopup(null)}>
+      <Dialog
+        open={!!playersPopup}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPlayersPopup(null);
+            setPlayersRoster(null);
+            setPlayersRosterLoading(false);
+          }
+        }}
+      >
         <DialogContent className="bg-[#131916] border-[rgba(255,255,255,0.10)] text-[#F1F0EE] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#F1F0EE]">
@@ -753,9 +845,16 @@ function Events() {
                 : "Accepted and waiting members"}
             </DialogDescription>
           </DialogHeader>
+          {playersPopup && playersRosterLoading && (
+            <p className="text-[13px] font-light text-[#8A8A98] py-6 text-center">
+              Loading players…
+            </p>
+          )}
           {playersPopup &&
+            !playersRosterLoading &&
+            playersRoster &&
             (() => {
-              const lists = schedulePlayerLists(playersPopup.id);
+              const lists = schedulePlayerLists(playersRoster);
               const maxPlayers = Math.max(playersPopup.players || 0, 1);
               const columns = [
                 {
@@ -795,16 +894,24 @@ function Events() {
                           col.items.map((inv, idx) => {
                             const isGuest =
                               typeof inv.memberId === "string" && inv.memberId.startsWith("guest_");
+                            const position = positionOf(inv.memberId);
                             return (
                               <div
                                 key={inv.id}
-                                className="text-[13px] text-[#F1F0EE] py-2 border-b border-white/[0.03] last:border-0 font-medium flex items-center gap-2"
+                                className="text-[13px] text-[#F1F0EE] py-2 border-b border-white/[0.03] last:border-0 font-medium flex items-center gap-2 min-w-0"
                               >
                                 <span className="font-mono text-[10px] text-[#8A8A98] shrink-0">
                                   {idx + 1}.
                                 </span>
-                                <span className={cn("truncate", isGuest && "text-[#D97706]")}>
-                                  {name(inv.memberId)}
+                                <span className="min-w-0 flex-1 truncate">
+                                  <span className={cn(isGuest && "text-[#D97706]")}>
+                                    {name(inv.memberId)}
+                                  </span>
+                                  {position ? (
+                                    <span className="text-[11px] font-normal text-[#8A8A98] ml-1.5">
+                                      · {position}
+                                    </span>
+                                  ) : null}
                                 </span>
                               </div>
                             );
@@ -1106,7 +1213,7 @@ function Events() {
                           size="sm"
                           variant="outline"
                           className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer max-w-full"
-                          onClick={() => openPlayersPopup(sch)}
+                          onClick={() => void openPlayersPopup(sch)}
                         >
                           <Users className="size-3.5 mr-1" />
                           View players
@@ -1121,7 +1228,7 @@ function Events() {
                           size="sm"
                           variant="outline"
                           className="btn-premium-outline h-7 text-[11px] px-2.5 cursor-pointer max-w-full"
-                          onClick={() => openCourtsPopup(sch)}
+                          onClick={() => void openCourtsPopup(sch)}
                         >
                           <LayoutGrid className="size-3.5 mr-1" />
                           Court details
