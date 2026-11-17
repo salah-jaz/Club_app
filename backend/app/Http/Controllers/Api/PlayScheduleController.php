@@ -84,7 +84,7 @@ class PlayScheduleController extends Controller
         $schedules = PlaySchedule::orderBy('date', 'desc')->get();
 
         if ($isAdmin || !$user) {
-            return response()->json($schedules->map(fn(PlaySchedule $s) => $this->formatSchedule($s)));
+            return response()->json($this->mapSchedulesWithInviteCounts($schedules));
         }
 
         $familyMembers = Member::where('user_id', $user->id)
@@ -125,7 +125,7 @@ class PlayScheduleController extends Controller
             return false;
         });
 
-        return response()->json($visibleSchedules->map(fn(PlaySchedule $s) => $this->formatSchedule($s))->values());
+        return response()->json($this->mapSchedulesWithInviteCounts($visibleSchedules));
     }
 
     public function upcomingDashboardPlaySessions(?Request $request = null)
@@ -148,7 +148,7 @@ class PlayScheduleController extends Controller
                     return $start->gt($now) && SessionTimingHelper::playSessionPhase($sch, $now) === SessionTimingHelper::PHASE_UPCOMING;
                 });
 
-            return response()->json($schedules->map(fn(PlaySchedule $s) => $this->formatSchedule($s))->values());
+            return response()->json($this->mapSchedulesWithInviteCounts($schedules));
         }
 
         // Member: use the logged-in member's actual family relationships
@@ -207,8 +207,9 @@ class PlayScheduleController extends Controller
         });
 
         // Format schedules and attach family member statuses without exposing unrelated members' private invitations
-        $result = $visibleSchedules->map(function (PlaySchedule $s) use ($familyMembers) {
-            $formatted = $this->formatSchedule($s);
+        $inviteCounts = $this->invitationCountsBySchedule($visibleSchedules->pluck('id')->all());
+        $result = $visibleSchedules->map(function (PlaySchedule $s) use ($familyMembers, $inviteCounts) {
+            $formatted = $this->formatSchedule($s, $inviteCounts[$s->id] ?? null);
             $invitations = PlayInvitation::where('schedule_id', $s->id)
                 ->whereIn('member_id', $familyMembers->pluck('id')->all())
                 ->get()
@@ -2937,7 +2938,68 @@ class PlayScheduleController extends Controller
         ];
     }
 
-    private function formatSchedule(PlaySchedule $s)
+    /**
+     * Non-PII invite tallies for capacity UI (unique member ids; guests excluded).
+     *
+     * @param  array<int, string>  $scheduleIds
+     * @return array<string, array{accepted: int, waiting: int}>
+     */
+    private function invitationCountsBySchedule(array $scheduleIds): array
+    {
+        $scheduleIds = array_values(array_unique(array_filter($scheduleIds)));
+        if ($scheduleIds === []) {
+            return [];
+        }
+
+        $rows = PlayInvitation::whereIn('schedule_id', $scheduleIds)
+            ->whereIn('status', ['accepted', 'waiting'])
+            ->get(['schedule_id', 'status', 'member_id']);
+
+        $out = [];
+        foreach ($scheduleIds as $sid) {
+            $out[$sid] = ['accepted' => 0, 'waiting' => 0];
+        }
+
+        $seen = [];
+        foreach ($rows as $row) {
+            if ($this->isGuestMemberId($row->member_id)) {
+                continue;
+            }
+            $key = $row->schedule_id . '|' . $row->status . '|' . $row->member_id;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            if ($row->status === 'accepted') {
+                $out[$row->schedule_id]['accepted']++;
+            } elseif ($row->status === 'waiting') {
+                $out[$row->schedule_id]['waiting']++;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, PlaySchedule>|iterable<PlaySchedule>  $schedules
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function mapSchedulesWithInviteCounts($schedules)
+    {
+        $collection = $schedules instanceof \Illuminate\Support\Collection
+            ? $schedules->values()
+            : collect($schedules)->values();
+        $counts = $this->invitationCountsBySchedule($collection->pluck('id')->all());
+
+        return $collection
+            ->map(fn(PlaySchedule $s) => $this->formatSchedule($s, $counts[$s->id] ?? null))
+            ->values();
+    }
+
+    /**
+     * @param  array{accepted?: int, waiting?: int}|null  $inviteCount
+     */
+    private function formatSchedule(PlaySchedule $s, ?array $inviteCount = null)
     {
         $parentId = $s->parent_id ?: $s->id;
         $series = PlaySchedule::where('parent_id', $parentId)
@@ -2946,6 +3008,11 @@ class PlayScheduleController extends Controller
             ->get();
         $idx = $series->search(fn($item) => $item->id === $s->id);
         $remainingWeeks = ($idx !== false) ? max(1, $series->count() - $idx) : 1;
+
+        if ($inviteCount === null) {
+            $inviteCount = $this->invitationCountsBySchedule([(string) $s->id])[$s->id]
+                ?? ['accepted' => 0, 'waiting' => 0];
+        }
 
         return [
             'id' => $s->id,
@@ -2964,6 +3031,9 @@ class PlayScheduleController extends Controller
             'isLeagueMatch' => (bool)$s->is_league_match,
             'leagueGroupIds' => $s->league_group_ids ?? [],
             'repeatWeeks' => $remainingWeeks,
+            // Non-PII capacity aggregates — safe for members even when invite rows are family-scoped.
+            'acceptedCount' => (int) ($inviteCount['accepted'] ?? 0),
+            'waitingCount' => (int) ($inviteCount['waiting'] ?? 0),
         ];
     }
 }

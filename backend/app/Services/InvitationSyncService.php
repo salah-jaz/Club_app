@@ -131,33 +131,17 @@ class InvitationSyncService
                 $tr->target_type = $targetType;
                 $tr->save();
             }
+            // Group programs: roster membership is the eligibility signal (matches admin invite UI).
+            // Individual programs still require training_eligible.
             $isEligible = false;
-
-            if ($member->status === 'active') {
-                if ($targetType === 'adult') {
-                    if ($member->member_type === 'adult' && (bool) $member->training_eligible) {
-                        if ($tr->is_group_training && !empty($tr->league_group_ids)) {
-                            $inGroup = DB::table('league_group_member')
-                                ->whereIn('league_group_id', $tr->league_group_ids)
-                                ->where('member_id', $member->id)
-                                ->exists();
-                            $isEligible = $inGroup;
-                        } else {
-                            $isEligible = true;
-                        }
-                    }
+            if ($member->status === 'active' && strtolower((string) $member->member_type) === $targetType) {
+                if ($tr->is_group_training && !empty($tr->league_group_ids)) {
+                    $isEligible = DB::table('league_group_member')
+                        ->whereIn('league_group_id', $tr->league_group_ids)
+                        ->where('member_id', $member->id)
+                        ->exists();
                 } else {
-                    if ($member->member_type === 'junior' && (bool) $member->training_eligible) {
-                        if ($tr->is_group_training && !empty($tr->league_group_ids)) {
-                            $inGroup = DB::table('league_group_member')
-                                ->whereIn('league_group_id', $tr->league_group_ids)
-                                ->where('member_id', $member->id)
-                                ->exists();
-                            $isEligible = $inGroup;
-                        } else {
-                            $isEligible = true;
-                        }
-                    }
+                    $isEligible = (bool) $member->training_eligible;
                 }
             }
 
@@ -241,16 +225,18 @@ class InvitationSyncService
         }
 
         $query = Member::where('status', 'active')
-            ->where('member_type', $targetType)
-            ->where('training_eligible', true);
+            ->where('member_type', $targetType);
 
         if ($tr->is_group_training && !empty($tr->league_group_ids)) {
+            // Group roster is the eligibility signal; do not require training_eligible.
             $groupMemberIds = DB::table('league_group_member')
                 ->whereIn('league_group_id', $tr->league_group_ids)
                 ->pluck('member_id')
                 ->unique()
                 ->toArray();
             $query->whereIn('id', $groupMemberIds);
+        } else {
+            $query->where('training_eligible', true);
         }
 
         $eligibleMembers = $query->get();
@@ -307,7 +293,7 @@ class InvitationSyncService
         $allInvs = TrainingInvitation::where('training_id', $tr->id)->get();
         foreach ($allInvs as $inv) {
             $m = Member::find($inv->member_id);
-            if (!$m || $m->status !== 'active' || $m->member_type !== $targetType || !(bool) $m->training_eligible) {
+            if (!$m || $m->status !== 'active' || $m->member_type !== $targetType) {
                 $shouldDelete = true;
             } elseif ($tr->is_group_training && !empty($tr->league_group_ids)) {
                 $inGroup = DB::table('league_group_member')
@@ -316,7 +302,7 @@ class InvitationSyncService
                     ->exists();
                 $shouldDelete = !$inGroup;
             } else {
-                $shouldDelete = false;
+                $shouldDelete = !(bool) $m->training_eligible;
             }
 
             if ($shouldDelete) {

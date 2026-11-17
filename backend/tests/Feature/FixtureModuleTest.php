@@ -599,6 +599,83 @@ class FixtureModuleTest extends TestCase
         $this->assertDatabaseHas('fixtures', ['id' => $fixtureAId]);
     }
 
+    /**
+     * Regression (a16f105): sendMail was incorrectly locked to admin-only.
+     * Members must still send for fixtures in their own groups; cross-group send stays forbidden.
+     */
+    public function test_member_send_mail_allowed_for_own_group_forbidden_for_other_group(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        $templates = \App\Helpers\MailHelper::getDefaultTemplates();
+        $templates['fixture_scheduled']['is_enabled'] = true;
+        Setting::updateOrCreate(
+            ['key' => 'email_templates'],
+            ['value' => json_encode($templates)]
+        );
+
+        $ownGroupFixture = Fixture::create([
+            'id' => 'fix_mail_own_' . Str::random(6),
+            'name' => 'Own Group Match',
+            'date' => '2026-12-01 15:00:00',
+            'league_group_id' => $this->group1->id,
+            'match_type' => 'Friendly',
+            'venue_type' => 'Home',
+            'opposition_club' => 'Opp A',
+            'team_name' => 'Home A',
+            'grade' => 'Division 1',
+            'status' => 'Scheduled',
+            'home_captain_email' => 'home.a@test.com',
+            'opposition_captain_email' => 'opp.a@test.com',
+        ]);
+
+        $otherGroupFixture = Fixture::create([
+            'id' => 'fix_mail_other_' . Str::random(6),
+            'name' => 'Other Group Match',
+            'date' => '2026-12-02 15:00:00',
+            'league_group_id' => $this->group2->id,
+            'match_type' => 'Friendly',
+            'venue_type' => 'Away',
+            'opposition_club' => 'Opp B',
+            'team_name' => 'Home B',
+            'grade' => 'Division 1',
+            'status' => 'Scheduled',
+            'home_captain_email' => 'home.b@test.com',
+            'opposition_captain_email' => 'opp.b@test.com',
+        ]);
+
+        // Cross-group visibility still allows viewing the other group's fixture.
+        $this->actingAs($this->memberUserWithGroup)
+            ->getJson('/api/fixtures/' . $otherGroupFixture->id)
+            ->assertOk();
+
+        // Member can send mail for their own group fixture.
+        $ownSend = $this->actingAs($this->memberUserWithGroup)
+            ->postJson('/api/fixtures/' . $ownGroupFixture->id . '/send-mail');
+        $ownSend->assertOk();
+        $this->assertEquals(['opp.a@test.com'], $ownSend->json('to'));
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, 1);
+
+        // Member cannot send mail for another group's fixture (ACL preserved).
+        \Illuminate\Support\Facades\Mail::fake();
+        $otherSend = $this->actingAs($this->memberUserWithGroup)
+            ->postJson('/api/fixtures/' . $otherGroupFixture->id . '/send-mail');
+        $otherSend->assertStatus(403);
+        \Illuminate\Support\Facades\Mail::assertNothingSent();
+
+        // Member with no groups still cannot send.
+        $noGroupSend = $this->actingAs($this->memberUserNoGroup)
+            ->postJson('/api/fixtures/' . $ownGroupFixture->id . '/send-mail');
+        $noGroupSend->assertStatus(403);
+
+        // Admin with fixtures.edit can send for any group.
+        \Illuminate\Support\Facades\Mail::fake();
+        $adminSend = $this->actingAs($this->admin)
+            ->postJson('/api/fixtures/' . $otherGroupFixture->id . '/send-mail');
+        $adminSend->assertOk();
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\GenericMailable::class, 1);
+    }
+
     public function test_member_can_create_and_edit_for_their_groups_but_cannot_delete(): void
     {
         // 1. Member creates fixture for group 1 (permitted)

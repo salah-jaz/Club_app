@@ -447,9 +447,13 @@ function Events() {
   const inviteStats = useMemo(() => {
     const map = new Map<string, number>();
     for (const sch of uniquePlaySessions) {
-      const accepted = s.playInvites.filter(
-        (i) => i.scheduleId === sch.id && i.status === "accepted",
-      ).length;
+      // Prefer server aggregate: playInvites are family-scoped after a16f105 and
+      // under-count capacity for filters (Full / Has space / Low / Empty).
+      const accepted =
+        typeof sch.acceptedCount === "number"
+          ? sch.acceptedCount
+          : s.playInvites.filter((i) => i.scheduleId === sch.id && i.status === "accepted")
+              .length;
       map.set(sch.id, accepted);
     }
     return map;

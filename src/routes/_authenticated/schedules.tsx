@@ -297,9 +297,11 @@ function SchedulesList() {
   const inviteStats = useMemo(() => {
     const map = new Map<string, number>();
     for (const sch of s.schedules) {
-      const accepted = s.playInvites.filter(
-        (i) => i.scheduleId === sch.id && i.status === "accepted",
-      ).length;
+      const accepted =
+        typeof sch.acceptedCount === "number"
+          ? sch.acceptedCount
+          : s.playInvites.filter((i) => i.scheduleId === sch.id && i.status === "accepted")
+              .length;
       map.set(sch.id, accepted);
     }
     return map;
