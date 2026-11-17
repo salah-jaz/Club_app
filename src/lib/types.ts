@@ -191,6 +191,10 @@ export interface PlaySchedule {
   isLeagueMatch?: boolean;
   leagueGroupIds?: string[];
   familyStatuses?: FamilyMemberStatus[];
+  /** Unique accepted members (non-PII). Prefer over counting family-scoped playInvites. */
+  acceptedCount?: number;
+  /** Unique waiting members (non-PII). */
+  waitingCount?: number;
 }
 
 export type InviteStatus = "pending" | "open" | "accepted" | "declined" | "waiting";

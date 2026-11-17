@@ -298,7 +298,7 @@ function Layout() {
           <main
             id="main-content"
             tabIndex={-1}
-            className="flex-1 w-full min-w-0 px-3 py-4 sm:px-6 sm:py-6 lg:px-8 pb-24 md:pb-6 outline-none"
+            className="flex-1 w-full min-w-0 px-3 py-4 sm:px-6 sm:py-6 lg:px-8 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-6 outline-none"
           >
             {/* Always keep Outlet mounted. Replacing it while the router is
                 pending prevents lazy route modules from resolving and leaves

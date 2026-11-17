@@ -343,4 +343,42 @@ class PlayScheduleAuditFixesTest extends TestCase
             'memberIds' => [$stranger->id],
         ])->assertOk();
     }
+
+    /**
+     * Regression (a16f105): family-scoped playInvites made member capacity filters think
+     * full schedules were empty. Schedules must expose non-PII acceptedCount/waitingCount.
+     */
+    public function test_schedule_payload_exposes_capacity_aggregates_without_leaking_invites(): void
+    {
+        [$viewer, $viewerMember] = $this->createUserMember('Viewer');
+        [, $otherA] = $this->createUserMember('OtherA');
+        [, $otherB] = $this->createUserMember('OtherB');
+        [, $waiter] = $this->createUserMember('Waiter');
+
+        $sch = $this->createSchedule('released', 3);
+        $this->invite($sch->id, $viewerMember->id, 'accepted');
+        $this->invite($sch->id, $otherA->id, 'accepted');
+        $this->invite($sch->id, $otherB->id, 'accepted');
+        $this->invite($sch->id, $waiter->id, 'waiting');
+
+        $list = $this->actingAs($viewer)->getJson('/api/schedules');
+        $list->assertOk();
+        $row = collect($list->json())->firstWhere('id', $sch->id);
+        $this->assertNotNull($row);
+        $this->assertSame(3, (int) $row['acceptedCount']);
+        $this->assertSame(1, (int) $row['waitingCount']);
+        $this->assertSame(3, (int) $row['players']);
+
+        // Invite list remains family-scoped (security preserved).
+        $invites = $this->actingAs($viewer)->getJson('/api/play-invitations');
+        $invites->assertOk();
+        $memberIds = collect($invites->json())
+            ->where('scheduleId', $sch->id)
+            ->pluck('memberId')
+            ->all();
+        $this->assertContains($viewerMember->id, $memberIds);
+        $this->assertNotContains($otherA->id, $memberIds);
+        $this->assertNotContains($otherB->id, $memberIds);
+        $this->assertNotContains($waiter->id, $memberIds);
+    }
 }

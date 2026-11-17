@@ -654,7 +654,9 @@ class TrainingController extends Controller
                         $freshWallet = Member::where('id', $walletMember->id)->lockForUpdate()->first();
 
                         $freshWallet->credit = round($freshWallet->credit - $totalFeeToDeduct, 2);
-                        $freshWallet->save();
+                        // Credit-only update: avoid Member::saved → InvitationSyncService deleting
+                        // still-open invites mid-accept (orphan debit / missing Accepted status).
+                        $freshWallet->saveQuietly();
 
                         $transaction = Transaction::create([
                             'id' => 't_' . Str::random(8),
@@ -1236,7 +1238,9 @@ class TrainingController extends Controller
                 }
 
                 $freshWalletMember->credit = round($freshWalletMember->credit - $feeToDeduct, 2);
-                $freshWalletMember->save();
+                // Credit-only update: avoid Member::saved → InvitationSyncService deleting
+                // still-open invites mid-accept (orphan debit / missing Accepted status).
+                $freshWalletMember->saveQuietly();
 
                 $currency = Setting::where('key', 'currency')->value('value') ?? '$';
                 $description = 'Training program invitation accepted for ' . $member->name . ': ' . $tr->name . ' (Training Fee: ' . $currency . number_format($originalFee, 2) . ', Discount: ' . $currency . number_format($discountApplied, 2) . ', Amount Debited: ' . $currency . number_format($feeToDeduct, 2) . ')';
@@ -1447,7 +1451,9 @@ class TrainingController extends Controller
                             }
 
                             $freshWalletMember->credit = round($freshWalletMember->credit - $totalFeeToDeduct, 2);
-                            $freshWalletMember->save();
+                            // Credit-only update: avoid Member::saved → InvitationSyncService deleting
+                            // still-open invites mid-accept (orphan debit / missing Accepted status).
+                            $freshWalletMember->saveQuietly();
 
                             $currency = Setting::where('key', 'currency')->value('value') ?? '$';
                             $discountApplied = round(max(0, $totalOriginalFee - $totalFeeToDeduct), 2);

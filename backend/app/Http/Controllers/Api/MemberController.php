@@ -27,6 +27,8 @@ class MemberController extends Controller
 
         $query = Member::query();
 
+        $isVolunteer = $authUser->role === 'volunteer';
+
         if ($authUser->role === 'admin') {
             // Credits/transactions/schedules UIs need member names even without members.view.
             if ($response = PermissionHelper::requireAnyAdminPermission($request, [
@@ -41,6 +43,9 @@ class MemberController extends Controller
             ])) {
                 return $response;
             }
+        } elseif ($isVolunteer) {
+            // Volunteers manage trainings and need a club-wide roster for name resolution.
+            // Wallet/financial fields are redacted below — not a full admin directory dump.
         } else {
             // Members only ever see their own family (themselves + linked juniors).
             $query->whereIn('id', FamilyScopeHelper::familyMemberIds($authUser));
@@ -58,9 +63,14 @@ class MemberController extends Controller
         }
 
         // Non-zero balances first, then name (numeric-aware via natural DB order on first/last)
-        $query->orderByRaw('CASE WHEN credit != 0 THEN 0 ELSE 1 END')
-            ->orderBy('first_name')
-            ->orderBy('last_name');
+        // Volunteers get name-first ordering only (balances are redacted from the payload).
+        if ($isVolunteer) {
+            $query->orderBy('first_name')->orderBy('last_name');
+        } else {
+            $query->orderByRaw('CASE WHEN credit != 0 THEN 0 ELSE 1 END')
+                ->orderBy('first_name')
+                ->orderBy('last_name');
+        }
 
         if ($request->filled('limit')) {
             $query->limit(max(1, min((int) $request->query('limit'), 100)));
@@ -68,7 +78,15 @@ class MemberController extends Controller
 
         $members = $query->get();
 
-        return response()->json($members->map(fn($m) => $this->formatMember($m)));
+        return response()->json($members->map(function ($m) use ($isVolunteer) {
+            $row = $this->formatMember($m);
+            if ($isVolunteer) {
+                $row['credit'] = 0.0;
+                $row['skipCreditConsumption'] = false;
+                $row['applyDiscount'] = false;
+            }
+            return $row;
+        }));
     }
 
     public function store(Request $request)

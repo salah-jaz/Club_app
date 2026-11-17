@@ -18,12 +18,16 @@ use App\Http\Controllers\Api\BackupController;
 use Illuminate\Support\Facades\Route;
 
 // Public auth routes
-// Each route gets its own throttle bucket (third parameter = prefix) so they don't share a counter.
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1,auth-login');
-Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1,auth-register');
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1,auth-forgot');
-Route::post('/verify-reset-otp', [AuthController::class, 'verifyResetOtp'])->middleware('throttle:5,1,auth-verify-otp');
-Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1,auth-reset');
+// Login has no IP-wide route throttle: AuthController already rate-limits failed
+// attempts per email+IP. A tight IP-only bucket (e.g. 5/min) locks out legitimate
+// users on shared club Wi-Fi / NAT after a few successful logins.
+// Other auth endpoints keep a generous per-IP flood guard; controllers add tighter
+// per-email+IP limits where needed.
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:30,1,auth-register');
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:30,1,auth-forgot');
+Route::post('/verify-reset-otp', [AuthController::class, 'verifyResetOtp'])->middleware('throttle:30,1,auth-verify-otp');
+Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:30,1,auth-reset');
 Route::get('/settings', [SettingController::class, 'index']);
 
 // Public policy access routes (preview & download enforce appropriate member/public rules)
