@@ -1392,7 +1392,9 @@ class TrainingController extends Controller
                 $trainingIds = $invites->pluck('training_id')->unique()->all();
                 $freshTrainings = Training::whereIn('id', $trainingIds)->lockForUpdate()->get();
                 foreach ($freshTrainings as $freshTr) {
-                    $maxSlots = (int)($freshTr->slots ?? 0);
+                    // Prefer live group roster capacity (incl. phase-finished weekly sessions)
+                    // so month accept is not blocked by a stale trainings.slots column.
+                    $maxSlots = $this->trainingCapacitySlots($freshTr);
                     if ($maxSlots > 0) {
                         $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
                             ->where('status', 'accepted')
@@ -2612,6 +2614,21 @@ class TrainingController extends Controller
                 }
             }
         }
+    }
+
+    /**
+     * Enrollment capacity for accept checks. Group programs use live roster size
+     * (via Training::resolveGroupRosterCapacity), matching UI slots for finished
+     * and upcoming weekly sessions after roster growth.
+     */
+    private function trainingCapacitySlots(Training $tr): int
+    {
+        $rosterCapacity = $tr->resolveGroupRosterCapacity();
+        if ($rosterCapacity !== null) {
+            return $rosterCapacity;
+        }
+
+        return max(0, (int) ($tr->getRawOriginal('slots') ?? $tr->getAttributes()['slots'] ?? 0));
     }
 
     private function formatTraining($t)
