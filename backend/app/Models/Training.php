@@ -80,27 +80,49 @@ class Training extends Model
 
     public function getSlotsAttribute($value): int
     {
-        if ($this->is_group_training && !empty($this->league_group_ids) && !in_array($this->status, ['closed', 'finished', 'cancelled'])) {
-            $phase = \App\Helpers\SessionTimingHelper::trainingSessionPhase($this);
-            if ($phase !== \App\Helpers\SessionTimingHelper::PHASE_FINISHED) {
-                $groupIds = is_array($this->league_group_ids)
-                    ? $this->league_group_ids
-                    : (is_string($this->league_group_ids) ? (json_decode($this->league_group_ids, true) ?? []) : []);
-                if (!empty($groupIds)) {
-                    $memberIds = \Illuminate\Support\Facades\DB::table('league_group_member')
-                        ->whereIn('league_group_id', $groupIds)
-                        ->pluck('member_id')
-                        ->unique()
-                        ->values()
-                        ->all();
-                    
-                    return \App\Models\Member::where('member_type', $this->target_type ?? 'junior')
-                        ->where('status', 'active')
-                        ->whereIn('id', $memberIds)
-                        ->count();
-                }
-            }
+        $rosterCapacity = $this->resolveGroupRosterCapacity();
+        if ($rosterCapacity !== null) {
+            return $rosterCapacity;
         }
+
         return (int) $value;
+    }
+
+    /**
+     * Live enrollment capacity for group training programs.
+     *
+     * Always mirrors the current active roster (including phase-finished weekly
+     * sessions) so UI and month bulk-accept stay aligned after roster growth.
+     * Terminal program statuses keep the persisted slots column instead.
+     */
+    public function resolveGroupRosterCapacity(): ?int
+    {
+        if (!$this->is_group_training || empty($this->league_group_ids)) {
+            return null;
+        }
+
+        if (in_array($this->status, ['closed', 'finished', 'cancelled'], true)) {
+            return null;
+        }
+
+        $groupIds = is_array($this->league_group_ids)
+            ? $this->league_group_ids
+            : (is_string($this->league_group_ids) ? (json_decode($this->league_group_ids, true) ?? []) : []);
+
+        if (empty($groupIds)) {
+            return null;
+        }
+
+        $memberIds = \Illuminate\Support\Facades\DB::table('league_group_member')
+            ->whereIn('league_group_id', $groupIds)
+            ->pluck('member_id')
+            ->unique()
+            ->values()
+            ->all();
+
+        return Member::where('member_type', $this->target_type ?? 'junior')
+            ->where('status', 'active')
+            ->whereIn('id', $memberIds)
+            ->count();
     }
 }

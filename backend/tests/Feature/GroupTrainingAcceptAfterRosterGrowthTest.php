@@ -13,6 +13,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -386,5 +387,150 @@ class GroupTrainingAcceptAfterRosterGrowthTest extends TestCase
 
         $this->assertSame(3, TrainingInvitation::where('member_id', $adult->id)->where('status', 'accepted')->count());
         $this->assertSame(2, Transaction::where('member_id', $adult->id)->where('type', 'debit')->count());
+    }
+
+    /**
+     * Regression: month bulk-accept must use live roster capacity on finished weekly
+     * sessions. Stale trainings.slots (e.g. 4 after roster grew to 6) must not block
+     * the 5th/6th member when accepted unique count is still below roster size.
+     */
+    public function test_month_bulk_accept_allows_new_member_when_finished_sessions_have_stale_slots(): void
+    {
+        [$u1, $p1, $j1] = $this->makeParentAndJunior('f1');
+        [$u2, $p2, $j2] = $this->makeParentAndJunior('f2');
+        [$u3, $p3, $j3] = $this->makeParentAndJunior('f3');
+        [$u4, $p4, $j4] = $this->makeParentAndJunior('f4');
+        [$u5, $p5, $j5] = $this->makeParentAndJunior('f5');
+        [$u6, $p6, $j6] = $this->makeParentAndJunior('f6');
+
+        $group = LeagueGroup::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Monday 6PM',
+            'group_type' => 'Junior',
+        ]);
+        $group->members()->sync([$j1->id, $j2->id, $j3->id, $j4->id]);
+
+        Carbon::setTestNow(Carbon::parse('2026-11-01 09:00:00', SessionTimingHelper::clubTimezone()));
+
+        $create = $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'November 2026(Monday)6:00PM',
+            'startDate' => '2026-11-02 19:00:00',
+            'endDate' => '2026-11-30',
+            'repeatWeeks' => 5,
+            'repeatMonths' => 1,
+            'slots' => 4,
+            'duration' => '1 hour',
+            'fees' => 100.0,
+            'coach' => 'Coach',
+            'location' => 'Main Hall',
+            'targetType' => 'junior',
+            'isGroupTraining' => true,
+            'leagueGroupIds' => [$group->id],
+        ]);
+        $create->assertStatus(201);
+        $parentId = $create->json('id');
+        $sessions = Training::where('parent_id', $parentId)->orWhere('id', $parentId)->orderBy('start_date')->get();
+        $this->assertCount(5, $sessions);
+        $this->assertSame(4, (int) $sessions[0]->slots);
+
+        foreach ([$j1, $j2, $j3, $j4] as $junior) {
+            $this->actingAs($this->admin)->postJson("/api/trainings/{$sessions[0]->id}/update-member-invitation", [
+                'memberId' => $junior->id,
+                'sessionIds' => $sessions->pluck('id')->all(),
+            ])->assertOk();
+        }
+
+        foreach ([[$u1, $j1], [$u2, $j2], [$u3, $j3], [$u4, $j4]] as [$user, $junior]) {
+            $ids = TrainingInvitation::where('member_id', $junior->id)->where('status', 'open')->pluck('id')->all();
+            $this->actingAs($user)->postJson('/api/training-invitations/respond-bulk', [
+                'inviteIds' => $ids,
+                'status' => 'accepted',
+            ])->assertOk();
+        }
+
+        foreach ($sessions as $session) {
+            $this->assertSame(
+                4,
+                TrainingInvitation::where('training_id', $session->id)->where('status', 'accepted')->distinct('member_id')->count('member_id')
+            );
+        }
+
+        // Roster grows 4 → 6; persist stale column slots=4 to mimic production after growth.
+        $group->members()->sync([$j1->id, $j2->id, $j3->id, $j4->id, $j5->id, $j6->id]);
+        DB::table('trainings')->whereIn('id', $sessions->pluck('id'))->update(['slots' => 4]);
+
+        // Mid-month: earlier weekly sessions are finished; later ones still upcoming.
+        Carbon::setTestNow(Carbon::parse('2026-11-18 13:00:00', SessionTimingHelper::clubTimezone()));
+
+        $finished = $sessions->filter(
+            fn (Training $tr) => SessionTimingHelper::trainingSessionPhase($tr->fresh()) === SessionTimingHelper::PHASE_FINISHED
+        );
+        $upcoming = $sessions->filter(
+            fn (Training $tr) => SessionTimingHelper::trainingSessionPhase($tr->fresh()) === SessionTimingHelper::PHASE_UPCOMING
+        );
+        $this->assertGreaterThanOrEqual(1, $finished->count());
+        $this->assertGreaterThanOrEqual(1, $upcoming->count());
+
+        foreach ($finished as $session) {
+            $fresh = $session->fresh();
+            $this->assertSame(4, (int) $fresh->getRawOriginal('slots'));
+            $this->assertSame(6, (int) $fresh->slots, 'Finished sessions must expose live roster capacity');
+            $this->assertSame(6, $fresh->resolveGroupRosterCapacity());
+        }
+        foreach ($upcoming as $session) {
+            $fresh = $session->fresh();
+            $this->assertSame(6, (int) $fresh->slots, 'Upcoming sessions must expose live roster capacity');
+        }
+
+        foreach ([$j5, $j6] as $junior) {
+            $this->actingAs($this->admin)->postJson("/api/trainings/{$sessions[0]->id}/update-member-invitation", [
+                'memberId' => $junior->id,
+                'sessionIds' => $sessions->pluck('id')->all(),
+            ])->assertOk();
+        }
+
+        $creditBefore = (float) $p5->fresh()->credit;
+        $ids5 = TrainingInvitation::where('member_id', $j5->id)->where('status', 'open')->pluck('id')->all();
+        $this->assertCount(5, $ids5, 'Open invites must include finished and upcoming sessions');
+
+        $res = $this->actingAs($u5)->postJson('/api/training-invitations/respond-bulk', [
+            'inviteIds' => $ids5,
+            'status' => 'accepted',
+        ]);
+        $res->assertOk();
+        $res->assertJsonMissing(['message' => 'Maximum players already accepted for this training.']);
+
+        $this->assertSame(
+            5,
+            TrainingInvitation::where('member_id', $j5->id)->where('status', 'accepted')->count()
+        );
+        $this->assertSame(1, Transaction::where('member_id', $p5->id)->where('type', 'debit')->count());
+        $this->assertSame(100.0, round($creditBefore - (float) $p5->fresh()->credit, 2));
+
+        // 6th member still fits under live capacity of 6.
+        $ids6 = TrainingInvitation::where('member_id', $j6->id)->where('status', 'open')->pluck('id')->all();
+        $this->actingAs($u6)->postJson('/api/training-invitations/respond-bulk', [
+            'inviteIds' => $ids6,
+            'status' => 'accepted',
+        ])->assertOk();
+
+        foreach ($sessions as $session) {
+            $accepted = TrainingInvitation::where('training_id', $session->id)
+                ->where('status', 'accepted')
+                ->distinct('member_id')
+                ->count('member_id');
+            $this->assertSame(6, $accepted);
+            $this->assertSame(6, (int) $session->fresh()->slots);
+        }
+
+        $apiList = $this->actingAs($this->admin)->getJson('/api/trainings');
+        $apiList->assertOk();
+        $finishedId = $finished->first()->id;
+        $apiFinished = collect($apiList->json())->firstWhere('id', $finishedId);
+        $apiUpcoming = collect($apiList->json())->firstWhere('id', $upcoming->first()->id);
+        $this->assertNotNull($apiFinished);
+        $this->assertNotNull($apiUpcoming);
+        $this->assertSame(6, (int) $apiFinished['slots'], 'API slots must match live roster for finished sessions');
+        $this->assertSame(6, (int) $apiUpcoming['slots'], 'API slots must match live roster for upcoming sessions');
     }
 }
