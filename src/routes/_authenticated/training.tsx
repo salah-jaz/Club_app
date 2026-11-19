@@ -382,9 +382,6 @@ function TrainingModule() {
               s.trainings.find((x) => x.id === ur.trainingId) ||
               s.trainings.find((x) => (x.parentId || x.id) === ur.trainingId);
             const trName = tr ? tr.name : "Training Program";
-            const updateSessionPhase = tr ? getTrainingSessionPhase(tr, now) : "upcoming";
-            const updateActionsBlocked = updateSessionPhase === "finished";
-            const updateAcceptBlocked = updateSessionPhase !== "upcoming";
 
             const existingSessions = (ur.existingSessionIds ?? [])
               .map((sid) => s.trainings.find((x) => x.id === sid))
@@ -392,6 +389,16 @@ function TrainingModule() {
             const newSessions = (ur.newSessionIds ?? [])
               .map((sid) => s.trainings.find((x) => x.id === sid))
               .filter((x): x is Training => !!x);
+
+            // Admin update requests may add past weekly sessions as catch-up.
+            // Do not freeze Accept/Decline on the anchor session's timeline phase
+            // (e.g. parent Nov 2 finished while Nov 23/30 are still upcoming).
+            const programBlocked = tr?.status === "cancelled" || tr?.status === "closed";
+            const updateActionsBlocked = programBlocked;
+            const updateAcceptBlocked = programBlocked;
+            const includesPastNewSessions = newSessions.some(
+              (session) => getTrainingSessionPhase(session, now) === "finished",
+            );
 
             const targetType = tr?.targetType
               ? tr.targetType.toLowerCase() === "adult"
@@ -470,8 +477,7 @@ function TrainingModule() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {updateSessionPhase === "in_progress" && <StatusBadge status="in_progress" />}
-                      {updateSessionPhase === "finished" && <StatusBadge status="finished" />}
+                      {programBlocked && <StatusBadge status="cancelled" />}
                       {!updateActionsBlocked && (
                         <>
                           <Button
@@ -623,9 +629,14 @@ function TrainingModule() {
                   </div>
                 </div>
 
-                {updateSessionPhase === "finished" && (
+                {includesPastNewSessions && !programBlocked && (
                   <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">
-                    This session has finished. No further actions are available.
+                    Includes past sessions. Accepting will add them and charge the additional fee.
+                  </div>
+                )}
+                {programBlocked && (
+                  <div className="text-[11px] text-[#8A8A98] bg-white/[0.03] border border-white/[0.06] rounded-md px-2.5 py-1.5">
+                    This training program is closed or cancelled. No further actions are available.
                   </div>
                 )}
               </div>

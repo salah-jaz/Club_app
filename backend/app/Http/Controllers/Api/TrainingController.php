@@ -1669,11 +1669,16 @@ class TrainingController extends Controller
         $desiredStatus = $request->status;
 
         $tr = Training::find($updateReq->training_id);
-        if ($tr) {
-            $sessionPhase = SessionTimingHelper::trainingSessionPhase($tr);
-            if ($message = SessionTimingHelper::actionsBlockedMessage($sessionPhase)) {
-                return response()->json(['message' => $message], 422);
-            }
+        if (!$tr) {
+            return response()->json(['message' => 'Training program not found.'], 404);
+        }
+
+        // Update requests may add past weekly sessions as admin catch-up.
+        // Do not freeze accept/decline on the anchor session's timeline phase.
+        if (in_array($tr->status, ['cancelled', 'closed'], true)) {
+            return response()->json([
+                'message' => 'This training program is not open for enrollment.',
+            ], 422);
         }
 
         if ($desiredStatus === 'declined') {
@@ -1687,15 +1692,6 @@ class TrainingController extends Controller
         }
 
         // Process Acceptance
-        $tr = Training::find($updateReq->training_id);
-        if (!$tr) {
-            return response()->json(['message' => 'Training program not found.'], 404);
-        }
-
-        if ($message = SessionTimingHelper::acceptBlockedMessage(SessionTimingHelper::trainingSessionPhase($tr))) {
-            return response()->json(['message' => $message], 422);
-        }
-
         $member = Member::find($updateReq->member_id);
         if (!$member) {
             return response()->json(['message' => 'Member not found.'], 404);
@@ -1714,7 +1710,13 @@ class TrainingController extends Controller
             if (!empty($newSessionIds)) {
                 $freshTrainings = Training::whereIn('id', $newSessionIds)->lockForUpdate()->get();
                 foreach ($freshTrainings as $freshTr) {
-                    $maxSlots = (int)($freshTr->slots ?? 0);
+                    if (in_array($freshTr->status, ['cancelled', 'closed'], true)) {
+                        return response()->json([
+                            'message' => 'This training program is not open for enrollment.',
+                        ], 422);
+                    }
+
+                    $maxSlots = $this->trainingCapacitySlots($freshTr);
                     if ($maxSlots > 0) {
                         $acceptedCount = TrainingInvitation::where('training_id', $freshTr->id)
                             ->where('status', 'accepted')

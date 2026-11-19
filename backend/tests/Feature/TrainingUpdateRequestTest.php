@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Helpers\SessionTimingHelper;
 use App\Models\User;
 use App\Models\Member;
 use App\Models\Training;
@@ -10,6 +11,7 @@ use App\Models\TrainingDate;
 use App\Models\TrainingUpdateRequest;
 use App\Models\Transaction;
 use App\Models\Location;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -307,5 +309,115 @@ class TrainingUpdateRequestTest extends TestCase
             ->where('status', 'accepted')
             ->count();
         $this->assertEquals(1, $acceptedInvsCount);
+    }
+
+    /**
+     * Regression (Avanthika flow): member accepts only later weeks, admin later sends
+     * an update that adds earlier finished weeks — accept must succeed and debit the
+     * additional amount even though the anchor/new sessions are phase-finished.
+     */
+    public function test_accept_update_request_adding_finished_past_sessions_succeeds(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-11-01 09:00:00', SessionTimingHelper::clubTimezone()));
+
+        $res = $this->actingAs($this->admin)->postJson('/api/trainings', [
+            'name' => 'November 2026(Monday)6:00PM TUR',
+            'startDate' => '2026-11-02 19:00:00',
+            'endDate' => '2026-11-30',
+            'repeatWeeks' => 5,
+            'repeatMonths' => 1,
+            'slots' => 6,
+            'duration' => '1.5 hours',
+            'fees' => 50,
+            'coach' => 'Coach Bastian',
+            'location' => 'Main Hall',
+            'targetType' => 'adult',
+        ]);
+        $res->assertStatus(201);
+        $trainingId = $res->json('id');
+        $parentId = $res->json('parentId') ?: $trainingId;
+
+        $sessions = Training::where('parent_id', $parentId)->orWhere('id', $parentId)
+            ->orderBy('start_date')
+            ->get();
+        $this->assertCount(5, $sessions);
+
+        // Invite + accept only the last two (upcoming) weeks first.
+        $existing = $sessions->slice(3)->values(); // Nov 23, Nov 30
+        $past = $sessions->take(3)->values(); // Nov 2, 9, 16
+
+        foreach ($existing as $session) {
+            $this->actingAs($this->admin)->postJson("/api/trainings/{$session->id}/release", [
+                'memberIds' => [$this->member->id],
+            ])->assertOk();
+        }
+
+        $existingInviteIds = TrainingInvitation::where('member_id', $this->member->id)
+            ->whereIn('training_id', $existing->pluck('id'))
+            ->where('status', 'open')
+            ->pluck('id')
+            ->all();
+        $this->assertCount(2, $existingInviteIds);
+
+        $this->actingAs($this->admin)->postJson('/api/training-invitations/respond-bulk', [
+            'inviteIds' => $existingInviteIds,
+            'status' => 'accepted',
+        ])->assertOk();
+
+        $this->member->refresh();
+        $creditAfterPartial = (float) $this->member->credit;
+        $this->assertSame(20.0, round(500.0 - $creditAfterPartial, 2));
+
+        // Mid-month: child weekly sessions from early November are finished.
+        Carbon::setTestNow(Carbon::parse('2026-11-19 15:00:00', SessionTimingHelper::clubTimezone()));
+        $finishedPast = $past->filter(
+            fn (Training $session) => SessionTimingHelper::trainingSessionPhase($session->fresh()) === SessionTimingHelper::PHASE_FINISHED
+        );
+        $this->assertGreaterThanOrEqual(2, $finishedPast->count());
+
+        // Admin Send Update for already-accepted members goes straight to update-request
+        // (update-member-invitation is locked once any month session is accepted).
+        $sendRes = $this->actingAs($this->admin)->postJson("/api/trainings/{$trainingId}/send-update-request", [
+            'memberId' => $this->member->id,
+            'existingSessionIds' => $existing->pluck('id')->all(),
+            'newSessionIds' => $past->pluck('id')->all(),
+            'previouslyPaidAmount' => 20.0,
+            'updatedMonthlyFee' => 50.0,
+            'newPerSessionFee' => 10.0,
+            'additionalAmount' => 30.0,
+        ]);
+        $sendRes->assertOk();
+        $updateReqId = $sendRes->json('updateRequest.id');
+
+        // Anchor training (often parent / first week) is phase-finished or in_progress —
+        // respond must still succeed for catch-up past sessions.
+        $anchorPhase = SessionTimingHelper::trainingSessionPhase(Training::findOrFail($trainingId));
+        $this->assertContains($anchorPhase, [
+            SessionTimingHelper::PHASE_FINISHED,
+            SessionTimingHelper::PHASE_IN_PROGRESS,
+        ]);
+
+        $respondRes = $this->actingAs($this->admin)->postJson("/api/training-update-requests/{$updateReqId}/respond", [
+            'status' => 'accepted',
+        ]);
+        $respondRes->assertOk();
+        $respondRes->assertJsonPath('updateRequest.status', 'accepted');
+        $respondRes->assertJsonMissing(['message' => 'This session has finished. No further actions are available.']);
+        $respondRes->assertJsonMissing(['message' => 'This session has finished. Accept and payment are no longer available.']);
+
+        $this->member->refresh();
+        $this->assertSame(30.0, round($creditAfterPartial - (float) $this->member->credit, 2));
+        $this->assertSame(
+            5,
+            TrainingInvitation::where('member_id', $this->member->id)->where('status', 'accepted')->count()
+        );
+        foreach ($past as $session) {
+            $this->assertSame(
+                'accepted',
+                TrainingInvitation::where('training_id', $session->id)
+                    ->where('member_id', $this->member->id)
+                    ->value('status')
+            );
+        }
     }
 }
