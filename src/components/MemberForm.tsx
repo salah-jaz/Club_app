@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MemberCombobox } from "@/components/MemberCombobox";
 import type { Member } from "@/lib/types";
 import { useStore, useCurrentUser } from "@/lib/store";
 import { motion } from "framer-motion";
@@ -349,25 +350,15 @@ export function MemberForm({
             {/* Parent adult — same field on Add & Edit for admin / non-family juniors */}
             {v.memberType === "junior" && !familyMemberMode && (
               <FormField label="Parent adult" span2>
-                <Select
-                  value={v.parentMemberId || "__none__"}
-                  onValueChange={(x) => set("parentMemberId", x === "__none__" ? null : x)}
-                >
-                  <SelectTrigger className="bg-[#1A2120] border-[rgba(255,255,255,0.06)] text-[#F1F0EE] rounded-lg">
-                    <SelectValue placeholder="Select parent adult…" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1A2120] border-[rgba(255,255,255,0.10)] text-[#F1F0EE]">
-                    <SelectItem value="__none__">No parent linked</SelectItem>
-                    {adultOptions.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.firstName} {a.lastName}
-                        {a.biMemberId ? ` (${a.biMemberId})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MemberCombobox
+                  members={adultOptions}
+                  value={v.parentMemberId || ""}
+                  onValueChange={(id) => set("parentMemberId", id || null)}
+                  placeholder="Search parent adult…"
+                />
                 <p className="text-[11px] text-[#8A8A98] mt-1.5">
-                  Links this junior as a sub-member under the adult in the All members list.
+                  Links this junior as a sub-member under the adult in the All members list. Type
+                  to search by name or BI ID.
                 </p>
               </FormField>
             )}

@@ -117,6 +117,7 @@ Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
     Route::delete('/trainings/{id}', [TrainingController::class, 'destroy']);
     Route::post('/trainings/{id}/release', [TrainingController::class, 'release']);
     Route::post('/trainings/{id}/update-member-invitation', [TrainingController::class, 'updateMemberInvitation']);
+    Route::post('/trainings/{id}/send-accept-reminders', [TrainingController::class, 'sendAcceptReminders']);
     Route::post('/trainings/{id}/process-overpayment-refund', [TrainingController::class, 'processOverpaymentRefund']);
     Route::post('/trainings/{id}/enroll', [TrainingController::class, 'enroll']);
     Route::post('/trainings/{id}/cancel', [TrainingController::class, 'cancel']);

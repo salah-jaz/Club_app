@@ -281,6 +281,12 @@ class AuthController extends Controller
                 $memberUpdates['nickname'] = $user->nickname;
             }
             $member->update($memberUpdates);
+
+            // Keep linked juniors on the same family email as the parent adult.
+            if ($member->member_type === 'adult') {
+                Member::where('parent_member_id', $member->id)
+                    ->update(['email' => $user->email]);
+            }
         }
 
         return response()->json([
