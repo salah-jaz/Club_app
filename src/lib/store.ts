@@ -234,6 +234,9 @@ interface State {
     sessionIds: string[],
     forceAccept?: boolean,
   ) => Promise<{ message?: string }>;
+  sendTrainingAcceptReminders: (
+    trainingId: string,
+  ) => Promise<{ message?: string; sentCount?: number; skippedCount?: number }>;
   processTrainingRefund: (dateId: string, refundType: "none" | "half" | "full") => Promise<void>;
   processOverpaymentRefund: (
     trainingId: string,
@@ -1451,6 +1454,17 @@ export const useStore = create<State>((set, get) => ({
     );
     await get().syncData();
     return { message: res.message };
+  },
+
+  sendTrainingAcceptReminders: async (trainingId) => {
+    const res = await api.post<{ message?: string; sentCount?: number; skippedCount?: number }>(
+      `/trainings/${trainingId}/send-accept-reminders`,
+    );
+    return {
+      message: res.message,
+      sentCount: res.sentCount,
+      skippedCount: res.skippedCount,
+    };
   },
 
   processTrainingRefund: async (dateId, refundType) => {

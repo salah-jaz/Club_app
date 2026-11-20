@@ -652,6 +652,13 @@ class MemberController extends Controller
             }
         }
 
+        // Keep linked juniors on the parent adult's email (covers email changes and repairs drift).
+        if ($isAdmin && $member->member_type === 'adult' && !empty($member->email)) {
+            Member::where('parent_member_id', $member->id)
+                ->where('email', '!=', $member->email)
+                ->update(['email' => $member->email]);
+        }
+
         return response()->json($this->formatMember($member));
     }
 

@@ -195,6 +195,49 @@ class EmailTemplateToggleTest extends TestCase
         Mail::assertNothingSent();
     }
 
+    public function test_training_accept_reminder_email_toggles()
+    {
+        $user = User::factory()->create();
+        $member = new Member([
+            'id' => 'm_' . Str::random(8),
+            'user_id' => $user->id,
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'member@example.com',
+            'member_type' => 'adult',
+            'sex' => 'male',
+            'dob' => '1990-01-01',
+            'status' => 'active',
+            'credit' => 100,
+            'grade' => 'A',
+            'bi_member_id' => 'test'
+        ]);
+        $training = new Training([
+            'id' => 'tr_' . Str::random(8),
+            'name' => 'Junior Coaching Reminder Test',
+            'start_date' => now()->addDays(3),
+            'end_date' => now()->addDays(3)->addHour(),
+            'sessions' => 1,
+            'slots' => 10,
+            'duration' => '1 Hour',
+            'fees' => 50,
+            'coach' => 'Coach Lee',
+            'location' => 'Main Hall',
+            'status' => 'open'
+        ]);
+
+        $this->setTemplateState('training_accept_reminder', true);
+        $sent = MailHelper::sendTrainingAcceptReminder($member, [$training]);
+        $this->assertTrue($sent);
+        Mail::assertSent(GenericMailable::class, 1);
+
+        Mail::fake();
+        $this->setTemplateState('training_accept_reminder', false);
+        $sentOff = MailHelper::sendTrainingAcceptReminder($member, [$training]);
+        $this->assertFalse($sentOff);
+        Mail::assertNothingSent();
+    }
+
     public function test_registration_email_toggles()
     {
         $user = User::factory()->create();

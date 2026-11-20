@@ -39,6 +39,7 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtMoney } from "@/lib/format";
@@ -96,6 +97,7 @@ function TrainingPage() {
     additionalAmount: number;
   } | null>(null);
   const [sendingUpdate, setSendingUpdate] = useState(false);
+  const [sendingAcceptReminders, setSendingAcceptReminders] = useState(false);
   const [actionRequest, setActionRequest] = useState<ConfirmActionRequest | null>(null);
 
   const handleCancelTraining = async () => {
@@ -691,6 +693,55 @@ function TrainingPage() {
     };
   };
 
+  const yetToAcceptCount = eligibleMembers.filter(
+    (m) => getMemberStatus(m.id).isSentYetToAccept,
+  ).length;
+
+  const handleSendAcceptReminders = () => {
+    if (yetToAcceptCount === 0 || t.status === "cancelled" || t.status === "closed") {
+      toast.error("No members pending acceptance for this training.");
+      return;
+    }
+
+    setActionRequest({
+      title: "Send accept reminder emails?",
+      description: (
+        <>
+          <span className="block">
+            Send a reminder email to{" "}
+            <strong className="text-[#F1F0EE]">{yetToAcceptCount}</strong> member
+            {yetToAcceptCount === 1 ? "" : "s"} who have not yet accepted this training invitation?
+          </span>
+          <span className="block text-[#8A8A98] mt-2">
+            Accepted members will not be emailed. Invitation status and payments are unchanged.
+          </span>
+        </>
+      ),
+      confirmLabel: "Send Reminder Email",
+      onConfirm: async () => {
+        setSendingAcceptReminders(true);
+        try {
+          const res = await s.sendTrainingAcceptReminders(t.id);
+          const sent = res.sentCount ?? 0;
+          if (sent > 0) {
+            toast.success(res.message || `Reminder email sent to ${sent} member(s).`);
+          } else {
+            toast.error(
+              res.message || "No reminder emails were sent. Check the email template is enabled.",
+            );
+          }
+        } catch (error: unknown) {
+          toast.error(
+            error instanceof Error ? error.message : "Failed to send reminder emails.",
+          );
+          throw error;
+        } finally {
+          setSendingAcceptReminders(false);
+        }
+      },
+    });
+  };
+
   return (
     <div className="space-y-6">
       <ConfirmActionDialog
@@ -1143,8 +1194,30 @@ function TrainingPage() {
                 Invitations Manager - {targetType === "adult" ? "Adult" : "Junior"} Roster
               </CardTitle>
               <div className="flex flex-col sm:items-end gap-1.5 mt-2 sm:mt-0">
-                <div className="text-[13px] font-semibold text-[#F1F0EE] bg-[#1A2120] px-3 py-1.5 rounded-lg border border-white/5 inline-flex items-center gap-2">
-                  Total Session Net: <span className="text-[#34D399]">{fmtMoney(totalSessionNet)}</span>
+                <div className="flex flex-wrap items-center gap-2 justify-end">
+                  {user.role === "admin" && t.status !== "cancelled" && t.status !== "closed" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={yetToAcceptCount === 0 || sendingAcceptReminders}
+                      className="h-8 text-[11px] px-3 cursor-pointer border-[#F59E0B]/40 text-[#F59E0B] hover:bg-[#F59E0B]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                      onClick={handleSendAcceptReminders}
+                      title={
+                        yetToAcceptCount === 0
+                          ? "No members pending acceptance"
+                          : `Send reminder to ${yetToAcceptCount} member(s) yet to accept`
+                      }
+                    >
+                      <Mail className="size-3 mr-1.5" />
+                      {sendingAcceptReminders
+                        ? "Sending…"
+                        : `Send Reminder Email${yetToAcceptCount > 0 ? ` (${yetToAcceptCount})` : ""}`}
+                    </Button>
+                  )}
+                  <div className="text-[13px] font-semibold text-[#F1F0EE] bg-[#1A2120] px-3 py-1.5 rounded-lg border border-white/5 inline-flex items-center gap-2">
+                    Total Session Net:{" "}
+                    <span className="text-[#34D399]">{fmtMoney(totalSessionNet)}</span>
+                  </div>
                 </div>
                 <div className="text-[11px] text-[#8A8A98] font-light hidden sm:block">
                   Select weeks to invite. Amount recalculates dynamically before acceptance.

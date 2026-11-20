@@ -775,6 +775,112 @@ class TrainingController extends Controller
         ]);
     }
 
+    /**
+     * Send accept-reminder emails to all Yet To Accept members for this monthly program.
+     * Does not change invitation status, payments, or wallet balances.
+     */
+    public function sendAcceptReminders(Request $request, $id)
+    {
+        if ($response = PermissionHelper::requireAdminPermission($request, 'trainings.edit')) {
+            return $response;
+        }
+
+        $tr = Training::findOrFail($id);
+
+        if (in_array($tr->status, ['cancelled', 'closed'], true)) {
+            return response()->json([
+                'message' => 'Cannot send reminders for a cancelled or closed training program.',
+            ], 422);
+        }
+
+        $parentId = $tr->parent_id ?: $tr->id;
+        $series = Training::where('parent_id', $parentId)
+            ->orWhere('id', $parentId)
+            ->orderBy('start_date', 'asc')
+            ->get();
+
+        $trYearMonth = \Carbon\Carbon::parse($tr->start_date)->format('Y-m');
+        $monthSessions = $series->filter(function ($sItem) use ($trYearMonth) {
+            return \Carbon\Carbon::parse($sItem->start_date)->format('Y-m') === $trYearMonth;
+        });
+        $monthSessionIds = $monthSessions->pluck('id')->all();
+
+        if (count($monthSessionIds) === 0) {
+            return response()->json([
+                'message' => 'No training sessions found for this month.',
+                'sentCount' => 0,
+            ], 422);
+        }
+
+        $acceptedMemberIds = TrainingInvitation::whereIn('training_id', $monthSessionIds)
+            ->where('status', 'accepted')
+            ->pluck('member_id')
+            ->unique()
+            ->all();
+
+        $pendingInvites = TrainingInvitation::whereIn('training_id', $monthSessionIds)
+            ->whereIn('status', ['open', 'waiting'])
+            ->whereNotIn('member_id', $acceptedMemberIds)
+            ->get();
+
+        if ($pendingInvites->isEmpty()) {
+            return response()->json([
+                'message' => 'No members are pending acceptance for this training.',
+                'sentCount' => 0,
+            ]);
+        }
+
+        $pendingByMember = $pendingInvites->groupBy('member_id');
+        $sentCount = 0;
+        $skippedCount = 0;
+
+        foreach ($pendingByMember as $memberId => $memberInvs) {
+            $member = Member::find($memberId);
+            if (!$member || empty($member->email)) {
+                $skippedCount++;
+                continue;
+            }
+
+            $sessionIds = $memberInvs->pluck('training_id')->unique()->values()->all();
+            $selectedTrainings = Training::whereIn('id', $sessionIds)
+                ->orderBy('start_date', 'asc')
+                ->get();
+
+            if ($selectedTrainings->isEmpty()) {
+                $skippedCount++;
+                continue;
+            }
+
+            try {
+                $sent = MailHelper::sendTrainingAcceptReminder($member, $selectedTrainings);
+                if ($sent) {
+                    $sentCount++;
+                } else {
+                    $skippedCount++;
+                }
+            } catch (\Exception $e) {
+                logger()->error('Training accept reminder email error: ' . $e->getMessage());
+                $skippedCount++;
+            }
+        }
+
+        if ($sentCount === 0) {
+            return response()->json([
+                'message' => $skippedCount > 0
+                    ? 'No reminder emails were sent. Check that the Training Accept Reminder template is enabled and members have email addresses.'
+                    : 'No members are pending acceptance for this training.',
+                'sentCount' => 0,
+                'skippedCount' => $skippedCount,
+            ]);
+        }
+
+        return response()->json([
+            'message' => "Reminder email sent to {$sentCount} member(s) who have not yet accepted.",
+            'sentCount' => $sentCount,
+            'skippedCount' => $skippedCount,
+        ]);
+    }
+
     public function enroll(Request $request, $id)
     {
         $request->validate([

@@ -147,6 +147,15 @@ class MailHelper
     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;">{date_label}</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06);">{dates_html}</td></tr>
     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;">Status:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold; text-transform: uppercase;">{status}</td></tr>
 </table>';
+        } else if ($type === 'training_accept_reminder') {
+            $extraHtml = "\n" . '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;">Coach:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{coach}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;">Location:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{location}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;">{date_label}</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06);">{dates_html}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;">Time Remaining:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold; color: #F59E0B;">{remaining_time}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;">Accept By:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold;">{accept_deadline}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #8A9E98; vertical-align: top;">Status:</td><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-weight: bold; text-transform: uppercase;">{status}</td></tr>
+</table>';
         } else if ($type === 'reset_password') {
             $extraHtml = "\n" . '<div style="margin: 20px 0; text-align: center; background: rgba(255,255,255,0.03); padding: 16px; border-radius: 6px; border: 1px dashed ' . $primaryColor . ';"><span style="font-size: 28px; font-weight: bold; letter-spacing: 6px; color: ' . $primaryColor . ';">{otp}</span></div><p style="font-size: 12px; color: #8A9E98; margin-top: 15px;">This OTP code will expire in 15 minutes. If you did not request a password reset, please ignore this email.</p>';
         } else if ($type === 'reset_password_success') {
@@ -241,6 +250,15 @@ class MailHelper
                 'heading' => '{title}',
                 'message' => "Hello {name},\n\nThe training course {program_name} has been {action_verb} by the club.",
                 'variables' => ['name', 'first_name', 'program_name', 'coach', 'location', 'dates_html', 'date_label', 'status', 'title', 'action_verb', 'app_name', 'portal_url'],
+                'is_enabled' => true,
+            ],
+            'training_accept_reminder' => [
+                'name' => 'Training Accept Reminder',
+                'description' => 'Sent manually from the training manage page to members who have not yet accepted their invitation.',
+                'subject' => 'Reminder: Accept {program_name} — {remaining_time} left',
+                'heading' => 'Training Acceptance Reminder',
+                'message' => "Hello {name},\n\nYou have not yet accepted the invitation for {program_name}.\n\nOnly {remaining_time} remains to accept. Please log in to the portal and accept this training invitation before time runs out.",
+                'variables' => ['name', 'first_name', 'program_name', 'coach', 'location', 'dates_html', 'date_label', 'remaining_time', 'accept_deadline', 'status', 'app_name', 'portal_url'],
                 'is_enabled' => true,
             ],
             'reset_password' => [
@@ -553,6 +571,135 @@ class MailHelper
         $subject = self::interpolate($tpl['subject'], $vars);
         $content = self::interpolate($tpl['body'], $vars);
         self::sendEmail($member->email, $subject, $content);
+    }
+
+    /**
+     * Human-readable time remaining until a training accept deadline (session start).
+     */
+    public static function formatRemainingAcceptTime(\Carbon\Carbon $deadline): string
+    {
+        SessionTimingHelper::applyClubTimezone();
+        $now = SessionTimingHelper::now();
+
+        if ($now->gte($deadline)) {
+            return 'no time remaining';
+        }
+
+        $diff = $now->diff($deadline);
+        $parts = [];
+        if ($diff->days > 0) {
+            $parts[] = $diff->days . ' day' . ($diff->days === 1 ? '' : 's');
+        }
+        if ($diff->h > 0) {
+            $parts[] = $diff->h . ' hour' . ($diff->h === 1 ? '' : 's');
+        }
+        if ($diff->i > 0 && $diff->days === 0) {
+            $parts[] = $diff->i . ' minute' . ($diff->i === 1 ? '' : 's');
+        }
+
+        return count($parts) > 0 ? implode(', ', $parts) : 'less than a minute';
+    }
+
+    public static function sendTrainingAcceptReminder($member, $trainings): bool
+    {
+        if (!self::isTemplateEnabled('training_accept_reminder')) {
+            return false;
+        }
+
+        if (empty($trainings)) {
+            return false;
+        }
+
+        if ($trainings instanceof \Illuminate\Support\Collection) {
+            $trainingsList = $trainings->all();
+        } elseif (is_array($trainings)) {
+            $trainingsList = $trainings;
+        } else {
+            $trainingsList = [$trainings];
+        }
+
+        if (count($trainingsList) === 0) {
+            return false;
+        }
+
+        $email = $member->email ?? null;
+        if (empty($email)) {
+            return false;
+        }
+
+        $firstTraining = $trainingsList[0];
+        if (count($trainingsList) === 1) {
+            $programName = $firstTraining->name ?: \Carbon\Carbon::parse($firstTraining->start_date)->format('l · M j, Y · g:i A');
+        } else {
+            $parentId = $firstTraining->parent_id ?: $firstTraining->id;
+            $parentObj = \App\Models\Training::find($parentId);
+            $programName = ($parentObj ? $parentObj->name : $firstTraining->name) ?: \Carbon\Carbon::parse($firstTraining->start_date)->format('l · M j, Y · g:i A');
+        }
+
+        $coach = $firstTraining->coach ?: 'N/A';
+        $location = $firstTraining->location ?: 'N/A';
+        $appName = Setting::where('key', 'app_name')->value('value') ?? 'ClubConnect';
+
+        if (count($trainingsList) === 1) {
+            $dateFormatted = \Carbon\Carbon::parse($firstTraining->start_date)->format('l · M j, Y · g:i A');
+            $datesHtml = "<span style=\"font-weight: bold;\">{$dateFormatted}</span>";
+        } else {
+            $dateItems = [];
+            foreach ($trainingsList as $tr) {
+                $dStr = \Carbon\Carbon::parse($tr->start_date)->format('l · M j, Y · g:i A');
+                $dateItems[] = "<li style=\"margin-bottom: 4px; color: #34D399;\"><strong style=\"color: #E8F0EE;\">{$dStr}</strong></li>";
+            }
+            $datesHtml = "<ul style=\"margin: 4px 0 0 0; padding-left: 18px;\">" . implode('', $dateItems) . "</ul>";
+        }
+
+        $dateLabel = count($trainingsList) > 1 ? 'Session Dates:' : 'Date:';
+
+        // Accept deadline = earliest upcoming session start among invited sessions.
+        SessionTimingHelper::applyClubTimezone();
+        $now = SessionTimingHelper::now();
+        $deadline = null;
+        foreach ($trainingsList as $trItem) {
+            $start = SessionTimingHelper::parseDateTime($trItem->start_date);
+            if ($start->gt($now) && ($deadline === null || $start->lt($deadline))) {
+                $deadline = $start;
+            }
+        }
+        if ($deadline === null) {
+            // Fall back to earliest session start if none are upcoming.
+            foreach ($trainingsList as $trItem) {
+                $start = SessionTimingHelper::parseDateTime($trItem->start_date);
+                if ($deadline === null || $start->lt($deadline)) {
+                    $deadline = $start;
+                }
+            }
+        }
+        if ($deadline === null) {
+            $deadline = $now->copy();
+        }
+
+        $remainingTime = self::formatRemainingAcceptTime($deadline);
+        $acceptDeadline = $deadline->format('l · M j, Y · g:i A');
+
+        $tpl = self::getTemplate('training_accept_reminder');
+        $vars = [
+            'name' => trim(($member->first_name ?? '') . ' ' . ($member->last_name ?? '')),
+            'first_name' => $member->first_name ?? 'Member',
+            'program_name' => $programName,
+            'coach' => $coach,
+            'location' => $location,
+            'date_label' => $dateLabel,
+            'dates_html' => $datesHtml,
+            'remaining_time' => $remainingTime,
+            'accept_deadline' => $acceptDeadline,
+            'status' => 'YET TO ACCEPT',
+            'app_name' => $appName,
+            'portal_url' => url('/'),
+        ];
+        $subject = self::interpolate($tpl['subject'], $vars);
+        $content = self::interpolate($tpl['body'], $vars);
+        self::sendEmail($email, $subject, $content);
+
+        return true;
     }
 
     public static function sendPasswordResetOtpEmail($user, $otp)
