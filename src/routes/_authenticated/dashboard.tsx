@@ -549,7 +549,7 @@ function Dashboard() {
       )}
       {user.role === "member" && (
         <>
-          <HeaderQuickAction to="/members" icon={Users} label="Add family member" />
+          <HeaderQuickAction to="/members" icon={Users} label="Members" />
           <HeaderQuickAction to="/credits" icon={Wallet} label="Request credit" />
           <HeaderQuickAction to="/events" icon={CalendarDays} label="Play Schedules" />
           <HeaderQuickAction to="/transactions" icon={Wallet} label="Transactions" />
